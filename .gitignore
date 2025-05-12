@@ -1,0 +1,55 @@
+# -------------------------
+# Node.js (frontend & backend)
+# -------------------------
+node_modules/
+
+# Lockfiles (if you use pnpm/yarn, keep only the ones you need)
+yarn.lock
+package-lock.json
+pnpm-lock.yaml
+
+# -------------------------
+# Build outputs & distro
+# -------------------------
+# Frontend
+build/
+.next/
+# Backend
+dist/
+# Any compiled binaries
+a.out
+
+# -------------------------
+# Environment variables
+# -------------------------
+*.env
+!.env.example
+
+# -------------------------
+# Logs
+# -------------------------
+logs/
+*.log
+npm-debug.log*
+
+# -------------------------
+# OS-specific
+# -------------------------
+.DS_Store
+Thumbs.db
+
+# -------------------------
+# IDEs & Editors
+# -------------------------
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# -------------------------
+# Misc cruft
+# -------------------------
+test.txt

@@ -1,0 +1,18 @@
+# Skip local dependencies
+node_modules/
+
+# Skip any compiled outputs (if you build to dist/)
+dist/
+
+# Env files & local configs
+*.env*
+.vscode/
+.idea/
+
+# Logs, temp files
+logs/
+*.log
+npm-debug.log*
+
+# OS cruft
+.DS_Store

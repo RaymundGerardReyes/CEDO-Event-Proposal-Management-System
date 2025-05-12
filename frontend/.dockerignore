@@ -1,0 +1,15 @@
+# Don’t send node_modules (we install in the Dockerfile)
+node_modules/
+
+# Don’t send dev build artifacts
+build/
+.next/
+
+# Local configs & secrets
+*.env*
+.vscode/
+.idea/
+
+# Misc cruft
+.DS_Store
+Thumbs.db

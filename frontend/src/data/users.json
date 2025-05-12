@@ -1,0 +1,42 @@
+{
+  "users": [
+    {
+      "id": "user_001",
+      "name": "Admin User",
+      "email": "admin@cedo.gov.ph",
+      "password": "password123",
+      "role": "admin",
+      "organization": "City Economic Development Office",
+      "avatar": "/placeholder.svg?height=40&width=40&query=admin"
+    },
+    {
+      "id": "user_002",
+      "name": "Reviewer User",
+      "email": "reviewer@cedo.gov.ph",
+      "password": "password123",
+      "role": "reviewer",
+      "organization": "City Economic Development Office",
+      "avatar": "/placeholder.svg?height=40&width=40&query=reviewer"
+    },
+    {
+      "id": "user_003",
+      "name": "Partner User",
+      "email": "partner@example.com",
+      "password": "password123",
+      "role": "partner",
+      "organization": "XU Medical Center",
+      "organizationType": "external",
+      "avatar": "/placeholder.svg?height=40&width=40&query=partner"
+    },
+    {
+      "id": "user_004",
+      "name": "Internal Partner",
+      "email": "internal@cedo.gov.ph",
+      "password": "password123",
+      "role": "partner",
+      "organization": "City Health Department",
+      "organizationType": "internal",
+      "avatar": "/placeholder.svg?height=40&width=40&query=internal"
+    }
+  ]
+}

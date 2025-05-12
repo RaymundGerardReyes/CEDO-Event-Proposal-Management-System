@@ -1,0 +1,340 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 221 83% 24%; /* Navy blue from CEDO logo */
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 45 93% 62%; /* Gold from CEDO logo */
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221 83% 24%;
+
+    --radius: 0.5rem;
+
+    /* Sidebar variables */
+    --sidebar-background: 221 83% 24%; /* Navy blue */
+    --sidebar-foreground: 45 93% 62%; /* Gold */
+    --sidebar-primary: 45 93% 62%; /* Gold */
+    --sidebar-primary-foreground: 221 83% 24%; /* Navy blue */
+    --sidebar-accent: 221 83% 30%; /* Slightly lighter navy */
+    --sidebar-accent-foreground: 45 93% 62%; /* Gold */
+    --sidebar-border: 221 83% 30%; /* Slightly lighter navy */
+    --sidebar-ring: 45 93% 62%; /* Gold */
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+
+    /* Sidebar variables for dark mode */
+    --sidebar-background: 221 83% 18%; /* Darker navy */
+    --sidebar-foreground: 45 93% 62%; /* Gold */
+    --sidebar-primary: 45 93% 62%; /* Gold */
+    --sidebar-primary-foreground: 221 83% 18%; /* Darker navy */
+    --sidebar-accent: 221 83% 24%; /* Navy blue */
+    --sidebar-accent-foreground: 45 93% 62%; /* Gold */
+    --sidebar-border: 221 83% 24%; /* Navy blue */
+    --sidebar-ring: 45 93% 62%; /* Gold */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom styles for the proposal table */
+.proposal-table-cell {
+  @apply px-3 py-1.5 border border-cedo-blue text-cedo-blue rounded-md text-sm;
+}
+
+.proposal-status-badge {
+  @apply px-2 py-1 rounded text-white text-xs font-medium;
+}
+
+.proposal-status-pending {
+  @apply bg-amber-500;
+}
+
+.proposal-status-approved {
+  @apply bg-green-500;
+}
+
+.proposal-status-rejected {
+  @apply bg-red-500;
+}
+
+/* Custom component styles */
+.cedo-card {
+  @apply border border-gray-100 shadow-sm rounded-lg bg-white transition-all duration-200 hover:shadow-md;
+}
+
+.cedo-header {
+  @apply text-xl font-medium text-cedo-blue mb-2;
+}
+
+.cedo-subheader {
+  @apply text-sm text-muted-foreground;
+}
+
+.cedo-button-primary {
+  @apply bg-cedo-blue hover:bg-cedo-blue/90 text-white;
+}
+
+.cedo-button-secondary {
+  @apply bg-cedo-gold hover:bg-cedo-gold/90 text-cedo-blue;
+}
+
+.cedo-stats-card {
+  @apply p-6 flex justify-between items-start;
+}
+
+.cedo-section {
+  @apply mb-6;
+}
+
+.cedo-table-header {
+  @apply bg-gray-50 font-semibold text-cedo-blue;
+}
+
+.cedo-table-row {
+  @apply hover:bg-muted/30;
+}
+
+.cedo-badge-primary {
+  @apply bg-cedo-blue/10 text-cedo-blue border border-cedo-blue/20;
+}
+
+.cedo-badge-secondary {
+  @apply bg-cedo-gold/10 text-cedo-blue border border-cedo-gold/20;
+}
+
+/* Enhanced UI/UX Styles */
+.cedo-card {
+  @apply transition-all duration-300 hover:shadow-card-hover;
+}
+
+.cedo-button-primary {
+  @apply transition-all duration-300 transform hover:scale-105;
+}
+
+.cedo-button-secondary {
+  @apply transition-all duration-300 transform hover:scale-105;
+}
+
+.cedo-table-row {
+  @apply transition-colors duration-200;
+}
+
+/* Responsive improvements */
+@media (max-width: 640px) {
+  .cedo-stats-card {
+    @apply p-4;
+  }
+
+  .cedo-header {
+    @apply text-lg;
+  }
+}
+
+/* Animation classes - FIXED to remove circular dependencies */
+.custom-fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+.custom-slide-in {
+  animation: slideInFromRight 0.3s ease-out;
+}
+
+/* Improved focus states for accessibility */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  @apply outline-none ring-2 ring-cedo-blue ring-offset-2;
+}
+
+/* Loading states */
+.loading-skeleton {
+  @apply bg-gray-200 animate-pulse rounded;
+}
+
+/* Improved card hover effects */
+.hover-card-effect {
+  @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+}
+
+/* Improved table styles */
+.cedo-table {
+  @apply w-full border-collapse;
+}
+
+.cedo-table th {
+  @apply p-3 bg-gray-50 text-left font-semibold text-cedo-blue;
+}
+
+.cedo-table td {
+  @apply p-3 border-b border-gray-100;
+}
+
+.cedo-table tr:hover {
+  @apply bg-gray-50;
+}
+
+/* Responsive utilities */
+.custom-fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+.custom-slide-in {
+  animation: slideInFromRight 0.3s ease-out;
+}
+
+/* Hide on mobile */
+.hide-on-mobile {
+  @apply hidden sm:block;
+}
+
+/* Hide on desktop */
+.hide-on-desktop {
+  @apply block sm:hidden;
+}
+
+/* Responsive padding */
+.responsive-padding {
+  @apply p-4 sm:p-6 md:p-8;
+}
+
+/* Responsive container */
+.responsive-container {
+  @apply w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+/* Responsive text */
+.responsive-text-lg {
+  @apply text-base sm:text-lg md:text-xl;
+}
+
+.responsive-text-md {
+  @apply text-sm sm:text-base md:text-lg;
+}
+
+.responsive-text-sm {
+  @apply text-xs sm:text-sm md:text-base;
+}
+
+/* Responsive card */
+.responsive-card {
+  @apply p-3 sm:p-4 md:p-6;
+}
+
+/* Responsive flex direction */
+.responsive-flex {
+  @apply flex flex-col sm:flex-row;
+}
+
+/* Responsive gap */
+.responsive-gap {
+  @apply gap-2 sm:gap-4 md:gap-6;
+}
+
+/* Responsive width */
+.responsive-width {
+  @apply w-full sm:w-auto;
+}
+
+/* Responsive margin */
+.responsive-margin {
+  @apply my-2 sm:my-4 md:my-6;
+}
+
+/* Responsive grid */
+.responsive-grid-2 {
+  @apply grid grid-cols-1 sm:grid-cols-2 gap-4;
+}
+
+.responsive-grid-3 {
+  @apply grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4;
+}
+
+.responsive-grid-4 {
+  @apply grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4;
+}
+
+/* Responsive table */
+.responsive-table {
+  @apply w-full overflow-x-auto;
+}
+
+/* Responsive image */
+.responsive-image {
+  @apply w-full h-auto;
+}
+
+/* Responsive button group */
+.responsive-button-group {
+  @apply flex flex-wrap gap-2;
+}
+
+/* Responsive form */
+.responsive-form {
+  @apply space-y-4 sm:space-y-6;
+}
+
+/* Responsive input group */
+.responsive-input-group {
+  @apply flex flex-col sm:flex-row gap-2 sm:gap-4;
+}
