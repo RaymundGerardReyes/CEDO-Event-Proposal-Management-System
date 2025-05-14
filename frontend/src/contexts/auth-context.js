@@ -2,16 +2,15 @@
 "use client";
 
 import axios from "axios";
-import { usePathname, useRouter, useSearchParams } from "next/navigation"; // Added usePathname
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
+// ... (API_URL, internalApi, ROLES - keep as previously defined) ...
 const AuthContext = createContext(undefined);
 
-// API URL from environment variables
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 console.info("AuthContext: API requests will be sent to:", API_URL);
 
-// Axios instance for API calls
 const internalApi = axios.create({
   baseURL: API_URL,
   headers: {
@@ -20,68 +19,65 @@ const internalApi = axios.create({
   },
 });
 
-// Standardized roles. Ensure these match your backend and middleware.
 export const ROLES = {
-  HEAD_ADMIN: "Head Admin", // Matches middleware
-  STUDENT: "Student",       // Matches middleware
-  MANAGER: "Manager",       // Matches middleware
-  PARTNER: "Partner",       // Added for completeness
-  REVIEWER: "Reviewer",     // Added for completeness
+  HEAD_ADMIN: "Head Admin",
+  STUDENT: "Student",
+  MANAGER: "Manager",
+  PARTNER: "Partner",
+  REVIEWER: "Reviewer",
 };
+
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true); // True initially until auth status is determined
-  const [isInitialized, setIsInitialized] = useState(false); // Tracks if initial auth check has run
+  const [isLoading, setIsLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
   const router = useRouter();
-  const pathname = usePathname(); // Get current pathname
-  const searchParams = useSearchParams(); // Get searchParams for redirect logic
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  // Centralized redirection logic
-  const performRedirect = useCallback((loggedInUser) => {
+  const performRedirect = useCallback(/* ... as previously defined ... */(loggedInUser) => {
     if (!loggedInUser || !loggedInUser.role) {
       console.warn("AuthProvider performRedirect: No user or role for redirection. Defaulting to /sign-in.");
-      router.replace("/sign-in"); // Fallback
+      router.replace("/sign-in");
       return;
     }
 
     const redirectQueryParam = searchParams?.get("redirect");
     let targetPath;
 
-    if (redirectQueryParam && redirectQueryParam !== pathname) { // Avoid redirecting to self if already on target
+    if (redirectQueryParam && redirectQueryParam !== pathname) {
       targetPath = redirectQueryParam;
       console.log(`AuthProvider performRedirect: Using redirect query param: ${targetPath}`);
     } else {
-      // Use dashboard path from user object if available (recommended)
       if (loggedInUser.dashboard) {
         targetPath = loggedInUser.dashboard;
-      } else { // Fallback to role-based paths
+      } else {
         switch (loggedInUser.role) {
           case ROLES.HEAD_ADMIN:
-            targetPath = "/admin-dashboard"; // As per your proposed structure
+          case ROLES.MANAGER:
+            targetPath = "/admin-dashboard";
             break;
           case ROLES.STUDENT:
-            targetPath = "/student-dashboard"; // As per your proposed structure
+          case ROLES.PARTNER:
+            targetPath = "/student-dashboard";
             break;
-          case ROLES.MANAGER:
-            targetPath = "/admin-dashboard"; // Assuming manager uses admin dashboard
+          case ROLES.REVIEWER:
+            targetPath = "/admin-dashboard/review";
             break;
-          // Add other roles like PARTNER, REVIEWER if they have specific dashboards
           default:
-            console.warn(`AuthProvider performRedirect: Unknown role "${loggedInUser.role}", redirecting to generic / (main redirector).`);
-            targetPath = "/"; // Redirect to the main redirector page: app/(main)/page.jsx
+            console.warn(`AuthProvider performRedirect: Unknown role "${loggedInUser.role}", redirecting to generic /.`);
+            targetPath = "/";
             break;
         }
       }
     }
     console.log(`AuthProvider performRedirect: Redirecting to ${targetPath}`);
-    if (pathname !== targetPath) { // Only redirect if not already on the target path
+    if (pathname !== targetPath) {
       router.replace(targetPath);
     }
   }, [router, searchParams, pathname]);
 
-
-  // Effect for initializing authentication state on component mount
   useEffect(() => {
     const initializeAuth = async () => {
       console.log("AuthProvider: Initializing auth...");
@@ -104,14 +100,12 @@ export function AuthProvider({ children }) {
 
           if (storedUser) {
             const userDataFromStorage = JSON.parse(storedUser);
-            // Optional: Verify token is still valid for this user, e.g. by a quick /auth/me call
-            // For now, we trust localStorage if token exists.
             setUser(userDataFromStorage);
             console.log("AuthProvider: User restored from localStorage.", userDataFromStorage);
           } else {
             console.warn("AuthProvider: Token found but no user in localStorage. Fetching from /auth/me.");
             try {
-              const { data: meData } = await internalApi.get("/auth/me"); // Backend should return { user: {...} }
+              const { data: meData } = await internalApi.get("/auth/me");
               if (meData && meData.user) {
                 setUser(meData.user);
                 localStorage.setItem("cedo_user", JSON.stringify(meData.user));
@@ -121,9 +115,8 @@ export function AuthProvider({ children }) {
               }
             } catch (meError) {
               console.error("AuthProvider: Failed to fetch user from /auth/me:", meError.message);
-              // Clear invalid token and user data
               if (typeof document !== "undefined") {
-                document.cookie = "cedo_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+                document.cookie = "cedo_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
               }
               localStorage.removeItem("cedo_user");
               delete internalApi.defaults.headers.common["Authorization"];
@@ -132,16 +125,16 @@ export function AuthProvider({ children }) {
           }
         } else {
           console.log("AuthProvider: No token found in cookie.");
-          setUser(null); // Ensure user is null if no token
+          setUser(null);
           delete internalApi.defaults.headers.common["Authorization"];
-          localStorage.removeItem("cedo_user"); // Clear localStorage as well
+          localStorage.removeItem("cedo_user");
         }
       } catch (error) {
         console.error("AuthProvider: Error during initial auth processing:", error);
         setUser(null);
         delete internalApi.defaults.headers.common["Authorization"];
         if (typeof document !== "undefined") {
-          document.cookie = "cedo_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+          document.cookie = "cedo_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
         }
         localStorage.removeItem("cedo_user");
       } finally {
@@ -150,59 +143,58 @@ export function AuthProvider({ children }) {
         console.log("AuthProvider: Initialization complete.", { user, isLoading: false, isInitialized: true });
       }
     };
-    initializeAuth();
-  }, []); // Empty dependency array: run only once on mount
+    if (!isInitialized) {
+      initializeAuth();
+    }
+  }, [isInitialized]); // Added isInitialized dependency
 
-  const commonSignInSuccess = (token, userData, rememberMeGoogle = false) => {
+  const commonSignInSuccess = useCallback((token, userData, rememberMe = false) => {
     if (typeof document !== "undefined") {
-      let cookieString = `cedo_token=${token}; path=/; SameSite=Lax`;
-      // For Google Sign In, 'rememberMe' is not directly applicable in the same way,
-      // Google manages its own session. We set a session cookie for our app.
-      // For email/password, 'rememberMe' can extend cookie life.
-      if (rememberMeGoogle === true) { // This flag differentiates if it's email/pass with rememberMe
+      let cookieOptions = "path=/; SameSite=Lax; Secure";
+      if (rememberMe) {
         const expiryDate = new Date();
-        expiryDate.setDate(expiryDate.getDate() + 7); // Example: 7 days
-        cookieString += `; expires=${expiryDate.toUTCString()}`;
+        expiryDate.setDate(expiryDate.getDate() + 7);
+        cookieOptions += `; expires=${expiryDate.toUTCString()}`;
       }
-      document.cookie = cookieString;
+      document.cookie = `cedo_token=${token}; ${cookieOptions}`;
       console.log("AuthProvider: Cookie 'cedo_token' set.");
       localStorage.setItem("cedo_user", JSON.stringify(userData));
     }
     internalApi.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     setUser(userData);
-    setIsLoading(false); // Ensure loading is false after successful sign-in
-    setIsInitialized(true); // Should already be true, but good to ensure
+    setIsLoading(false);
+    setIsInitialized(true);
     console.log("AuthProvider: Sign-in successful. User state updated.", userData);
-    performRedirect(userData); // Centralized redirect
+    performRedirect(userData);
     return userData;
-  };
+  }, [performRedirect]); // Added performRedirect to useCallback dependencies
 
-  const commonSignOutLogic = (redirect = true) => {
+
+  const commonSignOutLogic = useCallback(async (redirect = true, redirectPath = "/sign-in") => {
     console.log("AuthProvider [signOut]: Signing out.");
     setIsLoading(true);
     try {
-      // Optional: await internalApi.post("/auth/logout"); // Call backend to invalidate session/token
+      // await internalApi.post("/auth/logout");
     } catch (error) {
       console.error("AuthProvider [signOut]: Error during backend logout:", error);
     } finally {
       if (typeof window !== "undefined") {
         localStorage.removeItem("cedo_user");
-        localStorage.removeItem("cedo_token"); // Though token is mainly in cookie
-        document.cookie = "cedo_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+        localStorage.removeItem("cedo_token");
+        document.cookie = "cedo_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
         console.log("AuthProvider [signOut]: Token cookie and localStorage cleared.");
       }
       delete internalApi.defaults.headers.common["Authorization"];
       setUser(null);
       setIsLoading(false);
-      // setIsInitialized(true); // isInitialized should remain true
       if (redirect) {
-        console.log("AuthProvider [signOut]: Redirecting to /sign-in.");
-        router.replace("/sign-in");
+        console.log(`AuthProvider [signOut]: Redirecting to ${redirectPath}.`);
+        router.replace(redirectPath);
       }
     }
-  };
+  }, [router]); // Added router to useCallback dependencies
 
-  const signIn = async (email, password, rememberMe = false) => {
+  const signIn = useCallback(async (email, password, rememberMe = false) => {
     console.log("AuthProvider [signIn]: Attempting sign-in for", email);
     setIsLoading(true);
     try {
@@ -215,7 +207,7 @@ export function AuthProvider({ children }) {
       }
     } catch (error) {
       console.error("AuthProvider [signIn]: Sign-in failed.", error.isAxiosError && error.response ? error.response.data : error.message);
-      commonSignOutLogic(false); // Clear auth state but don't redirect from here
+      await commonSignOutLogic(false);
       setIsLoading(false);
       if (axios.isAxiosError(error) && error.response) {
         const backendErrorMessage = error.response.data?.message || (error.response.data?.errors && error.response.data.errors.map((e) => e.msg).join(", ")) || `Server error (${error.response.status}).`;
@@ -225,103 +217,42 @@ export function AuthProvider({ children }) {
       }
       throw error;
     }
-  };
+  }, [commonSignInSuccess, commonSignOutLogic]);
 
-  const signInWithGoogleAuth = async () => {
-    console.log("AuthProvider [signInWithGoogleAuth]: Initiating Google sign-in.");
-    setIsLoading(true);
-    try {
-      await loadGoogleScript();
-      window.google.accounts.id.initialize({
-        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
-        callback: handleGoogleCredentialResponse,
-        auto_select: false,
-        cancel_on_tap_outside: true,
-      });
-      const googleAuthPromise = new Promise((resolve, reject) => {
-        window.googleAuthResolve = resolve;
-        window.googleAuthReject = reject;
-        setTimeout(() => {
-          if (window.googleAuthResolve) { // Check if it hasn't been cleared yet
-            delete window.googleAuthResolve;
-            delete window.googleAuthReject;
-            reject(new Error("Google authentication process timed out. Please try again."));
-          }
-        }, 60000); // 60 seconds timeout
-      });
-      window.google.accounts.id.prompt();
-      const googleUser = await googleAuthPromise;
-      console.log("AuthProvider [signInWithGoogleAuth]: Google credential received, sending to backend.");
-      const response = await internalApi.post("/auth/google", { token: googleUser.credential });
-      const { token, user: userData } = response.data;
-
-      if (token && userData) {
-        return commonSignInSuccess(token, userData); // rememberMe not applicable for Google in the same way
-      } else {
-        throw new Error("Google Sign-In failed: No token or user data received.");
-      }
-    } catch (error) {
-      console.error("AuthProvider [signInWithGoogleAuth]: Google sign-in failed.", error.isAxiosError && error.response ? error.response.data : error.message);
-      commonSignOutLogic(false); // Clear auth state
-      setIsLoading(false);
-      if (error.config?.url === "/auth/google" && axios.isAxiosError(error) && error.response) {
-        const backendErrorMessage = error.response.data?.message || (error.response.data?.errors && error.response.data.errors.map((e) => e.msg).join(", ")) || `Google Sign-In: Server error (${error.response.status}).`;
-        throw new Error(backendErrorMessage);
-      }
-      throw error; // Re-throw for SignInPage to catch
-    } finally {
-      // Clean up promise handlers
-      delete window.googleAuthResolve;
-      delete window.googleAuthReject;
-    }
-  };
-
-  const handleGoogleCredentialResponse = (response) => {
-    console.log("AuthProvider [handleGoogleCredentialResponse]: Received response from Google SDK.", response ? "Has response" : "No response");
-    if (response && response.credential) {
-      if (window.googleAuthResolve) {
-        console.log("AuthProvider [handleGoogleCredentialResponse]: Resolving Google auth promise.");
-        window.googleAuthResolve(response);
-      } else {
-        console.warn("AuthProvider [handleGoogleCredentialResponse]: window.googleAuthResolve not found (timed out or already handled).");
-      }
-    } else {
-      const errorMessage = response?.error || "Google authentication failed or was dismissed by the user.";
-      console.error("AuthProvider [handleGoogleCredentialResponse]:", errorMessage);
-      if (window.googleAuthReject) {
-        window.googleAuthReject(new Error(errorMessage));
-      } else {
-        console.warn("AuthProvider [handleGoogleCredentialResponse]: window.googleAuthReject not found (timed out or already handled).");
-      }
-    }
-    // Do not delete promise handlers here, signInWithGoogleAuth's finally block will do it
-  };
-
-  const loadGoogleScript = () => {
+  const loadGoogleScript = useCallback(() => {
     return new Promise((resolve, reject) => {
       if (typeof window !== "undefined" && window.google?.accounts?.id) {
-        console.log("AuthProvider [loadGoogleScript]: Google script already loaded and initialized.");
+        console.log("AuthProvider [loadGoogleScript]: Google script already loaded.");
         resolve();
         return;
       }
       if (typeof document === 'undefined') {
-        console.warn("AuthProvider [loadGoogleScript]: document is undefined (SSR?), cannot load Google script.");
-        resolve(); // Resolve to not block, but Google Sign-In won't work
+        console.warn("AuthProvider [loadGoogleScript]: 'document' is undefined (SSR?).");
+        resolve();
         return;
       }
       const existingScript = document.getElementById('google-identity-services-script');
       if (existingScript) {
         console.log("AuthProvider [loadGoogleScript]: Google script tag already exists.");
-        // If script exists but window.google.accounts.id is not yet available, listen to its load event.
-        if (window.google?.accounts?.id) {
-          resolve();
-        } else {
-          existingScript.addEventListener('load', resolve);
-          existingScript.addEventListener('error', () => reject(new Error("Failed to load Google Identity Services script (existing script error).")));
+        if (window.google?.accounts?.id) resolve();
+        else {
+          const handleLoad = () => {
+            if (window.google?.accounts?.id) resolve();
+            else reject(new Error("Google script loaded but API not available."));
+            existingScript.removeEventListener('load', handleLoad);
+            existingScript.removeEventListener('error', handleError);
+          };
+          const handleError = () => {
+            reject(new Error("Failed to load existing Google Identity Services script."));
+            existingScript.removeEventListener('load', handleLoad);
+            existingScript.removeEventListener('error', handleError);
+          };
+          existingScript.addEventListener('load', handleLoad);
+          existingScript.addEventListener('error', handleError);
         }
         return;
       }
-      console.log("AuthProvider [loadGoogleScript]: Loading Google script.");
+      console.log("AuthProvider [loadGoogleScript]: Loading Google script...");
       const script = document.createElement("script");
       script.id = 'google-identity-services-script';
       script.src = "https://accounts.google.com/gsi/client";
@@ -329,41 +260,125 @@ export function AuthProvider({ children }) {
       script.defer = true;
       script.onload = () => {
         console.log("AuthProvider [loadGoogleScript]: Google script loaded successfully.");
-        if (window.google?.accounts?.id) {
-          resolve();
-        } else {
-          // This case should ideally not happen if onload is fired correctly
-          console.error("AuthProvider [loadGoogleScript]: Script loaded but google.accounts.id not available.");
-          reject(new Error("Google script loaded but not initialized correctly."));
-        }
+        if (window.google?.accounts?.id) resolve();
+        else reject(new Error("Google script loaded but google.accounts.id not available."));
       };
-      script.onerror = () => {
-        console.error("AuthProvider [loadGoogleScript]: Failed to load Google script.");
-        reject(new Error("Failed to load Google Identity Services script. Check network and script URL."));
-      };
+      script.onerror = () => reject(new Error("Failed to load Google Identity Services script."));
       document.head.appendChild(script);
     });
-  };
+  }, []);
 
-  const signUp = async (name, email, password, organization, organizationType, captchaToken) => {
+
+  const handleGoogleCredentialResponse = useCallback(async (response) => {
+    console.log("AuthProvider [handleGoogleCredentialResponse]: Received response from Google SDK");
+    if (!response?.credential) {
+      console.error("AuthProvider [handleGoogleCredentialResponse]: No credential in response");
+      if (window.googleAuthReject) {
+        window.googleAuthReject(new Error("No credential received from Google"));
+      }
+      return;
+    }
+
+    try {
+      // Send the ID token to your backend
+      const backendResponse = await internalApi.post("/auth/google", {
+        token: response.credential
+      });
+
+      const { token, user: userData } = backendResponse.data;
+
+      if (window.googleAuthResolve) {
+        window.googleAuthResolve({ credential: response.credential, ...backendResponse.data });
+      }
+    } catch (error) {
+      console.error("AuthProvider [handleGoogleCredentialResponse]: Backend verification failed", error);
+      if (window.googleAuthReject) {
+        window.googleAuthReject(error);
+      }
+    }
+  }, [internalApi]);
+
+
+  const signInWithGoogleAuth = useCallback(async () => {
+    console.log("AuthProvider [signInWithGoogleAuth]: Initiating Google sign-in.");
+    setIsLoading(true);
+    try {
+      await loadGoogleScript();
+      if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
+        throw new Error("Google Client ID (NEXT_PUBLIC_GOOGLE_CLIENT_ID) is not configured.");
+      }
+
+      window.google.accounts.id.initialize({
+        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+        callback: handleGoogleCredentialResponse,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+      });
+
+      const googleAuthPromise = new Promise((resolve, reject) => {
+        window.googleAuthResolve = resolve;
+        window.googleAuthReject = reject;
+        setTimeout(() => {
+          if (window.googleAuthResolve) {
+            delete window.googleAuthResolve;
+            delete window.googleAuthReject;
+            reject(new Error("Google authentication process timed out. Please try again."));
+          }
+        }, 60000);
+      });
+
+      window.google.accounts.id.prompt();
+      const googleUser = await googleAuthPromise;
+      console.log("AuthProvider [signInWithGoogleAuth]: Google credential received, sending to backend.");
+
+      const response = await internalApi.post("/auth/google", { token: googleUser.credential });
+      const { token, user: userData } = response.data;
+
+      if (token && userData) {
+        return commonSignInSuccess(token, userData, false);
+      } else {
+        throw new Error("Google Sign-In failed: No token or user data received from backend.");
+      }
+    } catch (error) {
+      console.error("AuthProvider [signInWithGoogleAuth]: Google sign-in failed.", error.isAxiosError && error.response ? error.response.data : error.message, error);
+      await commonSignOutLogic(false);
+      setIsLoading(false);
+
+      let specificErrorMessage = "Google Sign-In failed. Please try again.";
+      if (error.message && error.message.toLowerCase().includes("popup_closed_by_user")) {
+        specificErrorMessage = "Google Sign-In was closed. Please try again.";
+      } else if (error.message && error.message.toLowerCase().includes("idpiframe_initialization_failed")) {
+        specificErrorMessage = "Could not initialize Google Sign-In. Check browser settings (e.g., third-party cookies) or try a different browser.";
+      } else if (error.message && error.message.toLowerCase().includes("credential_not_found")) {
+        specificErrorMessage = "No Google credential was selected or provided.";
+      } else if (error.message && (error.message.toLowerCase().includes("timeout") || error.message.toLowerCase().includes("timed out"))) {
+        specificErrorMessage = "Google Sign-In timed out. Please try again.";
+      } else if (error.isAxiosError && error.response && error.config?.url === "/auth/google") {
+        specificErrorMessage = error.response.data?.message || (error.response.data?.errors && error.response.data.errors.map((e) => e.msg).join(", ")) || `Google Sign-In: Server error (${error.response.status}).`;
+      } else if (error.message && !error.message.toLowerCase().includes("axios")) { // Prefer custom messages over generic axios network errors if possible
+        specificErrorMessage = error.message;
+      }
+      throw new Error(specificErrorMessage);
+    } finally {
+      delete window.googleAuthResolve;
+      delete window.googleAuthReject;
+    }
+  }, [loadGoogleScript, handleGoogleCredentialResponse, commonSignInSuccess, commonSignOutLogic]); // Added dependencies
+
+
+  const signUp = useCallback(async (name, email, password, organization, organizationType, captchaToken) => {
     console.log("AuthProvider [signUp]: Attempting sign-up for", email);
     setIsLoading(true);
     try {
-      // The backend /auth/register route typically returns the new user and a token,
-      // or just a success message. If it returns user and token, you could log them in.
-      // For now, assuming it just returns user data or success message, not auto-login.
       const response = await internalApi.post("/auth/register", {
         name, email, password, organization, organizationType, captchaToken,
       });
       console.log("AuthProvider [signUp]: Sign-up API call successful.", response.data);
-      // If backend returns token and user, you could call commonSignInSuccess here.
-      // Example: if (response.data.token && response.data.user) {
-      //   return commonSignInSuccess(response.data.token, response.data.user);
-      // }
-      return response.data; // Return data for SignUpPage to handle (e.g., show success message)
+      setIsLoading(false);
+      return response.data;
     } catch (error) {
       console.error("AuthProvider [signUp]: Sign-up failed.", error.isAxiosError && error.response ? error.response.data : error.message);
-      setIsLoading(false); // Ensure loading is false on error
+      setIsLoading(false);
       if (axios.isAxiosError(error) && error.response) {
         const backendErrorMessage = error.response.data?.message || (error.response.data?.errors && error.response.data.errors.map((e) => e.msg).join(", ")) || `Registration failed (${error.response.status}).`;
         throw new Error(backendErrorMessage);
@@ -371,14 +386,12 @@ export function AuthProvider({ children }) {
         throw new Error("Registration failed: Network Error.");
       }
       throw error;
-    } finally {
-      // setIsLoading(false); // Moved to error block or should be set if auto-login happens
     }
-  };
+  }, []);
 
-  const signOut = async (redirect = true) => {
-    commonSignOutLogic(redirect);
-  };
+  const signOut = useCallback(async (redirect = true, redirectPath = "/sign-in") => {
+    await commonSignOutLogic(redirect, redirectPath);
+  }, [commonSignOutLogic]);
 
   const contextValue = {
     user,
@@ -388,11 +401,8 @@ export function AuthProvider({ children }) {
     signOut,
     signInWithGoogleAuth,
     signUp,
-    ROLES, // Expose ROLES if needed by components
-    // setUser, // Expose setUser with caution, usually not needed by consuming components
+    ROLES,
   };
-
-  // console.log("AuthProvider: Rendering. Context values:", { userEmail: user?.email, isLoading, isInitialized });
 
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 }
@@ -400,7 +410,7 @@ export function AuthProvider({ children }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider. Check your app's root layout file.");
+    throw new Error("useAuth must be used within an AuthProvider.");
   }
   return context;
 }

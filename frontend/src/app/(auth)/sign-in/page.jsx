@@ -1,14 +1,13 @@
 // frontend/src/app/(auth)/sign-in/page.jsx
-"use client"; // Necessary for using client-side features like hooks and browser APIs
+"use client";
 
-// --- Imports ---
 import { useToast } from "@/components/ui/use-toast";
-import { useAuth } from "@/contexts/auth-context"; // Ensure this path is correct
-import { useRouter, useSearchParams } from "next/navigation"; // Added useSearchParams
-import { useEffect, useState } from "react";
+// Import ROLES from the AuthContext to ensure consistency
+import { ROLES, useAuth } from "@/contexts/auth-context";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 
-// ShadCN UI & Lucide Icon Imports (ensure these match your project)
-import { LogoSimple } from "@/components/logo"; // Assuming this is your logo component
+import { LogoSimple } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,118 +19,115 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react"; // Added Loader2
+import { Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
 import Link from "next/link";
 
 export default function SignInPage() {
-  const { signIn, signInWithGoogleAuth, isLoading, isInitialized } = useAuth();
+  //isLoading and isInitialized are from AuthProvider's general state
+  //isSubmitting is a local state for the form submission process on this page
+  const {
+    signIn,
+    signInWithGoogleAuth,
+    user,
+    isLoading: authProviderLoading, // isLoading from AuthProvider
+    isInitialized,
+  } = useAuth();
+
   const { toast } = useToast();
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
 
-  const searchParams = useSearchParams(); // To get redirect query parameter
-
-  console.log("SignInPage Auth State:", { isLoading, isInitialized, user });
+  console.log("SignInPage Auth State (from AuthProvider):", {
+    authProviderLoading,
+    isInitialized,
+    user,
+  });
 
   const [showPassword, setShowPassword] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Local loading state for form submission
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     rememberMe: false,
   });
 
-  // Standardized roles (ensure these match your global constants, middleware, and layouts)
-  const ROLES = {
-    HEAD_ADMIN: "Head Admin",
-    STUDENT: "Student",
-    MANAGER: "Manager", // Add if you have this role and a specific dashboard
-  };
-
-  const redirectBasedOnRole = (loggedInUser, showToastAndDelay = true) => {
-    if (!loggedInUser || !loggedInUser.role) {
+  // Centralized redirect logic for this page if user is already authenticated on load
+  const handleAuthenticatedUserRedirect = useCallback(() => {
+    if (!user || !user.role) {
       console.warn(
-        "SignInPage redirectBasedOnRole: called without user data or role."
+        "SignInPage handleAuthenticatedUserRedirect: No user or role for redirection."
       );
-      if (showToastAndDelay) {
-        toast({
-          title: "Redirection Issue",
-          description: "User data or role not available for redirection.",
-          variant: "destructive",
-        });
-      }
-      // Fallback to a generic dashboard or stay on page if role is unknown
-      // router.replace("/dashboard"); // Or handle error appropriately
+      // Should not happen if user object is valid
       return;
     }
 
-    console.log(
-      `SignInPage redirectBasedOnRole: Redirecting user "${loggedInUser.name
-      }" with role "${loggedInUser.role}".`
-    );
-
-    // Determine target path based on role
-    let targetPath;
     const redirectQueryParam = searchParams.get("redirect");
+    let targetPath;
 
-    if (redirectQueryParam) {
-      // If a redirect query param exists from middleware, prioritize it,
-      // but still ensure the role matches if it's a protected route.
-      // This logic can be complex; for now, we'll assume if middleware sent them here with a redirect,
-      // the login will grant them access to that redirect path.
-      targetPath = redirectQueryParam;
-      console.log(`SignInPage: Using redirect query param: ${targetPath}`);
+    // If middleware provided a redirect param and the user is *already* authenticated
+    // when landing on /sign-in, it might mean their session was still valid.
+    // Prioritize their default dashboard in this scenario rather than a potentially stale redirect.
+    if (redirectQueryParam && redirectQueryParam !== pathname) {
+      console.log(
+        `SignInPage (already authenticated): Found redirect query param "${redirectQueryParam}". Deciding whether to use it or default dashboard.`
+      );
+      // It's generally safer to send an already authenticated user to their default dashboard
+      // if they land on /sign-in, as the redirect param might be from a previous attempt.
+      // However, if the business logic requires honoring it, that can be adjusted here.
+      // For now, let's prioritize default dashboard to avoid potential confusion.
+    }
+
+    // Determine default dashboard based on user object or role
+    if (user.dashboard) {
+      targetPath = user.dashboard;
     } else {
-      // Default redirection logic if no redirect query param
-      switch (loggedInUser.role) {
+      switch (user.role) {
         case ROLES.HEAD_ADMIN:
+        case ROLES.MANAGER:
           targetPath = "/admin-dashboard";
           break;
         case ROLES.STUDENT:
+        case ROLES.PARTNER:
           targetPath = "/student-dashboard";
           break;
-        // Add case for ROLES.MANAGER if applicable
-        // case ROLES.MANAGER:
-        //   targetPath = "/manager-dashboard";
-        //   break;
         default:
-          console.warn(`SignInPage: Unknown role "${loggedInUser.role}", redirecting to generic dashboard.`);
-          targetPath = "/dashboard"; // A generic fallback
+          console.warn(
+            `SignInPage handleAuthenticatedUserRedirect: Unknown role "${user.role}", redirecting to /.`
+          );
+          targetPath = "/"; // Fallback to main redirector page
           break;
       }
     }
 
+    console.log(
+      `SignInPage (already authenticated): Redirecting user "${user.name}" with role "${user.role}" to ${targetPath}.`
+    );
 
-    console.log(`SignInPage: Determined targetPath: ${targetPath}`);
-
-    if (showToastAndDelay) {
-      setTimeout(() => {
-        router.replace(targetPath);
-      }, 500);
-    } else {
+    if (pathname !== targetPath) {
       router.replace(targetPath);
+    } else if (pathname === "/sign-in") {
+      // If somehow still on /sign-in after all checks, force to a non-auth page.
+      router.replace(targetPath === "/sign-in" ? "/" : targetPath);
     }
-  };
+  }, [user, router, searchParams, pathname]); // Added all dependencies
 
-  // Effect for redirection if user is already authenticated when page loads
-  // This might happen if the user navigates back to /sign-in or if AuthContext initializes with an existing session.
+  // Effect for redirection if user is already authenticated when page loads.
+  // This is a client-side check. Middleware should ideally handle this first.
   useEffect(() => {
-    console.log("SignInPage useEffect for initial redirection check. Auth State:", {
-      isInitialized,
-      user,
-    });
+    console.log(
+      "SignInPage useEffect: Checking if user is already authenticated.",
+      { isInitialized, user }
+    );
     if (isInitialized && user) {
-      console.log(
-        "SignInPage: User is already authenticated (from context). Redirecting..."
-      );
-      redirectBasedOnRole(user, false); // Redirect immediately
+      handleAuthenticatedUserRedirect();
     } else if (isInitialized && !user) {
       console.log(
         "SignInPage: Auth context initialized, no user. Sign-in form will be shown."
       );
     }
-    // No "else" needed here as the loading spinner handles the !isInitialized case
-  }, [isInitialized, user]); // Removed router from deps as redirectBasedOnRole doesn't depend on it directly for this effect's purpose
+    // The main loading spinner handles the !isInitialized case.
+  }, [isInitialized, user, handleAuthenticatedUserRedirect]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -143,45 +139,43 @@ export default function SignInPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    if (isSubmitting) return; // Prevent double submission
+    setIsSubmitting(true); // Use local submitting state for UI feedback on this page
     console.log("SignInPage handleSubmit: Attempting email/password sign in...");
     try {
-      const userData = await signIn(
+      const userData = await signIn( // This signIn is from AuthContext
         formData.email,
         formData.password,
         formData.rememberMe
       );
 
-      if (userData) {
-        // AuthContext's signIn should have updated the context's user state
-        // and set the cookie. The useEffect above will then handle redirection.
+      // AuthContext's `commonSignInSuccess` (called by `signIn`) will handle:
+      // 1. Updating the user state in AuthContext.
+      // 2. Setting cookies/localStorage.
+      // 3. Calling `performRedirect` (from AuthContext) which handles the query param and role-based redirection.
+      // The useEffect in this page is primarily for users already logged in when the page loads.
+
+      if (userData) { // signIn from context should return userData on success
         toast({
           title: "Signed In Successfully!",
           description: `Welcome back, ${userData.name || "user"}! Redirecting...`,
         });
-        // No direct call to redirectBasedOnRole here; let the useEffect handle it
-        // based on the updated user state from AuthContext.
-        // This prevents potential race conditions.
       } else {
-        // This case might be hit if signIn resolves but returns no data without an error.
-        // Ideally, signIn should always return user data on success or throw an error.
+        // This block should ideally not be reached if signIn in context throws an error on failure.
         console.error(
-          "SignInPage handleSubmit: signIn resolved but no userData returned."
+          "SignInPage handleSubmit: signIn resolved but no userData returned (unexpected)."
         );
         toast({
           title: "Sign In Issue",
-          description:
-            "Login process completed but user details are missing. Please try again.",
+          description: "Login completed but user details are missing. Please try again.",
           variant: "destructive",
         });
       }
     } catch (error) {
-      console.error("SignInPage handleSubmit: Sign in error:", error);
+      console.error("SignInPage handleSubmit: Sign in error caught in page:", error);
       toast({
         title: "Sign In Failed",
-        description:
-          error.message ||
-          "An unexpected error occurred. Please check your credentials and try again.",
+        description: error.message || "An unexpected error occurred. Please check your credentials and try again.",
         variant: "destructive",
       });
     } finally {
@@ -190,45 +184,34 @@ export default function SignInPage() {
   };
 
   const handleGoogleSignIn = async () => {
+    if (isSubmitting) return;
     setIsSubmitting(true);
     console.log("SignInPage handleGoogleSignIn: Attempting Google sign in...");
     try {
-      const userData = await signInWithGoogleAuth();
+      await loadGoogleScript();
+      // Initialize Google sign-in
+      const userData = await signInWithGoogleAuth(); // from AuthContext
+      // Similar to email/password, AuthContext's `commonSignInSuccess` handles redirection.
       if (userData) {
         toast({
-          title: "Signed in with Google",
-          description: `Welcome back, ${userData.name || "user"
-            }! Redirecting...`,
+          title: "Signed in with Google!",
+          description: `Welcome, ${userData.name || "user"}! Redirecting...`,
         });
-        // Let useEffect handle redirection based on updated AuthContext state
       } else {
         console.error(
-          "SignInPage handleGoogleSignIn: signInWithGoogleAuth resolved but no userData."
+          "SignInPage handleGoogleSignIn: signInWithGoogleAuth resolved but no userData (unexpected)."
         );
         toast({
           title: "Google Sign In Issue",
-          description:
-            "Google sign-in process completed but user details are missing. Please try again.",
+          description: "Google sign-in completed but user details are missing.",
           variant: "destructive",
         });
       }
     } catch (error) {
-      console.error(
-        "SignInPage handleGoogleSignIn: Google sign in error:",
-        error
-      );
-      let descriptiveError =
-        error.message || "Google sign in failed. Please try again.";
-      if (
-        error.message &&
-        error.message.toLowerCase().includes("account pending approval")
-      ) {
-        descriptiveError =
-          "Your account (found via Google) is awaiting administrative approval. Please check back later.";
-      }
+      console.error("Error during Google sign-in:", error);
       toast({
-        title: "Google Sign In Failed",
-        description: descriptiveError,
+        title: "Sign-in Error",
+        description: "An error occurred during Google sign-in. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -236,46 +219,45 @@ export default function SignInPage() {
     }
   };
 
-  // --- Conditional Rendering Logic ---
-  // 1. Show loading spinner while AuthContext is initializing OR if global isLoading is true.
-  //    isLoading from useAuth() indicates that AuthContext is performing an async operation (e.g. validating a token).
-  //    !isInitialized indicates AuthContext hasn't completed its initial setup.
-  if (isLoading || !isInitialized) {
+  // --- Conditional Rendering Logic for Loading States ---
+  // 1. Show main loading spinner if AuthProvider is still initializing or performing a global auth operation.
+  if (authProviderLoading || !isInitialized) {
     console.log(
-      "SignInPage: Rendering loading spinner because isLoading=" +
-      isLoading +
-      " or !isInitialized=" +
-      !isInitialized
+      "SignInPage: Rendering AUTH PROVIDER loading spinner. AuthProvider isLoading=" +
+      authProviderLoading +
+      ", isInitialized=" +
+      isInitialized
     );
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="flex flex-col items-center gap-2">
-          <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
-          <p className="text-sm text-gray-600">Loading authentication...</p>
+          <Loader2 className="h-12 w-12 animate-spin text-cedo-blue" />
+          <p className="text-sm text-gray-600">Initializing Authentication...</p>
         </div>
       </div>
     );
   }
 
-  // 2. If AuthContext is initialized AND a user object exists, the user is already logged in.
-  //    The useEffect hook will handle the redirection. Render a "Redirecting..." message or null.
+  // 2. If AuthContext is initialized AND a user object exists, the user is ALREADY logged in.
+  //    The `useEffect` hook will handle the redirection. Render a "Redirecting..." message.
   if (isInitialized && user) {
     console.log(
-      "SignInPage: User is authenticated (user object exists in context), rendering redirecting message."
+      "SignInPage: User is authenticated (user object exists). Rendering REDIRECTING message..."
     );
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="flex flex-col items-center gap-2">
-          <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
+          <Loader2 className="h-12 w-12 animate-spin text-cedo-blue" />
           <p className="text-sm text-gray-600">Already signed in, redirecting...</p>
         </div>
       </div>
     );
   }
 
-  // 3. If AuthContext is initialized and NO user is found, render the sign-in form.
+  // 3. If AuthContext is initialized, no user, and AuthProvider not loading, render the sign-in form.
+  //    Local `isSubmitting` will handle loading state for the form buttons.
   console.log(
-    "SignInPage: Rendering sign-in form (isInitialized=true, user=null)."
+    "SignInPage: Rendering sign-in form (isInitialized=true, user=null, authProviderLoading=false)."
   );
   return (
     <div className="w-full max-w-md p-4">
@@ -289,14 +271,15 @@ export default function SignInPage() {
 
       <Card className="border-0 shadow-lg">
         <CardContent className="pt-6">
+          {/* Google Sign-In Button */}
           <Button
             type="button"
             variant="outline"
             className="w-full mb-4 flex items-center justify-center gap-2"
             onClick={handleGoogleSignIn}
-            disabled={isSubmitting}
+            disabled={isSubmitting} // Disable during any submission
           >
-            {isSubmitting ? (
+            {isSubmitting ? ( // Show loader only if this specific action is submitting
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
               <svg
@@ -306,22 +289,10 @@ export default function SignInPage() {
                 height="18"
                 className="mr-2"
               >
-                <path
-                  fill="#4285F4"
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                />
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
               </svg>
             )}
             Sign in with Google
@@ -336,6 +307,7 @@ export default function SignInPage() {
             </div>
           </div>
 
+          {/* Email/Password Form */}
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
               <FormItem>
@@ -351,7 +323,7 @@ export default function SignInPage() {
                       value={formData.email}
                       onChange={handleChange}
                       className="pl-10"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting} // Disable during any submission
                       required
                     />
                   </div>
@@ -380,7 +352,7 @@ export default function SignInPage() {
                       value={formData.password}
                       onChange={handleChange}
                       className="pl-10"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting} // Disable during any submission
                       required
                     />
                     <Button
@@ -397,9 +369,6 @@ export default function SignInPage() {
                       ) : (
                         <Eye className="h-4 w-4" />
                       )}
-                      <span className="sr-only">
-                        {showPassword ? "Hide password" : "Show password"}
-                      </span>
                     </Button>
                   </div>
                 </FormControl>
@@ -415,7 +384,7 @@ export default function SignInPage() {
                     onCheckedChange={(checked) =>
                       setFormData((prev) => ({ ...prev, rememberMe: !!checked }))
                     }
-                    disabled={isSubmitting}
+                    disabled={isSubmitting} // Disable during any submission
                   />
                 </FormControl>
                 <FormLabel
@@ -427,7 +396,7 @@ export default function SignInPage() {
               </FormItem>
 
               <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting && (
+                {isSubmitting && ( // Show loader only if this specific action is submitting
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 {isSubmitting ? "Signing in..." : "Sign in"}
@@ -435,32 +404,15 @@ export default function SignInPage() {
             </div>
           </form>
 
+          {/* Demo Accounts - Keep as is or remove for production */}
           <div className="mt-6 p-3 bg-gray-50 rounded-md border border-gray-100">
             <h3 className="text-sm font-medium text-gray-700 mb-2">
               Demo Accounts:
             </h3>
             <div className="space-y-2 text-xs text-gray-600">
-              <div>
-                <p>
-                  <strong>Head Admin:</strong> (Role: 'Head Admin')
-                </p>
-                <p>Email: admin@cedo.gov.ph</p>
-                <p>Password: admin123</p>
-              </div>
-              <div>
-                <p>
-                  <strong>System Manager:</strong> (Role: 'Manager')
-                </p>
-                <p>Email: manager@cedo.gov.ph</p>
-                <p>Password: manager123</p>
-              </div>
-              <div>
-                <p>
-                  <strong>Student:</strong> (Role: 'Student')
-                </p>
-                <p>Email: student@example.com</p>
-                <p>Password: student123</p>
-              </div>
+              <div><p><strong>Head Admin:</strong> admin@cedo.gov.ph / admin123</p></div>
+              <div><p><strong>System Manager:</strong> manager@cedo.gov.ph / manager123</p></div>
+              <div><p><strong>Student:</strong> student@example.com / student123</p></div>
             </div>
           </div>
         </CardContent>

@@ -8,6 +8,7 @@ npm-debug.log*
 
 # Environment variables
 .env
+.env.development  # Ignore the development environment file
 
 # Misc
 .DS_Store
