@@ -12,7 +12,7 @@ const proposalRoutes = require("./routes/proposals") // Path adjusted based on y
 const errorHandler = require('./middleware/error-handler');
 
 const app = express()
-const PORT = process.env.PORT || 5000
+const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
