@@ -143,11 +143,7 @@ export default function SignInPage() {
     setIsSubmitting(true); // Use local submitting state for UI feedback on this page
     console.log("SignInPage handleSubmit: Attempting email/password sign in...");
     try {
-      const userData = await signIn( // This signIn is from AuthContext
-        formData.email,
-        formData.password,
-        formData.rememberMe
-      );
+      const userData = await signIn(formData.email, formData.password, formData.rememberMe);
 
       // AuthContext's `commonSignInSuccess` (called by `signIn`) will handle:
       // 1. Updating the user state in AuthContext.

@@ -1,14 +1,14 @@
 "use client"
 
-import { useState } from "react"
-import Link from "next/link"
+import { LogoSimple } from "@/components/logo"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Form, FormControl, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { LogoSimple } from "@/components/logo"
+import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/ui/use-toast"
 import { ArrowLeft, CheckCircle } from "lucide-react"
+import Link from "next/link"
+import { useState } from "react"
 
 export default function ForgotPasswordPage() {
   const { toast } = useToast()

@@ -1,19 +1,9 @@
-# frontend/Dockerfile
-# Build context for this Dockerfile is the 'frontend' directory (e.g., project-root/frontend/)
-
-# --- Dependencies Stage (deps) ---
-# This stage installs Node.js dependencies.
+# Stage 1: Install dependencies
 FROM node:18-alpine AS deps
-# Set the working directory in the container.
-# This should match the target directory of the volume mount in docker-compose.yml
-# and the working_dir specified there.
 WORKDIR /usr/src/app
-
-# Copy package.json and package-lock.json (or yarn.lock) from the context root.
-# Since context is 'frontend/', this copies 'frontend/package.json' to '/usr/src/app/package.json'.
 COPY package.json package-lock.json* ./
-# Install dependencies using 'npm ci' for cleaner installs from lock file.
-RUN npm ci
+RUN npm ci  # <--- THIS IS THE FAILING LINE
+# ... rest of the Dockerfile
 
 # --- Builder Stage (builder) ---
 # This stage builds the application (e.g., for production).

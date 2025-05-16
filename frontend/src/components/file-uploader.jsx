@@ -1,11 +1,10 @@
 "use client"
 
-import { useState, useCallback } from "react"
-import { useDropzone } from "react-dropzone"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { X, Upload, FileText, AlertCircle } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AlertCircle, FileText, Upload, X } from "lucide-react"
+import { useRef, useState } from "react"
 
 export function FileUploader({
   files,
@@ -15,50 +14,64 @@ export function FileUploader({
   acceptedFileTypes = [".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png"],
 }) {
   const [error, setError] = useState(null)
+  const [isDragActive, setIsDragActive] = useState(false)
+  const fileInputRef = useRef(null)
 
-  const onDrop = useCallback(
-    (acceptedFiles) => {
-      setError(null)
+  const handleFileChange = (event) => {
+    const selectedFiles = Array.from(event.target.files)
+    validateAndAddFiles(selectedFiles)
+  }
 
-      if (files.length + acceptedFiles.length > maxFiles) {
-        setError(`You can only upload a maximum of ${maxFiles} files`)
+  const validateAndAddFiles = (selectedFiles) => {
+    setError(null)
+
+    if (files.length + selectedFiles.length > maxFiles) {
+      setError(`You can only upload a maximum of ${maxFiles} files`)
+      return
+    }
+
+    const oversizedFiles = selectedFiles.filter((file) => file.size > maxSize)
+    if (oversizedFiles.length > 0) {
+      setError(`Some files exceed the ${maxSize / (1024 * 1024)}MB limit`)
+      return
+    }
+
+    // Check file types if specified
+    if (acceptedFileTypes.length > 0) {
+      const invalidFiles = selectedFiles.filter((file) => {
+        const fileExtension = "." + file.name.split(".").pop()?.toLowerCase()
+        return !acceptedFileTypes.includes(fileExtension)
+      })
+
+      if (invalidFiles.length > 0) {
+        setError(`Some files have invalid formats. Accepted formats: ${acceptedFileTypes.join(", ")}`)
         return
       }
+    }
 
-      const oversizedFiles = acceptedFiles.filter((file) => file.size > maxSize)
-      if (oversizedFiles.length > 0) {
-        setError(`Some files exceed the ${maxSize / (1024 * 1024)}MB limit`)
-        return
-      }
+    setFiles([...files, ...selectedFiles])
+  }
 
-      // Check file types if specified
-      if (acceptedFileTypes.length > 0) {
-        const invalidFiles = acceptedFiles.filter((file) => {
-          const fileExtension = "." + file.name.split(".").pop()?.toLowerCase()
-          return !acceptedFileTypes.includes(fileExtension)
-        })
+  const handleDragOver = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragActive(true)
+  }
 
-        if (invalidFiles.length > 0) {
-          setError(`Some files have invalid formats. Accepted formats: ${acceptedFileTypes.join(", ")}`)
-          return
-        }
-      }
+  const handleDragLeave = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragActive(false)
+  }
 
-      setFiles([...files, ...acceptedFiles])
-    },
-    [files, setFiles, maxFiles, maxSize, acceptedFileTypes],
-  )
+  const handleDrop = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragActive(false)
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept:
-      acceptedFileTypes.length > 0
-        ? acceptedFileTypes.reduce((acc, type) => {
-            acc[type] = []
-            return acc
-          }, {})
-        : undefined,
-  })
+    const droppedFiles = Array.from(e.dataTransfer.files)
+    validateAndAddFiles(droppedFiles)
+  }
 
   const removeFile = (index) => {
     const newFiles = [...files]
@@ -75,12 +88,21 @@ export function FileUploader({
   return (
     <div className="space-y-4">
       <div
-        {...getRootProps()}
-        className={`border-2 border-dashed rounded-md p-6 text-center cursor-pointer transition-colors ${
-          isDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/20"
-        }`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onClick={() => fileInputRef.current.click()}
+        className={`border-2 border-dashed rounded-md p-6 text-center cursor-pointer transition-colors ${isDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/20"
+          }`}
       >
-        <input {...getInputProps()} />
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          multiple
+          accept={acceptedFileTypes.join(",")}
+          className="hidden"
+        />
         <div className="flex flex-col items-center justify-center gap-2">
           <Upload className="h-10 w-10 text-muted-foreground" />
           <h3 className="font-medium">Drag & drop files here</h3>
@@ -123,7 +145,10 @@ export function FileUploader({
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={() => removeFile(index)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      removeFile(index)
+                    }}
                   >
                     <X className="h-4 w-4" />
                   </Button>

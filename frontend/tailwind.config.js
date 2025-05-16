@@ -1,7 +1,14 @@
+// tailwind.config.js
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: ["class"],
-  content: ["./pages/**/*.{js,jsx,ts,tsx}", "./components/**/*.{js,jsx,ts,tsx}", "./app/**/*.{js,jsx,ts,tsx}", "./src/**/*.{js,jsx,ts,tsx}", "*.{js,ts,jsx,tsx,mdx}"],
+  content: [
+    "./pages/**/*.{js,jsx,ts,tsx}",
+    "./components/**/*.{js,jsx,ts,tsx}",
+    "./app/**/*.{js,jsx,ts,tsx}",
+    "./src/**/*.{js,jsx,ts,tsx}",
+    "*.{js,ts,jsx,tsx,mdx}"
+  ],
   theme: {
     container: {
       center: true,
@@ -11,6 +18,11 @@ module.exports = {
       },
     },
     extend: {
+      // Add your custom boxShadow definition here
+      boxShadow: {
+        'card-hover': '0 4px 10px rgba(0, 0, 0, 0.1)', // Example: Adjust the shadow values as needed
+        // You can add other custom shadows here as well
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -55,8 +67,8 @@ module.exports = {
           primary: "hsl(var(--sidebar-primary))",
           "primary-foreground": "hsl(var(--sidebar-primary-foreground))",
         },
-        "cedo-blue": "#0a2167", // Direct hex value for the dark blue in the sidebar
-        "cedo-gold": "#f7b928", // Direct hex value for the gold/yellow color
+        "cedo-blue": "#0a2167",
+        "cedo-gold": "#f7b928",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -65,12 +77,12 @@ module.exports = {
       },
       keyframes: {
         "accordion-down": {
-          from: { height: 0 },
+          from: { height: "0" }, // Changed from height: 0
           to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
           from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: 0 },
+          to: { height: "0" }, // Changed from height: 0
         },
       },
       animation: {
@@ -80,4 +92,4 @@ module.exports = {
     },
   },
   plugins: [require("tailwindcss-animate")],
-}
+};

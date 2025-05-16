@@ -1,16 +1,23 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { motion } from "framer-motion"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Camera, X, Mail, Lock, UserCircle } from "lucide-react"
-import profileAvatar from '@/public/images/profile-avatar.png'; 
+import { Camera, Lock, Mail, UserCircle, X } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
+
+// CSS for animations
+const overlayStyles = {
+  transition: "opacity 300ms ease-in-out",
+}
+
+const modalStyles = {
+  transition: "all 300ms ease-in-out",
+}
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -38,21 +45,23 @@ export default function ProfilePage() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Blurred background overlay */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+      <div
         className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+        style={{
+          ...overlayStyles,
+          opacity: mounted ? 1 : 0,
+        }}
         onClick={handleClose}
       />
 
       {/* Profile credentials modal */}
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
-        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+      <div
         className="z-10 w-full max-w-md mx-auto"
+        style={{
+          ...modalStyles,
+          transform: mounted ? "scale(1)" : "scale(0.9)",
+          opacity: mounted ? 1 : 0,
+        }}
       >
         <Card className="border-cedo-blue/20 shadow-lg">
           <CardHeader className="relative pb-2">
@@ -138,7 +147,7 @@ export default function ProfilePage() {
             </div>
           </CardContent>
         </Card>
-      </motion.div>
+      </div>
     </div>
   )
 }
