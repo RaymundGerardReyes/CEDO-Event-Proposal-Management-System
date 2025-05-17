@@ -1,67 +1,17 @@
 "use client"
 
-import { Badge } from "@/components/dashboard/student/ui/badge";
-import { Button } from "@/components/dashboard/student/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/dashboard/student/ui/card";
-import Progress from '@/components/dashboard/student/ui/progress'; // Note the plural 'components'
-import { Tabs, TabsList, TabsTrigger } from "@/components/dashboard/student/ui/tabs";
-import { Calendar, ChevronRight, Clock, FileText, PlusCircle } from "lucide-react";
-import Link from "next/link";
-import { useState } from "react";
-// If you have named exports
+import { EventCalendar } from "@/components/event-calendar"
+import { EventList } from "@/components/event-list"
+import { PageHeader } from "@/components/page-header"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useMobile } from "@/hooks/use-mobile"
+import { useSearchParams } from "next/navigation"
+import { Suspense } from "react"
 
-export default function DashboardPage() {
-  const [activeTab, setActiveTab] = useState("all")
-
-  // Sample data for SDP credits
-  const sdpCredits = {
-    total: 100,
-    earned: 45,
-    pending: 15,
-    required: 100,
-    breakdown: {
-      academic: 20,
-      leadership: 15,
-      volunteerism: 10,
-      cultural: 0,
-    },
-  }
-
-  // Sample data for recent events
-  const recentEvents = [
-    {
-      id: "EVENT-001",
-      title: "Leadership Workshop",
-      date: "2023-05-15",
-      status: "approved",
-      type: "leadership",
-      credits: 5,
-    },
-    {
-      id: "EVENT-002",
-      title: "Community Service Day",
-      date: "2023-05-10",
-      status: "pending",
-      type: "volunteerism",
-      credits: 10,
-    },
-    {
-      id: "EVENT-003",
-      title: "Academic Seminar",
-      date: "2023-05-05",
-      status: "approved",
-      type: "academic",
-      credits: 5,
-    },
-    {
-      id: "EVENT-004",
-      title: "Research Symposium",
-      date: "2023-04-28",
-      status: "rejected",
-      type: "academic",
-      credits: 0,
-    },
-  ]
+// Search params component that needs to be wrapped in Suspense
+function EventSearch() {
+    const searchParams = useSearchParams()
+    const view = searchParams.get("view") || "calendar"
 
   return (
     <div className="space-y-8">
@@ -141,31 +91,44 @@ export default function DashboardPage() {
               </div>
               <div className="mt-1 text-right text-sm text-muted-foreground">67% complete</div>
             </div>
+            <TabsContent value="calendar" className="mt-0">
+                <EventCalendar />
+            </TabsContent>
+            <TabsContent value="list" className="mt-0">
+                <EventList />
+            </TabsContent>
+        </Tabs>
+    )
+}
 
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium">Leadership</span>
-                  <span className="text-sm text-muted-foreground">8 / 12</span>
-                </div>
-                <Progress value={67} className="h-2" />
-              </div>
+export default function EventsPage() {
+    const isMobile = useMobile()
 
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium">Community Service</span>
-                  <span className="text-sm text-muted-foreground">10 / 12</span>
-                </div>
-                <Progress value={83} className="h-2" />
-              </div>
+    return (
+        <div className="container mx-auto py-6">
+            <PageHeader
+                heading="Events"
+                subheading="View and manage scheduled events"
+                actions={
+                    <div className="flex items-center gap-2">
+                        {!isMobile && (
+                            <>
+                                <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2">
+                                    Export
+                                </button>
+                                <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">
+                                    Create Event
+                                </button>
+                            </>
+                        )}
+                    </div>
+                }
+            />
 
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium">Professional Development</span>
-                  <span className="text-sm text-muted-foreground">6 / 12</span>
-                </div>
-                <Progress value={50} className="h-2" />
-              </div>
+            <div className="mt-6">
+                <Suspense fallback={<div className="text-center py-10">Loading events...</div>}>
+                    <EventSearch />
+                </Suspense>
             </div>
           </div>
         </CardContent>

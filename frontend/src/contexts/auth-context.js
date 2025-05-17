@@ -4,8 +4,15 @@ import axios from "axios"
 import { usePathname, useRouter } from "next/navigation"
 import { createContext, useCallback, useContext, useEffect, useState } from "react"
 
+<<<<<<< HEAD
 // Define API URL
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5050/api"
+=======
+// ... (API_URL, internalApi, ROLES - keep as previously defined) ...
+const AuthContext = createContext(undefined)
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api"
+>>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
 console.info("AuthContext: API requests will be sent to:", API_URL)
 
 // Create Axios instance for internal API calls
@@ -19,6 +26,7 @@ const internalApi = axios.create({
 
 // Define user roles
 export const ROLES = {
+<<<<<<< HEAD
   head_admin: 'Head Admin',
   student: 'Student',
   manager: 'Manager',
@@ -26,11 +34,20 @@ export const ROLES = {
 
 // Create AuthContext
 const AuthContext = createContext(undefined)
+=======
+  HEAD_ADMIN: "Head Admin",
+  STUDENT: "Student",
+  MANAGER: "Manager",
+  PARTNER: "Partner",
+  REVIEWER: "Reviewer",
+}
+>>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
 
 export function AuthProvider({ children }) {
   const router = useRouter()
   const pathname = usePathname()
   const [searchParams, setSearchParams] = useState(new URLSearchParams())
+<<<<<<< HEAD
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -103,6 +120,80 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const verifyCurrentUser = async () => {
+=======
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setSearchParams(new URLSearchParams(window.location.search))
+
+      const handleRouteChange = () => {
+        setSearchParams(new URLSearchParams(window.location.search))
+      }
+
+      window.addEventListener("popstate", handleRouteChange)
+
+      return () => {
+        window.removeEventListener("popstate", handleRouteChange)
+      }
+    }
+  }, [pathname])
+
+  const [user, setUser] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isInitialized, setIsInitialized] = useState(false)
+
+  const redirect = searchParams.get("redirect") || "/"
+
+  const performRedirect = useCallback(
+    (loggedInUser) => {
+      if (!loggedInUser || !loggedInUser.role) {
+        console.warn("AuthProvider performRedirect: No user or role for redirection. Defaulting to /sign-in.")
+        router.replace("/sign-in")
+        return
+      }
+
+      const redirectQueryParam = searchParams.get("redirect")
+      let targetPath
+
+      if (redirectQueryParam && redirectQueryParam !== pathname) {
+        targetPath = redirectQueryParam
+        console.log(`AuthProvider performRedirect: Using redirect query param: ${targetPath}`)
+      } else {
+        if (loggedInUser.dashboard) {
+          targetPath = loggedInUser.dashboard
+        } else {
+          switch (loggedInUser.role) {
+            case ROLES.HEAD_ADMIN:
+            case ROLES.MANAGER:
+              targetPath = "/admin-dashboard"
+              break
+            case ROLES.STUDENT:
+            case ROLES.PARTNER:
+              targetPath = "/student-dashboard"
+              break
+            case ROLES.REVIEWER:
+              targetPath = "/admin-dashboard/review"
+              break
+            default:
+              console.warn(
+                `AuthProvider performRedirect: Unknown role "${loggedInUser.role}", redirecting to generic /.`,
+              )
+              targetPath = "/"
+              break
+          }
+        }
+      }
+      console.log(`AuthProvider performRedirect: Redirecting to ${targetPath}`)
+      if (pathname !== targetPath) {
+        router.replace(targetPath)
+      }
+    },
+    [router, searchParams, pathname],
+  )
+
+  useEffect(() => {
+    const initializeAuth = async () => {
+>>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
       console.log("AuthProvider: Initializing auth...")
       setIsLoading(true)
       try {
@@ -115,6 +206,7 @@ export function AuthProvider({ children }) {
         }
 
         if (token) {
+<<<<<<< HEAD
           console.log("AuthProvider: Token found in cookie.", token ? "Token found" : "No token")
 
           // Check token format and expiry
@@ -124,6 +216,35 @@ export function AuthProvider({ children }) {
             if (tokenParts.length !== 3) {
               console.warn("AuthProvider: Invalid token format (not a valid JWT). Clearing auth data.")
               throw new Error("Invalid token format")
+=======
+          console.log("AuthProvider: Token found in cookie.", token ? "Token valid format" : "Token invalid format")
+          internalApi.defaults.headers.common["Authorization"] = `Bearer ${token}`
+          const storedUser = localStorage.getItem("cedo_user")
+
+          if (storedUser) {
+            const userDataFromStorage = JSON.parse(storedUser)
+            setUser(userDataFromStorage)
+            console.log("AuthProvider: User restored from localStorage.", userDataFromStorage)
+          } else {
+            console.warn("AuthProvider: Token found but no user in localStorage. Fetching from /auth/me.")
+            try {
+              const { data: meData } = await internalApi.get("/auth/me")
+              if (meData && meData.user) {
+                setUser(meData.user)
+                localStorage.setItem("cedo_user", JSON.stringify(meData.user))
+                console.log("AuthProvider: User fetched from /auth/me.", meData.user)
+              } else {
+                throw new Error("No user data from /auth/me or invalid response structure")
+              }
+            } catch (meError) {
+              console.error("AuthProvider: Failed to fetch user from /auth/me:", meError.message)
+              if (typeof document !== "undefined") {
+                document.cookie = "cedo_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure"
+              }
+              localStorage.removeItem("cedo_user")
+              delete internalApi.defaults.headers.common["Authorization"]
+              setUser(null)
+>>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
             }
 
             // Check if token is expired by decoding the payload (middle part)
@@ -196,7 +317,11 @@ export function AuthProvider({ children }) {
       }
     }
     if (!isInitialized) {
+<<<<<<< HEAD
       verifyCurrentUser()
+=======
+      initializeAuth()
+>>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
     }
   }, [isInitialized])
 
@@ -226,6 +351,7 @@ export function AuthProvider({ children }) {
       setIsLoading(false)
       setIsInitialized(true)
       console.log("AuthProvider: Sign-in successful. User state updated.", userData)
+<<<<<<< HEAD
 
       // Resolve the Google Auth Promise if it's waiting
       if (window.googleAuthResolve) {
@@ -305,6 +431,72 @@ export function AuthProvider({ children }) {
         throw new Error(errorMessage) // Throw the improved error message
       }
     },
+=======
+      performRedirect(userData)
+      return userData
+    },
+    [performRedirect],
+  )
+
+  const commonSignOutLogic = useCallback(
+    async (redirect = true, redirectPath = "/sign-in") => {
+      console.log("AuthProvider [signOut]: Signing out.")
+      setIsLoading(true)
+      try {
+        // await internalApi.post("/auth/logout");
+      } catch (error) {
+        console.error("AuthProvider [signOut]: Error during backend logout:", error)
+      } finally {
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("cedo_user")
+          localStorage.removeItem("cedo_token")
+          document.cookie = "cedo_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure"
+          console.log("AuthProvider [signOut]: Token cookie and localStorage cleared.")
+        }
+        delete internalApi.defaults.headers.common["Authorization"]
+        setUser(null)
+        setIsLoading(false)
+        if (redirect) {
+          console.log(`AuthProvider [signOut]: Redirecting to ${redirectPath}.`)
+          router.replace(redirectPath)
+        }
+      }
+    },
+    [router],
+  )
+
+  const signIn = useCallback(
+    async (email, password, rememberMe = false) => {
+      console.log("AuthProvider [signIn]: Attempting sign-in for", email)
+      setIsLoading(true)
+      try {
+        const response = await internalApi.post("/auth/login", { email, password })
+        const { token, user: userData } = response.data
+        if (token && userData) {
+          return commonSignInSuccess(token, userData, rememberMe)
+        } else {
+          throw new Error("Login failed: No token or user data received.")
+        }
+      } catch (error) {
+        console.error(
+          "AuthProvider [signIn]: Sign-in failed.",
+          error.isAxiosError && error.response ? error.response.data : error.message,
+        )
+        await commonSignOutLogic(false)
+        setIsLoading(false)
+        if (axios.isAxiosError(error) && error.response) {
+          const backendErrorMessage =
+            error.response.data?.message ||
+            (error.response.data?.errors && error.response.data.errors.map((e) => e.msg).join(", ")) ||
+            `Server error (${error.response.status}).`
+          throw new Error(backendErrorMessage)
+        } else if (axios.isAxiosError(error) && error.request) {
+          throw new Error("Network Error: Unable to connect to the server.")
+        }
+        throw error
+      }
+    },
+>>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
     [commonSignInSuccess, commonSignOutLogic],
   )
 
@@ -369,12 +561,17 @@ export function AuthProvider({ children }) {
       }
 
       try {
+<<<<<<< HEAD
+=======
+        // Send the ID token to your backend
+>>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
         const backendResponse = await internalApi.post("/auth/google", {
           token: response.credential,
         })
 
         const { token, user: userData } = backendResponse.data
 
+<<<<<<< HEAD
         if (token && userData) {
           return commonSignInSuccess(token, userData, false)
         } else {
@@ -414,6 +611,19 @@ export function AuthProvider({ children }) {
       }
     },
     [commonSignInSuccess],
+=======
+        if (window.googleAuthResolve) {
+          window.googleAuthResolve({ credential: response.credential, ...backendResponse.data })
+        }
+      } catch (error) {
+        console.error("AuthProvider [handleGoogleCredentialResponse]: Backend verification failed", error)
+        if (window.googleAuthReject) {
+          window.googleAuthReject(error)
+        }
+      }
+    },
+    [internalApi],
+>>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
   )
 
   const signInWithGoogleAuth = useCallback(async () => {
@@ -443,7 +653,11 @@ export function AuthProvider({ children }) {
         window.googleAuthResolve = resolve
         window.googleAuthReject = reject
         setTimeout(() => {
+<<<<<<< HEAD
           if (window.googleAuthResolve) { // Check if it hasn't been resolved/rejected already
+=======
+          if (window.googleAuthResolve) {
+>>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
             delete window.googleAuthResolve
             delete window.googleAuthReject
             reject(new Error("Google authentication process timed out. Please try again."))
@@ -452,6 +666,7 @@ export function AuthProvider({ children }) {
       })
 
       window.google.accounts.id.prompt()
+<<<<<<< HEAD
       // The actual result of Google Sign-In (token or error) is handled by the callback handleGoogleCredentialResponse
       // The promise here is to wait for that callback to resolve/reject through window.googleAuthResolve/Reject
       await googleAuthPromise; // This will resolve if commonSignInSuccess is called, or reject if handleGoogleCredentialResponse calls googleAuthReject.
@@ -477,6 +692,28 @@ export function AuthProvider({ children }) {
       await commonSignOutLogic(false)
       setIsLoading(false)
 
+=======
+      const googleUser = await googleAuthPromise
+      console.log("AuthProvider [signInWithGoogleAuth]: Google credential received, sending to backend.")
+
+      const response = await internalApi.post("/auth/google", { token: googleUser.credential })
+      const { token, user: userData } = response.data
+
+      if (token && userData) {
+        return commonSignInSuccess(token, userData, false)
+      } else {
+        throw new Error("Google Sign-In failed: No token or user data received from backend.")
+      }
+    } catch (error) {
+      console.error(
+        "AuthProvider [signInWithGoogleAuth]: Google sign-in failed.",
+        error.isAxiosError && error.response ? error.response.data : error.message,
+        error,
+      )
+      await commonSignOutLogic(false)
+      setIsLoading(false)
+
+>>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
       let specificErrorMessage = "Google Sign-In failed. Please try again."
       if (error.message && error.message.toLowerCase().includes("popup_closed_by_user")) {
         specificErrorMessage = "Google Sign-In was closed. Please try again."
@@ -490,12 +727,21 @@ export function AuthProvider({ children }) {
         (error.message.toLowerCase().includes("timeout") || error.message.toLowerCase().includes("timed out"))
       ) {
         specificErrorMessage = "Google Sign-In timed out. Please try again."
+<<<<<<< HEAD
       } else if (axios.isAxiosError(error) && error.response && error.config?.url?.includes("/auth/google")) {
+=======
+      } else if (error.isAxiosError && error.response && error.config?.url === "/auth/google") {
+>>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
         specificErrorMessage =
           error.response.data?.message ||
           (error.response.data?.errors && error.response.data.errors.map((e) => e.msg).join(", ")) ||
           `Google Sign-In: Server error (${error.response.status}).`
+<<<<<<< HEAD
       } else if (error.message && !error.message.toLowerCase().includes("axioserror")) {
+=======
+      } else if (error.message && !error.message.toLowerCase().includes("axios")) {
+        // Prefer custom messages over generic axios network errors if possible
+>>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
         specificErrorMessage = error.message
       }
       throw new Error(specificErrorMessage)
@@ -505,6 +751,43 @@ export function AuthProvider({ children }) {
     }
   }, [loadGoogleScript, handleGoogleCredentialResponse, commonSignInSuccess, commonSignOutLogic])
 
+<<<<<<< HEAD
+=======
+  const signUp = useCallback(async (name, email, password, organization, organizationType, captchaToken) => {
+    console.log("AuthProvider [signUp]: Attempting sign-up for", email)
+    setIsLoading(true)
+    try {
+      const response = await internalApi.post("/auth/register", {
+        name,
+        email,
+        password,
+        organization,
+        organizationType,
+        captchaToken,
+      })
+      console.log("AuthProvider [signUp]: Sign-up API call successful.", response.data)
+      setIsLoading(false)
+      return response.data
+    } catch (error) {
+      console.error(
+        "AuthProvider [signUp]: Sign-up failed.",
+        error.isAxiosError && error.response ? error.response.data : error.message,
+      )
+      setIsLoading(false)
+      if (axios.isAxiosError(error) && error.response) {
+        const backendErrorMessage =
+          error.response.data?.message ||
+          (error.response.data?.errors && error.response.data.errors.map((e) => e.msg).join(", ")) ||
+          `Registration failed (${error.response.status}).`
+        throw new Error(backendErrorMessage)
+      } else if (axios.isAxiosError(error) && error.request) {
+        throw new Error("Registration failed: Network Error.")
+      }
+      throw error
+    }
+  }, [])
+
+>>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
   const signOut = useCallback(
     async (redirect = true, redirectPath = "/sign-in") => {
       await commonSignOutLogic(redirect, redirectPath)

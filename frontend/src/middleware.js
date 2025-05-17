@@ -2,7 +2,11 @@ import { jwtVerify } from "jose"
 import { NextResponse } from "next/server"
 
 // Define your JWT secret. THIS MUST BE THE SAME SECRET USED TO SIGN THE TOKEN.
+<<<<<<< HEAD
 const JWT_SECRET = process.env.JWT_SECRET || "mysecretkey" // Provide a default for development
+=======
+const JWT_SECRET = process.env.JWT_SECRET
+>>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
 if (!JWT_SECRET) {
   console.error(
     "CRITICAL: JWT_SECRET environment variable is not set in middleware. Service will not function correctly.",
@@ -160,11 +164,19 @@ export async function middleware(request) {
 
   if (
     pathname.startsWith("/admin-dashboard") &&
+<<<<<<< HEAD
     userData.role !== ROLES.head_admin &&
     userData.role !== ROLES.manager
   ) {
     console.log(
       `Middleware: Access Denied to "${pathname}". User role "${userData.role}" not head_admin or manager. Redirecting.`,
+=======
+    userData.role !== ROLES.HEAD_ADMIN &&
+    userData.role !== ROLES.MANAGER
+  ) {
+    console.log(
+      `Middleware: Access Denied to "${pathname}". User role "${userData.role}" not HEAD_ADMIN or MANAGER. Redirecting.`,
+>>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
     )
     // Redirect to their default dashboard or an "access denied" page
     const fallbackDashboard =

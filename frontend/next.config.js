@@ -14,7 +14,11 @@ const nextConfig = {
     return [
       {
         source: "/api/:path*",
+<<<<<<< HEAD
         destination: "http://localhost:5050/api/:path*",
+=======
+        destination: "http://localhost:5000/api/:path*",
+>>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
       },
     ]
   },

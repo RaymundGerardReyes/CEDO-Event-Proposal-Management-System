@@ -34,11 +34,14 @@ services:
       - DB_NAME=${MYSQL_DATABASE_NAME}
       - DB_USER=${MYSQL_USER_NAME}
       - DB_PASSWORD=${MYSQL_USER_PASSWORD}
+<<<<<<< HEAD
       - MYSQL_HOST=mysql
       - MYSQL_PORT=3306
       - MYSQL_DATABASE=${MYSQL_DATABASE_NAME}
       - MYSQL_USER=${MYSQL_USER_NAME}
       - MYSQL_PASSWORD=${MYSQL_USER_PASSWORD}
+=======
+>>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
       - API_SECRET_DEV=${API_SECRET_DEV}
       - JWT_SECRET_DEV=${JWT_SECRET_DEV}
       - PORT=5000
@@ -48,6 +51,7 @@ services:
       - EMAIL_PASSWORD=${EMAIL_PASSWORD}
       - RECAPTCHA_SECRET_KEY=${RECAPTCHA_SECRET_KEY}
       - GOOGLE_CLIENT_ID_BACKEND=${GOOGLE_CLIENT_ID_BACKEND}
+<<<<<<< HEAD
     command: >
       sh -c "
         chmod +x /usr/src/app/wait-for-it.sh &&
@@ -58,6 +62,9 @@ services:
           npm run dev
         '
       "
+=======
+    command: npm run dev
+>>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
     restart: unless-stopped
     depends_on:
       mysql:
