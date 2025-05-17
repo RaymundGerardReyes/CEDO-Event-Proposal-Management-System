@@ -1,152 +1,70 @@
 "use client"
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
-import { Camera, Lock, Mail, UserCircle, X } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { PageHeader } from "@/components/page-header"
 import { useEffect, useState } from "react"
 
-// CSS for animations
-const overlayStyles = {
-  transition: "opacity 300ms ease-in-out",
+// Loading component
+function ProfileLoading() {
+  return (
+    <div className="bg-white p-6 rounded-lg shadow">
+      <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-4"></div>
+      <div className="h-4 w-32 bg-gray-200 rounded animate-pulse mb-4"></div>
+      <div className="space-y-4">
+        <div>
+          <div className="h-5 w-40 bg-gray-200 rounded animate-pulse mb-2"></div>
+          <div className="h-4 w-full bg-gray-200 rounded animate-pulse"></div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
-const modalStyles = {
-  transition: "all 300ms ease-in-out",
-}
+export default function AdminProfilePage() {
+  const [section, setSection] = useState("personal")
+  const [isLoading, setIsLoading] = useState(true)
 
-export default function ProfilePage() {
-  const router = useRouter()
-  const [mounted, setMounted] = useState(false)
-
-  // Set mounted to true after component mounts to enable animations
   useEffect(() => {
-    setMounted(true)
+    // Get the section from URL on client side after mount
+    const params = new URLSearchParams(window.location.search)
+    const sectionParam = params.get("section")
+    if (sectionParam) {
+      setSection(sectionParam)
+    }
+
+    // Listen for URL changes (back/forward navigation)
+    const handleRouteChange = () => {
+      const newParams = new URLSearchParams(window.location.search)
+      const newSection = newParams.get("section") || "personal"
+      setSection(newSection)
+    }
+
+    window.addEventListener("popstate", handleRouteChange)
+    setIsLoading(false)
+
+    return () => {
+      window.removeEventListener("popstate", handleRouteChange)
+    }
   }, [])
 
-  // Mock user data
-  const user = {
-    name: "John Doe",
-    email: "john.doe@example.com",
-    role: "Administrator",
-    avatar: "/images/profile-avatar.png",
+  if (isLoading) {
+    return <ProfileLoading />
   }
-
-  const handleClose = () => {
-    router.back()
-  }
-
-  if (!mounted) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Blurred background overlay */}
-      <div
-        className="absolute inset-0 bg-black/30 backdrop-blur-sm"
-        style={{
-          ...overlayStyles,
-          opacity: mounted ? 1 : 0,
-        }}
-        onClick={handleClose}
-      />
-
-      {/* Profile credentials modal */}
-      <div
-        className="z-10 w-full max-w-md mx-auto"
-        style={{
-          ...modalStyles,
-          transform: mounted ? "scale(1)" : "scale(0.9)",
-          opacity: mounted ? 1 : 0,
-        }}
-      >
-        <Card className="border-cedo-blue/20 shadow-lg">
-          <CardHeader className="relative pb-2">
-            <Button variant="ghost" size="icon" className="absolute right-4 top-4" onClick={handleClose}>
-              <X className="h-4 w-4" />
-            </Button>
-            <CardTitle className="text-xl text-cedo-blue">Profile Credentials</CardTitle>
-          </CardHeader>
-
-          <CardContent className="space-y-6 pt-4">
-            {/* Profile Photo */}
-            <div className="flex flex-col items-center justify-center space-y-3">
-              <Avatar className="h-24 w-24 border-2 border-cedo-blue/20">
-                <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
-                <AvatarFallback className="bg-cedo-blue text-white text-xl">
-                  {user.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
-                </AvatarFallback>
-              </Avatar>
-
-              <Button variant="outline" size="sm" className="mt-2">
-                <Camera className="mr-2 h-4 w-4" />
-                Change Photo
-              </Button>
+    <div className="container mx-auto py-6">
+      <PageHeader heading="Admin Profile" subheading="View and update your admin profile information" />
+      <div className="mt-6">
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h2 className="text-xl font-semibold mb-4">Admin Profile</h2>
+          <p className="mb-4">Current section: {section}</p>
+          {/* Profile content would go here */}
+          <div className="space-y-4">
+            <div>
+              <h3 className="font-medium">Personal Information</h3>
+              <p className="text-muted-foreground">Your admin details would appear here.</p>
             </div>
-
-            <Separator />
-
-            {/* Email Address */}
-            <div className="space-y-2">
-              <div className="flex items-center">
-                <Mail className="h-4 w-4 text-cedo-blue mr-2" />
-                <Label htmlFor="email" className="text-sm font-medium">
-                  Email Address
-                </Label>
-              </div>
-              <div className="flex space-x-2">
-                <Input id="email" value={user.email} className="flex-1" readOnly />
-                <Button variant="outline" size="sm">
-                  Change
-                </Button>
-              </div>
-            </div>
-
-            {/* Password */}
-            <div className="space-y-2">
-              <div className="flex items-center">
-                <Lock className="h-4 w-4 text-cedo-blue mr-2" />
-                <Label htmlFor="password" className="text-sm font-medium">
-                  Password
-                </Label>
-              </div>
-              <div className="flex space-x-2">
-                <Input id="password" type="password" value="••••••••" className="flex-1" readOnly />
-                <Button variant="outline" size="sm">
-                  Change
-                </Button>
-              </div>
-            </div>
-
-            {/* Role */}
-            <div className="space-y-2">
-              <div className="flex items-center">
-                <UserCircle className="h-4 w-4 text-cedo-blue mr-2" />
-                <Label htmlFor="role" className="text-sm font-medium">
-                  Role
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="bg-cedo-blue/10 text-cedo-blue px-3 py-2 rounded-md text-sm font-medium flex-1">
-                  {user.role}
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">Your role determines your permissions within the system.</p>
-            </div>
-
-            <div className="flex justify-end pt-4">
-              <Button className="bg-cedo-blue hover:bg-cedo-blue/90 text-white" onClick={handleClose}>
-                Done
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   )

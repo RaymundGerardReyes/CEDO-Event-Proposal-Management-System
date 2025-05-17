@@ -1,9 +1,9 @@
-import { Inter } from "next/font/google"
+import { AppHeader } from "@/components/app-header"
+import { AppSidebar } from "@/components/app-sidebar"
 import { ThemeProvider } from "@/components/theme-provider"
 import { SidebarProvider } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/app-sidebar"
-import { AppHeader } from "@/components/app-header"
 import { Toaster } from "@/components/ui/toaster"
+import { Inter } from "next/font/google"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -11,10 +11,16 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata = {
   title: "ProposeConnect - Event Proposal Management System",
   description: "Streamlined event proposal submission and management",
-  generator: "v0.dev",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
-  themeColor: "#0c2d6b",
+  generator: "v0.dev"
 }
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1
+}
+
+export const themeColor = "#0c2d6b"
 
 export default function RootLayout({ children }) {
   return (

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, Suspense } from "react"
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -259,7 +259,7 @@ const allNotifications = [
   },
 ]
 
-export default function NotificationsPage() {
+function NotificationsContent() {
   const [notifications, setNotifications] = useState(allNotifications)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -506,5 +506,61 @@ export default function NotificationsPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+// Loading state for Suspense fallback
+function NotificationsLoading() {
+  return (
+    <div className="flex-1 bg-[#f8f9fa] p-6 md:p-8">
+      <div className="h-8 w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
+      <div className="h-4 w-64 bg-gray-200 rounded animate-pulse mb-8"></div>
+      
+      <div className="rounded-lg border bg-white shadow-sm mb-6">
+        <div className="p-4 border-b">
+          <div className="h-6 w-40 bg-gray-200 rounded animate-pulse"></div>
+        </div>
+        <div className="p-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div className="h-10 w-60 bg-gray-200 rounded animate-pulse"></div>
+            <div className="flex gap-2">
+              <div className="h-10 w-40 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-10 w-32 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-10 w-32 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-10 w-32 bg-gray-200 rounded animate-pulse"></div>
+            </div>
+          </div>
+          
+          <div className="space-y-6">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="space-y-2">
+                <div className="h-5 w-20 bg-gray-200 rounded animate-pulse"></div>
+                <div className="border rounded-md overflow-hidden">
+                  {[1, 2, 3].map((j) => (
+                    <div key={j} className="border-b p-4">
+                      <div className="flex gap-3">
+                        <div className="h-10 w-10 rounded-full bg-gray-200 animate-pulse"></div>
+                        <div className="flex-1">
+                          <div className="h-5 w-40 bg-gray-200 rounded animate-pulse mb-2"></div>
+                          <div className="h-4 w-full bg-gray-200 rounded animate-pulse"></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function NotificationsPage() {
+  return (
+    <Suspense fallback={<NotificationsLoading />}>
+      <NotificationsContent />
+    </Suspense>
   )
 }

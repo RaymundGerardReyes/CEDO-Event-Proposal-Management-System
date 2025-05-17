@@ -10,8 +10,6 @@ const ROLES = {
     STUDENT: 'student',
     HEAD_ADMIN: 'head_admin',
     MANAGER: 'manager',
-    PARTNER: 'partner', // Added based on proposals.js usage
-    REVIEWER: 'reviewer' // Added based on proposals.js usage
 };
 
 

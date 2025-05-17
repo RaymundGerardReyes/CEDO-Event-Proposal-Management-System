@@ -8,6 +8,44 @@ import { useMobile } from "@/hooks/use-mobile"
 import { useSearchParams } from "next/navigation"
 import { Suspense } from "react"
 
+// Loading component
+function DashboardLoading() {
+    return (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+                <div key={i} className="p-4 border rounded-lg animate-pulse">
+                    <div className="h-6 bg-gray-200 rounded w-1/3 mb-2"></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+                    <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                </div>
+            ))}
+        </div>
+    )
+}
+
+// Component that uses useSearchParams
+function DashboardContent() {
+    const { useSearchParams } = require("next/navigation")
+    const searchParams = useSearchParams()
+
+    const view = searchParams.get("view") || "default"
+
+    // Rest of your dashboard logic
+
+    return (
+        <div>
+            <div className="mb-6">
+                <p>Current view: {view}</p>
+            </div>
+
+            {/* Dashboard content */}
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {/* Your dashboard cards */}
+            </div>
+        </div>
+    )
+}
+
 // Search params component that needs to be wrapped in Suspense
 function EventSearch() {
     const searchParams = useSearchParams()
@@ -56,8 +94,8 @@ export default function EventsPage() {
             />
 
             <div className="mt-6">
-                <Suspense fallback={<div className="text-center py-10">Loading events...</div>}>
-                    <EventSearch />
+                <Suspense fallback={<DashboardLoading />}>
+                    <DashboardContent />
                 </Suspense>
             </div>
         </div>

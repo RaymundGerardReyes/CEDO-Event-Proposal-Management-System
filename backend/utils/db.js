@@ -1,3 +1,4 @@
+// utils/db.js
 const mongoose = require("mongoose")
 
 // MongoDB connection options
@@ -20,29 +21,40 @@ const connectDB = async () => {
       options,
     )
 
-    console.log(`MongoDB Connected: ${conn.connection.host}`)
+    if (conn && conn.connection) {
+      console.log(`MongoDB Connected: ${conn.connection.host}`)
+    } else {
+      // This log indicates the mock for mongoose.connect() didn't resolve to an object
+      // with a 'connection' property.
+      console.error("MongoDB connection failed: conn is undefined or does not have a connection property.")
+    }
 
-    // Handle connection errors after initial connection
-    mongoose.connection.on("error", (err) => {
-      console.error(`MongoDB connection error: ${err}`)
-    })
+    // Ensure mongoose.connection is defined
+    if (mongoose.connection) {
+      mongoose.connection.on("error", (err) => {
+        console.error(`MongoDB connection error: ${err}`)
+      })
 
-    // Handle when the connection is disconnected
-    mongoose.connection.on("disconnected", () => {
-      console.log("MongoDB disconnected")
-    })
+      mongoose.connection.on("disconnected", () => {
+        console.log("MongoDB disconnected")
+      })
 
-    // If the Node process ends, close the MongoDB connection
-    process.on("SIGINT", async () => {
-      await mongoose.connection.close()
-      console.log("MongoDB connection closed due to app termination")
-      process.exit(0)
-    })
+      process.on("SIGINT", async () => {
+        // This requires mongoose.connection to have a 'close' method.
+        await mongoose.connection.close()
+        console.log("MongoDB connection closed due to app termination")
+        process.exit(0)
+      })
+    } else {
+      console.error("Mongoose connection is not defined.")
+    }
 
     return conn
   } catch (error) {
+    // If the TypeError from `mongoose.connection.on` happens, it's caught here.
+    // 'error.message' would then be "Cannot read properties of undefined (reading 'on')"
     console.error(`Error connecting to MongoDB: ${error.message}`)
-    process.exit(1)
+    throw error
   }
 }
 

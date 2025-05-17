@@ -4,40 +4,22 @@ import { PageHeader } from "@/components/page-header"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 
+// IMPORTANT: This is a completely new file that MUST replace the existing page.jsx
+// After copying this file, rename it to page.jsx and delete the old page.jsx
+
 export default function ProposalsPage() {
+    // Use state for all data that would normally come from URL
     const [filter, setFilter] = useState("all")
     const [sort, setSort] = useState("newest")
     const [isLoading, setIsLoading] = useState(true)
 
+    // Read URL parameters after component mount (client-side only)
     useEffect(() => {
-        // Get parameters from URL on client side after mount
-        const params = new URLSearchParams(window.location.search)
-        const filterParam = params.get("filter")
-        const sortParam = params.get("sort")
-
-        if (filterParam) {
-            setFilter(filterParam)
-        }
-
-        if (sortParam) {
-            setSort(sortParam)
-        }
-
-        // Listen for URL changes (back/forward navigation)
-        const handleRouteChange = () => {
-            const newParams = new URLSearchParams(window.location.search)
-            const newFilter = newParams.get("filter") || "all"
-            const newSort = newParams.get("sort") || "newest"
-
-            setFilter(newFilter)
-            setSort(newSort)
-        }
-
-        window.addEventListener("popstate", handleRouteChange)
-        setIsLoading(false)
-
-        return () => {
-            window.removeEventListener("popstate", handleRouteChange)
+        if (typeof window !== "undefined") {
+            const urlParams = new URLSearchParams(window.location.search)
+            setFilter(urlParams.get("filter") || "all")
+            setSort(urlParams.get("sort") || "newest")
+            setIsLoading(false)
         }
     }, [])
 
@@ -63,20 +45,16 @@ export default function ProposalsPage() {
 
     // Update URL when filter or sort changes
     const updateUrlParams = (newFilter, newSort) => {
-        const params = new URLSearchParams()
-
-        if (newFilter !== "all") {
-            params.set("filter", newFilter)
+        if (typeof window !== "undefined") {
+            const params = new URLSearchParams()
+            if (newFilter !== "all") params.set("filter", newFilter)
+            if (newSort !== "newest") params.set("sort", newSort)
+            const newUrl = params.toString() ? `?${params.toString()}` : ""
+            window.history.pushState({}, "", newUrl)
         }
-
-        if (newSort !== "newest") {
-            params.set("sort", newSort)
-        }
-
-        const newUrl = params.toString() ? `?${params.toString()}` : ""
-        window.history.pushState({}, "", newUrl)
     }
 
+    // Loading state
     if (isLoading) {
         return (
             <div className="container mx-auto py-6">
@@ -98,17 +76,18 @@ export default function ProposalsPage() {
         )
     }
 
+    // Main content
     return (
         <div className="container mx-auto py-6">
             <PageHeader heading="Proposals" subheading="View and manage your proposals" />
 
             <div className="mt-6">
                 <div className="bg-white p-6 rounded-lg shadow">
-                    <div className="flex justify-between items-center mb-6">
+                    <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
                         <h2 className="text-xl font-semibold">Your Proposals</h2>
 
-                        <div className="flex space-x-4">
-                            <div className="flex items-center space-x-2">
+                        <div className="flex flex-col sm:flex-row gap-4">
+                            <div className="flex items-center gap-2">
                                 <span className="text-sm text-gray-600">Filter:</span>
                                 <select
                                     value={filter}
@@ -126,7 +105,7 @@ export default function ProposalsPage() {
                                 </select>
                             </div>
 
-                            <div className="flex items-center space-x-2">
+                            <div className="flex items-center gap-2">
                                 <span className="text-sm text-gray-600">Sort:</span>
                                 <select
                                     value={sort}
@@ -165,7 +144,7 @@ export default function ProposalsPage() {
                                 </div>
                             ))
                         ) : (
-                            <p>No proposals found.</p>
+                            <p>No proposals found matching your criteria.</p>
                         )}
                     </div>
 
