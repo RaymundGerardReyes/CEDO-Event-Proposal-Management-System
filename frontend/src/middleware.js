@@ -3,10 +3,14 @@ import { NextResponse } from "next/server"
 
 // Define your JWT secret. THIS MUST BE THE SAME SECRET USED TO SIGN THE TOKEN.
 <<<<<<< HEAD
+<<<<<<< HEAD
 const JWT_SECRET = process.env.JWT_SECRET || "mysecretkey" // Provide a default for development
 =======
 const JWT_SECRET = process.env.JWT_SECRET
 >>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
+=======
+const JWT_SECRET = process.env.JWT_SECRET || "mysecretkey" // Provide a default for development
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
 if (!JWT_SECRET) {
   console.error(
     "CRITICAL: JWT_SECRET environment variable is not set in middleware. Service will not function correctly.",
@@ -165,6 +169,7 @@ export async function middleware(request) {
   if (
     pathname.startsWith("/admin-dashboard") &&
 <<<<<<< HEAD
+<<<<<<< HEAD
     userData.role !== ROLES.head_admin &&
     userData.role !== ROLES.manager
   ) {
@@ -177,6 +182,13 @@ export async function middleware(request) {
     console.log(
       `Middleware: Access Denied to "${pathname}". User role "${userData.role}" not HEAD_ADMIN or MANAGER. Redirecting.`,
 >>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
+=======
+    userData.role !== ROLES.head_admin &&
+    userData.role !== ROLES.manager
+  ) {
+    console.log(
+      `Middleware: Access Denied to "${pathname}". User role "${userData.role}" not head_admin or manager. Redirecting.`,
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
     )
     // Redirect to their default dashboard or an "access denied" page
     const fallbackDashboard =

@@ -15,10 +15,14 @@ const nextConfig = {
       {
         source: "/api/:path*",
 <<<<<<< HEAD
+<<<<<<< HEAD
         destination: "http://localhost:5050/api/:path*",
 =======
         destination: "http://localhost:5000/api/:path*",
 >>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
+=======
+        destination: "http://localhost:5050/api/:path*",
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
       },
     ]
   },

@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 "use client";
 
 import { AuthLoadingScreen } from "@/components/auth/loading-screen";
@@ -51,51 +52,55 @@ export default function SignInPage() {
 =======
 // frontend/src/app/(auth)/sign-in/page.jsx
 "use client"
+=======
+"use client";
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
 
-import { useToast } from "@/components/ui/use-toast"
-// Import ROLES from the AuthContext to ensure consistency
-import { ROLES, useAuth } from "@/contexts/auth-context"
-import { usePathname, useRouter } from "next/navigation"
-import { Suspense, useCallback, useEffect, useState } from "react"
+import { AuthLoadingScreen } from "@/components/auth/loading-screen";
+import { LogoSimple } from "@/components/logo";
+import { useToast } from "@/components/ui/use-toast";
+import { ROLES, useAuth } from "@/contexts/auth-context";
+import { motion } from 'framer-motion';
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { LogoSimple } from "@/components/logo"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
-import { FormControl, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
-import { Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react"
-import Link from "next/link"
+// UI Components
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogOverlay,
+  DialogPortal, // Ensure DialogPortal is imported if not already (it's part of your new structure)
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { FormControl, FormItem, FormLabel } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 
-// Loading component
-function SignInLoading() {
-  return (
-    <div className="flex justify-center items-center min-h-[50vh]">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-    </div>
-  )
-}
+// Icons
+import { Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
 
-// Component that uses useSearchParams
-function SignInContent() {
-  const { useSearchParams } = require("next/navigation")
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
+// Next.js specific
+import Link from "next/link";
 
-  const redirect = searchParams.get("redirect") || "/"
+// ReCAPTCHA
+import ReCAPTCHA from "react-google-recaptcha";
 
-  //isLoading and isInitialized are from AuthProvider's general state
-  //isSubmitting is a local state for the form submission process on this page
-  const {
-    signIn,
-    signInWithGoogleAuth,
-    user,
-    isLoading: authProviderLoading, // isLoading from AuthProvider
-    isInitialized,
-  } = useAuth()
+export default function SignInPage() {
+  const { signIn, signInWithGoogleAuth, user, isLoading: authProviderLoading, isInitialized } = useAuth();
+  const { toast } = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams(); // Kept searchParams as it's initialized, though not used in redirect
+  const pathname = usePathname();
+  const recaptchaRef = useRef(null);
 
+<<<<<<< HEAD
   const { toast } = useToast()
 
   console.log("SignInPage Auth State (from AuthProvider):", {
@@ -107,11 +112,19 @@ function SignInContent() {
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false) // Local loading state for form submission
 >>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
+=======
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
+  const [isSubmittingGoogle, setIsSubmittingGoogle] = useState(false);
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     rememberMe: false,
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
   });
   const [captchaToken, setCaptchaToken] = useState(null);
   const [isErrorDialogOpen, setIsErrorDialogOpen] = useState(false);
@@ -119,6 +132,7 @@ function SignInContent() {
   const [error, setError] = useState(null);
 
   const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+<<<<<<< HEAD
 =======
   })
 >>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
@@ -135,10 +149,15 @@ function SignInContent() {
       // Should not happen if user object is valid
       return
     }
+=======
 
-    const redirectQueryParam = searchParams.get("redirect")
-    let targetPath
+  const handleAuthenticatedUserRedirect = useCallback(() => {
+    if (!user || !isInitialized) return;
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
 
+    let targetPath = "/";
+
+<<<<<<< HEAD
     // If middleware provided a redirect param and the user is *already* authenticated
     // when landing on /sign-in, it might mean their session was still valid.
     // Prioritize their default dashboard in this scenario rather than a potentially stale redirect.
@@ -154,12 +173,15 @@ function SignInContent() {
 
     // Determine default dashboard based on user object or role
 >>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
+=======
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
     if (user.dashboard) {
-      targetPath = user.dashboard
+      targetPath = user.dashboard;
     } else {
       switch (user.role) {
         case ROLES.HEAD_ADMIN:
         case ROLES.MANAGER:
+<<<<<<< HEAD
 <<<<<<< HEAD
         case ROLES.REVIEWER:
           targetPath = "/admin-dashboard";
@@ -168,11 +190,17 @@ function SignInContent() {
           targetPath = "/admin-dashboard"
           break
 >>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
+=======
+        case ROLES.REVIEWER:
+          targetPath = "/admin-dashboard";
+          break;
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
         case ROLES.STUDENT:
         case ROLES.PARTNER:
-          targetPath = "/student-dashboard"
-          break
+          targetPath = "/student-dashboard";
+          break;
         default:
+<<<<<<< HEAD
 <<<<<<< HEAD
           console.warn(`SignInPage: Unknown user role "${user.role}". Redirecting to default path.`);
           targetPath = "/";
@@ -192,9 +220,18 @@ function SignInContent() {
     )
 
 >>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
+=======
+          console.warn(`SignInPage: Unknown user role "${user.role}". Redirecting to default path.`);
+          targetPath = "/";
+          break;
+      }
+    }
+
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
     if (pathname !== targetPath) {
-      router.replace(targetPath)
+      router.replace(targetPath);
     } else if (pathname === "/sign-in") {
+<<<<<<< HEAD
 <<<<<<< HEAD
       router.replace(targetPath === "/sign-in" ? "/" : targetPath);
     }
@@ -214,14 +251,23 @@ function SignInContent() {
   }, [isInitialized, user, handleAuthenticatedUserRedirect]);
 =======
     console.log("SignInPage useEffect: Checking if user is already authenticated.", { isInitialized, user })
-    if (isInitialized && user) {
-      handleAuthenticatedUserRedirect()
-    } else if (isInitialized && !user) {
-      console.log("SignInPage: Auth context initialized, no user. Sign-in form will be shown.")
+=======
+      router.replace(targetPath === "/sign-in" ? "/" : targetPath);
     }
+  }, [user, isInitialized, router, pathname]);
+
+  useEffect(() => {
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
+    if (isInitialized && user) {
+      handleAuthenticatedUserRedirect();
+    }
+<<<<<<< HEAD
     // The main loading spinner handles the !isInitialized case.
   }, [isInitialized, user, handleAuthenticatedUserRedirect])
 >>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
+=======
+  }, [isInitialized, user, handleAuthenticatedUserRedirect]);
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
 
   // Auto-close for error dialog
   useEffect(() => {
@@ -238,12 +284,39 @@ function SignInContent() {
 
 
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target
+    const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
-    }))
-  }
+    }));
+  };
+
+  const resetCaptcha = useCallback(() => {
+    setCaptchaToken(null);
+    recaptchaRef.current?.reset();
+  }, []);
+
+  const handleCaptchaVerify = useCallback((token) => {
+    if (token) {
+      setCaptchaToken(token);
+    } else {
+      resetCaptcha();
+    }
+  }, [resetCaptcha]);
+
+  const handleCaptchaError = useCallback(() => {
+    toast({
+      title: "CAPTCHA Error",
+      description: "There was an error with the reCAPTCHA service. Please try refreshing.",
+      variant: "destructive",
+    });
+    resetCaptcha();
+  }, [toast, resetCaptcha]);
+
+  const openErrorDialog = (message) => {
+    setErrorDialogMessage(message || "The email or password you entered is incorrect. Please check your credentials or try again.");
+    setIsErrorDialogOpen(true);
+  };
 
   const resetCaptcha = useCallback(() => {
     setCaptchaToken(null);
@@ -274,6 +347,9 @@ function SignInContent() {
 
   const handleSubmit = async (e) => {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
     e.preventDefault();
     if (isSubmittingEmail || isSubmittingGoogle) return;
 
@@ -287,6 +363,7 @@ function SignInContent() {
     }
 
     setIsSubmittingEmail(true);
+<<<<<<< HEAD
     try {
       const userData = await signIn(formData.email, formData.password, formData.rememberMe, captchaToken);
       if (userData) {
@@ -310,44 +387,36 @@ function SignInContent() {
     if (isSubmitting) return // Prevent double submission
     setIsSubmitting(true) // Use local submitting state for UI feedback on this page
     console.log("SignInPage handleSubmit: Attempting email/password sign in...")
+=======
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
     try {
-      const userData = await signIn(formData.email, formData.password, formData.rememberMe)
-
-      // AuthContext's `commonSignInSuccess` (called by `signIn`) will handle:
-      // 1. Updating the user state in AuthContext.
-      // 2. Setting cookies/localStorage.
-      // 3. Calling `performRedirect` (from AuthContext) which handles the query param and role-based redirection.
-      // The useEffect in this page is primarily for users already logged in when the page loads.
-
+      const userData = await signIn(formData.email, formData.password, formData.rememberMe, captchaToken);
       if (userData) {
-        // signIn from context should return userData on success
         toast({
           title: "Signed In Successfully!",
           description: `Welcome back, ${userData.name || "user"}! Redirecting...`,
-        })
+          variant: "success",
+        });
       } else {
-        // This block should ideally not be reached if signIn in context throws an error on failure.
-        console.error("SignInPage handleSubmit: signIn resolved but no userData returned (unexpected).")
-        toast({
-          title: "Sign In Issue",
-          description: "Login completed but user details are missing. Please try again.",
-          variant: "destructive",
-        })
+        openErrorDialog("Authentication failed. Please check your email and password.");
+        resetCaptcha();
       }
     } catch (error) {
-      console.error("SignInPage handleSubmit: Sign in error caught in page:", error)
-      toast({
-        title: "Sign In Failed",
-        description: error.message || "An unexpected error occurred. Please check your credentials and try again.",
-        variant: "destructive",
-      })
+      console.error("SignInPage handleSubmit Error:", error);
+      openErrorDialog(error.message || "An unexpected error occurred during sign in. Please try again.");
+      resetCaptcha();
     } finally {
+<<<<<<< HEAD
       setIsSubmitting(false)
 >>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
+=======
+      setIsSubmittingEmail(false);
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
     }
-  }
+  };
 
   const handleGoogleSignIn = async () => {
+<<<<<<< HEAD
 <<<<<<< HEAD
     if (isSubmittingEmail || isSubmittingGoogle) return;
     setIsSubmittingGoogle(true);
@@ -363,10 +432,17 @@ function SignInContent() {
       const userData = await signInWithGoogleAuth() // from AuthContext
       // Similar to email/password, AuthContext's `commonSignInSuccess` handles redirection.
 >>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
+=======
+    if (isSubmittingEmail || isSubmittingGoogle) return;
+    setIsSubmittingGoogle(true);
+    try {
+      const userData = await signInWithGoogleAuth();
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
       if (userData) {
         toast({
           title: "Signed in with Google!",
           description: `Welcome, ${userData.name || "user"}! Redirecting...`,
+<<<<<<< HEAD
 <<<<<<< HEAD
           variant: "success",
         });
@@ -380,28 +456,28 @@ function SignInContent() {
       setIsSubmittingGoogle(false);
 =======
         })
+=======
+          variant: "success",
+        });
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
       } else {
-        console.error("SignInPage handleGoogleSignIn: signInWithGoogleAuth resolved but no userData (unexpected).")
-        toast({
-          title: "Google Sign In Issue",
-          description: "Google sign-in completed but user details are missing.",
-          variant: "destructive",
-        })
+        openErrorDialog("An issue occurred after Google sign-in. Please try again.");
       }
     } catch (error) {
-      console.error("Error during Google sign-in:", error)
-      toast({
-        title: "Sign-in Error",
-        description: "An error occurred during Google sign-in. Please try again.",
-        variant: "destructive",
-      })
+      console.error("SignInPage handleGoogleSignIn Error:", error);
+      openErrorDialog(error.message || "An error occurred during Google sign-in. Please try again.");
     } finally {
+<<<<<<< HEAD
       setIsSubmitting(false)
 >>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
+=======
+      setIsSubmittingGoogle(false);
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
     }
-  }
+  };
 
   if (authProviderLoading || !isInitialized) {
+<<<<<<< HEAD
 <<<<<<< HEAD
     return <AuthLoadingScreen message="Initializing session..." />;
   }
@@ -434,26 +510,30 @@ function SignInContent() {
         </div>
       </div>
     )
+=======
+    return <AuthLoadingScreen message="Initializing session..." />;
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
   }
 
-  // 2. If AuthContext is initialized AND a user object exists, the user is ALREADY logged in.
-  //    The `useEffect` hook will handle the redirection. Render a "Redirecting..." message.
-  if (isInitialized && user) {
-    console.log("SignInPage: User is authenticated (user object exists). Rendering REDIRECTING message...")
+  if (user) {
+    return <AuthLoadingScreen message="Already signed in, redirecting..." />;
+  }
+
+  if (!recaptchaSiteKey) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="flex flex-col items-center gap-2">
-          <Loader2 className="h-12 w-12 animate-spin text-cedo-blue" />
-          <p className="text-sm text-gray-600">Already signed in, redirecting...</p>
-        </div>
+      <div className="flex flex-col justify-center items-center h-screen text-center p-4">
+        <h2 className="text-xl font-semibold text-destructive mb-2">Configuration Error</h2>
+        <p className="text-muted-foreground">
+          The ReCAPTCHA service is not configured correctly.
+          <br />
+          Please contact support or ensure `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` is set.
+        </p>
       </div>
-    )
+    );
   }
 
-  // 3. If AuthContext is initialized, no user, and AuthProvider not loading, render the sign-in form.
-  //    Local `isSubmitting` will handle loading state for the form buttons.
-  console.log("SignInPage: Rendering sign-in form (isInitialized=true, user=null, authProviderLoading=false).")
   return (
+<<<<<<< HEAD
     <div className="w-full max-w-md p-4">
       <div className="mb-8 text-center">
         <LogoSimple />
@@ -466,6 +546,8 @@ function SignInContent() {
 
 <<<<<<< HEAD
   return (
+=======
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
     <>
       <div className="flex flex-col items-center justify-center min-h-screen py-8 bg-gray-50">
         <div className="w-full max-w-md p-4">
@@ -473,6 +555,7 @@ function SignInContent() {
             {LogoSimple ? <LogoSimple /> : <div className="text-destructive">Logo Error</div>}
             <h1 className="mt-4 text-2xl font-bold text-cedo-blue">Welcome back</h1>
             <p className="mt-2 text-sm text-muted-foreground">Sign in to your account to continue</p>
+<<<<<<< HEAD
           </div>
 
           <Card className="border-0 shadow-lg">
@@ -607,6 +690,20 @@ function SignInContent() {
               <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting && ( // Show loader only if this specific action is submitting
 >>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
+=======
+          </div>
+
+          <Card className="border-0 shadow-lg">
+            <CardContent className="pt-6">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full mb-4 flex items-center justify-center gap-2"
+                onClick={handleGoogleSignIn}
+                disabled={isSubmittingGoogle || isSubmittingEmail}
+              >
+                {isSubmittingGoogle ? (
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" className="mr-2">
@@ -620,11 +717,15 @@ function SignInContent() {
               </Button>
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
               <div className="relative my-4">
                 <Separator />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="bg-card px-2 text-sm text-muted-foreground">or continue with email</span>
                 </div>
+<<<<<<< HEAD
               </div>
 
               <form onSubmit={handleSubmit}>
@@ -747,25 +848,82 @@ function SignInContent() {
                 <p>
                   <strong>Head Admin:</strong> admin@cedo.gov.ph / admin123
                 </p>
+=======
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
               </div>
-              <div>
-                <p>
-                  <strong>System Manager:</strong> manager@cedo.gov.ph / manager123
-                </p>
-              </div>
-              <div>
-                <p>
-                  <strong>Student:</strong> student@example.com / student123
-                </p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
 
+              <form onSubmit={handleSubmit}>
+                <div className="space-y-4">
+                  <FormItem>
+                    <FormLabel htmlFor="email">Email</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input id="email" placeholder="your.email@example.com" type="email" autoComplete="email" name="email" value={formData.email} onChange={handleChange} className="pl-10" disabled={isSubmittingEmail || isSubmittingGoogle} required />
+                      </div>
+                    </FormControl>
+                  </FormItem>
+
+                  <FormItem>
+                    <div className="flex items-center justify-between">
+                      <FormLabel htmlFor="password">Password</FormLabel>
+                      <Link href="/forgot-password" tabIndex={-1} className="text-xs text-cedo-blue hover:underline">
+                        Forgot password?
+                      </Link>
+                    </div>
+                    <FormControl>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input id="password" placeholder="••••••••" type={showPassword ? "text" : "password"} autoComplete="current-password" name="password" value={formData.password} onChange={handleChange} className="pl-10" disabled={isSubmittingEmail || isSubmittingGoogle} required />
+                        <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3 py-2 text-muted-foreground hover:bg-transparent" onClick={() => setShowPassword(!showPassword)} disabled={isSubmittingEmail || isSubmittingGoogle} aria-label={showPassword ? "Hide password" : "Show password"}>
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </FormControl>
+                  </FormItem>
+
+                  {recaptchaSiteKey && (
+                    <div className="flex justify-center my-4">
+                      <ReCAPTCHA
+                        ref={recaptchaRef}
+                        sitekey={recaptchaSiteKey}
+                        onChange={handleCaptchaVerify}
+                        onErrored={handleCaptchaError}
+                        onExpired={resetCaptcha}
+                      />
+                    </div>
+                  )}
+
+                  <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                    <FormControl>
+                      <Checkbox id="rememberMe" name="rememberMe" checked={formData.rememberMe} onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, rememberMe: !!checked }))} disabled={isSubmittingEmail || isSubmittingGoogle} />
+                    </FormControl>
+                    <FormLabel htmlFor="rememberMe" className="text-sm font-normal cursor-pointer">
+                      Remember me
+                    </FormLabel>
+                  </FormItem>
+
+                  <Button type="submit" className="w-full" disabled={isSubmittingEmail || isSubmittingGoogle || !captchaToken}>
+                    {isSubmittingEmail && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isSubmittingEmail ? "Signing in..." : "Sign in"}
+                  </Button>
+                </div>
+              </form>
+
+              <div className="mt-6 p-3 bg-muted/50 rounded-md border">
+                <h3 className="text-sm font-medium text-foreground/80 mb-2">Demo Accounts:</h3>
+                <div className="space-y-2 text-xs text-muted-foreground">
+                  <div><p><strong>Head Admin:</strong> admin@cedo.gov.ph / admin123</p></div>
+                  <div><p><strong>System Manager:</strong> manager@cedo.gov.ph / manager123</p></div>
+                  <div><p><strong>Student:</strong> student@example.com / student123</p></div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+<<<<<<< HEAD
 export default function SignInPage() {
   return (
     <div className="container mx-auto py-6">
@@ -790,3 +948,45 @@ async function loadGoogleScript() {
   })
 }
 >>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
+=======
+      {/* Enhanced Minimalistic Error Dialog */}
+      <Dialog open={isErrorDialogOpen} onOpenChange={setIsErrorDialogOpen}>
+        <DialogPortal>
+          <DialogOverlay
+            className="fixed inset-0 bg-black bg-opacity-25 backdrop-blur-sm transition-opacity duration-300 ease-out"
+          />
+          <DialogContent className="fixed top-1/2 left-1/2 w-full max-w-sm transform -translate-x-1/2 -translate-y-1/2 bg-background dark:bg-neutral-900 rounded-2xl shadow-2xl p-6 sm:p-8"> {/* Adjusted padding and background for themes */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="flex flex-col space-y-4"
+            >
+              <DialogHeader>
+                <DialogTitle className="text-xl font-bold text-red-600 dark:text-red-500">
+                  Sign In Failed
+                </DialogTitle>
+              </DialogHeader>
+              <DialogDescription className="text-sm text-gray-700 dark:text-gray-300">
+                {errorDialogMessage}
+              </DialogDescription>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button
+                    variant="outline" // Explicitly set variant for styling consistency
+                    size="sm"
+                    className="px-4 py-2 border-red-600 text-red-600 hover:bg-red-50 dark:border-red-500 dark:text-red-500 dark:hover:bg-red-900/30 transition-colors duration-150"
+                  >
+                    Close
+                  </Button>
+                </DialogClose>
+              </DialogFooter>
+            </motion.div>
+          </DialogContent>
+        </DialogPortal>
+      </Dialog>
+    </>
+  );
+}
+>>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
