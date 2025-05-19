@@ -5,21 +5,12 @@ const { pool } = require('../config/db');
 const sessionManager = {
     // Generate new token
     generateToken: (user) => {
-        // Ensure essential user properties exist before signing
-        if (!user || typeof user.id === 'undefined' || !user.email || !user.role) {
-            console.error('Invalid user object for token generation:', user);
-            throw new Error('Cannot generate token for invalid user object.');
+        if (!process.env.JWT_SECRET_DEV) {
+            throw new Error("JWT_SECRET_DEV is not defined in environment variables.");
         }
-        return jwt.sign(
-            {
-                // Payload contains essential, non-sensitive user info
-                id: user.id,
-                email: user.email,
-                role: user.role
-            },
-            process.env.JWT_SECRET,
-            { expiresIn: '24h' } // Standard token expiry
-        );
+        return jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET_DEV, {
+            expiresIn: "1h", // Set your desired expiration time
+        });
     },
 
     // Verify token

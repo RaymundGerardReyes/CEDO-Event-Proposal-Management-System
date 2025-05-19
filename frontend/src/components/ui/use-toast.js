@@ -4,18 +4,19 @@ import { createContext, useContext, useState } from "react"
 
 // Toast context
 const ToastContext = createContext({
-  toast: () => {},
+  toast: () => { },
+  dismiss: () => { },
+  toasts: [],
 })
 
 // Provider component
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([])
 
-  const toast = ({ title, description, variant = "default" }) => {
+  const toast = (options) => {
+    // Implementation details
     const id = Math.random().toString(36).substring(2, 9)
-    const newToast = { id, title, description, variant }
-
-    setToasts((prev) => [...prev, newToast])
+    setToasts((prevToasts) => [...prevToasts, { id, ...options }])
 
     // Auto dismiss after 5 seconds
     setTimeout(() => {
@@ -25,7 +26,11 @@ export function ToastProvider({ children }) {
     return id
   }
 
-  return <ToastContext.Provider value={{ toast, toasts }}>{children}</ToastContext.Provider>
+  const dismiss = (toastId) => {
+    setToasts((prevToasts) => prevToasts.filter((toast) => toast.id !== toastId))
+  }
+
+  return <ToastContext.Provider value={{ toast, dismiss, toasts }}>{children}</ToastContext.Provider>
 }
 
 // Hook to use the toast functionality
@@ -46,9 +51,8 @@ export function Toaster() {
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className={`bg-white border rounded-lg shadow-lg p-4 ${
-            toast.variant === "destructive" ? "border-red-500" : "border-gray-200"
-          }`}
+          className={`bg-white border rounded-lg shadow-lg p-4 ${toast.variant === "destructive" ? "border-red-500" : "border-gray-200"
+            }`}
         >
           {toast.title && <h4 className="font-medium">{toast.title}</h4>}
           {toast.description && <p className="text-sm text-gray-500">{toast.description}</p>}

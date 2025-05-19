@@ -1,12 +1,13 @@
 // frontend/src/app/(main)/layout.js
 "use client";
 
-import { AppSidebar } from "@/components/app-sidebar"; // Your sidebar component
-import { SidebarProvider } from "@/components/ui/sidebar"; // Assuming this is your context provider for the sidebar
+import { AppSidebar } from "@/components/dashboard/student/app-sidebar"; // Your sidebar component
+import { SidebarProvider } from "@/components/dashboard/student/ui/sidebar"; // Assuming this is your context provider for the sidebar
 import { useAuth } from "@/contexts/auth-context"; // Your auth context
 import { Loader2 } from "lucide-react"; // Loading icon
 import { usePathname, useRouter } from "next/navigation"; // Added usePathname
 import { useEffect, useState } from "react";
+import "../globals.css"; // Adjust the path as necessary
 
 export default function MainLayout({ children }) {
   const { user, isLoading, isInitialized } = useAuth();
@@ -19,6 +20,7 @@ export default function MainLayout({ children }) {
 
   useEffect(() => {
     setIsClientMounted(true);
+    console.log("MainLayout: Client mounted, isLoading=", isLoading, ", isInitialized=", isInitialized, ", user=", user ? "exists" : "null");
   }, []);
 
   // Standardized roles (ensure these match your global constants and middleware)
@@ -29,88 +31,77 @@ export default function MainLayout({ children }) {
   };
 
   useEffect(() => {
-    // This effect primarily acts as a client-side safeguard or handles cases
-    // where the session might expire while the user is on the page.
-    // The middleware should handle the initial redirect if not authenticated.
-    if (isClientMounted && isInitialized && !isLoading && !user) {
-      console.log("(MainLayout) Client-side: No authenticated user found, redirecting to sign-in.");
-      // Redirect to sign-in, preserving the current path for redirection after login
-      router.replace(`/sign-in?redirect=${encodeURIComponent(pathname)}`);
+    if (!isClientMounted) {
+      console.log("MainLayout: Not client mounted yet, waiting...");
+      return;
     }
 
-    // Optional: Client-side role check if needed for specific UI adjustments
-    // or as an additional layer of defense. Middleware is primary for page access.
-    if (isClientMounted && isInitialized && user) {
-      if (pathname.startsWith("/admin-dashboard") && user.role !== ROLES.HEAD_ADMIN) {
-        console.warn("(MainLayout) Client-side: User without Head Admin role on /admin-dashboard. Middleware should have caught this. Redirecting.");
-        // This redirect should ideally be handled by middleware.
-        // If it happens here, it's a fallback.
+    if (!isInitialized) {
+      console.log("MainLayout: Auth not initialized yet, waiting...");
+      return;
+    }
+
+    if (!isLoading && !user) {
+      // Auth check complete, no user found.
+      console.log("MainLayout: Client-side: Auth initialized, no user found. Redirecting to sign-in.");
+      router.replace(`/sign-in?redirect=${encodeURIComponent(pathname)}`);
+      return;
+    }
+
+    // Optional: Client-side role checks
+    if (user) {
+      console.log("MainLayout: User authenticated, checking role-based access for path:", pathname);
+      if (pathname.startsWith("/admin-dashboard") && user.role !== ROLES.HEAD_ADMIN && user.role !== ROLES.MANAGER) {
+        console.warn("MainLayout: Client-side: User without Head Admin/Manager role on /admin-dashboard. Redirecting.");
         router.replace(user.role === ROLES.STUDENT ? "/student-dashboard" : "/");
       }
-      // Add other client-side role-based logic if necessary, e.g., for minor UI tweaks
-      // not warranting a full page redirect handled by middleware.
+      if (pathname.startsWith("/student-dashboard") && user.role !== ROLES.STUDENT) {
+        console.warn("MainLayout: Client-side: User without Student role on /student-dashboard. Redirecting.");
+        router.replace(user.role === ROLES.HEAD_ADMIN || user.role === ROLES.MANAGER ? "/admin-dashboard" : "/");
+      }
     }
 
-  }, [user, isLoading, isInitialized, isClientMounted, router, pathname]); // Added pathname
+  }, [user, isLoading, isInitialized, isClientMounted, router, pathname, ROLES.HEAD_ADMIN, ROLES.MANAGER, ROLES.STUDENT]);
 
-  // Show loading state while checking authentication or if client hasn't mounted yet
-  // isInitialized from useAuth is key here.
-  if (!isClientMounted || isLoading || !isInitialized) {
+  // CRITICAL SECTION FOR PREVENTING PREMATURE RENDERS:
+  // If ANY of these conditions are true, show loading and prevent children from rendering
+  if (!isClientMounted || !isInitialized || isLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-[#f8f9fa]">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-12 w-12 animate-spin text-cedo-blue" />
           <p className="text-lg text-cedo-blue">Loading dashboard...</p>
+          <p className="text-sm text-gray-500">
+            {!isClientMounted ? "Initializing..." : !isInitialized ? "Checking authentication..." : "Loading user data..."}
+          </p>
         </div>
       </div>
     );
   }
 
-  // If auth check is complete, client is mounted, but still no user,
-  // it means a redirect is (or should be) in progress by the useEffect or middleware.
-  // Render null or a minimal "Redirecting..." message to avoid flashing main layout.
-  if (isClientMounted && isInitialized && !user) {
+  // After all checks and we STILL don't have a user, render redirect message
+  if (!user) {
+    console.log("MainLayout: Client-side: Auth initialized, not loading, but no user. Rendering redirect message.");
     return (
       <div className="flex h-screen w-full items-center justify-center bg-[#f8f9fa]">
-        <p className="text-lg text-cedo-blue">Redirecting to sign-in...</p>
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-12 w-12 animate-spin text-cedo-blue" />
+          <p className="text-lg text-cedo-blue">Redirecting to sign-in...</p>
+        </div>
       </div>
     );
   }
 
-  // If user is authenticated and all checks passed, render the main layout.
-  // Ensure `user` is not null before trying to access `user.role` for any UI logic here.
-  if (user) {
-    // Example: Check if user should even see this layout based on role,
-    // though middleware should be the primary gatekeeper for the entire (main) group.
-    // This is more for if (main) had sub-sections with different general roles.
-    // For `/admin-dashboard` vs `/student-dashboard`, middleware is better.
-    // const isAdminDashboardPath = pathname.startsWith('/admin-dashboard');
-    // if (isAdminDashboardPath && user.role !== ROLES.HEAD_ADMIN) {
-    //   // This should have been caught by middleware or the useEffect above.
-    //   // Render a generic "Access Denied" or redirect.
-    //   return (
-    //       <div className="flex h-screen w-full items-center justify-center bg-[#f8f9fa]">
-    //           <p className="text-lg text-red-500">Access Denied. You are being redirected.</p>
-    //       </div>
-    //   );
-    // }
-
-    return (
-      <SidebarProvider defaultOpen={true}> {/* Ensure SidebarProvider is correctly implemented */}
-        <div className="flex min-h-screen bg-gray-100"> {/* Added a default background */}
-          <AppSidebar /> {/* Your sidebar component */}
-          <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8"> {/* Added some padding to main */}
-            {children}
-          </main>
-        </div>
-      </SidebarProvider>
-    );
-  }
-
-  // Fallback, should ideally not be reached if logic above is correct.
+  // If user is authenticated AND all checks passed, render the main layout with its children
+  console.log("MainLayout: All checks passed, rendering main layout with user:", user.name);
   return (
-    <div className="flex h-screen w-full items-center justify-center bg-[#f8f9fa]">
-      <p className="text-lg text-red-500">An unexpected error occurred with authentication.</p>
-    </div>
+    <SidebarProvider defaultOpen={true}> {/* Ensure SidebarProvider is correctly implemented */}
+      <div className="flex min-h-screen bg-gray-100"> {/* Added a default background */}
+        <AppSidebar /> {/* Your sidebar component */}
+        <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8"> {/* Added some padding to main */}
+          {children}
+        </main>
+      </div>
+    </SidebarProvider>
   );
 }

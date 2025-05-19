@@ -1,20 +1,17 @@
 // backend/utils/googleAuth.js
 const { OAuth2Client } = require('google-auth-library');
 
-// IMPORTANT: You MUST set this environment variable in your backend's .env file.
-// This should be the Google Cloud OAuth 2.0 Client ID for your WEB APPLICATION.
-// It's used to verify that the token was intended for your application (audience check).
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID_BACKEND;
+// This MUST match the variable name used in your .env and docker-compose.yml for the backend service
+const GOOGLE_CLIENT_ID_BACKEND = process.env.GOOGLE_CLIENT_ID_BACKEND;
 
-if (!GOOGLE_CLIENT_ID) {
+if (!GOOGLE_CLIENT_ID_BACKEND) {
     console.error(
-        "FATAL ERROR: GOOGLE_CLIENT_ID_BACKEND is not defined in the backend's environment variables. Google Sign-In will not work."
+        "FATAL ERROR: GOOGLE_CLIENT_ID_BACKEND is not defined in environment variables. Google Sign-In will not function."
     );
-    // In a production app, you might throw an error here to prevent the server from starting misconfigured.
 }
 
 // Initialize the client only if the ID is provided.
-const client = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
+const client = GOOGLE_CLIENT_ID_BACKEND ? new OAuth2Client(GOOGLE_CLIENT_ID_BACKEND) : null;
 
 /**
  * Verifies a Google ID token.
@@ -27,46 +24,51 @@ async function verifyGoogleToken(idToken) {
         console.error(
             "Google OAuth2Client is not initialized. Ensure GOOGLE_CLIENT_ID_BACKEND is set."
         );
-        // This error message will be caught by the route handler
         throw new Error("Google authentication service is not configured on the server.");
     }
+
+    if (!idToken) {
+        throw new Error("No Google ID token provided for verification.");
+    }
+
+    console.log("Verifying Google ID token...");
+    console.log("GOOGLE_CLIENT_ID_BACKEND is configured as:",
+        GOOGLE_CLIENT_ID_BACKEND ? `${GOOGLE_CLIENT_ID_BACKEND.substring(0, 6)}...` : "undefined");
 
     try {
         const ticket = await client.verifyIdToken({
             idToken: idToken,
-            audience: GOOGLE_CLIENT_ID, // Verifies the 'aud' claim
+            audience: GOOGLE_CLIENT_ID_BACKEND, // Verifies the 'aud' claim
         });
         const payload = ticket.getPayload();
 
         if (!payload) {
             console.error("Google token verification returned no payload.");
-            throw new Error("Invalid Google token: No payload.");
+            throw new Error("Invalid Google token: No payload received after verification.");
         }
         if (!payload.email || !payload.sub) {
             console.error("Google token payload is missing essential fields (email, sub):", payload);
-            throw new Error("Invalid Google token: Payload missing required fields.");
+            throw new Error("Invalid Google token: Payload missing required user identifiers.");
         }
 
-        // console.log("Google Token Payload Verified:", payload); // For debugging
+        console.log("Token successfully verified for:", payload.email);
         return payload;
-
     } catch (error) {
         console.error(
-            "Backend Error: Google ID token verification actually failed with:",
-            error.message // Log the specific message from google-auth-library
+            "Backend Error: Google ID token verification failed:",
+            error.message
         );
-        // Provide more user-friendly messages based on common errors
+
+        // Check the error message to provide more specific error information
         if (error.message.includes("Token used too late") || error.message.includes("Token expired")) {
             throw new Error("Google token is expired. Please try signing in again.");
         }
         if (error.message.includes("Invalid value for aud") || error.message.includes("Wrong recipient")) {
-            // This often means GOOGLE_CLIENT_ID_BACKEND is not matching the audience in the token.
-            // The token's 'aud' claim should match this GOOGLE_CLIENT_ID_BACKEND.
-            // The token's 'azp' claim will be the client ID of your *frontend* application.
-            console.error(`Audience mismatch: Token's audience might not include backend's GOOGLE_CLIENT_ID (${GOOGLE_CLIENT_ID}). Full error: ${error.message}`);
-            throw new Error("Google token has an invalid audience. This may be a configuration issue.");
+            console.error(`Audience mismatch error. Frontend might be using a different Client ID than backend expects.`);
+            throw new Error("Google token has an invalid audience. Configuration issue likely.");
         }
-        // Fallback for other verification errors
+
+        // Rethrow the error with a more user-friendly message
         throw new Error("Google token verification failed. The token may be invalid or malformed.");
     }
 }

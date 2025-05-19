@@ -34,6 +34,11 @@ services:
       - DB_NAME=${MYSQL_DATABASE_NAME}
       - DB_USER=${MYSQL_USER_NAME}
       - DB_PASSWORD=${MYSQL_USER_PASSWORD}
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=${MYSQL_DATABASE_NAME}
+      - MYSQL_USER=${MYSQL_USER_NAME}
+      - MYSQL_PASSWORD=${MYSQL_USER_PASSWORD}
       - API_SECRET_DEV=${API_SECRET_DEV}
       - JWT_SECRET_DEV=${JWT_SECRET_DEV}
       - PORT=5000
@@ -43,7 +48,16 @@ services:
       - EMAIL_PASSWORD=${EMAIL_PASSWORD}
       - RECAPTCHA_SECRET_KEY=${RECAPTCHA_SECRET_KEY}
       - GOOGLE_CLIENT_ID_BACKEND=${GOOGLE_CLIENT_ID_BACKEND}
-    command: npm run dev
+    command: >
+      sh -c "
+        chmod +x /usr/src/app/wait-for-it.sh &&
+        /usr/src/app/wait-for-it.sh mysql:3306 sh -c '
+          echo \"MySQL is up! Running database initialization script...\" &&
+          node /usr/src/app/scripts/init-db.js &&
+          echo \"Database initialization completed. Starting application...\" &&
+          npm run dev
+        '
+      "
     restart: unless-stopped
     depends_on:
       mysql:

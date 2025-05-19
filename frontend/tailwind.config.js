@@ -2,13 +2,7 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: ["class"],
-  content: [
-    "./pages/**/*.{js,jsx,ts,tsx}",
-    "./components/**/*.{js,jsx,ts,tsx}",
-    "./app/**/*.{js,jsx,ts,tsx}",
-    "./src/**/*.{js,jsx,ts,tsx}",
-    "*.{js,ts,jsx,tsx,mdx}"
-  ],
+  content: ["./pages/**/*.{js,jsx}", "./components/**/*.{js,jsx}", "./app/**/*.{js,jsx}", "./src/**/*.{js,jsx}"],
   theme: {
     container: {
       center: true,
@@ -67,7 +61,7 @@ module.exports = {
           primary: "hsl(var(--sidebar-primary))",
           "primary-foreground": "hsl(var(--sidebar-primary-foreground))",
         },
-        "cedo-blue": "#0a2167",
+        "cedo-blue": "#0066cc",
         "cedo-gold": "#f7b928",
       },
       borderRadius: {
@@ -77,17 +71,28 @@ module.exports = {
       },
       keyframes: {
         "accordion-down": {
-          from: { height: "0" }, // Changed from height: 0
+          from: { height: 0 },
           to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
           from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: "0" }, // Changed from height: 0
+          to: { height: 0 },
+        },
+        "fade-in": {
+          from: { opacity: 0 },
+          to: { opacity: 1 },
+        },
+        progress: {
+          "0%": { width: "0%" },
+          "50%": { width: "70%" },
+          "100%": { width: "100%" },
         },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "fade-in": "fade-in 0.5s ease-out",
+        progress: "progress 2s ease-in-out infinite",
       },
     },
   },

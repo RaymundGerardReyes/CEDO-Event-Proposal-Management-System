@@ -4,12 +4,11 @@ import axios from "axios"
 import { usePathname, useRouter } from "next/navigation"
 import { createContext, useCallback, useContext, useEffect, useState } from "react"
 
-// ... (API_URL, internalApi, ROLES - keep as previously defined) ...
-const AuthContext = createContext(undefined)
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api"
+// Define API URL
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5050/api"
 console.info("AuthContext: API requests will be sent to:", API_URL)
 
+// Create Axios instance for internal API calls
 const internalApi = axios.create({
   baseURL: API_URL,
   headers: {
@@ -18,13 +17,15 @@ const internalApi = axios.create({
   },
 })
 
+// Define user roles
 export const ROLES = {
-  HEAD_ADMIN: "Head Admin",
-  STUDENT: "Student",
-  MANAGER: "Manager",
-  PARTNER: "Partner",
-  REVIEWER: "Reviewer",
-}
+  head_admin: 'Head Admin',
+  student: 'Student',
+  manager: 'Manager',
+};
+
+// Create AuthContext
+const AuthContext = createContext(undefined)
 
 export function AuthProvider({ children }) {
   const router = useRouter()
@@ -101,7 +102,7 @@ export function AuthProvider({ children }) {
   )
 
   useEffect(() => {
-    const initializeAuth = async () => {
+    const verifyCurrentUser = async () => {
       console.log("AuthProvider: Initializing auth...")
       setIsLoading(true)
       try {
@@ -114,34 +115,65 @@ export function AuthProvider({ children }) {
         }
 
         if (token) {
-          console.log("AuthProvider: Token found in cookie.", token ? "Token valid format" : "Token invalid format")
-          internalApi.defaults.headers.common["Authorization"] = `Bearer ${token}`
-          const storedUser = localStorage.getItem("cedo_user")
+          console.log("AuthProvider: Token found in cookie.", token ? "Token found" : "No token")
 
-          if (storedUser) {
-            const userDataFromStorage = JSON.parse(storedUser)
-            setUser(userDataFromStorage)
-            console.log("AuthProvider: User restored from localStorage.", userDataFromStorage)
-          } else {
-            console.warn("AuthProvider: Token found but no user in localStorage. Fetching from /auth/me.")
-            try {
-              const { data: meData } = await internalApi.get("/auth/me")
-              if (meData && meData.user) {
-                setUser(meData.user)
-                localStorage.setItem("cedo_user", JSON.stringify(meData.user))
-                console.log("AuthProvider: User fetched from /auth/me.", meData.user)
-              } else {
-                throw new Error("No user data from /auth/me or invalid response structure")
-              }
-            } catch (meError) {
-              console.error("AuthProvider: Failed to fetch user from /auth/me:", meError.message)
-              if (typeof document !== "undefined") {
-                document.cookie = "cedo_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure"
-              }
-              localStorage.removeItem("cedo_user")
-              delete internalApi.defaults.headers.common["Authorization"]
-              setUser(null)
+          // Check token format and expiry
+          try {
+            // Basic validation - check if token has three parts separated by dots (header.payload.signature)
+            const tokenParts = token.split(".")
+            if (tokenParts.length !== 3) {
+              console.warn("AuthProvider: Invalid token format (not a valid JWT). Clearing auth data.")
+              throw new Error("Invalid token format")
             }
+
+            // Check if token is expired by decoding the payload (middle part)
+            // Note: This is a client-side check and not as secure as server verification
+            const payload = JSON.parse(atob(tokenParts[1]))
+            const currentTime = Math.floor(Date.now() / 1000)
+
+            if (payload.exp && payload.exp < currentTime) {
+              console.warn("AuthProvider: Token expired. Clearing auth data.")
+              throw new Error("Token expired")
+            }
+
+            // Token passed basic client-side checks, proceed
+            internalApi.defaults.headers.common["Authorization"] = `Bearer ${token}`
+            const storedUser = localStorage.getItem("cedo_user")
+
+            if (storedUser) {
+              const userDataFromStorage = JSON.parse(storedUser)
+              setUser(userDataFromStorage)
+              console.log("AuthProvider: User restored from localStorage.", userDataFromStorage)
+            } else {
+              console.warn("AuthProvider: Token found but no user in localStorage. Fetching from /auth/me.")
+              try {
+                const { data: meData } = await internalApi.get("/auth/me")
+                if (meData && meData.user) {
+                  setUser(meData.user)
+                  localStorage.setItem("cedo_user", JSON.stringify(meData.user))
+                  console.log("AuthProvider: User fetched from /auth/me.", meData.user)
+                } else {
+                  throw new Error("No user data from /auth/me or invalid response structure")
+                }
+              } catch (meError) {
+                console.error("AuthProvider: Failed to fetch user from /auth/me:", meError.message)
+                if (typeof document !== "undefined") {
+                  document.cookie = "cedo_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure"
+                }
+                localStorage.removeItem("cedo_user")
+                delete internalApi.defaults.headers.common["Authorization"]
+                setUser(null)
+              }
+            }
+          } catch (tokenError) {
+            console.error("AuthProvider: Token validation error:", tokenError.message)
+            // Clear invalid token
+            if (typeof document !== "undefined") {
+              document.cookie = "cedo_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure"
+            }
+            localStorage.removeItem("cedo_user")
+            delete internalApi.defaults.headers.common["Authorization"]
+            setUser(null)
           }
         } else {
           console.log("AuthProvider: No token found in cookie.")
@@ -164,7 +196,7 @@ export function AuthProvider({ children }) {
       }
     }
     if (!isInitialized) {
-      initializeAuth()
+      verifyCurrentUser()
     }
   }, [isInitialized])
 
@@ -194,6 +226,14 @@ export function AuthProvider({ children }) {
       setIsLoading(false)
       setIsInitialized(true)
       console.log("AuthProvider: Sign-in successful. User state updated.", userData)
+
+      // Resolve the Google Auth Promise if it's waiting
+      if (window.googleAuthResolve) {
+        window.googleAuthResolve(userData); // Resolve with user data
+        delete window.googleAuthResolve;
+        delete window.googleAuthReject; // Also clear reject if resolve is called
+      }
+
       performRedirect(userData)
       return userData
     },
@@ -228,11 +268,15 @@ export function AuthProvider({ children }) {
   )
 
   const signIn = useCallback(
-    async (email, password, rememberMe = false) => {
+    async (email, password, rememberMe = false, captchaToken = null) => {
       console.log("AuthProvider [signIn]: Attempting sign-in for", email)
       setIsLoading(true)
       try {
-        const response = await internalApi.post("/auth/login", { email, password })
+        const payload = { email, password }
+        if (captchaToken) {
+          payload.captchaToken = captchaToken
+        }
+        const response = await internalApi.post("/auth/login", payload)
         const { token, user: userData } = response.data
         if (token && userData) {
           return commonSignInSuccess(token, userData, rememberMe)
@@ -240,22 +284,25 @@ export function AuthProvider({ children }) {
           throw new Error("Login failed: No token or user data received.")
         }
       } catch (error) {
-        console.error(
-          "AuthProvider [signIn]: Sign-in failed.",
-          error.isAxiosError && error.response ? error.response.data : error.message,
-        )
+        console.error("AuthProvider [signIn]: Sign-in failed.", error)
+
+        // Improved error handling
+        let errorMessage = "An unexpected error occurred. Please try again."
+        if (axios.isAxiosError(error)) {
+          if (error.response) {
+            console.error("Backend response:", error.response.status, error.response.data)
+            errorMessage =
+              error.response.data?.message ||
+              (error.response.data?.errors && error.response.data.errors.map((e) => e.msg).join(", ")) ||
+              `Server error (${error.response.status}).`
+          } else {
+            errorMessage = error.message // Fallback to the error message
+          }
+        }
+
         await commonSignOutLogic(false)
         setIsLoading(false)
-        if (axios.isAxiosError(error) && error.response) {
-          const backendErrorMessage =
-            error.response.data?.message ||
-            (error.response.data?.errors && error.response.data.errors.map((e) => e.msg).join(", ")) ||
-            `Server error (${error.response.status}).`
-          throw new Error(backendErrorMessage)
-        } else if (axios.isAxiosError(error) && error.request) {
-          throw new Error("Network Error: Unable to connect to the server.")
-        }
-        throw error
+        throw new Error(errorMessage) // Throw the improved error message
       }
     },
     [commonSignInSuccess, commonSignOutLogic],
@@ -322,24 +369,51 @@ export function AuthProvider({ children }) {
       }
 
       try {
-        // Send the ID token to your backend
         const backendResponse = await internalApi.post("/auth/google", {
           token: response.credential,
         })
 
         const { token, user: userData } = backendResponse.data
 
-        if (window.googleAuthResolve) {
-          window.googleAuthResolve({ credential: response.credential, ...backendResponse.data })
+        if (token && userData) {
+          return commonSignInSuccess(token, userData, false)
+        } else {
+          throw new Error("Google Sign-In failed: No token or user data received from backend.")
         }
       } catch (error) {
-        console.error("AuthProvider [handleGoogleCredentialResponse]: Backend verification failed", error)
+        let errorMessage = "An unexpected error occurred during Google Sign-In.";
+        // let isHandledKnown403 = false; // Flag is implicitly handled by a single path for errorMessage now
+
+        if (axios.isAxiosError(error) && error.response) {
+          // Check for the specific "account not approved" 403 from /auth/google
+          if (error.response.status === 403 && error.config?.url?.includes('/auth/google')) {
+            const backendMessage = error.response.data?.message || 'Account not approved or access denied by backend.';
+            console.warn(`AuthProvider [handleGoogleCredentialResponse]: Google Sign-In attempt for a user resulted in 403 (handled). Backend message: "${backendMessage}"`);
+            errorMessage = backendMessage; // Use the backend message directly
+          } else {
+            // For other Axios errors with a response, log details as an error
+            console.error(`AuthProvider [handleGoogleCredentialResponse]: Backend responded with ${error.response.status} for URL ${error.config?.url}`, error.response.data, error);
+            errorMessage =
+              error.response.data?.message ||
+              (error.response.data?.errors && error.response.data.errors.map((e) => e.msg).join(", ")) ||
+              `Server error (${error.response.status}). Reason: ${error.response.data?.reason || 'N/A'}`;
+          }
+        } else if (axios.isAxiosError(error) && error.request) {
+          // Network error, no response received
+          console.error("AuthProvider [handleGoogleCredentialResponse]: Network error or no response from server for /auth/google.", error);
+          errorMessage = "No response from server. Please check your network connection.";
+        } else {
+          // Non-Axios error or Axios error without response/request (e.g., setup issue)
+          console.error("AuthProvider [handleGoogleCredentialResponse]: Non-Axios error or setup issue during Google Sign-In.", error);
+          errorMessage = error.message || errorMessage;
+        }
+
         if (window.googleAuthReject) {
-          window.googleAuthReject(error)
+          window.googleAuthReject(new Error(errorMessage));
         }
       }
     },
-    [internalApi],
+    [commonSignInSuccess],
   )
 
   const signInWithGoogleAuth = useCallback(async () => {
@@ -350,6 +424,13 @@ export function AuthProvider({ children }) {
       if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
         throw new Error("Google Client ID (NEXT_PUBLIC_GOOGLE_CLIENT_ID) is not configured.")
       }
+
+      console.log(
+        "AuthProvider [signInWithGoogleAuth]: Using client ID:",
+        process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
+          ? `${process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID.substring(0, 8)}...`
+          : "undefined",
+      )
 
       window.google.accounts.id.initialize({
         client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
@@ -362,7 +443,7 @@ export function AuthProvider({ children }) {
         window.googleAuthResolve = resolve
         window.googleAuthReject = reject
         setTimeout(() => {
-          if (window.googleAuthResolve) {
+          if (window.googleAuthResolve) { // Check if it hasn't been resolved/rejected already
             delete window.googleAuthResolve
             delete window.googleAuthReject
             reject(new Error("Google authentication process timed out. Please try again."))
@@ -371,23 +452,28 @@ export function AuthProvider({ children }) {
       })
 
       window.google.accounts.id.prompt()
-      const googleUser = await googleAuthPromise
-      console.log("AuthProvider [signInWithGoogleAuth]: Google credential received, sending to backend.")
+      // The actual result of Google Sign-In (token or error) is handled by the callback handleGoogleCredentialResponse
+      // The promise here is to wait for that callback to resolve/reject through window.googleAuthResolve/Reject
+      await googleAuthPromise; // This will resolve if commonSignInSuccess is called, or reject if handleGoogleCredentialResponse calls googleAuthReject.
+      // If commonSignInSuccess was called, the user is set and redirection happens there.
+      // If it gets here after promise resolution without error, it means commonSignInSuccess ran.
+      // No explicit user return is needed here as commonSignInSuccess updates state and redirects.
+      return; // Indicate success, though actual user data is set by commonSignInSuccess
 
-      const response = await internalApi.post("/auth/google", { token: googleUser.credential })
-      const { token, user: userData } = response.data
-
-      if (token && userData) {
-        return commonSignInSuccess(token, userData, false)
-      } else {
-        throw new Error("Google Sign-In failed: No token or user data received from backend.")
-      }
     } catch (error) {
-      console.error(
-        "AuthProvider [signInWithGoogleAuth]: Google sign-in failed.",
-        error.isAxiosError && error.response ? error.response.data : error.message,
-        error,
-      )
+      // Check if this error originated from our specific 403 handling in handleGoogleCredentialResponse
+      // The error thrown from there will have the user-friendly message.
+      if (error.message && (error.message.includes("User account is not approved") || error.message.includes("accessible to this System"))) {
+        console.warn(`AuthProvider [signInWithGoogleAuth]: Handled known 403 scenario: ${error.message}`);
+      } else if (axios.isAxiosError(error) && error.response && error.response.status === 403) {
+        console.warn(`AuthProvider [signInWithGoogleAuth]: Handled generic 403 from Google sign-in flow. User message: "${error.message}"`);
+      } else {
+        console.error(
+          "AuthProvider [signInWithGoogleAuth]: Google sign-in failed or other error.",
+          error // Log the full error for other cases
+        );
+      }
+
       await commonSignOutLogic(false)
       setIsLoading(false)
 
@@ -404,13 +490,12 @@ export function AuthProvider({ children }) {
         (error.message.toLowerCase().includes("timeout") || error.message.toLowerCase().includes("timed out"))
       ) {
         specificErrorMessage = "Google Sign-In timed out. Please try again."
-      } else if (error.isAxiosError && error.response && error.config?.url === "/auth/google") {
+      } else if (axios.isAxiosError(error) && error.response && error.config?.url?.includes("/auth/google")) {
         specificErrorMessage =
           error.response.data?.message ||
           (error.response.data?.errors && error.response.data.errors.map((e) => e.msg).join(", ")) ||
           `Google Sign-In: Server error (${error.response.status}).`
-      } else if (error.message && !error.message.toLowerCase().includes("axios")) {
-        // Prefer custom messages over generic axios network errors if possible
+      } else if (error.message && !error.message.toLowerCase().includes("axioserror")) {
         specificErrorMessage = error.message
       }
       throw new Error(specificErrorMessage)
@@ -419,40 +504,6 @@ export function AuthProvider({ children }) {
       delete window.googleAuthReject
     }
   }, [loadGoogleScript, handleGoogleCredentialResponse, commonSignInSuccess, commonSignOutLogic])
-
-  const signUp = useCallback(async (name, email, password, organization, organizationType, captchaToken) => {
-    console.log("AuthProvider [signUp]: Attempting sign-up for", email)
-    setIsLoading(true)
-    try {
-      const response = await internalApi.post("/auth/register", {
-        name,
-        email,
-        password,
-        organization,
-        organizationType,
-        captchaToken,
-      })
-      console.log("AuthProvider [signUp]: Sign-up API call successful.", response.data)
-      setIsLoading(false)
-      return response.data
-    } catch (error) {
-      console.error(
-        "AuthProvider [signUp]: Sign-up failed.",
-        error.isAxiosError && error.response ? error.response.data : error.message,
-      )
-      setIsLoading(false)
-      if (axios.isAxiosError(error) && error.response) {
-        const backendErrorMessage =
-          error.response.data?.message ||
-          (error.response.data?.errors && error.response.data.errors.map((e) => e.msg).join(", ")) ||
-          `Registration failed (${error.response.status}).`
-        throw new Error(backendErrorMessage)
-      } else if (axios.isAxiosError(error) && error.request) {
-        throw new Error("Registration failed: Network Error.")
-      }
-      throw error
-    }
-  }, [])
 
   const signOut = useCallback(
     async (redirect = true, redirectPath = "/sign-in") => {
@@ -468,7 +519,6 @@ export function AuthProvider({ children }) {
     signIn,
     signOut,
     signInWithGoogleAuth,
-    signUp,
     ROLES,
     redirect,
     searchParams,
