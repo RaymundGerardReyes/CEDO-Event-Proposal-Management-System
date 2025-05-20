@@ -543,11 +543,8 @@ export default function SignInPage() {
       </div>
     );
   }
-
-<<<<<<< HEAD
   return (
-=======
->>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
+
     <>
       <div className="flex flex-col items-center justify-center min-h-screen py-8 bg-gray-50">
         <div className="w-full max-w-md p-4">
@@ -555,7 +552,7 @@ export default function SignInPage() {
             {LogoSimple ? <LogoSimple /> : <div className="text-destructive">Logo Error</div>}
             <h1 className="mt-4 text-2xl font-bold text-cedo-blue">Welcome back</h1>
             <p className="mt-2 text-sm text-muted-foreground">Sign in to your account to continue</p>
-<<<<<<< HEAD
+
           </div>
 
           <Card className="border-0 shadow-lg">
@@ -568,7 +565,6 @@ export default function SignInPage() {
                 disabled={isSubmittingGoogle || isSubmittingEmail}
               >
                 {isSubmittingGoogle ? (
-=======
       <Card className="border-0 shadow-lg">
         <CardContent className="pt-6">
           {/* Google Sign-In Button */}
@@ -689,8 +685,7 @@ export default function SignInPage() {
 
               <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting && ( // Show loader only if this specific action is submitting
->>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
-=======
+
           </div>
 
           <Card className="border-0 shadow-lg">
@@ -703,7 +698,7 @@ export default function SignInPage() {
                 disabled={isSubmittingGoogle || isSubmittingEmail}
               >
                 {isSubmittingGoogle ? (
->>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
+
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" className="mr-2">
@@ -716,16 +711,12 @@ export default function SignInPage() {
                 Sign in with Google
               </Button>
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
               <div className="relative my-4">
                 <Separator />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="bg-card px-2 text-sm text-muted-foreground">or continue with email</span>
                 </div>
-<<<<<<< HEAD
+
               </div>
 
               <form onSubmit={handleSubmit}>
@@ -839,7 +830,6 @@ export default function SignInPage() {
     </>
   );
 }
-=======
           {/* Demo Accounts - Keep as is or remove for production */}
           <div className="mt-6 p-3 bg-gray-50 rounded-md border border-gray-100">
             <h3 className="text-sm font-medium text-gray-700 mb-2">Demo Accounts:</h3>
@@ -848,8 +838,8 @@ export default function SignInPage() {
                 <p>
                   <strong>Head Admin:</strong> admin@cedo.gov.ph / admin123
                 </p>
-=======
->>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
+
+ (Add client admin dashboard and iniital student dashboard)
               </div>
 
               <form onSubmit={handleSubmit}>
@@ -923,7 +913,6 @@ export default function SignInPage() {
         </div>
       </div>
 
-<<<<<<< HEAD
 export default function SignInPage() {
   return (
     <div className="container mx-auto py-6">
@@ -947,8 +936,7 @@ async function loadGoogleScript() {
     document.head.appendChild(script)
   })
 }
->>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
-=======
+
       {/* Enhanced Minimalistic Error Dialog */}
       <Dialog open={isErrorDialogOpen} onOpenChange={setIsErrorDialogOpen}>
         <DialogPortal>
