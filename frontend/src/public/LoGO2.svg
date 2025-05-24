@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="300" viewBox="0 0 800 300" preserveAspectRatio="xMidYMid meet">
+  <title>CEDO - City Education and Development Office Logo</title>
+  <desc>Vector representation of the CEDO (City Education and Development Office) logo</desc>
+  
+  <!-- Main CEDO Letters - Gold/Yellow Color (#F9C22E) -->
+  <g id="cedo-letters">
+    <!-- Letter C - Precisely matched to original -->
+    <path d="M147,50 C97,50 57,70 37,110 C17,150 17,190 37,230 C57,270 97,290 147,290
+             C177,290 207,275 227,250 L197,220 C187,235 167,245 147,245
+             C117,245 92,230 77,205 C62,180 62,150 77,125 C92,100 117,85 147,85
+             C167,85 182,95 192,110 L222,80 C202,60 177,50 147,50 Z" 
+          fill="#F9C22E" />
+    
+    <!-- Letter E (Key-shaped) - Precisely matched to original -->
+    <g id="key-e">
+      <!-- Main shape -->
+      <path d="M240,50 L290,50 L290,290 L240,290 Z" fill="#F9C22E" />
+      <path d="M240,50 L350,50 L350,95 L290,95 L290,135 L340,135 L340,180 L290,180 L290,245 L350,245 L350,290 L240,290 Z" 
+            fill="#F9C22E" />
+      
+      <!-- Key teeth - Rounded to match original -->
+      <path d="M340,180 C340,180 350,180 355,180 C365,180 370,185 370,195 C370,205 365,210 355,210 C350,210 340,210 340,210 L340,180 Z" fill="#F9C22E" />
+      <path d="M340,210 C340,210 340,220 340,225 C340,235 335,240 325,240 C315,240 310,240 310,240 C300,240 295,235 295,225 C295,220 295,210 295,210 L340,210 Z" fill="#F9C22E" />
+    </g>
+    
+    <!-- Letter D - Solid shape to match original -->
+    <path d="M390,50 L470,50 C520,50 560,70 580,110 C600,150 600,190 580,230 C560,270 520,290 470,290 L390,290 Z" 
+          fill="#F9C22E" />
+    <path d="M440,95 L440,245 L470,245 C500,245 525,230 540,205 C555,180 555,155 540,130 C525,105 500,95 470,95 L440,95 Z" 
+          fill="#F9C22E" />
+    
+    <!-- Letter O (with keyhole) - Precisely matched to original -->
+    <g id="o-with-keyhole">
+      <!-- Circle -->
+      <circle cx="650" cy="170" r="95" fill="#F9C22E" />
+      
+      <!-- Keyhole - Precisely matched to original -->
+      <g id="keyhole">
+        <!-- Upper circle of keyhole -->
+        <circle cx="650" cy="140" r="18" fill="white" />
+        
+        <!-- Lower part of keyhole -->
+        <path d="M632,140 L668,140 L668,200 L650,182 L632,200 Z" fill="white" />
+      </g>
+      
+      <!-- Laurel wreath - Precisely matched to original -->
+      <g id="laurel-wreath" stroke="#8B4513" stroke-width="1" fill="none">
+        <!-- Left side leaves - Simplified to match original -->
+        <path d="M585,90 C590,95 595,105 590,115" />
+        <path d="M580,100 C585,105 590,115 585,125" />
+        <path d="M575,110 C580,115 585,125 580,135" />
+        <path d="M570,120 C575,125 580,135 575,145" />
+        <path d="M565,130 C570,135 575,145 570,155" />
+        <path d="M565,140 C570,145 575,155 570,165" />
+        <path d="M565,150 C570,155 575,165 570,175" />
+        <path d="M565,160 C570,165 575,175 570,185" />
+        <path d="M570,170 C575,175 580,185 575,195" />
+        <path d="M575,180 C580,185 585,195 580,205" />
+        <path d="M580,190 C585,195 590,205 585,215" />
+        <path d="M585,200 C590,205 595,215 590,225" />
+        
+        <!-- Right side leaves - Simplified to match original -->
+        <path d="M715,90 C710,95 705,105 710,115" />
+        <path d="M720,100 C715,105 710,115 715,125" />
+        <path d="M725,110 C720,115 715,125 720,135" />
+        <path d="M730,120 C725,125 720,135 725,145" />
+        <path d="M735,130 C730,135 725,145 730,155" />
+        <path d="M735,140 C730,145 725,155 730,165" />
+        <path d="M735,150 C730,155 725,165 730,175" />
+        <path d="M735,160 C730,165 725,175 730,185" />
+        <path d="M730,170 C725,175 720,185 725,195" />
+        <path d="M725,180 C720,185 715,195 720,205" />
+        <path d="M720,190 C715,195 710,205 715,215" />
+        <path d="M715,200 C710,205 705,215 710,225" />
+        
+        <!-- Bottom crossing stems -->
+        <path d="M595,220 L705,220" stroke-width="1.5" />
+      </g>
+    </g>
+  </g>
+  
+  <!-- Full text below - Precisely matched to original -->
+  <text x="400" y="280" font-family="Arial, sans-serif" font-size="36" font-weight="bold" text-anchor="middle" fill="#2E3192">
+    City Education and Development Office
+  </text>
+</svg>`
