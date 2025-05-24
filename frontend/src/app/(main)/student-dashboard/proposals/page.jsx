@@ -1,35 +1,9 @@
-<<<<<<< HEAD
-"use client";
 
-import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
-
-function ProposalsPageContent() {
-    const searchParams = useSearchParams();
-    // Your logic using searchParams here
-
-    return (
-        <div>
-            {/* Your proposals page content */}
-            <h1>Student Proposals</h1>
-            {/* Example: */}
-            <p>Query: {searchParams.get("q")}</p>
-        </div>
-    );
-}
-
-export default function ProposalsPage() {
-    return (
-        <Suspense fallback={<div>Loading proposals...</div>}>
-            <ProposalsPageContent />
-        </Suspense>
-    );
-=======
 "use client"
+import { PageHeader } from "@/components/page-header"
 import { ProposalTable } from "@/components/proposal-table"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { PageHeader } from "@/components/page-header"
 
 export default function ProposalsPage() {
   return (
@@ -75,5 +49,4 @@ export default function ProposalsPage() {
       </Card>
     </div>
   )
->>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
 }

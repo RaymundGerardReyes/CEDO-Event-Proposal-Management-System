@@ -86,7 +86,7 @@ router.post('/login', async (req, res, next) => {
   console.log('Timestamp:', new Date().toISOString());
   console.log('Request Body:', JSON.stringify(req.body, null, 2));
 
-  const { email, password, token } = req.body;
+  const { email, password, captchaToken: token } = req.body;
   const recaptchaAction = "sign_in";
 
   if (!email || !password) {
@@ -94,71 +94,75 @@ router.post('/login', async (req, res, next) => {
     return res.status(400).json({ message: 'Email and password are required.' });
   }
 
+  // Log the received token for debugging
+  console.log("Received reCAPTCHA token (aliased as 'token' in backend):", token);
+
   try {
     const isValid = await verifyRecaptchaToken(token, req.ip);
-    if (isValid) {
-      console.log(`Backend [/login]: Attempting to find user by email: ${email}`);
-      const [users] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
-      const user = users[0];
+    if (!isValid) {
+      console.error("Invalid reCAPTCHA token received.");
+      return res.status(400).json({ message: "Invalid reCAPTCHA token." });
+    }
 
-      if (!user) {
-        console.warn(`Backend [/login]: No user found with email: ${email}`);
-        return res.status(401).json({ message: 'Invalid credentials.' });
-      }
+    console.log(`Backend [/login]: Attempting to find user by email: ${email}`);
+    const [users] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+    const user = users[0];
 
-      // Ensure user has a password (e.g., they didn't register via Google only)
-      if (!user.password) {
-        console.warn(`Backend [/login]: User ${email} found but has no password set. Possibly a Google-only account.`);
-        return res.status(401).json({ message: 'Invalid credentials. Try signing in with Google or reset password if applicable.' });
-      }
+    if (!user) {
+      console.warn(`Backend [/login]: No user found with email: ${email}`);
+      return res.status(401).json({ message: 'Invalid credentials.' });
+    }
 
-      console.log(`Backend [/login]: User found (ID: ${user.id}). Comparing password...`);
-      const isMatch = await bcrypt.compare(password, user.password);
+    // Ensure user has a password (e.g., they didn't register via Google only)
+    if (!user.password) {
+      console.warn(`Backend [/login]: User ${email} found but has no password set. Possibly a Google-only account.`);
+      return res.status(401).json({ message: 'Invalid credentials. Try signing in with Google or reset password if applicable.' });
+    }
 
-      if (!isMatch) {
-        console.warn(`Backend [/login]: Password mismatch for user: ${email}`);
-        return res.status(401).json({ message: 'Invalid credentials.' });
-      }
+    console.log(`Backend [/login]: User found (ID: ${user.id}). Comparing password...`);
+    const isMatch = await bcrypt.compare(password, user.password);
 
-      console.log(`Backend [/login]: Password match for user: ${email}. Checking approval status...`);
-      if (!user.is_approved) {
-        console.warn(`Backend [/login] Authorization Denied: User ${user.id} (Email: ${email}) IS NOT APPROVED.`);
-        return res.status(403).json({
-          message: "Account pending approval. Please contact an administrator.",
-          reason: "USER_NOT_APPROVED",
-          user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            is_approved: Boolean(user.is_approved),
-          }
-        });
-      }
+    if (!isMatch) {
+      console.warn(`Backend [/login]: Password mismatch for user: ${email}`);
+      return res.status(401).json({ message: 'Invalid credentials.' });
+    }
 
-      console.log(`Backend [/login]: User ${user.id} (Email: ${email}) IS APPROVED. Generating app token.`);
-      const appToken = sessionManager.generateToken(user); // Use your sessionManager
-      await sessionManager.logAccess(user.id, user.role, "email_login");
-      console.log(`Backend [/login]: User ${user.id} (Email: ${email}) successfully authenticated via email/password.`);
-
-      res.json({
-        token: appToken,
+    console.log(`Backend [/login]: Password match for user: ${email}. Checking approval status...`);
+    if (!user.is_approved) {
+      console.warn(`Backend [/login] Authorization Denied: User ${user.id} (Email: ${email}) IS NOT APPROVED.`);
+      return res.status(403).json({
+        message: "Account pending approval. Please contact an administrator.",
+        reason: "USER_NOT_APPROVED",
         user: {
           id: user.id,
           name: user.name,
           email: user.email,
-          role: user.role,
-          organization: user.organization,
-          organization_type: user.organization_type,
-          avatar: user.avatar,
           is_approved: Boolean(user.is_approved),
-          google_id: user.google_id, // Include google_id if available
-          dashboard: roleAccess[user.role]?.dashboard,
-          permissions: roleAccess[user.role]?.permissions,
-        },
+        }
       });
-    } else {
-      return res.status(400).json({ message: "Invalid reCAPTCHA token." });
     }
+
+    console.log(`Backend [/login]: User ${user.id} (Email: ${email}) IS APPROVED. Generating app token.`);
+    const appToken = sessionManager.generateToken(user); // Use your sessionManager
+    await sessionManager.logAccess(user.id, user.role, "email_login");
+    console.log(`Backend [/login]: User ${user.id} (Email: ${email}) successfully authenticated via email/password.`);
+
+    res.json({
+      token: appToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        organization: user.organization,
+        organization_type: user.organization_type,
+        avatar: user.avatar,
+        is_approved: Boolean(user.is_approved),
+        google_id: user.google_id, // Include google_id if available
+        dashboard: roleAccess[user.role]?.dashboard,
+        permissions: roleAccess[user.role]?.permissions,
+      },
+    });
   } catch (error) {
     console.error(`Backend [/login] Critical Error: Unhandled exception in login process for ${email}:`, error);
     // Pass to the main error handler
@@ -207,7 +211,6 @@ router.post("/google", async (req, res, next) => {
       if (verifyError.message.includes("audience") || verifyError.message.includes("Client ID mismatch")) {
         return res.status(401).json({ message: verifyError.message, reason: "AUDIENCE_MISMATCH_OR_CLIENT_ID_ERROR" });
       }
-      return res.status(401).json({ message: verifyError.message || "Google token verification failed.", reason: "GOOGLE_VERIFICATION_UTIL_ERROR" });
     }
 
     const { email, name, picture, sub: googleId, email_verified } = googlePayload;

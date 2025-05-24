@@ -1,22 +1,22 @@
 "use client"
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { PageHeader } from "@/components/page-header"
-import { ResponsiveForm, FormSection, FormActions } from "@/components/responsive-form"
+import { PageHeader } from "@/components/dashboard/admin/page-header"
+import { FormActions, FormSection, ResponsiveForm } from "@/components/dashboard/admin/responsive-form"
 import {
-  InputField,
-  TextareaField,
-  SelectField,
   CheckboxField,
-  RadioField,
   DatePickerField,
-} from "@/components/responsive-form-field"
-import { FormGrid, FormGridItem } from "@/components/form-grid"
-import { FormValidationMessage, FormValidationSummary } from "@/components/form-validation"
+  InputField,
+  RadioField,
+  SelectField,
+  TextareaField,
+} from "@/components/dashboard/admin/responsive-form-field"
+import { Button } from "@/components/dashboard/admin/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/dashboard/admin/ui/card"
+import { FormGrid, FormGridItem } from "@/components/dashboard/admin/ui/form-grid"
+import { FormValidationMessage, FormValidationSummary } from "@/components/dashboard/admin/ui/form-validation"
+import { Tabs, TabsList, TabsTrigger } from "@/components/dashboard/admin/ui/tabs"
 import { useMobile } from "@/hooks/use-mobile"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useState } from "react"
 
 export default function ResponsiveFormExamplePage() {
   const { isMobile } = useMobile()

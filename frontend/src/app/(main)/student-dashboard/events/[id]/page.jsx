@@ -1,13 +1,13 @@
 "use client"
 
 import { useParams, useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Separator } from "@/components/ui/separator"
+import { Button } from "@/components/dashboard/student/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/dashboard/student/ui/card"
+import { Badge } from "@/components/dashboard/student/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/dashboard/student/ui/avatar"
+import { Separator } from "@/components/dashboard/student/ui/separator"
 import { ArrowLeft, Calendar, Clock, Download, MapPin, Share, Users } from "lucide-react"
-import { PageHeader } from "@/components/page-header"
+import { PageHeader } from "@/components/dashboard/student/ui/page-header"
 
 // Sample event data - using the same data structure from event-calendar.jsx
 const events = [

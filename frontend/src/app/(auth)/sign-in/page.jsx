@@ -20,7 +20,7 @@ import { FormControl, FormItem, FormLabel, FormMessage } from "@/components/ui/f
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
-import { ROLES, useAuth } from "@/contexts/auth-context";
+import { ROLES, useAuth } from "@/contexts/auth-context"; // Ensure ROLES are correctly imported if used here
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
 import Link from "next/link";
@@ -35,14 +35,14 @@ export default function SignInPage() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const recaptchaRef = useRef(null);
+  const [errorDialogMessage, setErrorDialogMessage] = useState("An unexpected error occurred. Please try again.");
+  const errorDialogTitleId = "error-dialog-title";
+  const errorDialogDescriptionId = "error-dialog-description";
 
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
-  // isSubmittingGoogle is kept as it's used to disable other form elements during any Google sign-in attempt.
-  // The auth-context should ideally manage this state when the SDK's Google sign-in process is active.
-  const [isSubmittingGoogle, setIsSubmittingGoogle] = useState(false);
+  const [isSubmittingGoogle, setIsSubmittingGoogle] = useState(false); // Retained for disabling form elements
 
-  // States for Google SDK button rendering
   const [isGoogleButtonRendered, setIsGoogleButtonRendered] = useState(false);
   const [isGoogleAuthProcessing, setIsGoogleAuthProcessing] = useState(false);
 
@@ -53,7 +53,6 @@ export default function SignInPage() {
   });
   const [captchaToken, setCaptchaToken] = useState(null);
   const [isErrorDialogOpen, setIsErrorDialogOpen] = useState(false);
-  const [errorDialogMessage, setErrorDialogMessage] = useState("An unexpected error occurred. Please try again.");
 
   const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
   const GOOGLE_BUTTON_CONTAINER_ID = "google-signin-button-container";
@@ -61,7 +60,7 @@ export default function SignInPage() {
   const openErrorDialog = useCallback((message) => {
     setErrorDialogMessage(message || "The email or password you entered is incorrect. Please check your credentials or try again.");
     setIsErrorDialogOpen(true);
-  }, [setErrorDialogMessage, setIsErrorDialogOpen]);
+  }, []); // Dependencies removed as they are stable
 
   const handleAuthenticatedUserRedirect = useCallback(() => {
     if (!user || !isInitialized) {
@@ -69,70 +68,43 @@ export default function SignInPage() {
       return;
     }
 
-    // For debugging:
     console.log("handleAuthenticatedUserRedirect: User data:", JSON.stringify(user, null, 2));
-    console.log("handleAuthenticatedUserRedirect: Current pathname:", pathname);
-    console.log("handleAuthenticatedUserRedirect: Search params redirect:", searchParams.get("redirect"));
+    let targetPath = "/";
+    const redirectQueryParam = searchParams.get("redirect");
 
-    let targetPath = "/"; // Default target path
-
-    // --- **PRIORITY 1: Specific role-based redirects** ---
-    // Ensure students are always directed to their specific dashboard
-    if (user.role === ROLES.student) {
+    // Priority 1: Specific role-based redirects (e.g., student always to student-dashboard)
+    if (user.role === ROLES.STUDENT) { // Assuming ROLES.STUDENT is "student"
       targetPath = "/student-dashboard";
-      console.log(`Role is student, setting targetPath to /student-dashboard`);
-    }
-    // Add other high-priority role redirects here if needed, e.g.:
-    // else if (user.role === ROLES.some_other_specific_role) {
-    //   targetPath = "/specific-other-dashboard";
-    // }
-    else {
-      // --- **PRIORITY 2: Query parameter redirect** ---
-      const redirectQueryParam = searchParams.get("redirect");
-      if (redirectQueryParam && redirectQueryParam !== pathname) {
-        targetPath = redirectQueryParam;
-        console.log(`Using redirectQueryParam, setting targetPath to ${targetPath}`);
-      }
-      // --- **PRIORITY 3: User's pre-defined dashboard (if not overridden by specific role logic above)** ---
-      else if (user.dashboard) {
-        targetPath = user.dashboard;
-        console.log(`Using user.dashboard, setting targetPath to ${targetPath}`);
-      }
-      // --- **PRIORITY 4: General role-based redirects (for roles not handled in PRIORITY 1)** ---
-      else if (user.role) {
-        console.log(`Evaluating role ${user.role} for general redirection.`);
-        switch (user.role) {
-          case ROLES.head_admin:
-          case ROLES.manager:
-            targetPath = "/admin-dashboard";
-            break;
-          // ROLES.student is handled above, so it won't be re-evaluated here.
-          default:
-            targetPath = "/"; // Default for other authenticated roles
-            break;
-        }
-        console.log(`General role switch set targetPath to ${targetPath}`);
-      }
-      // --- **PRIORITY 5: Absolute fallback** ---
-      else {
-        targetPath = "/"; // Fallback if no role and no other conditions met
-        console.log(`No specific conditions met, defaulting targetPath to /`);
+    } else if (redirectQueryParam && redirectQueryParam !== pathname) {
+      // Priority 2: Query parameter redirect
+      targetPath = redirectQueryParam;
+    } else if (user.dashboard) {
+      // Priority 3: User's pre-defined dashboard from JWT
+      targetPath = user.dashboard;
+    } else if (user.role) {
+      // Priority 4: General role-based redirects
+      switch (user.role) {
+        case ROLES.HEAD_ADMIN: // "head_admin"
+        case ROLES.MANAGER:    // "manager"
+          targetPath = "/admin-dashboard";
+          break;
+        // ROLES.STUDENT is handled in Priority 1
+        case ROLES.PARTNER: // "partner" - assuming they go to student dashboard
+        case ROLES.REVIEWER: // "reviewer" - assuming they go to admin dashboard or a specific one
+          targetPath = user.dashboard || (user.role === ROLES.PARTNER ? "/student-dashboard" : "/admin-dashboard");
+          break;
+        default:
+          targetPath = "/";
       }
     }
 
-    console.log(`Final targetPath determined: ${targetPath}`);
+    console.log(`Final targetPath determined: ${targetPath} for user role: ${user.role}`);
 
     if (pathname !== targetPath) {
-      console.log(`Attempting to redirect from ${pathname} to ${targetPath} (User role: ${user.role})`);
       router.replace(targetPath);
-    } else if (pathname === "/sign-in") {
-      // If already on sign-in, and targetPath is also /sign-in (which shouldn't happen with proper logic),
-      // redirect to a sensible default like "/" to avoid a loop.
-      const finalRedirectPath = targetPath === "/sign-in" ? "/" : targetPath;
-      console.log(`Attempting to redirect from ${pathname} (sign-in page) to ${finalRedirectPath} (User role: ${user.role})`);
-      router.replace(finalRedirectPath);
-    } else {
-      console.log(`No redirection needed. Pathname ${pathname} is already targetPath ${targetPath}. (User role: ${user.role})`);
+    } else if (pathname === "/sign-in" && targetPath === "/sign-in") {
+      // Avoid redirect loop if somehow target is sign-in page itself
+      router.replace("/");
     }
   }, [user, isInitialized, router, pathname, searchParams, ROLES]);
 
@@ -145,55 +117,45 @@ export default function SignInPage() {
   useEffect(() => {
     let timer;
     if (isErrorDialogOpen) {
-      timer = setTimeout(() => {
-        setIsErrorDialogOpen(false);
-      }, 6000);
+      timer = setTimeout(() => setIsErrorDialogOpen(false), 6000);
     }
-    return () => {
-      clearTimeout(timer);
-    };
+    return () => clearTimeout(timer);
   }, [isErrorDialogOpen]);
 
   useEffect(() => {
-    // This effect handles the rendering of the Google Sign-In button via the SDK
     if (isInitialized && !user && !isGoogleButtonRendered && typeof window !== 'undefined' && signInWithGoogleAuth) {
       const container = document.getElementById(GOOGLE_BUTTON_CONTAINER_ID);
-      if (container) {
-        // Ensure the container is empty before attempting to render the button
-        // This check might be too simplistic if the SDK modifies the container in a way that innerHTML doesn't capture well.
-        // Or if the button rendering itself is idempotent.
-        if (container.innerHTML.trim() === "" || !isGoogleAuthProcessing) {
-          setIsGoogleAuthProcessing(true);
-          // setIsSubmittingGoogle(true); // Optionally set this if signInWithGoogleAuth also initiates the flow
 
-          signInWithGoogleAuth(GOOGLE_BUTTON_CONTAINER_ID)
-            .then(() => {
-              setIsGoogleButtonRendered(true);
-              setIsGoogleAuthProcessing(false);
-              // setIsSubmittingGoogle(false); // Reset if set above
-            })
-            .catch((error) => {
-              setIsGoogleAuthProcessing(false);
-              // setIsSubmittingGoogle(false); // Reset if set above
-              // Avoid opening dialog if button is already rendered by another attempt or previous state
-              if (!isGoogleButtonRendered) {
-                openErrorDialog(error.message || "Failed to render Google Sign-In button. Please try refreshing.");
-              }
-              console.error("Google Sign-In button rendering error:", error);
-            });
-        } else if (container.innerHTML.trim() !== "") {
-          // If container has content, assume button is already rendered or being rendered.
-          setIsGoogleButtonRendered(true);
-          setIsGoogleAuthProcessing(false);
-        }
+      if (container) {
+        // Set a UI loading state. This state should NOT be in the dependency array
+        // if its only purpose is to show a spinner during this specific operation.
+        setIsGoogleAuthProcessing(true); // For UI feedback, like showing your Loader2
+
+        signInWithGoogleAuth(GOOGLE_BUTTON_CONTAINER_ID)
+          .then(() => {
+            setIsGoogleButtonRendered(true); // Mark that rendering was initiated successfully
+            // No need to setIsGoogleAuthProcessing(false) here if the button is now rendered
+            // and this effect won't run again for this purpose due to isGoogleButtonRendered.
+          })
+          .catch((error) => {
+            // The error "Another Google Sign-In operation is already in progress" comes from auth-context.
+            // This means signInWithGoogleAuth was called while the context thought an operation was active.
+            console.error("SignInPage: Google Sign-In button initialization error:", error.message);
+            if (!isGoogleButtonRendered) { // Avoid repeated dialogs if it somehow retries
+              openErrorDialog(error.message || "Failed to initialize Google Sign-In. Please refresh the page or try again later.");
+            }
+          })
+          .finally(() => {
+            // Ensure the page-level UI processing flag is reset regardless of outcome.
+            setIsGoogleAuthProcessing(false);
+          });
       }
     }
-    // Dependencies:
-    // - isInitialized, user, isGoogleButtonRendered: Control when the effect runs.
-    // - signInWithGoogleAuth: Function from context (assumed stable or memoized).
-    // - openErrorDialog: Memoized error handler.
-    // - setIsGoogleButtonRendered, setIsGoogleAuthProcessing: State setters.
-  }, [isInitialized, user, isGoogleButtonRendered, signInWithGoogleAuth, openErrorDialog, setIsGoogleButtonRendered, setIsGoogleAuthProcessing]);
+
+    // CRITICAL CHANGE: Removed `isGoogleAuthProcessing` from the dependency array.
+    // Ensure `openErrorDialog` is stable (e.g., useCallback with empty or truly stable dependencies).
+    // `signInWithGoogleAuth` from `useAuth` should already be stable if defined with `useCallback` in the context.
+  }, [isInitialized, user, isGoogleButtonRendered, signInWithGoogleAuth, openErrorDialog]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -206,13 +168,16 @@ export default function SignInPage() {
   const resetCaptcha = useCallback(() => {
     setCaptchaToken(null);
     recaptchaRef.current?.reset();
+    console.log("reCAPTCHA reset and token cleared.");
   }, []);
 
   const handleCaptchaVerify = useCallback((token) => {
     if (token) {
+      console.log("reCAPTCHA verified, token obtained:", token);
       setCaptchaToken(token);
     } else {
-      resetCaptcha();
+      console.warn("reCAPTCHA verification returned null or empty token. Resetting.");
+      resetCaptcha(); // Call resetCaptcha to ensure UI and state are clean
     }
   }, [resetCaptcha]);
 
@@ -229,6 +194,7 @@ export default function SignInPage() {
     e.preventDefault();
     if (isSubmittingEmail || isSubmittingGoogle) return;
 
+    console.log("handleSubmit: Checking CAPTCHA token. Current token:", captchaToken);
     if (!captchaToken && recaptchaSiteKey) {
       toast({
         title: "CAPTCHA Required",
@@ -238,20 +204,27 @@ export default function SignInPage() {
       return;
     }
 
+    console.log("Attempting sign-in. Email:", formData.email, "CAPTCHA Token being sent:", captchaToken);
+
     setIsSubmittingEmail(true);
     try {
       const userData = await signIn(formData.email, formData.password, formData.rememberMe, captchaToken);
+
       if (userData) {
         toast({
           title: "Signed In Successfully!",
           description: `Welcome back, ${userData.name || "user"}! Redirecting...`,
           variant: "success",
         });
+        // Redirect logic is handled by useEffect watching `user` state.
       } else {
+        // This 'else' block might not be hit if signIn throws an error for auth failure.
+        // The catch block is more likely to handle failed sign-in attempts.
         openErrorDialog("Authentication failed. Please check your email and password.");
         resetCaptcha();
       }
     } catch (error) {
+      console.error("Sign-in error:", error);
       openErrorDialog(error.message || "An unexpected error occurred during sign in. Please try again.");
       resetCaptcha();
     } finally {
@@ -259,14 +232,12 @@ export default function SignInPage() {
     }
   };
 
-  // handleGoogleSignIn function is removed as the SDK button handles its own click.
-  // The isSubmittingGoogle state should be managed by the auth context during the actual sign-in flow.
-
   if (authProviderLoading || !isInitialized) {
     return <AuthLoadingScreen message="Initializing session..." />;
   }
 
   if (user && isInitialized) {
+    // Already signed in, redirect is handled by useEffect. Show loading until redirect happens.
     return <AuthLoadingScreen message="Already signed in, redirecting..." />;
   }
 
@@ -275,9 +246,7 @@ export default function SignInPage() {
       <div className="flex flex-col justify-center items-center h-screen text-center p-4">
         <h2 className="text-xl font-semibold text-destructive mb-2">Configuration Error</h2>
         <p className="text-muted-foreground">
-          The ReCAPTCHA service is not configured correctly.
-          <br />
-          Please contact support.
+          The ReCAPTCHA service is not configured correctly. Please contact support.
         </p>
       </div>
     );
@@ -295,23 +264,17 @@ export default function SignInPage() {
 
           <Card className="border-0 shadow-lg dark:bg-neutral-900 dark:border-neutral-700">
             <CardContent className="pt-6">
-              {/* Container for the Google Sign-In button, to be populated by the SDK */}
-              {/* Added min-h-[40px] and flex centering for better visibility of the loader and button area */}
               <div
                 id={GOOGLE_BUTTON_CONTAINER_ID}
                 className="mb-4 w-full min-h-[40px] flex justify-center items-center"
-                aria-live="polite" // For screen readers to announce changes (loader, button)
+                aria-live="polite"
               >
-                {/* Show a loading indicator while Google button is processing/rendering and not yet rendered */}
                 {isGoogleAuthProcessing && !isGoogleButtonRendered && (
                   <div className="flex items-center justify-center p-2 text-sm text-muted-foreground dark:text-gray-400">
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     <span>Loading Google Sign-In...</span>
                   </div>
                 )}
-                {/* Google's button will be rendered here by the SDK. */}
-                {/* If isGoogleButtonRendered is true, the SDK should have placed its button. */}
-                {/* If !isGoogleAuthProcessing and !isGoogleButtonRendered and !user, it means an attempt to render might be needed or failed silently. */}
               </div>
 
               <div className="relative my-4">
@@ -360,7 +323,7 @@ export default function SignInPage() {
                         sitekey={recaptchaSiteKey}
                         onChange={handleCaptchaVerify}
                         onErrored={handleCaptchaError}
-                        onExpired={resetCaptcha}
+                        onExpired={resetCaptcha} // Reset token if it expires
                       />
                     </div>
                   )}
@@ -397,7 +360,11 @@ export default function SignInPage() {
       <Dialog open={isErrorDialogOpen} onOpenChange={setIsErrorDialogOpen}>
         <DialogPortal>
           <DialogOverlay className="fixed inset-0 bg-black bg-opacity-25 backdrop-blur-sm transition-opacity duration-300 ease-out" />
-          <DialogContent className="fixed top-1/2 left-1/2 w-full max-w-sm transform -translate-x-1/2 -translate-y-1/2 bg-background dark:bg-neutral-900 rounded-2xl shadow-2xl p-6 sm:p-8">
+          <DialogContent
+            className="fixed top-1/2 left-1/2 w-full max-w-sm transform -translate-x-1/2 -translate-y-1/2 bg-background dark:bg-neutral-900 rounded-2xl shadow-2xl p-6 sm:p-8"
+            aria-labelledby={errorDialogTitleId}
+            aria-describedby={errorDialogDescriptionId} // Add this
+          >
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -406,11 +373,13 @@ export default function SignInPage() {
               className="flex flex-col space-y-4"
             >
               <DialogHeader>
-                <DialogTitle className="text-xl font-bold text-red-600 dark:text-red-500">
+                {/* Add id to DialogTitle */}
+                <DialogTitle id={errorDialogTitleId} className="text-xl font-bold text-red-600 dark:text-red-500">
                   Sign In Failed
                 </DialogTitle>
               </DialogHeader>
-              <DialogDescription className="text-sm text-gray-700 dark:text-gray-300">
+              {/* Add id to DialogDescription */}
+              <DialogDescription id={errorDialogDescriptionId} className="text-sm text-gray-700 dark:text-gray-300">
                 {errorDialogMessage}
               </DialogDescription>
               <DialogFooter>

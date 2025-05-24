@@ -12,25 +12,27 @@ if (!RECAPTCHA_SECRET_KEY) {
 }
 
 async function verifyRecaptchaToken(token, remoteIp = null) {
-    if (!RECAPTCHA_SECRET_KEY) {
+    const secretKey = process.env.RECAPTCHA_SECRET_KEY; // Ensure this is set correctly
+    if (!secretKey) {
         console.error("ReCAPTCHA secret key is not configured on the server.");
-        throw new Error("ReCAPTCHA service is not configured.");
+        return false;
     }
     if (!token) {
+        console.warn("No reCAPTCHA token provided.");
         return false;
     }
     try {
-        const params = new URLSearchParams();
-        params.append('secret', RECAPTCHA_SECRET_KEY);
-        params.append('response', token);
-        if (remoteIp) {
-            params.append('remoteip', remoteIp);
-        }
-        const response = await axios.post(RECAPTCHA_VERIFY_URL, params);
-        return response.data.success; // also check score/action for v3 if needed
+        const response = await axios.post(`https://www.google.com/recaptcha/api/siteverify`, null, {
+            params: {
+                secret: secretKey,
+                response: token,
+                remoteip: remoteIp,
+            },
+        });
+        return response.data.success; // Check if the token is valid
     } catch (error) {
-        console.error("Backend Error: Error verifying ReCAPTCHA token with Google:", error.message);
-        throw new Error("Failed to communicate with ReCAPTCHA verification service.");
+        console.error("Error verifying reCAPTCHA token:", error.message);
+        return false;
     }
 }
 

@@ -1,14 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/dashboard/admin/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/dashboard/admin/ui/tabs"
+import { Badge } from "@/components/dashboard/admin/ui/badge"
+import { Button } from "@/components/dashboard/admin/ui/button"
+import { Input } from "@/components/dashboard/admin/ui/input"
+import { Label } from "@/components/dashboard/admin/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/dashboard/admin/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/dashboard/admin/ui/table"
 import {
   Dialog,
   DialogContent,
@@ -16,11 +16,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Textarea } from "@/components/ui/textarea"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+} from "@/components/dashboard/admin/ui/dialog"
+import { Textarea } from "@/components/dashboard/admin/ui/textarea"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/dashboard/admin/ui/avatar"
 import { Search, Filter, XCircle, FileText, Download, MessageSquare } from "lucide-react"
-import { PageHeader } from "@/components/page-header"
+import { PageHeader } from "@/components/dashboard/admin/page-header"
 
 // Sample data for proposals
 const proposals = [

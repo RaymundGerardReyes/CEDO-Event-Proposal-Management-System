@@ -1,15 +1,15 @@
 "use client"
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { PageHeader } from "@/components/page-header"
-import { SearchForm } from "@/components/search-form"
-import { FilterForm } from "@/components/filter-form"
-import { SelectField, CheckboxField, RadioField, DatePickerField } from "@/components/responsive-form-field"
-import { ResponsiveTable } from "@/components/responsive-table"
-import { Badge } from "@/components/ui/badge"
+import { FilterForm } from "@/components/dashboard/admin/filter-form"
+import { PageHeader } from "@/components/dashboard/admin/page-header"
+import { CheckboxField, DatePickerField, RadioField, SelectField } from "@/components/dashboard/admin/responsive-form-field"
+import { ResponsiveTable } from "@/components/dashboard/admin/responsive-table"
+import { SearchForm } from "@/components/dashboard/admin/search-form"
+import { Badge } from "@/components/dashboard/admin/ui/badge"
+import { Button } from "@/components/dashboard/admin/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/dashboard/admin/ui/card"
 import { useMobile } from "@/hooks/use-mobile"
+import { useState } from "react"
 
 // Sample data
 const products = [

@@ -8,32 +8,30 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/dashboard/student/ui/t
 import { Calendar, ChevronRight, Clock, FileText, PlusCircle } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-// If you have named exports
 
-<<<<<<< HEAD
-// Search params component that needs to be wrapped in Suspense
-function EventSearch() {
-    const searchParams = useSearchParams()
-    const view = searchParams.get("view") || "calendar"
-=======
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("all")
 
   // Sample data for SDP credits
+  // In a real application, this data would likely come from an API
   const sdpCredits = {
-    total: 100,
-    earned: 45,
-    pending: 15,
-    required: 100,
-    breakdown: {
-      academic: 20,
-      leadership: 15,
-      volunteerism: 10,
-      cultural: 0,
-    },
+    totalEarned: 24, // Example: directly use the number you had in the JSX
+    pending: 8,      // Example
+    // You can expand this object if other parts of sdpCredits data are needed
+    // total: 100,
+    // earned: 45, // This was in the sample data, but the JSX used 24
+    // pending: 15, // This was in the sample data, but the JSX used 8
+    // required: 100,
+    // breakdown: {
+    //   academic: 20,
+    //   leadership: 15,
+    //   volunteerism: 10,
+    //   cultural: 0,
+    // },
   }
 
   // Sample data for recent events
+  // In a real application, this data would likely come from an API
   const recentEvents = [
     {
       id: "EVENT-001",
@@ -68,7 +66,11 @@ export default function DashboardPage() {
       credits: 0,
     },
   ]
->>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
+
+  // Example: calculate upcoming events count (you might have a different logic)
+  const upcomingEventsCount = recentEvents.filter(event => new Date(event.date) > new Date() && (event.status === 'approved' || event.status === 'pending')).length;
+  const overallProgressPercentage = 67; // As per your hardcoded value
+  const overallProgressText = "24 of 36 credits"; // As per your hardcoded value
 
   return (
     <div className="space-y-8">
@@ -77,7 +79,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold tracking-tight mb-1">Dashboard</h1>
           <p className="text-muted-foreground">Track your Scholars Development Program events and credits</p>
         </div>
-        <Link href="/submit-event">
+        <Link href="/student-dashboard/submit-event">
           <Button className="bg-[#001a56] hover:bg-[#001a56]/90">
             <PlusCircle className="h-4 w-4 mr-2" aria-hidden="true" />
             <span>New Event</span>
@@ -91,8 +93,7 @@ export default function DashboardPage() {
           <CardContent className="p-6 flex justify-between items-center">
             <div>
               <h3 className="text-lg font-medium text-[#001a56] mb-1">Total SDP Credits</h3>
-              <p className="text-3xl font-bold text-[#001a56]">24</p>
-<<<<<<< HEAD
+              <p className="text-3xl font-bold text-[#001a56]">{sdpCredits.totalEarned}</p>
             </div>
             <div className="bg-[#001a56]/10 p-3 rounded-full">
               <FileText className="h-6 w-6 text-[#001a56]" aria-hidden="true" />
@@ -104,7 +105,7 @@ export default function DashboardPage() {
           <CardContent className="p-6 flex justify-between items-center">
             <div>
               <h3 className="text-lg font-medium text-[#001a56] mb-1">Pending Credits</h3>
-              <p className="text-3xl font-bold text-[#f0c14b]">8</p>
+              <p className="text-3xl font-bold text-[#f0c14b]">{sdpCredits.pending}</p>
             </div>
             <div className="bg-[#f0c14b]/10 p-3 rounded-full">
               <Clock className="h-6 w-6 text-[#001a56]" aria-hidden="true" />
@@ -116,7 +117,7 @@ export default function DashboardPage() {
           <CardContent className="p-6 flex justify-between items-center">
             <div>
               <h3 className="text-lg font-medium text-[#001a56] mb-1">Upcoming Events</h3>
-              <p className="text-3xl font-bold text-green-600">3</p>
+              <p className="text-3xl font-bold text-green-600">{upcomingEventsCount}</p> {/* Made dynamic based on sample data */}
             </div>
             <div className="bg-green-100 p-3 rounded-full">
               <Calendar className="h-6 w-6 text-green-600" aria-hidden="true" />
@@ -135,143 +136,46 @@ export default function DashboardPage() {
             <div>
               <div className="flex justify-between mb-2">
                 <h4 className="font-medium">Overall Progress</h4>
-                <span className="text-sm text-muted-foreground">24 of 36 credits</span>
+                <span className="text-sm text-muted-foreground">{overallProgressText}</span>
               </div>
               <div className="h-2.5 w-full rounded-full bg-[#f0c14b]">
                 <div
                   className="h-2.5 rounded-full bg-[#001a56]"
-                  style={{ width: "67%" }}
+                  style={{ width: `${overallProgressPercentage}%` }} // Made dynamic
                   role="progressbar"
-                  aria-valuenow="67"
+                  aria-valuenow={overallProgressPercentage} // Made dynamic
                   aria-valuemin="0"
                   aria-valuemax="100"
                 ></div>
               </div>
-              <div className="mt-1 text-right text-sm text-muted-foreground">67% complete</div>
-            </div>
-            <TabsContent value="calendar" className="mt-0">
-                <EventCalendar />
-            </TabsContent>
-            <TabsContent value="list" className="mt-0">
-                <EventList />
-            </TabsContent>
-        </Tabs>
-    )
-}
-
-export default function EventsPage() {
-    const isMobile = useMobile()
-
-    return (
-        <div className="container mx-auto py-6">
-            <PageHeader
-                heading="Events"
-                subheading="View and manage scheduled events"
-                actions={
-                    <div className="flex items-center gap-2">
-                        {!isMobile && (
-                            <>
-                                <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2">
-                                    Export
-                                </button>
-                                <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">
-                                    Create Event
-                                </button>
-                            </>
-                        )}
-                    </div>
-                }
-            />
-
-            <div className="mt-6">
-                <Suspense fallback={<div className="text-center py-10">Loading events...</div>}>
-                    <EventSearch />
-                </Suspense>
-            </div>
-=======
-            </div>
-            <div className="bg-[#001a56]/10 p-3 rounded-full">
-              <FileText className="h-6 w-6 text-[#001a56]" aria-hidden="true" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardContent className="p-6 flex justify-between items-center">
-            <div>
-              <h3 className="text-lg font-medium text-[#001a56] mb-1">Pending Credits</h3>
-              <p className="text-3xl font-bold text-[#f0c14b]">8</p>
-            </div>
-            <div className="bg-[#f0c14b]/10 p-3 rounded-full">
-              <Clock className="h-6 w-6 text-[#001a56]" aria-hidden="true" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardContent className="p-6 flex justify-between items-center">
-            <div>
-              <h3 className="text-lg font-medium text-[#001a56] mb-1">Upcoming Events</h3>
-              <p className="text-3xl font-bold text-green-600">3</p>
-            </div>
-            <div className="bg-green-100 p-3 rounded-full">
-              <Calendar className="h-6 w-6 text-green-600" aria-hidden="true" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Credit Progress */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Credit Progress</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div>
-              <div className="flex justify-between mb-2">
-                <h4 className="font-medium">Overall Progress</h4>
-                <span className="text-sm text-muted-foreground">24 of 36 credits</span>
-              </div>
-              <div className="h-2.5 w-full rounded-full bg-[#f0c14b]">
-                <div
-                  className="h-2.5 rounded-full bg-[#001a56]"
-                  style={{ width: "67%" }}
-                  role="progressbar"
-                  aria-valuenow="67"
-                  aria-valuemin="0"
-                  aria-valuemax="100"
-                ></div>
-              </div>
-              <div className="mt-1 text-right text-sm text-muted-foreground">67% complete</div>
+              <div className="mt-1 text-right text-sm text-muted-foreground">{overallProgressPercentage}% complete</div> {/* Made dynamic */}
             </div>
 
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between mb-1">
                   <span className="text-sm font-medium">Leadership</span>
-                  <span className="text-sm text-muted-foreground">8 / 12</span>
+                  <span className="text-sm text-muted-foreground">8 / 12</span> {/* Consider making this dynamic */}
                 </div>
-                <Progress value={67} className="h-2" />
+                <Progress value={67} className="h-2" /> {/* Consider making value dynamic */}
               </div>
 
               <div>
                 <div className="flex justify-between mb-1">
                   <span className="text-sm font-medium">Community Service</span>
-                  <span className="text-sm text-muted-foreground">10 / 12</span>
+                  <span className="text-sm text-muted-foreground">10 / 12</span> {/* Consider making this dynamic */}
                 </div>
-                <Progress value={83} className="h-2" />
+                <Progress value={83} className="h-2" /> {/* Consider making value dynamic */}
               </div>
 
               <div>
                 <div className="flex justify-between mb-1">
                   <span className="text-sm font-medium">Professional Development</span>
-                  <span className="text-sm text-muted-foreground">6 / 12</span>
+                  <span className="text-sm text-muted-foreground">6 / 12</span> {/* Consider making this dynamic */}
                 </div>
-                <Progress value={50} className="h-2" />
+                <Progress value={50} className="h-2" /> {/* Consider making value dynamic */}
               </div>
             </div>
->>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
           </div>
         </CardContent>
       </Card>
@@ -299,7 +203,7 @@ export default function EventsPage() {
               <TabsTrigger value="pending" className="flex-1 sm:flex-initial">
                 Pending
               </TabsTrigger>
-              <TabsTrigger value="draft" className="flex-1 sm:flex-initial">
+              <TabsTrigger value="draft" className="flex-1 sm:flex-initial"> {/* Assuming 'draft' is a valid status, or adjust filter */}
                 Draft
               </TabsTrigger>
             </TabsList>
@@ -331,7 +235,7 @@ export default function EventsPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {recentEvents
-                      .filter((event) => activeTab === "all" || event.status === activeTab)
+                      .filter((event) => activeTab === "all" || event.status === activeTab || (activeTab === "draft" && event.status === "draft")) // Ensure 'draft' status handling if it exists
                       .map((event) => (
                         <tr key={event.id} className="hover:bg-muted/50">
                           <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-0">
@@ -349,7 +253,7 @@ export default function EventsPage() {
                                     ? "bg-[#f0c14b]/20 text-[#001a56] hover:bg-[#f0c14b]/20"
                                     : event.type === "volunteerism"
                                       ? "bg-green-100 text-green-800 hover:bg-green-100"
-                                      : "bg-purple-100 text-purple-800 hover:bg-purple-100"
+                                      : "bg-purple-100 text-purple-800 hover:bg-purple-100" // Default/cultural
                               }
                             >
                               {event.type.charAt(0).toUpperCase() + event.type.slice(1)}
@@ -365,16 +269,19 @@ export default function EventsPage() {
                                     ? "bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200"
                                     : event.status === "rejected"
                                       ? "bg-red-100 text-red-800 hover:bg-red-100 border-red-200"
-                                      : "bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200"
+                                      : "bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200" // Default for other statuses like 'draft'
                               }
                             >
                               {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
                             </Badge>
                           </td>
                           <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 text-right">
-                            <Button variant="ghost" size="sm" className="text-[#001a56] hover:text-[#001a56]/70">
-                              View
-                            </Button>
+                            {/* Add actual action, e.g., Link to event details page */}
+                            <Link href={`/events/${event.id}`}>
+                              <Button variant="ghost" size="sm" className="text-[#001a56] hover:text-[#001a56]/70">
+                                View
+                              </Button>
+                            </Link>
                           </td>
                         </tr>
                       ))}

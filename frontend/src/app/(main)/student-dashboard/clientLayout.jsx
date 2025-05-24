@@ -12,13 +12,22 @@ import "./globals.css"
 const inter = Inter({ subsets: ["latin"] })
 
 export default function ClientLayout({ children }) {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Base class from the font should be safe for SSR
+  let bodyClasses = inter.className
+  if (mounted) {
+    // Add other classes only after client has mounted
+    bodyClasses = `${inter.className} bg-[#f5f7fa]`
+  }
+
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-      </head>
-      <body className={`${inter.className} bg-[#f5f7fa]`}>
+    <div className={bodyClasses}>
+      {mounted && ( // Only render theme provider and children once mounted
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <SidebarProvider>
             <div className="flex min-h-screen flex-col md:flex-row">
@@ -33,8 +42,8 @@ export default function ClientLayout({ children }) {
             <Toaster />
           </SidebarProvider>
         </ThemeProvider>
-      </body>
-    </html>
+      )}
+    </div>
   )
 }
 
@@ -46,24 +55,25 @@ function SidebarAwareContent({ children }) {
   useEffect(() => {
     setIsMounted(true)
 
-    // Check initial screen size
-    if (window.innerWidth < 768) {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
       setSidebarCollapsed(true)
     }
 
-    // Listen for sidebar toggle events
     const handleSidebarToggle = (e) => {
       setSidebarCollapsed(e.detail.collapsed)
     }
 
-    window.addEventListener("sidebar-toggle", handleSidebarToggle)
+    if (typeof window !== "undefined") {
+      window.addEventListener("sidebar-toggle", handleSidebarToggle)
+    }
 
     return () => {
-      window.removeEventListener("sidebar-toggle", handleSidebarToggle)
+      if (typeof window !== "undefined") {
+        window.removeEventListener("sidebar-toggle", handleSidebarToggle)
+      }
     }
   }, [])
 
-  // Only apply margin after component mounts to avoid hydration mismatch
   const marginClass = isMounted ? (sidebarCollapsed ? "md:ml-16" : "md:ml-64") : "md:ml-64"
 
   return <div className={`flex flex-1 flex-col transition-all duration-300 ${marginClass}`}>{children}</div>

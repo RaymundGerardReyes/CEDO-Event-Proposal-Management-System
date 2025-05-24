@@ -1,6 +1,6 @@
 "use client"
 
-import { PageHeader } from "@/components/page-header"
+import { PageHeader } from "@/components/dashboard/admin/page-header"
 import { useEffect, useState } from "react"
 
 // Loading component

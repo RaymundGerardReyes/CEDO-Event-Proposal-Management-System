@@ -9,7 +9,7 @@ const sessionManager = {
             throw new Error("JWT_SECRET_DEV is not defined in environment variables.");
         }
         return jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET_DEV, {
-            expiresIn: "1h", // Set your desired expiration time
+            expiresIn: "1m", // Set your desired expiration time
         });
     },
 

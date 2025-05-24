@@ -8,7 +8,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from "@/components/dashboard/student/ui/alert-dialog"
 import { ClipboardCheck } from "lucide-react"
 
 export function SubmitReportDialog({ open, onOpenChange, onSubmit }) {

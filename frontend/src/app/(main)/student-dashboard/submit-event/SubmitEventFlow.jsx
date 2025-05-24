@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { useToast } from "@/hooks/use-toast"
 import { useMachine } from "@xstate/react"
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { SubmissionErrorDialog } from "./dialogs/SubmissionErrorDialog"
 import { SubmissionSuccessDialog } from "./dialogs/SubmissionSuccessDialog"
 import { SubmitProposalDialog } from "./dialogs/SubmitProposalDialog"
@@ -325,7 +325,7 @@ const SubmitEventFlow = () => {
   const handleSuccessDone = () => {
     setShowSuccessDialog(false)
     // Reset the form
-    window.location.href = "/submit-event"
+    window.location.href = "/student-dashboard/submit-event"
   }
 
   // For demonstration purposes - these would be API calls in a real app

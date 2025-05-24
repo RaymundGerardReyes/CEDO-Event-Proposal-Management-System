@@ -1,13 +1,13 @@
 "use client"
 
 import { useState, Suspense } from "react"
-import { PageHeader } from "@/components/page-header"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { PageHeader } from "@/components/dashboard/admin/page-header"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/dashboard/admin/ui/card"
+import { Tabs, TabsList, TabsTrigger } from "@/components/dashboard/admin/ui/tabs"
+import { Button } from "@/components/dashboard/admin/ui/button"
+import { Input } from "@/components/dashboard/admin/ui/input"
+import { Badge } from "@/components/dashboard/admin/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/dashboard/admin/ui/select"
 import {
   FileText,
   CheckCircle,

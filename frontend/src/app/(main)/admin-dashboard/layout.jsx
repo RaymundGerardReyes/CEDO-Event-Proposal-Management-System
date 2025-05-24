@@ -1,5 +1,5 @@
-import { AppHeader } from "@/components/app-header"
-import { AppSidebar } from "@/components/app-sidebar"
+import { AppHeader } from "@/components/dashboard/admin/app-header"
+import { AppSidebar } from "@/components/dashboard/admin/app-sidebar"
 import { ThemeProvider } from "@/components/theme-provider"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/toaster"

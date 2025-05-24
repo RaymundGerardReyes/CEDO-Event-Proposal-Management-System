@@ -1,7 +1,7 @@
 // frontend/src/components/dashboard/student/header.jsx
 "use client";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"; // Removed AvatarImage as it was not used
+import { Avatar, AvatarFallback } from "@/components/dashboard/student/ui/avatar"; // Removed AvatarImage as it was not used
 import {
   AlertCircle as AlertCircleIcon,
   AlertTriangle,
@@ -20,8 +20,12 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useAuth } from "@/contexts/auth-context"; // Import the useAuth hook
+import { useRouter } from "next/navigation"; // Import the useRouter hook
 
 const Header = () => {
+  const { user: authUser, signOut } = useAuth(); // Get user from context
+  const router = useRouter(); // Use router for navigation
   const [notificationCount, setNotificationCount] = useState(2);
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
   const [showAllNotifications, setShowAllNotifications] = useState(false);
@@ -177,10 +181,16 @@ const Header = () => {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (window.confirm("Are you sure you want to log out?")) {
-      console.log("Logging out...");
-      // window.location.href = "/login";
+      try {
+        await signOut(); // Call the signOut function from the auth context
+        console.log("Logging out...");
+        router.push("/sign-in"); // Redirect to the sign-in page after logging out
+      } catch (error) {
+        console.error("Logout error:", error);
+        // Optionally, show a toast or alert for logout failure
+      }
     }
   };
 
@@ -188,11 +198,6 @@ const Header = () => {
     setNotificationCount(0);
     setRecentNotifications(recentNotifications.map((n) => ({ ...n, read: true })));
     setAllNotifications(allNotifications.map((n) => ({ ...n, read: true })));
-  };
-
-  const user = {
-    name: "John Doe",
-    role: "Administrator",
   };
 
   const displayedNotifications = showAllNotifications ? allNotifications : recentNotifications;
@@ -312,14 +317,14 @@ const Header = () => {
           >
             <Avatar className="h-8 w-8 border border-border">
               <AvatarFallback className="bg-[#0c2d6b] text-white">
-                {user?.name
+                {authUser?.name
                   ?.split(" ")
                   .map((n) => n[0])
                   .join("")
                   .toUpperCase() || "JD"}
               </AvatarFallback>
             </Avatar>
-            <span className="hidden md:inline font-medium truncate max-w-[120px] text-sm">{user?.name || "John Doe"}</span>
+            <span className="hidden md:inline font-medium truncate max-w-[120px] text-sm">{authUser?.name || "User"}</span>
             <ChevronDown
               className={`h-4 w-4 transition-transform duration-200 ${isUserMenuOpen ? "rotate-180" : ""}`}
               aria-hidden="true"
@@ -334,8 +339,8 @@ const Header = () => {
               aria-labelledby="user-menu-button"
             >
               <div className="py-2 px-3 border-b">
-                <p className="text-sm font-medium truncate">{user?.name || "John Doe"}</p>
-                <p className="text-xs text-muted-foreground truncate">{user?.role || "User Role"}</p>
+                <p className="text-sm font-medium truncate">{authUser?.name || "John Doe"}</p>
+                <p className="text-xs text-muted-foreground truncate">{authUser?.role || "User Role"}</p>
               </div>
 
               <div className="py-1" role="none">
@@ -367,11 +372,11 @@ const Header = () => {
                   onClick={(event) => {
                     event.preventDefault();
                     setIsUserMenuOpen(false);
-                    handleLogout();
+                    handleLogout(); // Call the updated handleLogout function
                   }}
                 >
                   <LogOut className="h-4 w-4" />
-                  <span>Log out</span>
+                  <span>Sign out</span>
                 </button>
               </div>
             </div>

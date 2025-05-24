@@ -1,18 +1,18 @@
 "use client"
 
 import { useState } from "react"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { FormField } from "@/components/responsive-form"
+import { Input } from "@/components/dashboard/admin/ui/input"
+import { Textarea } from "@/components/dashboard/admin/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/dashboard/admin/ui/select"
+import { Checkbox } from "@/components/dashboard/admin/ui/checkbox"
+import { RadioGroup, RadioGroupItem } from "@/components/dashboard/admin/ui/radio-group"
+import { FormField } from "@/components/dashboard/admin/responsive-form"
 import { cn } from "@/lib/utils"
 import { Eye, EyeOff, Calendar } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/dashboard/admin/ui/button"
 import { format } from "date-fns"
-import { Calendar as CalendarComponent } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar as CalendarComponent } from "@/components/dashboard/admin/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/dashboard/admin/ui/popover"
 
 export function InputField({
   label,

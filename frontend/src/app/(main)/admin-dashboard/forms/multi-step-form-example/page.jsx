@@ -1,21 +1,21 @@
 "use client"
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { PageHeader } from "@/components/page-header"
-import { FormWizard } from "@/components/form-wizard"
-import { ResponsiveForm, FormSection } from "@/components/responsive-form"
+import { FormWizard } from "@/components/dashboard/admin/form-wizard"
+import { PageHeader } from "@/components/dashboard/admin/page-header"
+import { FormSection, ResponsiveForm } from "@/components/dashboard/admin/responsive-form"
 import {
-  InputField,
-  TextareaField,
-  SelectField,
   CheckboxField,
-  RadioField,
   DatePickerField,
-} from "@/components/responsive-form-field"
-import { FormGrid, FormGridItem } from "@/components/form-grid"
-import { FormValidationMessage } from "@/components/form-validation"
+  InputField,
+  RadioField,
+  SelectField,
+  TextareaField,
+} from "@/components/dashboard/admin/responsive-form-field"
+import { Button } from "@/components/dashboard/admin/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/dashboard/admin/ui/card"
+import { FormGrid, FormGridItem } from "@/components/dashboard/admin/ui/form-grid"
+import { FormValidationMessage } from "@/components/dashboard/admin/ui/form-validation"
+import { useState } from "react"
 
 export default function MultiStepFormExamplePage() {
   const [formSubmitted, setFormSubmitted] = useState(false)

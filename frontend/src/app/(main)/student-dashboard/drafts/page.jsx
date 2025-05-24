@@ -1,9 +1,8 @@
 "use client"
 
-import { useState } from "react"
-import { Card, CardContent } from "@/components/ui/card"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Trash2, Clock, AlertCircle, FileEdit } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -12,8 +11,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle, Clock, FileEdit, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useState } from "react"
 
 export default function DraftsPage() {
   const router = useRouter()
@@ -87,7 +87,7 @@ export default function DraftsPage() {
     // In a real app, we would store the draft data in a global state or context
     // and then navigate to the form with the data pre-populated
     localStorage.setItem("currentDraft", JSON.stringify(draft))
-    router.push("/submit-event")
+    router.push("/student-dashboard/submit-event")
   }
 
   const handleDeleteDraft = (draftId) => {

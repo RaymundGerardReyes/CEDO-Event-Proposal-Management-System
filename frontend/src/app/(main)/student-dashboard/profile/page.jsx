@@ -3,36 +3,47 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/dashboard/student/ui/avatar"
+import { Button } from "@/components/dashboard/student/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/dashboard/student/ui/card"
+import { Input } from "@/components/dashboard/student/ui/input"
+import { Label } from "@/components/dashboard/student/ui/label"
+import { Separator } from "@/components/dashboard/student/ui/separator"
 import { Camera, X, Mail, Lock, UserCircle } from "lucide-react"
 
 export default function ProfilePage() {
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
+  const [user, setUser] = useState(null) // State to hold user data
+  const [loading, setLoading] = useState(true) // Loading state
+  const [error, setError] = useState(null) // Error state
 
-  // Set mounted to true after component mounts to enable animations
+  // Fetch user data on mount
   useEffect(() => {
-    setMounted(true)
-  }, [])
+    const fetchUserData = async () => {
+      try {
+        // Replace with your API call to fetch user data
+        const response = await fetch('/api/user'); // Example API endpoint
+        if (!response.ok) throw new Error('Failed to fetch user data');
+        const data = await response.json();
+        setUser(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // Mock user data
-  const user = {
-    name: "John Doe",
-    email: "john.doe@example.com",
-    role: "Administrator",
-    avatar: "/images/profile-avatar.png",
-  }
+    fetchUserData();
+    setMounted(true);
+  }, []);
 
   const handleClose = () => {
-    router.back()
+    router.back();
   }
 
-  if (!mounted) return null
+  if (!mounted || loading) return <div>Loading...</div>; // Loading state
+  if (error) return <div>Error: {error}</div>; // Error handling
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">

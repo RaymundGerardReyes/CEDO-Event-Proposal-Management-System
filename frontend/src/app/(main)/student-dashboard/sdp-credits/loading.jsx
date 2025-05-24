@@ -1,6 +1,6 @@
-import { Skeleton } from "@/components/ui/skeleton"
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/dashboard/student/ui/card"
+import { Skeleton } from "@/components/dashboard/student/ui/skeleton"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/dashboard/student/ui/tabs"
 
 export default function Loading() {
   return (

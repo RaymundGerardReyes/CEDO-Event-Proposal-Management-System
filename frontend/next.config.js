@@ -4,6 +4,14 @@ const nextConfig = {
   reactStrictMode: true,
   // swcMinify is removed as it's enabled by default in Next.js 15.3.2
 
+  // Add allowedDevOrigins here
+  allowedDevOrigins: [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    // Add your machine's local network IP if you access it from other devices on your LAN
+    // For example: 'http://192.168.1.100:3000'
+  ],
+
   // Image optimization configuration
   images: {
     domains: ["localhost", "placekitten.com", "picsum.photos"],
@@ -14,15 +22,8 @@ const nextConfig = {
     return [
       {
         source: "/api/:path*",
-<<<<<<< HEAD
-<<<<<<< HEAD
         destination: "http://localhost:5050/api/:path*",
-=======
-        destination: "http://localhost:5000/api/:path*",
->>>>>>> 6f38442 (Update Dockerfiles and user-related functionality)
-=======
-        destination: "http://localhost:5050/api/:path*",
->>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
+
       },
     ]
   },

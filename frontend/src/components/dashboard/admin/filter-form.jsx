@@ -1,12 +1,12 @@
 "use client"
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
-import { Filter, ChevronDown, ChevronUp } from "lucide-react"
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { FormActions } from "@/components/responsive-form"
+import { FormActions } from "@/components/dashboard/admin/responsive-form"
+import { Button } from "@/components/dashboard/admin/ui/button"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/dashboard/admin/ui/sheet"
 import { useMobile } from "@/hooks/use-mobile"
+import { cn } from "@/lib/utils"
+import { ChevronDown, ChevronUp, Filter } from "lucide-react"
+import { useState } from "react"
 
 export function FilterForm({
   children,

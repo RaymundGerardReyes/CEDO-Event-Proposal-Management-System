@@ -1,13 +1,11 @@
 "use client"
 
-import { InfoIcon, Download, HelpCircle, Search, ChevronDown, ChevronUp, Filter } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Input } from "@/components/ui/input"
-import { useState } from "react"
+import { Badge } from "@/components/dashboard/student/ui/badge"
+import { Button } from "@/components/dashboard/student/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/dashboard/student/ui/card"
+import { Input } from "@/components/dashboard/student/ui/input"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/dashboard/student/ui/tabs"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/dashboard/student/ui/tooltip"
 import {
   Pagination,
   PaginationContent,
@@ -16,6 +14,8 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
+import { ChevronDown, ChevronUp, Download, Filter, HelpCircle, InfoIcon, Search } from "lucide-react"
+import { useState } from "react"
 
 export default function SDPCreditsPage() {
   const [expandedEvent, setExpandedEvent] = useState(null)

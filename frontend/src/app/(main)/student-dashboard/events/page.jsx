@@ -1,17 +1,15 @@
-<<<<<<< HEAD
-=======
 "use client"
 
-import { useState } from "react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, Filter, List, Search, PlusCircle } from "lucide-react"
-import { PageHeader } from "@/components/page-header"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { PageHeader } from "@/components/dashboard/student/page-header"
+import { Badge } from "@/components/dashboard/student/ui/badge"
+import { Button } from "@/components/dashboard/student/ui/button"
+import { Card, CardContent } from "@/components/dashboard/student/ui/card"
+import { Input } from "@/components/dashboard/student/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/dashboard/student/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/dashboard/student/ui/tabs"
+import { Calendar, Filter, List, PlusCircle, Search } from "lucide-react"
 import Link from "next/link"
+import { useState } from "react"
 
 export default function EventsPage() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -96,7 +94,7 @@ export default function EventsPage() {
               <p className="sdp-subheader">Track your submitted events and their status</p>
             </div>
             <div className="flex gap-2">
-              <Link href="/submit-event">
+              <Link href="/student-dashboard/submit-event">
                 <Button className="bg-[#0c2d6b] hover:bg-[#0c2d6b]/90">
                   <PlusCircle className="h-4 w-4 mr-2" />
                   Submit New Event
@@ -254,15 +252,14 @@ export default function EventsPage() {
                   {filteredEvents.map((event) => (
                     <Card key={event.id} className="overflow-hidden">
                       <div
-                        className={`h-2 ${
-                          event.status === "approved"
-                            ? "bg-green-500"
-                            : event.status === "pending"
-                              ? "bg-amber-500"
-                              : event.status === "rejected"
-                                ? "bg-red-500"
-                                : "bg-gray-500"
-                        }`}
+                        className={`h-2 ${event.status === "approved"
+                          ? "bg-green-500"
+                          : event.status === "pending"
+                            ? "bg-amber-500"
+                            : event.status === "rejected"
+                              ? "bg-red-500"
+                              : "bg-gray-500"
+                          }`}
                       />
                       <CardContent className="p-4">
                         <div className="flex justify-between items-start mb-2">
@@ -288,15 +285,14 @@ export default function EventsPage() {
                           <div>
                             Status:
                             <Badge
-                              className={`ml-2 ${
-                                event.status === "approved"
-                                  ? "bg-green-100 text-green-800 hover:bg-green-100 border-green-200"
-                                  : event.status === "pending"
-                                    ? "bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200"
-                                    : event.status === "rejected"
-                                      ? "bg-red-100 text-red-800 hover:bg-red-100 border-red-200"
-                                      : "bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200"
-                              }`}
+                              className={`ml-2 ${event.status === "approved"
+                                ? "bg-green-100 text-green-800 hover:bg-green-100 border-green-200"
+                                : event.status === "pending"
+                                  ? "bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200"
+                                  : event.status === "rejected"
+                                    ? "bg-red-100 text-red-800 hover:bg-red-100 border-red-200"
+                                    : "bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200"
+                                }`}
                             >
                               {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
                             </Badge>
@@ -320,4 +316,4 @@ export default function EventsPage() {
     </div>
   )
 }
->>>>>>> f1ac8f1 (Add client admin dashboard and iniital student dashboard)
+

@@ -1,7 +1,7 @@
 "use client"
 
 import { Navigate } from "react-router-dom"
-import { useAuth } from "../contexts/AuthContext_old_Text"
+import { useAuth } from "../contexts/auth-context"
 import DashboardLayout from "./layouts/DashboardLayout"
 
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
@@ -24,15 +24,17 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     // If roles are specified and user doesn't have permission
     if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
         // Redirect to appropriate dashboard based on role
+        const { ROLES } = useAuth(); // Get ROLES from the correct context
         switch (user.role) {
-            case "head_admin":
-                return <Navigate to="/dashboard" replace />
-            case "manager":
-                return <Navigate to="/dashboard" replace />
-            case "student":
-                return <Navigate to="/dashboard" replace />
+            case ROLES.head_admin:
+            case ROLES.manager:
+                return <Navigate to="/admin-dashboard" replace />;
+            case ROLES.student:
+            case ROLES.partner:
+                return <Navigate to="/student-dashboard" replace />;
             default:
-                return <Navigate to="/" replace />
+                // Fallback for any other roles or if a role doesn't have a specific dashboard here
+                return <Navigate to="/" replace />;
         }
     }
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/dashboard/student/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -8,7 +8,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from "@/components/dashboard/student/ui/dialog"
 import { CheckCircle } from "lucide-react"
 
 export function SubmissionSuccessDialog({ open, onOpenChange, onDone }) {

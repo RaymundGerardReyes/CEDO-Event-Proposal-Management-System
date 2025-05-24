@@ -1,10 +1,11 @@
 "use client"
-import { ProposalTable } from "@/components/proposal-table"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { PageHeader } from "@/components/page-header"
+import React from 'react';
+import { ProposalTable } from "@/components/dashboard/admin/proposal-table"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/dashboard/admin/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/dashboard/admin/ui/tabs"
+import { PageHeader } from "@/components/dashboard/admin/page-header"
 
-export default function ProposalsPage() {
+const ProposalsPage = () => {
   return (
     <div className="flex-1 bg-[#f8f9fa] p-6 md:p-8">
       <PageHeader title="Proposals" subtitle="View and manage all your submitted proposals" />
@@ -49,3 +50,5 @@ export default function ProposalsPage() {
     </div>
   )
 }
+
+export default ProposalsPage;
