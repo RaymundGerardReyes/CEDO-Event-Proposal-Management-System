@@ -3,7 +3,7 @@ import Image from "next/image";
 export const LogoSimple = () => {
   return (
     <Image
-      src="/CEDO.svg"
+      src="/CEDO2.svg"
       alt="CEDO Logo"
       width={270}  // Adjusted width
       height={100} // Adjusted height

@@ -9,9 +9,9 @@ import "./globals.css"; // Your global styles
 // If you decided to keep AuthContext.jsx and rename it, adjust the import.
 import { AuthProvider } from "@/contexts/auth-context"; // This should point to the file you provided
 
-import { ToastProvider } from "@/components/dashboard/admin/ui/use-toast";
 import { ThemeProvider } from "@/components/theme-provider"; // Assuming you have a theme provider
 import { Toaster } from "@/components/ui/toaster"; // Assuming you use ShadCN toaster 
+import { ToastProvider } from "@/components/ui/use-toast";
 
 const inter = Inter({ subsets: ["latin"] });
 

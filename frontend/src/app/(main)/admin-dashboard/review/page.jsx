@@ -1,14 +1,16 @@
 "use client"
 
-import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/dashboard/admin/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/dashboard/admin/ui/tabs"
+import { PageHeader } from "@/components/dashboard/admin/page-header"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/dashboard/admin/ui/avatar"
 import { Badge } from "@/components/dashboard/admin/ui/badge"
 import { Button } from "@/components/dashboard/admin/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/dashboard/admin/ui/card"
 import { Input } from "@/components/dashboard/admin/ui/input"
 import { Label } from "@/components/dashboard/admin/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/dashboard/admin/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/dashboard/admin/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/dashboard/admin/ui/tabs"
+import { Textarea } from "@/components/dashboard/admin/ui/textarea"
 import {
   Dialog,
   DialogContent,
@@ -16,11 +18,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/dashboard/admin/ui/dialog"
-import { Textarea } from "@/components/dashboard/admin/ui/textarea"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/dashboard/admin/ui/avatar"
-import { Search, Filter, XCircle, FileText, Download, MessageSquare } from "lucide-react"
-import { PageHeader } from "@/components/dashboard/admin/page-header"
+} from "@/components/ui/dialog"
+import { Download, FileText, Filter, MessageSquare, Search, XCircle } from "lucide-react"
+import { useState } from "react"
 
 // Sample data for proposals
 const proposals = [

@@ -256,13 +256,13 @@ export default function SignInPage() {
 
   return (
     <>
-     {/* Responsive container: full viewport height, centered content, no scroll */}
+      {/* Responsive container: full viewport height, centered content, no scroll */}
       <div
         className={`
           flex flex-col items-center justify-center overflow-hidden bg-gray-50 dark:bg-neutral-950
           ${isMobile ? 'h-[100dvh] px-1' : 'h-screen px-2 sm:px-4 md:px-6'}
         `}
-   >
+      >
         <div className={
           `w-full max-w-md ` +
           (isMobile ? 'p-1' : 'p-2 sm:p-4')
