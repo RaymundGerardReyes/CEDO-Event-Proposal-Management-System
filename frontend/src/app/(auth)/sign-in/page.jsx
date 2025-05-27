@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
 import { ROLES, useAuth } from "@/contexts/auth-context"; // Ensure ROLES are correctly imported if used here
+import { useIsMobile } from "@/hooks/use-mobile";
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
 import Link from "next/link";
@@ -56,6 +57,8 @@ export default function SignInPage() {
 
   const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
   const GOOGLE_BUTTON_CONTAINER_ID = "google-signin-button-container";
+
+  const isMobile = useIsMobile();
 
   const openErrorDialog = useCallback((message) => {
     setErrorDialogMessage(message || "The email or password you entered is incorrect. Please check your credentials or try again.");
@@ -138,11 +141,10 @@ export default function SignInPage() {
             // and this effect won't run again for this purpose due to isGoogleButtonRendered.
           })
           .catch((error) => {
-            // The error "Another Google Sign-In operation is already in progress" comes from auth-context.
-            // This means signInWithGoogleAuth was called while the context thought an operation was active.
             console.error("SignInPage: Google Sign-In button initialization error:", error.message);
-            if (!isGoogleButtonRendered) { // Avoid repeated dialogs if it somehow retries
-              openErrorDialog(error.message || "Failed to initialize Google Sign-In. Please refresh the page or try again later.");
+            if (!isGoogleButtonRendered) {
+              openErrorDialog(error.message || "Failed to initialize Google Sign-In.");
+              setIsGoogleButtonRendered(true); // Prevent loop
             }
           })
           .finally(() => {
@@ -254,20 +256,39 @@ export default function SignInPage() {
 
   return (
     <>
-      <div className="flex flex-col items-center justify-center min-h-screen py-8 bg-gray-50 dark:bg-neutral-950">
-        <div className="w-full max-w-md p-4">
-          <div className="mb-8 text-center">
-            {LogoSimple ? <LogoSimple /> : <div className="text-destructive">Logo Error</div>}
-            <h1 className="mt-4 text-2xl font-bold text-cedo-blue dark:text-blue-400">Welcome back</h1>
-            <p className="mt-2 text-sm text-muted-foreground dark:text-gray-400">Sign in to your account to continue</p>
+     {/* Responsive container: full viewport height, centered content, no scroll */}
+      <div
+        className={`
+          flex flex-col items-center justify-center overflow-hidden bg-gray-50 dark:bg-neutral-950
+          ${isMobile ? 'h-[100dvh] px-1' : 'h-screen px-2 sm:px-4 md:px-6'}
+        `}
+   >
+        <div className={
+          `w-full max-w-md ` +
+          (isMobile ? 'p-1' : 'p-2 sm:p-4')
+        }>
+          <div className="mb-6 flex flex-col items-center justify-center">
+            {/* Center the logo and add margin below */}
+            <div className="flex justify-center w-full mt-0 mb-0">
+              {LogoSimple ? <LogoSimple /> : <div className="text-destructive">Logo Error</div>}
+            </div>
+            <h1 className="mt-2 text-2xl font-bold text-cedo-blue dark:text-blue-400 text-center">Welcome back</h1>
+            <p className="mt-2 text-sm text-muted-foreground dark:text-gray-400 text-center">Sign in to your account to continue</p>
           </div>
 
-          <Card className="border-0 shadow-lg dark:bg-neutral-900 dark:border-neutral-700">
-            <CardContent className="pt-6">
+          <Card className={
+            `border-0 shadow-lg dark:bg-neutral-900 dark:border-neutral-700 ` +
+            (isMobile ? 'rounded-lg' : '')
+          }>
+            <CardContent className={
+              `pt-6 ` +
+              (isMobile ? 'p-2' : '')
+            }>
               <div
                 id={GOOGLE_BUTTON_CONTAINER_ID}
                 className="mb-4 w-full min-h-[40px] flex justify-center items-center"
                 aria-live="polite"
+                role="status"
               >
                 {isGoogleAuthProcessing && !isGoogleButtonRendered && (
                   <div className="flex items-center justify-center p-2 text-sm text-muted-foreground dark:text-gray-400">
@@ -291,7 +312,7 @@ export default function SignInPage() {
                     <FormControl>
                       <div className="relative">
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-gray-500" />
-                        <Input id="email" placeholder="your.email@example.com" type="email" autoComplete="email" name="email" value={formData.email} onChange={handleChange} className="pl-10 dark:bg-neutral-800 dark:text-gray-200 dark:border-neutral-600" disabled={isSubmittingEmail || isSubmittingGoogle} required />
+                        <Input id="email" placeholder="your.email@example.com" type="email" autoComplete="email" name="email" value={formData.email} onChange={handleChange} className="pl-10 pr-2 w-full dark:bg-neutral-800 dark:text-gray-200 dark:border-neutral-600" disabled={isSubmittingEmail || isSubmittingGoogle} required />
                       </div>
                     </FormControl>
                     <FormMessage />
@@ -307,10 +328,13 @@ export default function SignInPage() {
                     <FormControl>
                       <div className="relative">
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-gray-500" />
-                        <Input id="password" placeholder="••••••••" type={showPassword ? "text" : "password"} autoComplete="current-password" name="password" value={formData.password} onChange={handleChange} className="pl-10 dark:bg-neutral-800 dark:text-gray-200 dark:border-neutral-600" disabled={isSubmittingEmail || isSubmittingGoogle} required />
-                        <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3 py-2 text-muted-foreground hover:bg-transparent dark:text-gray-400 dark:hover:bg-neutral-700" onClick={() => setShowPassword(!showPassword)} disabled={isSubmittingEmail || isSubmittingGoogle} aria-label={showPassword ? "Hide password" : "Show password"}>
-                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
+                        <Input id="password" placeholder="••••••••" type={showPassword ? "text" : "password"} autoComplete="current-password" name="password" value={formData.password} onChange={handleChange} className="pl-10 pr-10 w-full dark:bg-neutral-800 dark:text-gray-200 dark:border-neutral-600" disabled={isSubmittingEmail || isSubmittingGoogle} required />
+                        {/* Only show the toggle button if there is a password value */}
+                        {formData.password && (
+                          <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3 py-2 text-muted-foreground hover:bg-transparent dark:text-gray-400 dark:hover:bg-neutral-700" onClick={() => setShowPassword(!showPassword)} disabled={isSubmittingEmail || isSubmittingGoogle} aria-label={showPassword ? "Hide password" : "Show password"}>
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        )}
                       </div>
                     </FormControl>
                     <FormMessage />
@@ -323,7 +347,7 @@ export default function SignInPage() {
                         sitekey={recaptchaSiteKey}
                         onChange={handleCaptchaVerify}
                         onErrored={handleCaptchaError}
-                        onExpired={resetCaptcha} // Reset token if it expires
+                        onExpired={resetCaptcha}
                       />
                     </div>
                   )}
@@ -343,15 +367,6 @@ export default function SignInPage() {
                   </Button>
                 </div>
               </form>
-
-              <div className="mt-6 p-3 bg-muted/50 dark:bg-neutral-800/50 rounded-md border dark:border-neutral-700">
-                <h3 className="text-sm font-medium text-foreground/80 dark:text-gray-300 mb-2">Demo Accounts:</h3>
-                <div className="space-y-2 text-xs text-muted-foreground dark:text-gray-400">
-                  <div><p><strong>Head Admin:</strong> admin@cedo.gov.ph / admin123</p></div>
-                  <div><p><strong>System Manager:</strong> manager@cedo.gov.ph / manager123</p></div>
-                  <div><p><strong>Student:</strong> student@example.com / student123</p></div>
-                </div>
-              </div>
             </CardContent>
           </Card>
         </div>

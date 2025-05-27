@@ -1,12 +1,13 @@
 // src/contexts/auth-context.js
 "use client";
 
+import { useToast } from "@/components/ui/use-toast";
 import axios from "axios";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5050/api";
-const SESSION_TIMEOUT_DURATION = 500 * 1000; // 10 seconds in milliseconds
+const SESSION_TIMEOUT_DURATION = 500 * 1000; // 500 seconds in milliseconds
 
 const internalApi = axios.create({
   baseURL: API_URL,
@@ -32,27 +33,8 @@ let gsiClientInitialized = false;
 export function AuthProvider({ children }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [searchParams, setSearchParams] = useState(() => {
-    if (typeof window !== "undefined") {
-      return new URLSearchParams(window.location.search);
-    }
-    return new URLSearchParams();
-  });
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const currentSearchParams = new URLSearchParams(window.location.search);
-      setSearchParams(currentSearchParams);
-
-      const handleRouteChange = () => {
-        setSearchParams(new URLSearchParams(window.location.search));
-      }
-      window.addEventListener("popstate", handleRouteChange);
-      return () => {
-        window.removeEventListener("popstate", handleRouteChange);
-      };
-    }
-  }, [pathname]);
+  const currentSearchParamsHook = useSearchParams();
+  const { toast } = useToast();
 
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -61,10 +43,76 @@ export function AuthProvider({ children }) {
   // For Google Sign-In promise management
   const currentGoogleSignInPromiseActions = useRef(null);
 
+  // Helper function to show user-friendly error messages
+  const showErrorToast = useCallback((title, description, variant = "destructive") => {
+    toast({
+      title,
+      description,
+      variant,
+      duration: 5000,
+    });
+  }, [toast]);
+
+  // Helper function to show success messages
+  const showSuccessToast = useCallback((title, description) => {
+    toast({
+      title,
+      description,
+      variant: "default",
+      duration: 4000,
+    });
+  }, [toast]);
+
+  // Helper function to handle different error types
+  const handleAuthError = useCallback((error, context = "Authentication") => {
+    let title = `${context} Error`;
+    let description = "An unexpected error occurred. Please try again.";
+
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+      const message = error.response?.data?.message;
+
+      switch (status) {
+        case 403:
+          if (message && message.toLowerCase().includes("pending approval")) {
+            title = "Account Pending Approval";
+            description = "Your account is currently pending approval. Please contact an administrator to activate your account.";
+          } else if (message && message.toLowerCase().includes("not approved")) {
+            title = "Account Not Approved";
+            description = "Your account has not been approved yet. Please contact an administrator for assistance.";
+          } else {
+            title = "Access Denied";
+            description = message || "You don't have permission to access this resource.";
+          }
+          break;
+        case 401:
+          title = "Authentication Failed";
+          description = message || "Invalid credentials. Please check your login information.";
+          break;
+        case 404:
+          title = "Service Unavailable";
+          description = "The authentication service is currently unavailable. Please try again later.";
+          break;
+        case 500:
+          title = "Server Error";
+          description = "A server error occurred. Please try again later.";
+          break;
+        default:
+          if (message) {
+            description = message;
+          }
+      }
+    } else if (error instanceof Error) {
+      description = error.message;
+    }
+
+    showErrorToast(title, description);
+    return { title, description };
+  }, [showErrorToast]);
 
   const performRedirect = useCallback(
     (loggedInUser) => {
-      const currentRedirectParam = searchParams.get("redirect");
+      const currentRedirectParam = currentSearchParamsHook.get("redirect");
       if (!loggedInUser || !loggedInUser.role) {
         if (pathname !== "/sign-in") router.replace("/sign-in");
         return;
@@ -95,7 +143,7 @@ export function AuthProvider({ children }) {
         router.replace(targetPath);
       }
     },
-    [router, searchParams, pathname],
+    [router, currentSearchParamsHook, pathname],
   );
 
   let commonSignOutLogicWithDependencies;
@@ -242,7 +290,15 @@ export function AuthProvider({ children }) {
         setUser(null);
       }
     } catch (error) {
-      console.warn("AuthContext [verifyCurrentUser]: Error verifying current user or token invalid.", error.message);
+      // Only show error toasts for non-authentication related errors
+      // Token expiration and invalid tokens are normal and shouldn't show error messages
+      if (process.env.NODE_ENV === 'development') {
+        console.warn("AuthContext [verifyCurrentUser]: Error verifying current user or token invalid.", error.message);
+      }
+
+      // Don't show error toast for normal token expiration/invalid token scenarios
+      // These are expected behaviors when tokens expire or are invalid
+
       if (typeof window !== "undefined") {
         localStorage.removeItem("cedo_user");
         document.cookie = "cedo_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
@@ -271,25 +327,25 @@ export function AuthProvider({ children }) {
         const response = await internalApi.post("/auth/login", payload);
         const { token, user: userData } = response.data;
         if (token && userData) {
+          showSuccessToast("Sign-In Successful", `Welcome back, ${userData.name}!`);
           return commonSignInSuccess(token, userData, rememberMe);
         }
         throw new Error("Login failed: No token or user data received from server.");
       } catch (error) {
-        let errorMessage = "An unexpected error occurred during sign-in.";
-        if (axios.isAxiosError(error)) {
-          errorMessage = error.response?.data?.message ||
-            (Array.isArray(error.response?.data?.errors) && error.response?.data?.errors.map(e => e.msg).join(", ")) ||
-            `Server error (${error.response?.status}). Please try again.` ||
-            error.message;
-        } else if (error instanceof Error) {
-          errorMessage = error.message;
+        // Use the new error handling system
+        const errorInfo = handleAuthError(error, "Sign-In");
+
+        // Only log to console in development for debugging
+        if (process.env.NODE_ENV === 'development') {
+          console.error("AuthContext: Sign-In Error Details:", error);
         }
+
         await commonSignOutLogicWithDependencies(false);
         setIsLoading(false);
-        throw new Error(errorMessage);
+        throw new Error(errorInfo.description);
       }
     },
-    [commonSignInSuccess, commonSignOutLogicWithDependencies],
+    [commonSignInSuccess, commonSignOutLogicWithDependencies, handleAuthError, showSuccessToast],
   );
 
   const loadGoogleScript = useCallback(() => {
@@ -357,59 +413,51 @@ export function AuthProvider({ children }) {
         return;
       }
 
-      // It's good practice to clear the ref once we've retrieved the actions,
-      // or at least ensure it's cleared in a finally block.
-      // For this pattern, clearing in finally is more robust.
-
       try {
         if (googleResponse.error || !googleResponse?.credential) {
-          // Map Google's error naming if necessary, or use a generic message
           let errMsg = "Google Sign-In failed or was cancelled by the user.";
           if (googleResponse.error_description) {
             errMsg = googleResponse.error_description;
           } else if (googleResponse.error) {
-            // Common GSI errors: "popup_closed", "user_cancelled", "idpiframe_initialization_failed", etc.
             errMsg = `Google Sign-In error: ${googleResponse.error}`;
           }
           throw new Error(errMsg);
         }
 
-        // Send Google token to your backend for verification and app token issuance
         const backendResponse = await internalApi.post("/auth/google", { token: googleResponse.credential });
         const { token, user: userDataFromBackend } = backendResponse.data;
 
         if (token && userDataFromBackend) {
-          commonSignInSuccess(token, userDataFromBackend, false); // Your existing app sign-in success logic
-          promiseActions.resolve(userDataFromBackend); // Resolve the promise from signInWithGoogleAuth with your app's user data
+          commonSignInSuccess(token, userDataFromBackend, false);
+          showSuccessToast("Sign-In Successful", `Welcome back, ${userDataFromBackend.name}!`);
+          promiseActions.resolve(userDataFromBackend);
         } else {
           throw new Error("Google Sign-In failed: No valid token or user data received from backend server.");
         }
       } catch (error) {
-        let errorMessage = "An unexpected error occurred during Google Sign-In processing.";
-        if (axios.isAxiosError(error) && error.response) {
-          // Customize based on backend error structure for Google Sign-In
-          errorMessage = error.response.data?.message || `Backend error (${error.response.status}) during Google Sign-In.`;
-        } else if (error instanceof Error) {
-          errorMessage = error.message;
+        // Use the new error handling system instead of console.error
+        const errorInfo = handleAuthError(error, "Google Sign-In");
+
+        // Only log to console in development for debugging
+        if (process.env.NODE_ENV === 'development') {
+          console.error("AuthContext: Google Sign-In Error Details:", error);
         }
-        console.error("AuthContext: Google Sign-In Error in handleGoogleCredentialResponse:", errorMessage, error);
-        promiseActions.reject(new Error(errorMessage)); // Reject the promise from signInWithGoogleAuth
+
+        promiseActions.reject(new Error(errorInfo.description));
       } finally {
         console.log("AuthContext (handleGoogleCredentialResponse): Clearing currentGoogleSignInPromiseActions.current. Old value:", currentGoogleSignInPromiseActions.current);
-        currentGoogleSignInPromiseActions.current = null; // Crucial cleanup
+        currentGoogleSignInPromiseActions.current = null;
         console.log("AuthContext (handleGoogleCredentialResponse): currentGoogleSignInPromiseActions.current is now null.");
       }
     },
-    [commonSignInSuccess] // Dependency: commonSignInSuccess for app-level sign-in
+    [commonSignInSuccess, handleAuthError, showSuccessToast]
   );
 
-  // Corrected signInWithGoogleAuth
   const signInWithGoogleAuth = useCallback(async (elementIdToRenderButtonIn, buttonOptions = {}) => {
     console.log("AuthContext: signInWithGoogleAuth CALLED. Checking lock...");
     return new Promise(async (resolveOuter, rejectOuter) => {
       if (currentGoogleSignInPromiseActions.current) {
-        console.error("AuthContext: LOCK ENGAGED. Another Google Sign-In operation is already in progress. currentGoogleSignInPromiseActions.current:", currentGoogleSignInPromiseActions.current);
-        rejectOuter(new Error("Another Google Sign-In operation is already in progress. Please wait."));
+        console.warn("AuthContext: Another Google Sign-In operation is already in progress. Please wait.");
         return;
       }
 
@@ -448,14 +496,13 @@ export function AuthProvider({ children }) {
         console.log(`AuthContext: signInWithGoogleAuth - Attempting to render button in element: ${elementIdToRenderButtonIn}`);
         const buttonDiv = document.getElementById(elementIdToRenderButtonIn);
         if (buttonDiv) {
-          buttonDiv.innerHTML = ''; // Clear previous button to ensure fresh render
+          buttonDiv.innerHTML = '';
           const defaultRenderOptions = {
             theme: "outline", size: "large", type: "standard", text: "signin_with",
           };
           const mergedOptions = { ...defaultRenderOptions, ...buttonOptions };
           window.google.accounts.id.renderButton(buttonDiv, mergedOptions);
           console.log(`AuthContext: signInWithGoogleAuth - Google button rendered in ${elementIdToRenderButtonIn}. Waiting for callback...`);
-          // Promise is now waiting for handleGoogleCredentialResponse
         } else {
           let errorMsg = `Google Sign-In Button Error: HTML element with ID '${elementIdToRenderButtonIn}' was not found in the DOM.`;
           if (!elementIdToRenderButtonIn) {
@@ -466,27 +513,76 @@ export function AuthProvider({ children }) {
         }
       } catch (error) {
         console.error("AuthContext: ERROR in signInWithGoogleAuth setup phase. Error message:", error.message, "Stack:", error.stack);
-        // Ensure we reject the promise associated with *this* attempt and clear the lock.
         const promiseActionsForThisAttempt = currentGoogleSignInPromiseActions.current;
         if (promiseActionsForThisAttempt && promiseActionsForThisAttempt.reject === rejectOuter) {
           console.log("AuthContext: signInWithGoogleAuth catch - Rejecting promise for this attempt.");
           promiseActionsForThisAttempt.reject(error);
         } else if (promiseActionsForThisAttempt) {
-          console.warn("AuthContext: signInWithGoogleAuth catch - Mismatch in promise actions. This might indicate a race condition or stale state. Current promiseActions' initiatedAt:", promiseActionsForThisAttempt.initiatedAt);
-          // Still attempt to reject the original promise if it's the one we have.
+          console.warn("AuthContext: signInWithGoogleAuth catch - Mismatch in promise actions. Current promiseActions' initiatedAt:", promiseActionsForThisAttempt.initiatedAt);
           rejectOuter(error);
         } else {
-          console.warn("AuthContext: signInWithGoogleAuth catch - No promise actions found in currentGoogleSignInPromiseActions.current. The promise might have been cleared by another process.");
-          // Reject the promise for this call anyway, as it failed.
+          console.warn("AuthContext: signInWithGoogleAuth catch - No promise actions found. The promise might have been cleared.");
           rejectOuter(error);
         }
         console.log("AuthContext: signInWithGoogleAuth catch - Releasing LOCK by setting currentGoogleSignInPromiseActions.current to null. Old value:", currentGoogleSignInPromiseActions.current);
-        currentGoogleSignInPromiseActions.current = null; // Crucial cleanup
+        currentGoogleSignInPromiseActions.current = null;
         console.log("AuthContext: signInWithGoogleAuth catch - LOCK RELEASED. currentGoogleSignInPromiseActions.current is now null.");
       }
     });
   }, [loadGoogleScript, handleGoogleCredentialResponse]);
 
+  // --- New functions for User Management API calls ---
+  const fetchAllUsers = useCallback(async () => {
+    if (!user || user.role !== ROLES.head_admin) {
+      const errorMsg = "Unauthorized to fetch users.";
+      showErrorToast("Access Denied", "You don't have permission to view user data.");
+      return Promise.reject(new Error(errorMsg));
+    }
+    try {
+      console.log("AuthContext: Fetching all users...");
+      const response = await internalApi.get("/users");
+      return response.data;
+    } catch (error) {
+      // Use the new error handling system
+      const errorInfo = handleAuthError(error, "User Data Fetch");
+
+      // Only log to console in development for debugging
+      if (process.env.NODE_ENV === 'development') {
+        console.error("AuthContext: Error in fetchAllUsers:", error);
+      }
+
+      throw error;
+    }
+  }, [user, handleAuthError, showErrorToast]);
+
+  const updateUserApproval = useCallback(async (userIdToUpdate, newApprovalStatus) => {
+    if (!user || user.role !== ROLES.head_admin) {
+      const errorMsg = "Unauthorized to update user approval.";
+      showErrorToast("Access Denied", "You don't have permission to update user approval status.");
+      return Promise.reject(new Error(errorMsg));
+    }
+    try {
+      console.log(`AuthContext: Updating approval for user ${userIdToUpdate} to ${newApprovalStatus}`);
+      const response = await internalApi.put(`/users/${userIdToUpdate}/approval`, { is_approved: newApprovalStatus });
+
+      // Show success message
+      const statusText = newApprovalStatus ? "approved" : "revoked";
+      showSuccessToast("User Updated", `User approval status has been ${statusText} successfully.`);
+
+      return response.data;
+    } catch (error) {
+      // Use the new error handling system
+      const errorInfo = handleAuthError(error, "User Approval Update");
+
+      // Only log to console in development for debugging
+      if (process.env.NODE_ENV === 'development') {
+        console.error("AuthContext: Error in updateUserApproval:", error);
+      }
+
+      throw error;
+    }
+  }, [user, handleAuthError, showErrorToast, showSuccessToast]);
+  // --- End of new functions ---
 
   const contextValue = {
     user,
@@ -496,8 +592,10 @@ export function AuthProvider({ children }) {
     signOut,
     signInWithGoogleAuth,
     ROLES,
-    redirect: searchParams.get("redirect") || "/",
-    searchParams,
+    redirect: currentSearchParamsHook.get("redirect") || "/",
+    searchParams: currentSearchParamsHook,
+    fetchAllUsers,
+    updateUserApproval,
   };
 
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;

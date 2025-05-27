@@ -107,5 +107,30 @@ npm run init-db
 - The frontend will typically be available at `http://localhost:3000`.
 - The backend API will typically be available at `http://localhost:4000/api`.
 
+Troubleshoot 
+
+
+if  message you're encountering indicates that the port 5000 is already in use by another process on your machine 
+
+follow these instructions precisely well 
+
+Open the Command Prompt using command from Keyboard  CTRL + R + ENTER 
+then Type 'cmd' and then Enter
+
+CMD Will Appear Precisely!
+
+then Paste this '   netstat -ano | findstr :5000' to Command Prompt and then hit Enter
+
+were these process of troubleshoot may kill the port if still reported as in use, you may need to identify which process is using it and terminate that process.
+
+if you see the PID you must use this Template precisely "   taskkill /PID <PID> /F"
+
+then Hit Enter
+
+
+
+
+
+
 ### Conclusion
 By following these steps, you should be able to set up the CEDO Partnership Management System on your local machine. Ensure that all dependencies are installed correctly and that your environment variables are set up to match your database configuration. If you encounter any issues, check the console for error messages and ensure that your services are running as expected.

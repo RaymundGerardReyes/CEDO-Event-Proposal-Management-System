@@ -10,10 +10,10 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"; // Assuming this is your custom sidebar component
 import { useIsMobile } from "@/hooks/use-mobile"; // Assuming this hook is correctly defined
-import { BarChart3, CalendarDays, ClipboardCheck, FileText, PieChart } from "lucide-react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { BarChart3, CalendarDays, ClipboardCheck, FileText, PieChart } from "lucide-react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { useState } from "react"
 
 // Helper function to check if the current path matches a nav item
 function isPathActive(currentPathname, linkHref) {

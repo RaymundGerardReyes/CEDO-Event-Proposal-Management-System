@@ -5,11 +5,11 @@ const { pool } = require('../config/db');
 const sessionManager = {
     // Generate new token
     generateToken: (user) => {
-        if (!process.env.JWT_SECRET_DEV) {
-            throw new Error("JWT_SECRET_DEV is not defined in environment variables.");
+        if (!process.env.JWT_SECRET) {
+            throw new Error("JWT_SECRET is not defined in environment variables.");
         }
-        return jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET_DEV, {
-            expiresIn: "1m", // Set your desired expiration time
+        return jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, {
+            expiresIn: "1h", // Set your desired expiration time
         });
     },
 

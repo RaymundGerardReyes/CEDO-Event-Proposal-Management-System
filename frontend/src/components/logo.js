@@ -5,9 +5,11 @@ export const LogoSimple = () => {
     <Image
       src="/CEDO.svg"
       alt="CEDO Logo"
-      width={120}
-      height={120}
+      width={270}  // Adjusted width
+      height={100} // Adjusted height
       priority
+      className="w-40 sm:w-60 md:w-70
+       h-auto" // Adjusted CSS classes
     />
   );
 };

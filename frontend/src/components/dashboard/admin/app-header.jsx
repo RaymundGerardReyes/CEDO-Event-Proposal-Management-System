@@ -283,10 +283,17 @@ export function AppHeader() {
                     <User className="h-4 w-4 mr-2" />
                     My Profile
                   </Button>
-                  <Button variant="ghost" size="sm" className="w-full justify-start text-black hover:bg-gray-100" onClick={() => handleNavigation("/admin-dashboard/settings")}>
-                    <Settings className="h-4 w-4 mr-2" />
-                    Settings
-                  </Button>
+                  {user.role === "head_admin" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start text-black hover:bg-gray-100"
+                      onClick={() => handleNavigation("/admin-dashboard/settings")}
+                    >
+                      <Settings className="h-4 w-4 mr-2" />
+                      Settings
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"

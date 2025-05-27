@@ -9,8 +9,9 @@ import "./globals.css"; // Your global styles
 // If you decided to keep AuthContext.jsx and rename it, adjust the import.
 import { AuthProvider } from "@/contexts/auth-context"; // This should point to the file you provided
 
+import { ToastProvider } from "@/components/dashboard/admin/ui/use-toast";
 import { ThemeProvider } from "@/components/theme-provider"; // Assuming you have a theme provider
-import { Toaster } from "@/components/ui/toaster"; // Assuming you use ShadCN toaster
+import { Toaster } from "@/components/ui/toaster"; // Assuming you use ShadCN toaster 
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -43,8 +44,10 @@ export default function RootLayout({ children }) {
             src/contexts/auth-context.js (the one you provided that contains the useAuth hook throwing the error)
           */}
           <AuthProvider>
-            {children} {/* This will render your page content, including (main)/layout.js */}
-            <Toaster />  {/* Toaster for notifications */}
+            <ToastProvider>
+              {children} {/* This will render your page content, including (main)/layout.js */}
+              <Toaster />  {/* Toaster for notifications */}
+            </ToastProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

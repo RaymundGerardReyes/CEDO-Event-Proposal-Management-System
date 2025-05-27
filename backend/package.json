@@ -8,6 +8,7 @@
         "dev": "nodemon server.js",
         "init-db": "node scripts/init-db.js",
         "build": "tsc",
+        "wait-db": "sh wait-for-it.sh mysql:3306 -- npm run init-db",
         "test": "jest"
     },
     "dependencies": {
