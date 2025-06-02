@@ -9,14 +9,14 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { useMobile } from "@/hooks/use-mobile"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { BarChart3, CalendarDays, ClipboardCheck, FileText, HelpCircle, PieChart, Settings } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 export function AppSidebar() {
     const pathname = usePathname()
-    const { isMobile } = useMobile()
+    const isMobile = useIsMobile()
 
     return (
         <Sidebar
