@@ -3,7 +3,7 @@
 import { FormActions } from "@/components/dashboard/admin/responsive-form"
 import { Button } from "@/components/dashboard/admin/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/dashboard/admin/ui/sheet"
-import { useMobile } from "@/hooks/use-mobile"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import { ChevronDown, ChevronUp, Filter } from "lucide-react"
 import { useState } from "react"
@@ -20,7 +20,7 @@ export function FilterForm({
 }) {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
   const [isOpen, setIsOpen] = useState(false)
-  const { isMobile } = useMobile()
+  const isMobile = useIsMobile()
 
   const handleSubmit = (e) => {
     e.preventDefault()

@@ -1,13 +1,23 @@
 "use client"
 
-export function PageHeader({ title, subtitle, actions }) {
+import { cn } from "@/lib/utils"
+
+export function PageHeader({ title, subtitle, className, children, ...props }) {
   return (
-    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-      <div className="mb-4 sm:mb-0">
-        <h1 className="text-2xl sm:text-3xl font-bold text-[#0c2d6b]">{title}</h1>
-        {subtitle && <p className="text-sm sm:text-base text-muted-foreground mt-1">{subtitle}</p>}
+    <div className={cn("mb-4 sm:mb-6", className)} {...props}>
+      <div className="space-y-1">
+        {title && (
+          <h1 className="text-xl font-bold tracking-tight text-cedo-blue sm:text-2xl md:text-3xl">
+            {title}
+          </h1>
+        )}
+        {subtitle && (
+          <p className="text-sm text-muted-foreground sm:text-base">
+            {subtitle}
+          </p>
+        )}
       </div>
-      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+      {children}
     </div>
   )
 }
