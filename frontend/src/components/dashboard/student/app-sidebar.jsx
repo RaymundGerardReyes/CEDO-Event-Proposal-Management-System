@@ -5,8 +5,9 @@ import {
   SidebarContent,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuButton as UiSidebarMenuButton
+  useSidebar
 } from "@/components/dashboard/student/ui/sidebar"
 import {
   Calendar,
@@ -17,49 +18,59 @@ import {
   LayoutDashboard,
   Menu,
   PlusCircle,
-  X,
+  X
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 
 const MOBILE_BREAKPOINT = 768
 
-function LocalSidebarMenuButton({ href, isActive, icon, children, className = "", onClick }) {
-  return (
-    <Link href={href} passHref legacyBehavior>
-      <a
-        onClick={onClick}
-        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200 hover:bg-[#1a3b80] focus:outline-none focus:ring-2 focus:ring-[#f0c14b] focus:ring-offset-2 focus:ring-offset-[#0A2B70] ${isActive ? "bg-[#1a3b80] text-[#f0c14b]" : "text-white hover:text-[#f0c14b]"
-          } ${className}`}
-      >
-        <span className="flex-shrink-0">{icon}</span>
-        <span className="font-medium truncate">{children}</span>
-      </a>
-    </Link>
-  )
-}
-
-function NavItem({ href, isActive, icon, children, collapsed, onClick }) {
+function NavItem({ href, isActive, icon, children, collapsed, onClick, badge = null }) {
   return (
     <div className="relative group">
-      <LocalSidebarMenuButton
-        href={href}
+      <SidebarMenuButton
+        asChild
         isActive={isActive}
-        icon={icon}
-        onClick={onClick}
-        className={`${collapsed ? "justify-center px-2" : ""}`}
+        className={`group relative w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-300 ease-out hover:scale-[1.02] hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-cedo-gold focus:ring-offset-2 focus:ring-offset-cedo-blue ${isActive
+          ? "bg-gradient-to-r from-cedo-gold to-cedo-gold-dark text-cedo-blue shadow-lg transform scale-[1.02]"
+          : "text-white/90 hover:bg-white/10 hover:text-cedo-gold"
+          } ${collapsed ? "justify-center px-3" : ""}`}
       >
-        {!collapsed && children}
-      </LocalSidebarMenuButton>
+        <Link href={href} onClick={onClick} className="flex items-center gap-3 w-full">
+          <span className={`flex-shrink-0 transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>
+            {icon}
+          </span>
+          {!collapsed && (
+            <>
+              <span className="font-medium truncate transition-all duration-300">{children}</span>
+              {badge && (
+                <span className="ml-auto bg-cedo-gold text-cedo-blue text-xs font-bold px-2 py-1 rounded-full min-w-[20px] text-center">
+                  {badge}
+                </span>
+              )}
+            </>
+          )}
+          {isActive && (
+            <div className="absolute inset-0 bg-gradient-to-r from-cedo-gold/20 to-cedo-gold-dark/20 rounded-xl animate-pulse"></div>
+          )}
+        </Link>
+      </SidebarMenuButton>
 
       {collapsed && (
         <div
-          className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50 pointer-events-none"
+          className="absolute left-full top-1/2 -translate-y-1/2 ml-4 px-4 py-3 bg-gradient-to-r from-gray-900 to-gray-800 text-white text-sm rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 whitespace-nowrap z-50 pointer-events-none border border-cedo-gold/20"
           role="tooltip"
         >
-          {children}
-          <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-2 h-2 bg-gray-900 rotate-45"></div>
+          <div className="flex items-center gap-2">
+            {children}
+            {badge && (
+              <span className="bg-cedo-gold text-cedo-blue text-xs font-bold px-2 py-1 rounded-full">
+                {badge}
+              </span>
+            )}
+          </div>
+          <div className="absolute top-1/2 -left-2 -translate-y-1/2 w-4 h-4 bg-gradient-to-r from-gray-900 to-gray-800 rotate-45 border-l border-t border-cedo-gold/20"></div>
         </div>
       )}
     </div>
@@ -68,172 +79,240 @@ function NavItem({ href, isActive, icon, children, collapsed, onClick }) {
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const { isMobile, isOpen, onOpen, onClose } = useSidebar()
   const [collapsed, setCollapsed] = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
 
-  const handleResize = useCallback(() => {
-    const currentlyMobile = window.innerWidth < MOBILE_BREAKPOINT
-    setIsMobile(currentlyMobile)
-    if (currentlyMobile) {
-      setMobileOpen(false)
-    } else {
-      // Optionally set a default collapsed state for desktop on initial load if needed
-      // setCollapsed(false); // Default to expanded on desktop
-    }
-  }, [])
-
+  // Debug logging for state changes
   useEffect(() => {
-    handleResize()
-    window.addEventListener("resize", handleResize)
-    return () => window.removeEventListener("resize", handleResize)
-  }, [handleResize])
+    console.log("AppSidebar: State changed", { collapsed, isMobile, isOpen })
+  }, [collapsed, isMobile, isOpen])
 
-  // Dispatch sidebar state changes (if other components listen to this)
+  // Dispatch sidebar state changes for layout components
   useEffect(() => {
     if (!isMobile) {
+      console.log("AppSidebar: Dispatching sidebar-toggle event", { collapsed, isMobile: false })
       window.dispatchEvent(
         new CustomEvent("sidebar-toggle", {
-          detail: { collapsed, isMobile: false },
+          detail: {
+            collapsed,
+            isMobile: false,
+            width: collapsed ? 80 : 288
+          },
         }),
       )
+      console.log("AppSidebar: Event dispatched successfully")
     }
   }, [collapsed, isMobile])
 
   const toggleDesktopCollapse = () => {
     const newCollapsedState = !collapsed
+    console.log("AppSidebar: Toggle button clicked, changing from", collapsed, "to", newCollapsedState)
     setCollapsed(newCollapsedState)
-    // Dispatch event if needed (already handled by useEffect above)
-  }
-
-  const toggleMobileMenu = () => {
-    setMobileOpen(!mobileOpen)
   }
 
   const handleNavItemClickMobile = () => {
     if (isMobile) {
-      setMobileOpen(false) // Close mobile menu on item click
+      onClose()
     }
   }
 
   const navItems = [
-    { href: "/", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
-    { href: "/student-dashboard/events", label: "My Events", icon: <Calendar className="h-5 w-5" /> },
-    { href: "/student-dashboard/submit-event", label: "Submit New Event", icon: <PlusCircle className="h-5 w-5" /> },
-    { href: "/student-dashboard/sdp-credits", label: "SDP Credits", icon: <CreditCard className="h-5 w-5" /> },
-    { href: "/student-dashboard/drafts", label: "Resume Drafts", icon: <Clock className="h-5 w-5" /> },
+    {
+      href: "/student-dashboard",
+      label: "Dashboard",
+      icon: <LayoutDashboard className="h-5 w-5" />,
+      badge: null
+    },
+    {
+      href: "/student-dashboard/events",
+      label: "My Events",
+      icon: <Calendar className="h-5 w-5" />,
+      badge: "3"
+    },
+    {
+      href: "/student-dashboard/submit-event",
+      label: "Submit New Event",
+      icon: <PlusCircle className="h-5 w-5" />,
+      badge: null
+    },
+    {
+      href: "/student-dashboard/sdp-credits",
+      label: "SDP Credits",
+      icon: <CreditCard className="h-5 w-5" />,
+      badge: "24"
+    },
+    {
+      href: "/student-dashboard/drafts",
+      label: "Resume Drafts",
+      icon: <Clock className="h-5 w-5" />,
+      badge: "2"
+    },
   ]
 
-  // Mobile version (uses overlay, local NavItem and LocalSidebarMenuButton with Link)
+  // Mobile version with enhanced design
   if (isMobile) {
     return (
       <>
         <button
-          onClick={toggleMobileMenu}
-          className="fixed top-4 left-4 z-[60] lg:hidden p-2 rounded-lg bg-[#0A2B70] text-[#f0c14b] shadow-lg hover:bg-[#1a3b80] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#f0c14b]"
+          onClick={onOpen}
+          className="fixed top-6 left-6 z-[60] lg:hidden p-3 rounded-2xl bg-gradient-to-r from-cedo-blue to-cedo-blue/90 text-cedo-gold shadow-2xl hover:shadow-cedo-gold/25 hover:scale-110 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cedo-gold border border-cedo-gold/20"
           aria-label="Toggle sidebar"
         >
           <Menu className="h-6 w-6" />
         </button>
 
-        {mobileOpen && (
+        {isOpen && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-50 lg:hidden transition-opacity duration-300"
-            onClick={() => setMobileOpen(false)}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 lg:hidden transition-all duration-300"
+            onClick={onClose}
             aria-hidden="true"
           />
         )}
 
         <aside
-          className={`fixed top-0 left-0 w-64 h-full bg-[#0A2B70] text-white z-[60] transform transition-transform duration-300 ease-in-out lg:hidden ${mobileOpen ? "translate-x-0" : "-translate-x-full"
+          className={`fixed top-0 left-0 w-80 h-full bg-gradient-to-b from-cedo-blue via-cedo-blue to-cedo-blue/95 text-white z-[60] transform transition-all duration-500 ease-out lg:hidden shadow-2xl border-r border-cedo-gold/20 ${isOpen ? "translate-x-0" : "-translate-x-full"
             }`}
           aria-label="Main sidebar"
         >
-          <div className="flex flex-col h-full">
-            <div className="flex items-center justify-between p-4 border-b border-[#1a3b80]">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-[#f0c14b] flex items-center justify-center flex-shrink-0">
-                  <span className="font-bold text-[#0A2B70] text-lg">C</span>
+          <div className="flex flex-col h-full backdrop-blur-sm">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-cedo-gold/20 bg-gradient-to-r from-cedo-blue to-cedo-blue/80">
+              <div className="flex items-center gap-4">
+                <div className="relative h-12 w-12 rounded-2xl bg-gradient-to-br from-cedo-gold to-cedo-gold-dark flex items-center justify-center shadow-lg">
+                  <span className="font-bold text-cedo-blue text-xl">C</span>
+                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent"></div>
                 </div>
-                <div className="font-bold text-xl text-[#f0c14b]">CEDO</div>
+                <div>
+                  <div className="font-bold text-2xl text-cedo-gold">CEDO</div>
+                  <div className="text-xs text-white/70">Student Portal</div>
+                </div>
               </div>
               <button
-                onClick={() => setMobileOpen(false)}
-                className="p-2 rounded-lg hover:bg-[#1a3b80] transition-colors focus:outline-none focus:ring-2 focus:ring-[#f0c14b]"
+                onClick={onClose}
+                className="p-2 rounded-xl hover:bg-white/10 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cedo-gold"
                 aria-label="Close sidebar"
               >
-                <X className="h-5 w-5 text-[#f0c14b]" />
+                <X className="h-6 w-6 text-cedo-gold" />
               </button>
             </div>
+
+            {/* Navigation */}
             <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-              {navItems.map((item) => (
-                <NavItem
-                  key={item.href}
-                  href={item.href}
-                  isActive={pathname === item.href}
-                  icon={item.icon}
-                  collapsed={false}
-                  onClick={handleNavItemClickMobile}
-                >
-                  {item.label}
-                </NavItem>
-              ))}
+              <div className="space-y-1">
+                {navItems.map((item) => (
+                  <NavItem
+                    key={item.href}
+                    href={item.href}
+                    isActive={pathname === item.href || (item.href !== "/student-dashboard" && pathname.startsWith(item.href))}
+                    icon={item.icon}
+                    collapsed={false}
+                    onClick={handleNavItemClickMobile}
+                    badge={item.badge}
+                  >
+                    {item.label}
+                  </NavItem>
+                ))}
+              </div>
             </nav>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-cedo-gold/20 bg-gradient-to-r from-cedo-blue/50 to-transparent">
+              <div className="text-center text-xs text-white/60">
+                © 2024 CEDO Student Portal
+              </div>
+            </div>
           </div>
         </aside>
       </>
     )
   }
 
-  // Desktop sidebar - Refactored to use common UI components
+  // Desktop sidebar with enhanced design
   return (
-    <Sidebar
-      className={`fixed top-0 left-0 h-screen bg-[#0A2B70] text-white z-30 transition-all duration-300 ease-in-out shadow-md border-r-0 ${collapsed ? "w-20" : "w-64"
-        }`}
-    >
-      <SidebarHeader className="py-6 px-4 border-b border-[#1a3b80] flex justify-between items-center">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="relative h-10 w-10 overflow-hidden rounded-full bg-[#f0c14b] flex items-center justify-center shadow-sm flex-shrink-0">
-            <span className="font-bold text-[#0A2B70] text-lg">C</span>
-          </div>
-          {!collapsed && <div className="font-bold text-xl text-[#f0c14b] truncate">CEDO</div>}
-        </div>
-        <button
-          onClick={toggleDesktopCollapse}
-          className="p-1.5 rounded-full hover:bg-[#1a3b80] transition-colors duration-200 focus:outline-none focus:ring-1 focus:ring-[#f0c14b] text-[#f0c14b]"
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+    <>
+      {/* Collapsible button - positioned OUTSIDE the sidebar */}
+      <button
+        onClick={toggleDesktopCollapse}
+        className={`fixed z-50 p-3 rounded-xl bg-gradient-to-r from-cedo-blue to-cedo-blue/90 text-cedo-gold shadow-2xl hover:shadow-cedo-gold/25 hover:scale-110 transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-cedo-gold border border-cedo-gold/20`}
+        style={{
+          top: '1rem',
+          left: collapsed ? 'calc(5rem + 0.5rem)' : 'calc(18rem + 0.5rem)', // Outside sidebar with 0.5rem gap
+          transition: 'left 500ms ease-out, transform 300ms ease-out',
+        }}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+      >
+        {collapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+      </button>
+
+      {/* Sidebar container */}
+      <div className="relative" style={{ width: collapsed ? '5rem' : '18rem' }}>
+
+        <Sidebar
+          className={`fixed top-0 left-0 h-screen !bg-gradient-to-b from-cedo-blue via-cedo-blue to-cedo-blue/95 text-white transition-all duration-500 ease-out shadow-2xl border-r border-cedo-gold/20 z-40 ${collapsed ? "w-20" : "w-72"
+            }`}
+          style={{
+            width: collapsed ? '5rem' : '18rem', // Fallback inline styles
+            transition: 'width 500ms ease-out',
+            backgroundColor: 'transparent' // Ensure no white background bleeds through
+          }}
         >
-          {collapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
-        </button>
-      </SidebarHeader>
+          {/* Header */}
+          <SidebarHeader className="py-6 px-4 border-b border-cedo-gold/20 bg-gradient-to-r from-cedo-blue to-cedo-blue/80" style={{ backgroundColor: 'transparent' }}>
+            {/* Debug indicator */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded z-50">
+                {collapsed ? 'COLLAPSED' : 'EXPANDED'}
+              </div>
+            )}
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="relative h-12 w-12 overflow-hidden rounded-2xl bg-gradient-to-br from-cedo-gold to-cedo-gold-dark flex items-center justify-center shadow-lg">
+                  <span className="font-bold text-cedo-blue text-xl">C</span>
+                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent"></div>
+                </div>
+                {!collapsed && (
+                  <div className="transition-all duration-300">
+                    <div className="font-bold text-2xl text-cedo-gold">CEDO</div>
+                    <div className="text-xs text-white/70">Student Portal</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </SidebarHeader>
 
-      <SidebarContent className="px-3 py-4">
-        <SidebarMenu className="space-y-1">
-          {navItems.map((item) => (
-            <SidebarMenuItem key={item.href}>
-              <UiSidebarMenuButton
-                asChild
-                href={item.href}
-                isActive={pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))}
-                className="text-white/90 hover:bg-[#1a3b80] hover:text-[#f0c14b] transition-colors duration-200 data-[active=true]:bg-[#2a4b90] data-[active=true]:text-[#f0c14b] data-[active=true]:font-medium"
-                tooltip={collapsed ? item.label : undefined}
-              >
-                <Link href={item.href} className="flex items-center w-full">
-                  <span className={`flex-shrink-0 ${collapsed ? "" : "mr-3"}`}>{item.icon}</span>
-                  {!collapsed && <span className="truncate">{item.label}</span>}
-                </Link>
-              </UiSidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-      </SidebarContent>
+          {/* Content */}
+          <SidebarContent className="px-4 py-6 flex flex-col h-full" style={{ backgroundColor: 'transparent' }}>
+            {/* Main Navigation */}
+            <SidebarMenu className="space-y-2 flex-1">
+              <div className="space-y-1">
+                {navItems.map((item) => (
+                  <SidebarMenuItem key={item.href}>
+                    <NavItem
+                      href={item.href}
+                      isActive={pathname === item.href || (item.href !== "/student-dashboard" && pathname.startsWith(item.href))}
+                      icon={item.icon}
+                      collapsed={collapsed}
+                      badge={item.badge}
+                    >
+                      {item.label}
+                    </NavItem>
+                  </SidebarMenuItem>
+                ))}
+              </div>
+            </SidebarMenu>
 
-      {/* Optional Footer, if desired, similar to admin sidebar */}
-      {/* <SidebarFooter className="mt-auto border-t border-[#1a3b80] p-4">
-        {!collapsed && <div className="text-center text-xs text-white/50">Student Portal © 2024</div>}
-        {collapsed && <div className="text-center text-xs text-white/50">©</div>}
-      </SidebarFooter> */}
-    </Sidebar>
+            {/* Footer */}
+            {!collapsed && (
+              <div className="mt-4 pt-4 border-t border-cedo-gold/20">
+                <div className="text-center text-xs text-white/60 bg-gradient-to-r from-transparent via-white/5 to-transparent py-2 rounded-lg">
+                  © 2024 CEDO Student Portal
+                </div>
+              </div>
+            )}
+          </SidebarContent>
+        </Sidebar>
+      </div>
+    </>
   )
 }

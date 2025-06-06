@@ -2,7 +2,7 @@
 "use client"
 
 import { cn } from "@/lib/utils";
-import { Slot } from '@radix-ui/react-slot'; // Import Slot
+import { Slot } from '@radix-ui/react-slot';
 import Link from "next/link";
 import * as React from "react";
 import { createContext, useContext, useEffect, useState } from "react";
@@ -10,17 +10,24 @@ import { createContext, useContext, useEffect, useState } from "react";
 const SidebarContext = createContext({
   isMobile: false,
   isOpen: false,
+  collapsed: false,
   onOpen: () => { },
   onClose: () => { },
+  onToggleCollapse: () => { },
 });
 
 const SidebarProvider = ({ children }) => {
   const [isMobile, setIsMobile] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile) {
+        setIsOpen(false); // Close mobile sidebar when switching to mobile
+      }
     };
 
     checkMobile();
@@ -30,14 +37,30 @@ const SidebarProvider = ({ children }) => {
 
   const onOpen = () => setIsOpen(true);
   const onClose = () => setIsOpen(false);
+  const onToggleCollapse = () => setCollapsed(prev => !prev);
 
-  return <SidebarContext.Provider value={{ isMobile, isOpen, onOpen, onClose }}>{children}</SidebarContext.Provider>;
+  const value = {
+    isMobile,
+    isOpen,
+    collapsed,
+    onOpen,
+    onClose,
+    onToggleCollapse,
+  };
+
+  return <SidebarContext.Provider value={value}>{children}</SidebarContext.Provider>;
 };
 
-const useSidebar = () => useContext(SidebarContext);
+const useSidebar = () => {
+  const context = useContext(SidebarContext);
+  if (!context) {
+    throw new Error("useSidebar must be used within a SidebarProvider");
+  }
+  return context;
+};
 
 const Sidebar = React.forwardRef(({ className, ...props }, ref) => (
-  <aside ref={ref} className={cn("bg-white border-r w-64", className)} {...props} />
+  <aside ref={ref} className={cn("bg-white border-r", className)} {...props} />
 ));
 Sidebar.displayName = "Sidebar";
 
@@ -67,26 +90,18 @@ const SidebarMenuItem = React.forwardRef(({ className, ...props }, ref) => (
 SidebarMenuItem.displayName = "SidebarMenuItem";
 
 const SidebarMenuButton = React.forwardRef(
-  ({ className, isActive, href, icon, children, asChild = false, ...props }, ref) => {
-    // Determine the component to render. If asChild, it will be Slot.
-    // If not asChild and has href, it's a NextLink (handled by <Link>).
-    // If not asChild and no href, it's a button.
-    const Comp = asChild ? Slot : "div"; // Fallback for non-asChild, actual tag decided later
+  ({ className, isActive, href, icon, children, asChild = false, tooltip, ...props }, ref) => {
+    const Comp = asChild ? Slot : "div";
 
-    // These are the styles that should be applied to the root interactive element
     const combinedClassName = cn(
       "flex items-center w-full p-2 rounded-md text-sidebar-foreground transition-colors duration-200",
       "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-      "focus:outline-none focus:ring-2 focus:ring-sidebar-ring focus:ring-offset-1", // Ensure ring-offset matches your theme
+      "focus:outline-none focus:ring-2 focus:ring-sidebar-ring focus:ring-offset-1",
       isActive && "bg-sidebar-accent text-sidebar-accent-foreground font-medium",
-      className // User-provided className for the button itself, will be merged
+      className
     );
 
     if (asChild) {
-      // If asChild is true, 'children' (passed from the consuming component, e.g., app-sidebar.jsx)
-      // is the actual interactive component (e.g., a <Link>).
-      // Slot passes 'combinedClassName', 'ref', and other '...props' to this child.
-      // The child <Link> from app-sidebar.jsx is responsible for its own content (icon, label).
       return (
         <Slot ref={ref} className={combinedClassName} {...props}>
           {children}
@@ -94,8 +109,6 @@ const SidebarMenuButton = React.forwardRef(
       );
     }
 
-    // If not asChild, SidebarMenuButton renders its own structure (Link or button).
-    // 'children' here refers to the label/text content for the button.
     const buttonContent = (
       <>
         {icon && <span className="mr-3 h-5 w-5 flex-shrink-0">{icon}</span>}
@@ -104,7 +117,6 @@ const SidebarMenuButton = React.forwardRef(
     );
 
     if (href) {
-      // Render Next.js Link directly if not asChild
       return (
         <Link href={href} ref={ref} className={combinedClassName} {...props}>
           {buttonContent}
@@ -112,7 +124,6 @@ const SidebarMenuButton = React.forwardRef(
       );
     }
 
-    // Render a button if not asChild and no href
     return (
       <button ref={ref} type="button" className={combinedClassName} {...props}>
         {buttonContent}
@@ -122,15 +133,34 @@ const SidebarMenuButton = React.forwardRef(
 );
 SidebarMenuButton.displayName = "SidebarMenuButton";
 
+const SidebarTrigger = ({ className, ...props }) => {
+  const { isOpen, onOpen, onClose, isMobile } = useSidebar();
 
-const SidebarTrigger = () => {
-  const { isOpen, onOpen, onClose } = useSidebar();
-  // Example trigger, you might want to style it or use an icon
-  return <button onClick={isOpen ? onClose : onOpen} className="p-2">{isOpen ? "Close Menu" : "Open Menu"}</button>;
+  if (isMobile) {
+    return (
+      <button
+        onClick={isOpen ? onClose : onOpen}
+        className={cn("p-2 rounded-md hover:bg-accent", className)}
+        {...props}
+      >
+        {isOpen ? "Close Menu" : "Open Menu"}
+      </button>
+    );
+  }
+
+  return null; // Desktop collapse is handled by the sidebar itself
 };
 
 export {
-  Sidebar, SidebarContent,
-  SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger,
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
   useSidebar
 };
+
