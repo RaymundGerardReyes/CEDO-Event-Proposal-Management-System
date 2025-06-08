@@ -1,23 +1,23 @@
 "use client"
 
-import { Slot } from "@radix-ui/react-slot"
+import { Slot } from "@radix-ui/react-slot";
 import { cva } from "class-variance-authority"; // Assuming VariantProps is not strictly needed for runtime if types are removed
-import { PanelLeft } from "lucide-react"
-import * as React from "react"
+import { PanelLeft } from "lucide-react";
+import * as React from "react";
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
     Tooltip,
     TooltipContent,
     TooltipProvider,
     TooltipTrigger,
-} from "@/components/ui/tooltip"
+} from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile"; // Assuming this hook doesn't rely on TS-specific features not transpilable
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 const SIDEBAR_COOKIE_NAME = "sidebar:state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
@@ -115,7 +115,7 @@ const SidebarProvider = React.forwardRef(
                             ...style,
                         }}
                         className={cn(
-                            "group/sidebar-wrapper flex min-h-svh w-full has-[[data-variant=inset]]:bg-sidebar",
+                            "relative",
                             className
                         )}
                         ref={ref}
@@ -670,5 +670,5 @@ export {
     SidebarSeparator,
     SidebarTrigger,
     useSidebar
-}
+};
 
