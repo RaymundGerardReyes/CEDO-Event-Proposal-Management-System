@@ -1,5 +1,8 @@
 "use client"
 
+// Force dynamic rendering to prevent SSG issues
+export const dynamic = 'force-dynamic';
+
 import { PageHeader } from "@/components/dashboard/admin/page-header"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/dashboard/admin/ui/avatar"
 import { Badge } from "@/components/dashboard/admin/ui/badge"
@@ -20,7 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Download, FileText, Filter, MessageSquare, Search, XCircle } from "lucide-react"
-import { useState } from "react"
+import { Suspense, useState } from "react"
 
 // Sample data for proposals
 const proposals = [
@@ -405,115 +408,51 @@ export default function ReviewPage() {
   }
 
   return (
-    <div className="flex-1 bg-[#f8f9fa] p-6 md:p-8">
-      <PageHeader title="Review Proposals" subtitle="Review and approve or reject submitted proposals" />
+    <Suspense fallback={<div>Loading...</div>}>
+      <div className="flex-1 bg-[#f8f9fa] p-6 md:p-8">
+        <PageHeader title="Review Proposals" subtitle="Review and approve or reject submitted proposals" />
 
-      <Card className="cedo-card">
-        <CardHeader>
-          <CardTitle className="text-cedo-blue">Proposal Review Queue</CardTitle>
-          <CardDescription>Review pending proposals in order of priority</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="pending" className="space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-              <TabsList>
-                <TabsTrigger value="pending">Pending ({proposals.length})</TabsTrigger>
-                <TabsTrigger value="approved">Approved (0)</TabsTrigger>
-                <TabsTrigger value="rejected">Rejected (0)</TabsTrigger>
-              </TabsList>
+        <Card className="cedo-card">
+          <CardHeader>
+            <CardTitle className="text-cedo-blue">Proposal Review Queue</CardTitle>
+            <CardDescription>Review pending proposals in order of priority</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="pending" className="space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                <TabsList>
+                  <TabsTrigger value="pending">Pending ({proposals.length})</TabsTrigger>
+                  <TabsTrigger value="approved">Approved (0)</TabsTrigger>
+                  <TabsTrigger value="rejected">Rejected (0)</TabsTrigger>
+                </TabsList>
 
-              <div className="flex w-full sm:w-auto gap-2">
-                <div className="relative w-full sm:w-auto">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input type="search" placeholder="Search proposals..." className="pl-8 w-full sm:w-[250px]" />
+                <div className="flex w-full sm:w-auto gap-2">
+                  <div className="relative w-full sm:w-auto">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input type="search" placeholder="Search proposals..." className="pl-8 w-full sm:w-[250px]" />
+                  </div>
+                  <Button variant="outline" size="icon">
+                    <Filter className="h-4 w-4" />
+                  </Button>
                 </div>
-                <Button variant="outline" size="icon">
-                  <Filter className="h-4 w-4" />
-                </Button>
               </div>
-            </div>
 
-            <TabsContent value="pending" className="space-y-4">
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader className="cedo-table-header">
-                    <TableRow>
-                      <TableHead>ID</TableHead>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Submitter</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Priority</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {proposals.map((proposal) => (
-                      <TableRow key={proposal.id} className="cedo-table-row">
-                        <TableCell className="font-medium">{proposal.id}</TableCell>
-                        <TableCell>{proposal.title}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Avatar className="h-6 w-6">
-                              <AvatarImage src={proposal.submitter.avatar || "/placeholder.svg"} />
-                              <AvatarFallback className="text-xs bg-cedo-blue text-white">
-                                {proposal.submitter.initials}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-sm">{proposal.submitter.name}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>{proposal.category}</TableCell>
-                        <TableCell>{new Date(proposal.date).toLocaleDateString()}</TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={
-                              proposal.priority === "high"
-                                ? "bg-red-100 text-red-800 hover:bg-red-100"
-                                : proposal.priority === "medium"
-                                  ? "bg-amber-100 text-amber-800 hover:bg-amber-100"
-                                  : "bg-green-100 text-green-800 hover:bg-green-100"
-                            }
-                          >
-                            {proposal.priority.charAt(0).toUpperCase() + proposal.priority.slice(1)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleReviewClick(proposal)}
-                            className="hover:bg-cedo-blue/5 hover:text-cedo-blue"
-                          >
-                            Review
-                          </Button>
-                        </TableCell>
+              <TabsContent value="pending" className="space-y-4">
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader className="cedo-table-header">
+                      <TableRow>
+                        <TableHead>ID</TableHead>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Submitter</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Priority</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="approved">
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader className="cedo-table-header">
-                    <TableRow>
-                      <TableHead>ID</TableHead>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Submitter</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Documentation</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {proposals
-                      .filter((proposal) => proposal.status === "approved")
-                      .map((proposal) => (
+                    </TableHeader>
+                    <TableBody>
+                      {proposals.map((proposal) => (
                         <TableRow key={proposal.id} className="cedo-table-row">
                           <TableCell className="font-medium">{proposal.id}</TableCell>
                           <TableCell>{proposal.title}</TableCell>
@@ -531,503 +470,569 @@ export default function ReviewPage() {
                           <TableCell>{proposal.category}</TableCell>
                           <TableCell>{new Date(proposal.date).toLocaleDateString()}</TableCell>
                           <TableCell>
-                            {proposal.details.accomplishmentReport?.submitted ? (
-                              <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100">
-                                Submitted
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="bg-amber-100 text-amber-800 hover:bg-amber-100">
-                                Pending
-                              </Badge>
-                            )}
+                            <Badge
+                              variant="outline"
+                              className={
+                                proposal.priority === "high"
+                                  ? "bg-red-100 text-red-800 hover:bg-red-100"
+                                  : proposal.priority === "medium"
+                                    ? "bg-amber-100 text-amber-800 hover:bg-amber-100"
+                                    : "bg-green-100 text-green-800 hover:bg-green-100"
+                              }
+                            >
+                              {proposal.priority.charAt(0).toUpperCase() + proposal.priority.slice(1)}
+                            </Badge>
                           </TableCell>
                           <TableCell className="text-right">
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => handleReviewClick(proposal)}
-                              className="hover:bg-cedo-blue/5 hover:text-cedo-blue flex items-center gap-1"
+                              className="hover:bg-cedo-blue/5 hover:text-cedo-blue"
                             >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="14"
-                                height="14"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                className="mr-1"
-                              >
-                                <path d="M12 20h9"></path>
-                                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-                              </svg>
-                              Monitor Progress
+                              Review
                             </Button>
                           </TableCell>
                         </TableRow>
                       ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="rejected">
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <div className="rounded-full bg-red-100 p-3">
-                  <XCircle className="h-6 w-6 text-red-600" />
+                    </TableBody>
+                  </Table>
                 </div>
-                <h3 className="mt-4 text-lg font-medium">No rejected proposals yet</h3>
-                <p className="mt-2 text-sm text-muted-foreground">Rejected proposals will appear here</p>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+              </TabsContent>
 
-      <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
-        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>System Review: Event Proposal</DialogTitle>
-            <DialogDescription>Review the complete proposal details and provide your decision</DialogDescription>
-          </DialogHeader>
+              <TabsContent value="approved">
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader className="cedo-table-header">
+                      <TableRow>
+                        <TableHead>ID</TableHead>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Submitter</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Documentation</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {proposals
+                        .filter((proposal) => proposal.status === "approved")
+                        .map((proposal) => (
+                          <TableRow key={proposal.id} className="cedo-table-row">
+                            <TableCell className="font-medium">{proposal.id}</TableCell>
+                            <TableCell>{proposal.title}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Avatar className="h-6 w-6">
+                                  <AvatarImage src={proposal.submitter.avatar || "/placeholder.svg"} />
+                                  <AvatarFallback className="text-xs bg-cedo-blue text-white">
+                                    {proposal.submitter.initials}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-sm">{proposal.submitter.name}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>{proposal.category}</TableCell>
+                            <TableCell>{new Date(proposal.date).toLocaleDateString()}</TableCell>
+                            <TableCell>
+                              {proposal.details.accomplishmentReport?.submitted ? (
+                                <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100">
+                                  Submitted
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+                                  Pending
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleReviewClick(proposal)}
+                                className="hover:bg-cedo-blue/5 hover:text-cedo-blue flex items-center gap-1"
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="14"
+                                  height="14"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  className="mr-1"
+                                >
+                                  <path d="M12 20h9"></path>
+                                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                                </svg>
+                                Monitor Progress
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </TabsContent>
 
-          {selectedProposal && (
-            <div className="space-y-4">
-              <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid grid-cols-4 mb-4">
-                  <TabsTrigger value="overview">Overview</TabsTrigger>
-                  <TabsTrigger value="events">Event Details</TabsTrigger>
-                  <TabsTrigger value="comments">Comments</TabsTrigger>
-                  <TabsTrigger value="decision">Decision</TabsTrigger>
-                  {selectedProposal && selectedProposal.status === "approved" && (
-                    <TabsTrigger value="documentation">Documentation</TabsTrigger>
-                  )}
-                </TabsList>
-
-                {/* Overview Tab */}
-                <TabsContent value="overview" className="space-y-4">
-                  <div className="border rounded-md p-4">
-                    <h3 className="text-lg font-semibold mb-3">1. Submission Overview</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Proposal ID</Label>
-                        <p className="font-medium">{selectedProposal.id}</p>
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Submission Date</Label>
-                        <p>{new Date(selectedProposal.date).toLocaleDateString()}</p>
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Purpose of Submission</Label>
-                        <p>{selectedProposal.details.purpose}</p>
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Category</Label>
-                        <p>{selectedProposal.category}</p>
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Priority</Label>
-                        <p className="capitalize">{selectedProposal.priority}</p>
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Status</Label>
-                        <Badge variant="outline" className="mt-1">
-                          {selectedProposal.status.charAt(0).toUpperCase() + selectedProposal.status.slice(1)}
-                        </Badge>
-                      </div>
-                    </div>
+              <TabsContent value="rejected">
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <div className="rounded-full bg-red-100 p-3">
+                    <XCircle className="h-6 w-6 text-red-600" />
                   </div>
+                  <h3 className="mt-4 text-lg font-medium">No rejected proposals yet</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">Rejected proposals will appear here</p>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
 
-                  <div className="border rounded-md p-4">
-                    <h3 className="text-lg font-semibold mb-3">2. Organization Information</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="col-span-2">
-                        <Label className="text-xs text-muted-foreground">Organization Description</Label>
-                        <p>{selectedProposal.details.organization.description}</p>
-                      </div>
-                      <div className="col-span-2">
-                        <Label className="text-xs text-muted-foreground">Type of Organization</Label>
-                        <p>{selectedProposal.details.organization.type.join(", ")}</p>
-                      </div>
-                      <div className="col-span-2">
-                        <Label className="text-xs text-muted-foreground">Submitter</Label>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Avatar className="h-6 w-6">
-                            <AvatarImage src={selectedProposal.submitter.avatar || "/placeholder.svg"} />
-                            <AvatarFallback className="text-xs bg-cedo-blue text-white">
-                              {selectedProposal.submitter.initials}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span>{selectedProposal.submitter.name}</span>
+        <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+          <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>System Review: Event Proposal</DialogTitle>
+              <DialogDescription>Review the complete proposal details and provide your decision</DialogDescription>
+            </DialogHeader>
+
+            {selectedProposal && (
+              <div className="space-y-4">
+                <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="w-full">
+                  <TabsList className="grid grid-cols-4 mb-4">
+                    <TabsTrigger value="overview">Overview</TabsTrigger>
+                    <TabsTrigger value="events">Event Details</TabsTrigger>
+                    <TabsTrigger value="comments">Comments</TabsTrigger>
+                    <TabsTrigger value="decision">Decision</TabsTrigger>
+                    {selectedProposal && selectedProposal.status === "approved" && (
+                      <TabsTrigger value="documentation">Documentation</TabsTrigger>
+                    )}
+                  </TabsList>
+
+                  {/* Overview Tab */}
+                  <TabsContent value="overview" className="space-y-4">
+                    <div className="border rounded-md p-4">
+                      <h3 className="text-lg font-semibold mb-3">1. Submission Overview</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Proposal ID</Label>
+                          <p className="font-medium">{selectedProposal.id}</p>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Submission Date</Label>
+                          <p>{new Date(selectedProposal.date).toLocaleDateString()}</p>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Purpose of Submission</Label>
+                          <p>{selectedProposal.details.purpose}</p>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Category</Label>
+                          <p>{selectedProposal.category}</p>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Priority</Label>
+                          <p className="capitalize">{selectedProposal.priority}</p>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Status</Label>
+                          <Badge variant="outline" className="mt-1">
+                            {selectedProposal.status.charAt(0).toUpperCase() + selectedProposal.status.slice(1)}
+                          </Badge>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </TabsContent>
 
-                {/* Event Details Tab */}
-                <TabsContent value="events" className="space-y-4">
-                  {selectedProposal.details.schoolEvent && (
                     <div className="border rounded-md p-4">
-                      <div className="flex justify-between items-center mb-3">
-                        <h3 className="text-lg font-semibold">School-Based Event</h3>
-                      </div>
+                      <h3 className="text-lg font-semibold mb-3">2. Organization Information</h3>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="col-span-2">
-                          <Label className="text-xs text-muted-foreground">Event/Activity Name</Label>
-                          <p className="font-medium">{selectedProposal.details.schoolEvent.name}</p>
+                          <Label className="text-xs text-muted-foreground">Organization Description</Label>
+                          <p>{selectedProposal.details.organization.description}</p>
                         </div>
-                        {selectedProposal.details.schoolEvent.description && (
+                        <div className="col-span-2">
+                          <Label className="text-xs text-muted-foreground">Type of Organization</Label>
+                          <p>{selectedProposal.details.organization.type.join(", ")}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <Label className="text-xs text-muted-foreground">Submitter</Label>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Avatar className="h-6 w-6">
+                              <AvatarImage src={selectedProposal.submitter.avatar || "/placeholder.svg"} />
+                              <AvatarFallback className="text-xs bg-cedo-blue text-white">
+                                {selectedProposal.submitter.initials}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span>{selectedProposal.submitter.name}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* Event Details Tab */}
+                  <TabsContent value="events" className="space-y-4">
+                    {selectedProposal.details.schoolEvent && (
+                      <div className="border rounded-md p-4">
+                        <div className="flex justify-between items-center mb-3">
+                          <h3 className="text-lg font-semibold">School-Based Event</h3>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
                           <div className="col-span-2">
-                            <Label className="text-xs text-muted-foreground">Description</Label>
-                            <p>{selectedProposal.details.schoolEvent.description}</p>
+                            <Label className="text-xs text-muted-foreground">Event/Activity Name</Label>
+                            <p className="font-medium">{selectedProposal.details.schoolEvent.name}</p>
                           </div>
-                        )}
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Venue</Label>
-                          <p>{selectedProposal.details.schoolEvent.venue}</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Mode of Event</Label>
-                          <p>{selectedProposal.details.schoolEvent.mode}</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Start/End Date</Label>
-                          <p>
-                            {selectedProposal.details.schoolEvent.startDate} -{" "}
-                            {selectedProposal.details.schoolEvent.endDate}
-                          </p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Start/End Time</Label>
-                          <p>
-                            {selectedProposal.details.schoolEvent.startTime} -{" "}
-                            {selectedProposal.details.schoolEvent.endTime}
-                          </p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Type of Event</Label>
-                          <p>{selectedProposal.details.schoolEvent.type}</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Target Audience</Label>
-                          <p>
-                            {Array.isArray(selectedProposal.details.schoolEvent.audience)
-                              ? selectedProposal.details.schoolEvent.audience.join(", ")
-                              : selectedProposal.details.schoolEvent.audience}
-                          </p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Return Service Credit Amount</Label>
-                          <p>{selectedProposal.details.schoolEvent.credits}</p>
-                        </div>
-                        <div className="col-span-2">
-                          <Label className="text-xs text-muted-foreground">Attachments</Label>
-                          <div className="flex flex-col gap-2 mt-2">
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-muted-foreground" />
-                              <span>GPOA: {selectedProposal.details.schoolEvent.attachments.gpoa}</span>
-                              <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto">
-                                <Download className="h-4 w-4" />
-                              </Button>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-muted-foreground" />
-                              <span>Project Proposal: {selectedProposal.details.schoolEvent.attachments.proposal}</span>
-                              <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto">
-                                <Download className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedProposal.details.communityEvent && (
-                    <div className="border rounded-md p-4">
-                      <div className="flex justify-between items-center mb-3">
-                        <h3 className="text-lg font-semibold">Community-Based Event</h3>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="col-span-2">
-                          <Label className="text-xs text-muted-foreground">Event/Activity Name</Label>
-                          <p className="font-medium">{selectedProposal.details.communityEvent.name}</p>
-                        </div>
-                        {selectedProposal.details.communityEvent.description && (
-                          <div className="col-span-2">
-                            <Label className="text-xs text-muted-foreground">Description</Label>
-                            <p>{selectedProposal.details.communityEvent.description}</p>
-                          </div>
-                        )}
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Venue</Label>
-                          <p>{selectedProposal.details.communityEvent.venue}</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Mode of Event</Label>
-                          <p>{selectedProposal.details.communityEvent.mode}</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Start/End Date</Label>
-                          <p>
-                            {selectedProposal.details.communityEvent.startDate} -{" "}
-                            {selectedProposal.details.communityEvent.endDate}
-                          </p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Type of Event</Label>
-                          <p>
-                            {Array.isArray(selectedProposal.details.communityEvent.type)
-                              ? selectedProposal.details.communityEvent.type.join(", ")
-                              : selectedProposal.details.communityEvent.type}
-                          </p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Target Audience</Label>
-                          <p>
-                            {Array.isArray(selectedProposal.details.communityEvent.audience)
-                              ? selectedProposal.details.communityEvent.audience.join(", ")
-                              : selectedProposal.details.communityEvent.audience}
-                          </p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">SDP Credits Amount</Label>
-                          <p>{selectedProposal.details.communityEvent.credits}</p>
-                        </div>
-                        <div className="col-span-2">
-                          <Label className="text-xs text-muted-foreground">Attachments</Label>
-                          <div className="flex flex-col gap-2 mt-2">
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-muted-foreground" />
-                              <span>GPOA: {selectedProposal.details.communityEvent.attachments.gpoa}</span>
-                              <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto">
-                                <Download className="h-4 w-4" />
-                              </Button>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-muted-foreground" />
-                              <span>
-                                Project Proposal: {selectedProposal.details.communityEvent.attachments.proposal}
-                              </span>
-                              <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto">
-                                <Download className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </TabsContent>
-
-                {/* Comments Tab */}
-                <TabsContent value="comments" className="space-y-4">
-                  <div className="border rounded-md p-4">
-                    <h3 className="text-lg font-semibold mb-3">Comment Thread</h3>
-                    <div className="space-y-4 max-h-[300px] overflow-y-auto mb-4">
-                      {selectedProposal.details.comments && selectedProposal.details.comments.length > 0 ? (
-                        selectedProposal.details.comments.map((comment, index) => (
-                          <div
-                            key={index}
-                            className={`p-3 rounded-md ${comment.role === "Admin" ? "bg-gray-100" : "bg-blue-50"}`}
-                          >
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="font-semibold">{comment.role}</span>
-                              <span className="text-xs text-muted-foreground">{comment.date}</span>
-                            </div>
-                            <p>{comment.text}</p>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-4 text-muted-foreground">
-                          <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                          <p>No comments yet</p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="new-comment">Add Comment</Label>
-                      <Textarea
-                        id="new-comment"
-                        placeholder="Type your comment here..."
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
-                        className="min-h-[80px]"
-                      />
-                      <Button onClick={handleAddComment} disabled={!newComment.trim()} className="w-full">
-                        Post Comment
-                      </Button>
-                    </div>
-                  </div>
-                </TabsContent>
-
-                {/* Decision Tab */}
-                <TabsContent value="decision" className="space-y-4">
-                  <div className="border rounded-md p-4">
-                    <h3 className="text-lg font-semibold mb-3">Review Decision</h3>
-
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="decision">Decision</Label>
-                        <Select value={reviewDecision || ""} onValueChange={(value) => setReviewDecision(value)}>
-                          <SelectTrigger id="decision">
-                            <SelectValue placeholder="Select your decision" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="approve">Approve</SelectItem>
-                            <SelectItem value="revision">Request Revision</SelectItem>
-                            <SelectItem value="reject">Reject</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="comment">Decision Comments</Label>
-                        <Textarea
-                          id="comment"
-                          placeholder="Provide feedback or reasons for your decision"
-                          value={reviewComment}
-                          onChange={(e) => setReviewComment(e.target.value)}
-                          className="min-h-[100px]"
-                        />
-                      </div>
-
-                      <div className="pt-4">
-                        <Label className="text-xs text-muted-foreground mb-2 block">Quick Links</Label>
-                        <div className="flex flex-wrap gap-2">
-                          <Button variant="outline" size="sm" className="flex items-center gap-1">
-                            <FileText className="h-4 w-4" />
-                            View GPOA
-                          </Button>
-                          <Button variant="outline" size="sm" className="flex items-center gap-1">
-                            <FileText className="h-4 w-4" />
-                            View Project Proposal
-                          </Button>
-                          <Button variant="outline" size="sm" className="flex items-center gap-1">
-                            <FileText className="h-4 w-4" />
-                            View Budget
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
-
-                {selectedProposal && selectedProposal.status === "approved" && (
-                  <TabsContent value="documentation" className="space-y-4">
-                    <div className="border rounded-md p-4">
-                      <h3 className="text-lg font-semibold mb-3">Section 5: Documentation & Accomplishment Reports</h3>
-
-                      {selectedProposal.details.accomplishmentReport ? (
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-2 gap-4">
+                          {selectedProposal.details.schoolEvent.description && (
                             <div className="col-span-2">
                               <Label className="text-xs text-muted-foreground">Description</Label>
-                              <p>{selectedProposal.details.accomplishmentReport.description}</p>
+                              <p>{selectedProposal.details.schoolEvent.description}</p>
                             </div>
-                            <div>
-                              <Label className="text-xs text-muted-foreground">Type of Organization</Label>
-                              <p>{selectedProposal.details.accomplishmentReport.organizationType.join(", ")}</p>
+                          )}
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Venue</Label>
+                            <p>{selectedProposal.details.schoolEvent.venue}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Mode of Event</Label>
+                            <p>{selectedProposal.details.schoolEvent.mode}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Start/End Date</Label>
+                            <p>
+                              {selectedProposal.details.schoolEvent.startDate} -{" "}
+                              {selectedProposal.details.schoolEvent.endDate}
+                            </p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Start/End Time</Label>
+                            <p>
+                              {selectedProposal.details.schoolEvent.startTime} -{" "}
+                              {selectedProposal.details.schoolEvent.endTime}
+                            </p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Type of Event</Label>
+                            <p>{selectedProposal.details.schoolEvent.type}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Target Audience</Label>
+                            <p>
+                              {Array.isArray(selectedProposal.details.schoolEvent.audience)
+                                ? selectedProposal.details.schoolEvent.audience.join(", ")
+                                : selectedProposal.details.schoolEvent.audience}
+                            </p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Return Service Credit Amount</Label>
+                            <p>{selectedProposal.details.schoolEvent.credits}</p>
+                          </div>
+                          <div className="col-span-2">
+                            <Label className="text-xs text-muted-foreground">Attachments</Label>
+                            <div className="flex flex-col gap-2 mt-2">
+                              <div className="flex items-center gap-2">
+                                <FileText className="h-4 w-4 text-muted-foreground" />
+                                <span>GPOA: {selectedProposal.details.schoolEvent.attachments.gpoa}</span>
+                                <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto">
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <FileText className="h-4 w-4 text-muted-foreground" />
+                                <span>Project Proposal: {selectedProposal.details.schoolEvent.attachments.proposal}</span>
+                                <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto">
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </div>
-                            <div>
-                              <Label className="text-xs text-muted-foreground">Name of Organization</Label>
-                              <p>{selectedProposal.details.accomplishmentReport.organizationName}</p>
-                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedProposal.details.communityEvent && (
+                      <div className="border rounded-md p-4">
+                        <div className="flex justify-between items-center mb-3">
+                          <h3 className="text-lg font-semibold">Community-Based Event</h3>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="col-span-2">
+                            <Label className="text-xs text-muted-foreground">Event/Activity Name</Label>
+                            <p className="font-medium">{selectedProposal.details.communityEvent.name}</p>
+                          </div>
+                          {selectedProposal.details.communityEvent.description && (
                             <div className="col-span-2">
-                              <Label className="text-xs text-muted-foreground">
-                                Name of Event/Activity Implemented
-                              </Label>
-                              <p>{selectedProposal.details.accomplishmentReport.eventName}</p>
+                              <Label className="text-xs text-muted-foreground">Description</Label>
+                              <p>{selectedProposal.details.communityEvent.description}</p>
                             </div>
-                            <div className="col-span-2">
-                              <Label className="text-xs text-muted-foreground">Attachments</Label>
-                              <div className="flex flex-col gap-2 mt-2">
-                                <div className="flex items-center gap-2">
-                                  <FileText className="h-4 w-4 text-muted-foreground" />
-                                  <span>
-                                    Accomplishment Report:{" "}
-                                    {selectedProposal.details.accomplishmentReport.attachments.report}
-                                  </span>
-                                  <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto">
-                                    <Download className="h-4 w-4" />
-                                  </Button>
+                          )}
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Venue</Label>
+                            <p>{selectedProposal.details.communityEvent.venue}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Mode of Event</Label>
+                            <p>{selectedProposal.details.communityEvent.mode}</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Start/End Date</Label>
+                            <p>
+                              {selectedProposal.details.communityEvent.startDate} -{" "}
+                              {selectedProposal.details.communityEvent.endDate}
+                            </p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Type of Event</Label>
+                            <p>
+                              {Array.isArray(selectedProposal.details.communityEvent.type)
+                                ? selectedProposal.details.communityEvent.type.join(", ")
+                                : selectedProposal.details.communityEvent.type}
+                            </p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Target Audience</Label>
+                            <p>
+                              {Array.isArray(selectedProposal.details.communityEvent.audience)
+                                ? selectedProposal.details.communityEvent.audience.join(", ")
+                                : selectedProposal.details.communityEvent.audience}
+                            </p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">SDP Credits Amount</Label>
+                            <p>{selectedProposal.details.communityEvent.credits}</p>
+                          </div>
+                          <div className="col-span-2">
+                            <Label className="text-xs text-muted-foreground">Attachments</Label>
+                            <div className="flex flex-col gap-2 mt-2">
+                              <div className="flex items-center gap-2">
+                                <FileText className="h-4 w-4 text-muted-foreground" />
+                                <span>GPOA: {selectedProposal.details.communityEvent.attachments.gpoa}</span>
+                                <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto">
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <FileText className="h-4 w-4 text-muted-foreground" />
+                                <span>
+                                  Project Proposal: {selectedProposal.details.communityEvent.attachments.proposal}
+                                </span>
+                                <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto">
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  {/* Comments Tab */}
+                  <TabsContent value="comments" className="space-y-4">
+                    <div className="border rounded-md p-4">
+                      <h3 className="text-lg font-semibold mb-3">Comment Thread</h3>
+                      <div className="space-y-4 max-h-[300px] overflow-y-auto mb-4">
+                        {selectedProposal.details.comments && selectedProposal.details.comments.length > 0 ? (
+                          selectedProposal.details.comments.map((comment, index) => (
+                            <div
+                              key={index}
+                              className={`p-3 rounded-md ${comment.role === "Admin" ? "bg-gray-100" : "bg-blue-50"}`}
+                            >
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="font-semibold">{comment.role}</span>
+                                <span className="text-xs text-muted-foreground">{comment.date}</span>
+                              </div>
+                              <p>{comment.text}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-center py-4 text-muted-foreground">
+                            <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                            <p>No comments yet</p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="new-comment">Add Comment</Label>
+                        <Textarea
+                          id="new-comment"
+                          placeholder="Type your comment here..."
+                          value={newComment}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          className="min-h-[80px]"
+                        />
+                        <Button onClick={handleAddComment} disabled={!newComment.trim()} className="w-full">
+                          Post Comment
+                        </Button>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* Decision Tab */}
+                  <TabsContent value="decision" className="space-y-4">
+                    <div className="border rounded-md p-4">
+                      <h3 className="text-lg font-semibold mb-3">Review Decision</h3>
+
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="decision">Decision</Label>
+                          <Select value={reviewDecision || ""} onValueChange={(value) => setReviewDecision(value)}>
+                            <SelectTrigger id="decision">
+                              <SelectValue placeholder="Select your decision" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="approve">Approve</SelectItem>
+                              <SelectItem value="revision">Request Revision</SelectItem>
+                              <SelectItem value="reject">Reject</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="comment">Decision Comments</Label>
+                          <Textarea
+                            id="comment"
+                            placeholder="Provide feedback or reasons for your decision"
+                            value={reviewComment}
+                            onChange={(e) => setReviewComment(e.target.value)}
+                            className="min-h-[100px]"
+                          />
+                        </div>
+
+                        <div className="pt-4">
+                          <Label className="text-xs text-muted-foreground mb-2 block">Quick Links</Label>
+                          <div className="flex flex-wrap gap-2">
+                            <Button variant="outline" size="sm" className="flex items-center gap-1">
+                              <FileText className="h-4 w-4" />
+                              View GPOA
+                            </Button>
+                            <Button variant="outline" size="sm" className="flex items-center gap-1">
+                              <FileText className="h-4 w-4" />
+                              View Project Proposal
+                            </Button>
+                            <Button variant="outline" size="sm" className="flex items-center gap-1">
+                              <FileText className="h-4 w-4" />
+                              View Budget
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {selectedProposal && selectedProposal.status === "approved" && (
+                    <TabsContent value="documentation" className="space-y-4">
+                      <div className="border rounded-md p-4">
+                        <h3 className="text-lg font-semibold mb-3">Section 5: Documentation & Accomplishment Reports</h3>
+
+                        {selectedProposal.details.accomplishmentReport ? (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="col-span-2">
+                                <Label className="text-xs text-muted-foreground">Description</Label>
+                                <p>{selectedProposal.details.accomplishmentReport.description}</p>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Type of Organization</Label>
+                                <p>{selectedProposal.details.accomplishmentReport.organizationType.join(", ")}</p>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Name of Organization</Label>
+                                <p>{selectedProposal.details.accomplishmentReport.organizationName}</p>
+                              </div>
+                              <div className="col-span-2">
+                                <Label className="text-xs text-muted-foreground">
+                                  Name of Event/Activity Implemented
+                                </Label>
+                                <p>{selectedProposal.details.accomplishmentReport.eventName}</p>
+                              </div>
+                              <div className="col-span-2">
+                                <Label className="text-xs text-muted-foreground">Attachments</Label>
+                                <div className="flex flex-col gap-2 mt-2">
+                                  <div className="flex items-center gap-2">
+                                    <FileText className="h-4 w-4 text-muted-foreground" />
+                                    <span>
+                                      Accomplishment Report:{" "}
+                                      {selectedProposal.details.accomplishmentReport.attachments.report}
+                                    </span>
+                                    <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto">
+                                      <Download className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="col-span-2">
+                                <Label className="text-xs text-muted-foreground">Submission Status</Label>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <Badge className="bg-green-100 text-green-800">
+                                    Submitted on {selectedProposal.details.accomplishmentReport.submittedDate}
+                                  </Badge>
                                 </div>
                               </div>
                             </div>
-                            <div className="col-span-2">
-                              <Label className="text-xs text-muted-foreground">Submission Status</Label>
-                              <div className="flex items-center gap-2 mt-1">
-                                <Badge className="bg-green-100 text-green-800">
-                                  Submitted on {selectedProposal.details.accomplishmentReport.submittedDate}
-                                </Badge>
-                              </div>
-                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="text-center py-6">
-                          <p className="text-muted-foreground">No documentation submitted yet</p>
-                          <Button className="mt-4">Request Documentation</Button>
-                        </div>
-                      )}
-                    </div>
-                  </TabsContent>
-                )}
-              </Tabs>
-            </div>
-          )}
+                        ) : (
+                          <div className="text-center py-6">
+                            <p className="text-muted-foreground">No documentation submitted yet</p>
+                            <Button className="mt-4">Request Documentation</Button>
+                          </div>
+                        )}
+                      </div>
+                    </TabsContent>
+                  )}
+                </Tabs>
+              </div>
+            )}
 
-          <DialogFooter className="flex flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => setReviewDialogOpen(false)} className="sm:order-1">
-              Cancel
-            </Button>
+            <DialogFooter className="flex flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={() => setReviewDialogOpen(false)} className="sm:order-1">
+                Cancel
+              </Button>
 
-            <div className="flex gap-2 w-full sm:w-auto sm:order-2">
-              <Button
-                onClick={() => {
-                  setReviewDecision("approve")
-                  setActiveTab("decision")
-                }}
-                className="flex-1 sm:flex-auto bg-green-600 hover:bg-green-700"
-              >
-                Approve
-              </Button>
-              <Button
-                onClick={() => {
-                  setReviewDecision("revision")
-                  setActiveTab("decision")
-                }}
-                className="flex-1 sm:flex-auto bg-amber-600 hover:bg-amber-700"
-              >
-                Request Revision
-              </Button>
-              <Button
-                onClick={() => {
-                  if (
-                    confirm(
-                      "Warning: Rejection will halt the process entirely. Consider requesting revisions instead to keep the proposal active. Are you sure you want to reject?",
-                    )
-                  ) {
-                    setReviewDecision("reject")
+              <div className="flex gap-2 w-full sm:w-auto sm:order-2">
+                <Button
+                  onClick={() => {
+                    setReviewDecision("approve")
                     setActiveTab("decision")
-                  }
-                }}
-                className="flex-1 sm:flex-auto bg-gray-400 hover:bg-gray-500 relative group"
-                title="Avoid rejection - request revisions instead"
-              >
-                <span className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                  Avoid rejection when possible
-                </span>
-                Reject
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+                  }}
+                  className="flex-1 sm:flex-auto bg-green-600 hover:bg-green-700"
+                >
+                  Approve
+                </Button>
+                <Button
+                  onClick={() => {
+                    setReviewDecision("revision")
+                    setActiveTab("decision")
+                  }}
+                  className="flex-1 sm:flex-auto bg-amber-600 hover:bg-amber-700"
+                >
+                  Request Revision
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (
+                      confirm(
+                        "Warning: Rejection will halt the process entirely. Consider requesting revisions instead to keep the proposal active. Are you sure you want to reject?",
+                      )
+                    ) {
+                      setReviewDecision("reject")
+                      setActiveTab("decision")
+                    }
+                  }}
+                  className="flex-1 sm:flex-auto bg-gray-400 hover:bg-gray-500 relative group"
+                  title="Avoid rejection - request revisions instead"
+                >
+                  <span className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                    Avoid rejection when possible
+                  </span>
+                  Reject
+                </Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </Suspense>
   )
 }
