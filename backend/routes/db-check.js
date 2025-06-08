@@ -1,13 +1,12 @@
 const express = require("express")
 const router = express.Router()
-const pool = require("../config/db")
+const { pool } = require("../config/db")
 
 // Simple health check endpoint
 router.get("/db-check", async (req, res) => {
     try {
-        // Test database connection
-        const connection = await pool.getConnection()
-        connection.release()
+        // Test database connection using the promise-based pool
+        await pool.query("SELECT 1")
 
         res.json({
             status: "success",
@@ -26,52 +25,62 @@ router.get("/db-check", async (req, res) => {
 // Check if tables exist
 router.get("/tables-check", async (req, res) => {
     try {
-        const connection = await pool.getConnection()
-
         // Get database name
         const dbName = process.env.MYSQL_DATABASE || process.env.DB_NAME || "cedo_auth"
 
         // Check if users table exists
-        const [usersTables] = await connection.query(
-            `
-      SELECT TABLE_NAME 
-      FROM information_schema.TABLES 
-      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users'
-    `,
+        const [usersTables] = await pool.query(
+            `SELECT TABLE_NAME 
+             FROM information_schema.TABLES 
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users'`,
             [dbName],
         )
 
         // Check if access_logs table exists
-        const [accessLogsTables] = await connection.query(
-            `
-      SELECT TABLE_NAME 
-      FROM information_schema.TABLES 
-      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'access_logs'
-    `,
+        const [accessLogsTables] = await pool.query(
+            `SELECT TABLE_NAME 
+             FROM information_schema.TABLES 
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'access_logs'`,
             [dbName],
         )
 
         // Check if proposals table exists
-        const [proposalsTables] = await connection.query(
-            `
-      SELECT TABLE_NAME 
-      FROM information_schema.TABLES 
-      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'proposals'
-    `,
+        const [proposalsTables] = await pool.query(
+            `SELECT TABLE_NAME 
+             FROM information_schema.TABLES 
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'proposals'`,
             [dbName],
         )
 
         // Check if reviews table exists
-        const [reviewsTables] = await connection.query(
-            `
-      SELECT TABLE_NAME 
-      FROM information_schema.TABLES 
-      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'reviews'
-    `,
+        const [reviewsTables] = await pool.query(
+            `SELECT TABLE_NAME 
+             FROM information_schema.TABLES 
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'reviews'`,
             [dbName],
         )
 
-        connection.release()
+        // Check organization tables
+        const [organizationsTables] = await pool.query(
+            `SELECT TABLE_NAME 
+             FROM information_schema.TABLES 
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'organizations'`,
+            [dbName],
+        )
+
+        const [organizationTypesTables] = await pool.query(
+            `SELECT TABLE_NAME 
+             FROM information_schema.TABLES 
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'organization_types'`,
+            [dbName],
+        )
+
+        const [organizationTypeLinksTables] = await pool.query(
+            `SELECT TABLE_NAME 
+             FROM information_schema.TABLES 
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'organization_type_links'`,
+            [dbName],
+        )
 
         res.json({
             status: "success",
@@ -81,6 +90,9 @@ router.get("/tables-check", async (req, res) => {
                 access_logs: accessLogsTables.length > 0,
                 proposals: proposalsTables.length > 0,
                 reviews: reviewsTables.length > 0,
+                organizations: organizationsTables.length > 0,
+                organization_types: organizationTypesTables.length > 0,
+                organization_type_links: organizationTypeLinksTables.length > 0,
             },
         })
     } catch (error) {
