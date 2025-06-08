@@ -1,5 +1,8 @@
 "use client"
 
+// Force dynamic rendering to prevent SSG issues
+export const dynamic = 'force-dynamic';
+
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
