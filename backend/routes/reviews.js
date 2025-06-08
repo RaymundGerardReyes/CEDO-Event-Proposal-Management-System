@@ -3,7 +3,7 @@ const router = express.Router()
 const { body, validationResult } = require("express-validator")
 const Proposal = require("../models/Proposal")
 const User = require("../models/User")
-const auth = require("../middleware/auth")
+const { validateToken, validateAdmin, validateReviewer } = require("../middleware/auth")
 const checkRole = require("../middleware/checkRole")
 const nodemailer = require("nodemailer")
 
@@ -22,7 +22,7 @@ const transporter = nodemailer.createTransport({
 router.post(
   "/:proposalId",
   [
-    auth,
+    validateToken,
     checkRole(["admin", "reviewer"]),
     [
       body("decision", "Decision is required").isIn(["approve", "reject", "revise"]),
@@ -117,7 +117,7 @@ router.post(
 // @route   GET api/reviews/pending
 // @desc    Get all pending proposals for review
 // @access  Private (Reviewers and Admins only)
-router.get("/pending", [auth, checkRole(["admin", "reviewer"])], async (req, res) => {
+router.get("/pending", [validateToken, checkRole(["admin", "reviewer"])], async (req, res) => {
   try {
     const proposals = await Proposal.find({ status: "pending" })
       .populate("submitter", "name email organization")
@@ -135,7 +135,7 @@ router.get("/pending", [auth, checkRole(["admin", "reviewer"])], async (req, res
 // @access  Private (Admins only)
 router.put(
   "/:proposalId/assign",
-  [auth, checkRole(["admin"]), [body("reviewerId", "Reviewer ID is required").not().isEmpty()]],
+  [validateToken, checkRole(["admin"]), [body("reviewerId", "Reviewer ID is required").not().isEmpty()]],
   async (req, res) => {
     // Validate request
     const errors = validationResult(req)
@@ -190,7 +190,7 @@ router.put(
 // @route   GET api/reviews/stats
 // @desc    Get review statistics
 // @access  Private (Admins and Reviewers only)
-router.get("/stats", [auth, checkRole(["admin", "reviewer"])], async (req, res) => {
+router.get("/stats", [validateToken, checkRole(["admin", "reviewer"])], async (req, res) => {
   try {
     const stats = {
       pending: await Proposal.countDocuments({ status: "pending" }),
