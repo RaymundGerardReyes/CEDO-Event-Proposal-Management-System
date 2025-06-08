@@ -1,21 +1,79 @@
 "use client"
 
-import * as React from "react"
 import { cn } from "@/lib/utils"
+import * as React from "react"
+import { Controller } from "react-hook-form"
 
-const Form = ({ children, ...props }) => {
-  return <form {...props}>{children}</form>
+const FormFieldContext = React.createContext({})
+
+const FormItemContext = React.createContext({})
+
+const useFormField = () => {
+  const fieldContext = React.useContext(FormFieldContext)
+  const itemContext = React.useContext(FormItemContext)
+
+  if (!fieldContext) {
+    throw new Error("useFormField should be used within <FormField>")
+  }
+
+  const { id } = itemContext
+
+  // Get fieldState from the provided formState and getFieldState function
+  const fieldState = fieldContext.getFieldState ?
+    fieldContext.getFieldState(fieldContext.name, fieldContext.formState) :
+    fieldContext.fieldState
+
+  return {
+    id,
+    name: fieldContext.name,
+    formItemId: `${id}-form-item`,
+    formDescriptionId: `${id}-form-item-description`,
+    formMessageId: `${id}-form-item-message`,
+    fieldState,
+    ...fieldState,
+  }
 }
 
-const FormField = React.forwardRef(({ name, control, render, ...props }, ref) => {
-  const field = { name, value: control?.defaultValues?.[name] || "" }
-  return render({ field, fieldState: { error: null, invalid: false }, formState: { errors: {} } })
-})
-FormField.displayName = "FormField"
+const Form = ({ children, ...props }) => {
+  return <div {...props}>{children}</div>
+}
 
-const FormItem = React.forwardRef(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("space-y-2", className)} {...props} />
-))
+const FormField = ({ control, name, render, ...props }) => {
+  return (
+    <FormFieldContext.Provider value={{ name, control }}>
+      <Controller
+        control={control}
+        name={name}
+        render={({ field, fieldState, formState }) => {
+          return (
+            <FormFieldContext.Provider
+              value={{
+                name,
+                control,
+                fieldState,
+                formState,
+                getFieldState: control._getFieldState || control.getFieldState,
+              }}
+            >
+              {render({ field, fieldState, formState })}
+            </FormFieldContext.Provider>
+          )
+        }}
+        {...props}
+      />
+    </FormFieldContext.Provider>
+  )
+}
+
+const FormItem = React.forwardRef(({ className, ...props }, ref) => {
+  const id = React.useId()
+
+  return (
+    <FormItemContext.Provider value={{ id }}>
+      <div ref={ref} className={cn("space-y-2", className)} {...props} />
+    </FormItemContext.Provider>
+  )
+})
 FormItem.displayName = "FormItem"
 
 const FormLabel = React.forwardRef(({ className, ...props }, ref) => (
@@ -38,11 +96,22 @@ const FormDescription = React.forwardRef(({ className, ...props }, ref) => (
 ))
 FormDescription.displayName = "FormDescription"
 
-const FormMessage = React.forwardRef(({ className, children, ...props }, ref) => (
-  <p ref={ref} className={cn("text-sm font-medium text-destructive", className)} {...props}>
-    {children}
-  </p>
-))
+const FormMessage = React.forwardRef(({ className, children, ...props }, ref) => {
+  if (!children) {
+    return null
+  }
+
+  return (
+    <p
+      ref={ref}
+      className={cn("text-sm font-medium text-destructive", className)}
+      {...props}
+    >
+      {children}
+    </p>
+  )
+})
 FormMessage.displayName = "FormMessage"
 
-export { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage }
+export { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage }
+
