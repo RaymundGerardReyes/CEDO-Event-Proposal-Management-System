@@ -6,7 +6,7 @@ const path = require("path")
 const fs = require("fs")
 const Proposal = require("../models/Proposal")
 const User = require("../models/User")
-const auth = require("../middleware/auth")
+const { validateToken, validateAdmin } = require("../middleware/auth")
 const checkRole = require("../middleware/checkRole")
 const nodemailer = require("nodemailer")
 
@@ -49,7 +49,7 @@ const transporter = nodemailer.createTransport({
 // @route   GET api/compliance
 // @desc    Get all proposals with compliance requirements
 // @access  Private
-router.get("/", auth, async (req, res) => {
+router.get("/", validateToken, async (req, res) => {
   try {
     const query = { status: "approved" }
 
@@ -77,7 +77,7 @@ router.get("/", auth, async (req, res) => {
 // @route   POST api/compliance/:proposalId/documents
 // @desc    Submit compliance documents
 // @access  Private
-router.post("/:proposalId/documents", [auth, upload.array("documents", 5)], async (req, res) => {
+router.post("/:proposalId/documents", [validateToken, upload.array("documents", 5)], async (req, res) => {
   try {
     const proposal = await Proposal.findById(req.params.proposalId)
 
@@ -174,7 +174,7 @@ router.post("/:proposalId/documents", [auth, upload.array("documents", 5)], asyn
 router.put(
   "/:proposalId/status",
   [
-    auth,
+    validateToken,
     checkRole(["admin", "reviewer"]),
     [body("status", "Status is required").isIn(["pending", "compliant", "overdue"]), body("comment").optional()],
   ],
@@ -240,7 +240,7 @@ router.put(
 // @route   GET api/compliance/overdue
 // @desc    Get all overdue compliance proposals
 // @access  Private (Admins and Reviewers only)
-router.get("/overdue", [auth, checkRole(["admin", "reviewer"])], async (req, res) => {
+router.get("/overdue", [validateToken, checkRole(["admin", "reviewer"])], async (req, res) => {
   try {
     const today = new Date()
 
@@ -291,7 +291,7 @@ router.get("/overdue", [auth, checkRole(["admin", "reviewer"])], async (req, res
 // @route   GET api/compliance/stats
 // @desc    Get compliance statistics
 // @access  Private (Admins and Reviewers only)
-router.get("/stats", [auth, checkRole(["admin", "reviewer"])], async (req, res) => {
+router.get("/stats", [validateToken, checkRole(["admin", "reviewer"])], async (req, res) => {
   try {
     const stats = {
       compliant: await Proposal.countDocuments({ complianceStatus: "compliant" }),
