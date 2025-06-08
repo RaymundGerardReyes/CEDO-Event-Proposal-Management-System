@@ -1,14 +1,14 @@
 "use client"
 
 import { Slot } from "@radix-ui/react-slot"; // Import Slot
-import { cva } from "class-variance-authority"
-import { PanelLeft } from "lucide-react"
-import * as React from "react"
+import { cva } from "class-variance-authority";
+import { PanelLeft } from "lucide-react";
+import * as React from "react";
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
-import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 // Assuming Sheet and other components are correctly imported if used by this simplified sidebar version
 // For instance, the mobile version in your provided sidebar.js was simplified
 // compared to the .tsx version. If Sheet is needed, ensure it's imported.
@@ -81,7 +81,7 @@ const SidebarProvider = React.forwardRef(
                         "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
                         ...style,
                     }}
-                    className={cn("group/sidebar-wrapper flex min-h-screen w-full", className)}
+                    className={cn("relative", className)}
                     ref={ref}
                     {...props}
                 >
@@ -303,5 +303,5 @@ export {
     SidebarSeparator,
     SidebarTrigger,
     useSidebar
-}
+};
 
