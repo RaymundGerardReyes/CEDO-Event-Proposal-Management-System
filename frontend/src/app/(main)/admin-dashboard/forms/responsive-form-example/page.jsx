@@ -1,5 +1,8 @@
 "use client"
 
+// Force dynamic rendering to prevent SSG issues
+export const dynamic = 'force-dynamic';
+
 import { PageHeader } from "@/components/dashboard/admin/page-header"
 import { FormActions, FormSection, ResponsiveForm } from "@/components/dashboard/admin/responsive-form"
 import {
@@ -15,11 +18,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/dashboard
 import { FormGrid, FormGridItem } from "@/components/dashboard/admin/ui/form-grid"
 import { FormValidationMessage, FormValidationSummary } from "@/components/dashboard/admin/ui/form-validation"
 import { Tabs, TabsList, TabsTrigger } from "@/components/dashboard/admin/ui/tabs"
-import { useMobile } from "@/hooks/use-mobile"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { useState } from "react"
 
 export default function ResponsiveFormExamplePage() {
-  const { isMobile } = useMobile()
+  const { isMobile } = useIsMobile()
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
