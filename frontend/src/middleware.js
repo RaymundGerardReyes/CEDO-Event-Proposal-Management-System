@@ -71,9 +71,10 @@ export async function middleware(request) {
     return cachedResult.response;
   }
 
-  const publicPaths = ["/sign-in", "/sign-up", "/forgot-password"];
+  const publicPaths = ["/sign-in", "/sign-up", "/forgot-password", "/form-debug"];
   const isPublicAssetPath = pathname.startsWith("/_next") ||
     pathname.startsWith("/static") ||
+    pathname.startsWith("/api/") || // Allow ALL API routes to pass through
     pathname.startsWith("/api/auth/public/") || // Ensure this matches your actual public API paths
     pathname.includes("."); // Allows .ico, .png etc.
 
@@ -185,6 +186,6 @@ export async function middleware(request) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/auth/public/).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/).*)",
   ],
 };
