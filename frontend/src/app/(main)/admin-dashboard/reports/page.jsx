@@ -1,5 +1,8 @@
 "use client"
 
+// Force dynamic rendering to prevent SSG issues
+export const dynamic = 'force-dynamic';
+
 import { PageHeader } from "@/components/dashboard/admin/page-header"
 import { Avatar, AvatarFallback } from "@/components/dashboard/admin/ui/avatar"
 import { Badge } from "@/components/dashboard/admin/ui/badge"
@@ -26,7 +29,7 @@ import {
   X,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { Suspense, useState } from "react"
 
 // Sample data for organizations
 const organizations = [
@@ -273,7 +276,7 @@ const styles = {
   },
 }
 
-export default function ReportsPage() {
+function ReportsContent() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
@@ -531,10 +534,10 @@ export default function ReportsPage() {
                                 <div className="w-full bg-gray-200 rounded-full h-2.5">
                                   <div
                                     className={`h-2.5 rounded-full ${org.completionRate >= 75
-                                        ? "bg-green-500"
-                                        : org.completionRate >= 50
-                                          ? "bg-amber-500"
-                                          : "bg-red-500"
+                                      ? "bg-green-500"
+                                      : org.completionRate >= 50
+                                        ? "bg-amber-500"
+                                        : "bg-red-500"
                                       }`}
                                     style={{ width: `${org.completionRate}%` }}
                                   ></div>
@@ -1084,8 +1087,8 @@ export default function ReportsPage() {
                                   <div className="w-full bg-gray-200 rounded-full h-2.5">
                                     <div
                                       className={`h-2.5 rounded-full ${selectedEvent.actualParticipants >= selectedEvent.expectedParticipants
-                                          ? "bg-green-500"
-                                          : "bg-amber-500"
+                                        ? "bg-green-500"
+                                        : "bg-amber-500"
                                         }`}
                                       style={{
                                         width: `${Math.min(
@@ -1185,5 +1188,13 @@ export default function ReportsPage() {
         }
       `}</style>
     </div>
+  )
+}
+
+export default function ReportsPage() {
+  return (
+    <Suspense fallback={<div>Loading reports...</div>}>
+      <ReportsContent />
+    </Suspense>
   )
 }
