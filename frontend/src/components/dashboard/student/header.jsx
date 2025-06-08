@@ -2,6 +2,7 @@
 "use client";
 
 import { Avatar, AvatarFallback } from "@/components/dashboard/student/ui/avatar"; // Removed AvatarImage as it was not used
+import { useAuth } from "@/contexts/auth-context"; // Import the useAuth hook
 import {
   AlertCircle as AlertCircleIcon,
   AlertTriangle,
@@ -19,9 +20,8 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useAuth } from "@/contexts/auth-context"; // Import the useAuth hook
 import { useRouter } from "next/navigation"; // Import the useRouter hook
+import { useEffect, useState } from "react";
 
 const Header = () => {
   const { user: authUser, signOut } = useAuth(); // Get user from context
@@ -181,16 +181,20 @@ const Header = () => {
     }
   };
 
+  /**
+   * DOCS: This function handles the user logout process.
+   * It no longer shows a confirmation dialog.
+   * It directly calls the signOut method from the authentication context,
+   * logs any errors, and redirects to the sign-in page.
+   */
   const handleLogout = async () => {
-    if (window.confirm("Are you sure you want to log out?")) {
-      try {
-        await signOut(); // Call the signOut function from the auth context
-        console.log("Logging out...");
-        router.push("/sign-in"); // Redirect to the sign-in page after logging out
-      } catch (error) {
-        console.error("Logout error:", error);
-        // Optionally, show a toast or alert for logout failure
-      }
+    try {
+      await signOut(); // Call the signOut function from the auth context
+      console.log("Logging out...");
+      router.push("/sign-in"); // Redirect to the sign-in page after logging out
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Optionally, show a toast or alert for logout failure
     }
   };
 
