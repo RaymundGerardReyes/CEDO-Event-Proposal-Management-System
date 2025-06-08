@@ -3,13 +3,13 @@ const router = express.Router()
 const { Parser } = require("json2csv")
 const Proposal = require("../models/Proposal")
 const User = require("../models/User")
-const auth = require("../middleware/auth")
+const { validateToken, validateAdmin, validateFaculty } = require("../middleware/auth")
 const checkRole = require("../middleware/checkRole")
 
 // @route   GET api/reports/proposals
 // @desc    Generate proposals report
 // @access  Private (Admins and Reviewers only)
-router.get("/proposals", [auth, checkRole(["admin", "reviewer"])], async (req, res) => {
+router.get("/proposals", [validateToken, checkRole(["admin", "reviewer"])], async (req, res) => {
   try {
     // Build query based on filters
     const query = {}
