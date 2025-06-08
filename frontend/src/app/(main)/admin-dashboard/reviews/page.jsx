@@ -1,5 +1,8 @@
 "use client"
 
+// Force dynamic rendering to prevent SSG issues
+export const dynamic = 'force-dynamic';
+
 import { PageHeader } from "@/components/page-header"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
