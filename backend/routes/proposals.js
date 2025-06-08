@@ -6,49 +6,73 @@ const path = require("path")
 const fs = require("fs") // Used for file system operations
 const Proposal = require("../models/Proposal") // Assuming Mongoose Model
 const User = require("../models/User") // Assuming Mongoose Model (used for finding reviewers)
-const auth = require("../middleware/auth") // Assuming JWT auth middleware
+const { validateToken, validateAdmin } = require("../middleware/auth") // Updated JWT auth middleware
 const checkRole = require("../middleware/roles") // Assuming role checking middleware (Note: your import path was checkRole, but middleware file was roles.js - using 'roles')
 const nodemailer = require("nodemailer") // Used for sending emails
+const { pool } = require('../config/db'); // Your MySQL connection
+const mysql = require('mysql2/promise');
+
+// ===================================================================
+// MYSQL COMPATIBILITY FOR SECTION 2 ORGANIZATION DATA
+// ===================================================================
+// Simple route to handle Section 2 organization info saves
+
+// Use the existing working database connection pool from config/db.js
+// This ensures consistent MySQL connection configuration across the application
 
 // --- Multer Configuration for File Uploads ---
-// Sets up storage location and filename for uploaded files
+// Fixed for Node.js 20+ compatibility - using promises version of fs
+const fsPromises = require('fs').promises;
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const dir = "uploads/proposals" // Directory relative to your project root (where server.js is)
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true }) // recursive: true allows creating parent directories too
-    }
-    cb(null, dir) // Null indicates no error
+    // Create proposal-specific upload directory
+    const proposalId = req.body.proposal_id || 'draft_' + Date.now();
+    const uploadDir = path.join(__dirname, '../uploads/proposals', proposalId.toString());
+
+    // Use promises version of fs.mkdir to avoid callback issues in Node.js 20+
+    fsPromises.mkdir(uploadDir, { recursive: true })
+      .then(() => {
+        cb(null, uploadDir);
+      })
+      .catch((error) => {
+        cb(error);
+      });
   },
   filename: (req, file, cb) => {
-    // Create a unique filename: timestamp + original name
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const fileExtension = path.extname(file.originalname);
-    // Sanitize filename to remove potentially problematic characters
-    const safeFilename = file.originalname.replace(/[^a-zA-Z0-9.]/g, "_");
-    cb(null, `${uniqueSuffix}-${safeFilename}`); // Null indicates no error
-  },
-})
+    // Generate unique filename with timestamp
+    const timestamp = Date.now();
+    const originalName = file.originalname;
+    const extension = path.extname(originalName);
+    const baseName = path.basename(originalName, extension);
+    const uniqueName = `${baseName}_${timestamp}${extension}`;
+    cb(null, uniqueName);
+  }
+});
 
 // Configures multer instance with storage, limits, and file type filter
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB file size limit (in bytes)
-  fileFilter: (req, file, cb) => {
-    // Allowed file extensions
-    const allowedTypes = [".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png"]
-    const ext = path.extname(file.originalname).toLowerCase()
-
-    // Check if the file extension is in the allowed list
-    if (!allowedTypes.includes(ext)) {
-      // Pass an error to the callback if the file type is invalid
-      return cb(new Error(`Invalid file type. Only ${allowedTypes.join(", ")} are allowed.`))
-    }
-    // Accept the file
-    cb(null, true)
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
   },
-})
+  fileFilter: (req, file, cb) => {
+    // Allow only specific file types
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ];
+
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only PDF, Word, and Excel files are allowed.'));
+    }
+  }
+});
 
 // --- Nodemailer Configuration for Emails ---
 // Creates a transporter object using SMTP or other service
@@ -78,18 +102,587 @@ const ROLES = {
   // Consider mapping 'partner' to 'student' if they are the same concept
 };
 
+// ===================================================================
+// MYSQL COMPATIBILITY ROUTE FOR SECTION 2 (Testing without auth)
+// ===================================================================
 
-// @route   POST api/proposals
-// @desc    Create a new proposal
-// @access  Private (Typically accessible by 'student' or 'partner' roles)
+// @route   POST api/proposals/section2
+// @desc    Save Section 2 organization data to MySQL (for testing)
+// @access  Public (no auth required for testing)
+router.post("/section2", async (req, res) => {
+  console.log('📥 Backend: Received Section 2 organization data:', req.body);
+
+  // 🔍 Debug the specific required fields
+  console.log('🔍 Backend: Required field values:');
+  console.log(`  title: "${req.body.title}" (type: ${typeof req.body.title}, length: ${req.body.title?.length || 0})`);
+  console.log(`  contactPerson: "${req.body.contactPerson}" (type: ${typeof req.body.contactPerson}, length: ${req.body.contactPerson?.length || 0})`);
+  console.log(`  contactEmail: "${req.body.contactEmail}" (type: ${typeof req.body.contactEmail}, length: ${req.body.contactEmail?.length || 0})`);
+
+  const {
+    title, description, category, organizationType,
+    contactPerson, contactEmail, contactPhone,
+    startDate, endDate, location, budget, objectives, volunteersNeeded,
+    status = 'draft',
+    proposal_id
+  } = req.body;
+
+  try {
+    let connection;
+    let result;
+
+    // Basic validation
+    if (!title || !contactPerson || !contactEmail) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        required: ['title', 'contactPerson', 'contactEmail']
+      });
+    }
+
+    // Use pool.query() directly like the main server does
+    // connection = await pool.getConnection();
+
+    if (proposal_id) {
+      // Update existing proposal
+      console.log('🔄 Updating existing proposal:', proposal_id);
+
+      const updateQuery = `
+        UPDATE proposals 
+        SET 
+          title = ?, description = ?, category = ?, organizationType = ?,
+          contactPerson = ?, contactEmail = ?, contactPhone = ?,
+          startDate = ?, endDate = ?, location = ?, budget = ?, 
+          objectives = ?, volunteersNeeded = ?, status = ?,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `;
+
+      [result] = await pool.query(updateQuery, [
+        title, description, category, organizationType,
+        contactPerson, contactEmail, contactPhone,
+        startDate, endDate, location, budget,
+        objectives, volunteersNeeded, status,
+        proposal_id
+      ]);
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: 'Proposal not found' });
+      }
+
+      res.json({
+        id: proposal_id,
+        message: 'Section 2 data updated successfully',
+        affectedRows: result.affectedRows
+      });
+
+    } else {
+      // Create new proposal
+      console.log('✨ Creating new proposal from Section 2 data');
+
+      const insertQuery = `
+        INSERT INTO proposals (
+          title, description, category, organizationType,
+          contactPerson, contactEmail, contactPhone,
+          startDate, endDate, location, budget,
+          objectives, volunteersNeeded, status,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      `;
+
+      [result] = await pool.query(insertQuery, [
+        title, description, category, organizationType,
+        contactPerson, contactEmail, contactPhone,
+        startDate, endDate, location, budget,
+        objectives, volunteersNeeded, status
+      ]);
+
+      res.status(201).json({
+        id: result.insertId,
+        message: 'Section 2 data saved successfully',
+        insertId: result.insertId
+      });
+    }
+
+    console.log('✅ MySQL Section 2 operation completed successfully');
+
+  } catch (error) {
+    console.error('❌ MySQL Error saving Section 2 data:', error);
+    res.status(500).json({
+      error: 'Database error',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// @route   POST api/proposals/section2-organization
+// @desc    Save Section 2 organization data to MySQL proposals table
+// @access  Public (no auth required for testing)
+router.post("/section2-organization", async (req, res) => {
+  console.log('📥 MySQL: Received Section 2 organization data:', req.body);
+
+  // 🔍 Debug the specific required fields
+  console.log('🔍 MySQL: Required field values:');
+  console.log(`  title: "${req.body.title}" (type: ${typeof req.body.title}, length: ${req.body.title?.length || 0})`);
+  console.log(`  contactPerson: "${req.body.contactPerson}" (type: ${typeof req.body.contactPerson}, length: ${req.body.contactPerson?.length || 0})`);
+  console.log(`  contactEmail: "${req.body.contactEmail}" (type: ${typeof req.body.contactEmail}, length: ${req.body.contactEmail?.length || 0})`);
+
+  const {
+    title, description, category, organizationType,
+    contactPerson, contactEmail, contactPhone,
+    startDate, endDate, location, budget, objectives, volunteersNeeded,
+    status = 'draft',
+    proposal_id
+  } = req.body;
+
+  try {
+    // Basic validation
+    if (!title || !contactPerson || !contactEmail) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        required: ['title', 'contactPerson', 'contactEmail'],
+        received: {
+          title: title || 'missing',
+          contactPerson: contactPerson || 'missing',
+          contactEmail: contactEmail || 'missing'
+        }
+      });
+    }
+
+    console.log('✅ MySQL: All required fields provided');
+
+    let connection;
+
+    try {
+      // Use pool.query() directly like the main server does
+      // connection = await pool.getConnection();
+
+      // Check if updating existing proposal
+      if (proposal_id) {
+        console.log('🔄 MySQL: Updating existing proposal:', proposal_id);
+
+        const updateQuery = `
+          UPDATE proposals 
+          SET organization_name = ?, organization_description = ?, organization_type = ?,
+              contact_name = ?, contact_email = ?, contact_phone = ?,
+              event_name = ?, event_venue = ?, event_start_date = ?, event_end_date = ?,
+              event_start_time = ?, event_end_time = ?,
+              school_event_type = ?, community_event_type = ?,
+              proposal_status = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `;
+
+        // Set type-specific fields based on organization type
+        const schoolEventType = organizationType === 'school-based' ? 'other' : null;
+        const communityEventType = organizationType === 'community-based' ? 'others' : null;
+
+        const updateValues = [
+          title, description, organizationType,
+          contactPerson, contactEmail, contactPhone,
+          title + ' Event', location || 'TBD',
+          startDate || '2025-01-01', // Default start date if not provided  
+          endDate || '2025-01-01',   // Default end date if not provided
+          '09:00:00', '17:00:00', // Default event times
+          schoolEventType,        // Required for school-based
+          communityEventType,     // Required for community-based
+          status, proposal_id
+        ];
+
+        const [updateResult] = await pool.query(updateQuery, updateValues);
+
+        if (updateResult.affectedRows === 0) {
+          return res.status(404).json({
+            error: 'Proposal not found',
+            proposal_id: proposal_id
+          });
+        }
+
+        console.log('✅ MySQL: Proposal updated successfully:', proposal_id);
+
+        res.status(200).json({
+          id: proposal_id,
+          message: 'Section 2 organization data updated successfully in MySQL',
+          data: {
+            title, description, category: category || 'partnership', organizationType,
+            contactPerson, contactEmail, contactPhone, status
+          },
+          timestamp: new Date().toISOString()
+        });
+
+      } else {
+        console.log('➕ MySQL: Creating new proposal');
+
+        const insertQuery = `
+          INSERT INTO proposals (
+            organization_name, organization_description, organization_type,
+            contact_name, contact_email, contact_phone,
+            event_name, event_venue, event_start_date, event_end_date,
+            event_start_time, event_end_time,
+            school_event_type, community_event_type,
+            proposal_status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+        `;
+
+        // Set type-specific fields based on organization type
+        const schoolEventType = organizationType === 'school-based' ? 'other' : null;
+        const communityEventType = organizationType === 'community-based' ? 'others' : null;
+
+        const insertValues = [
+          title, description, organizationType,
+          contactPerson, contactEmail, contactPhone,
+          title + ' Event', location || 'TBD',
+          startDate || '2025-01-01', // Default start date if not provided
+          endDate || '2025-01-01',   // Default end date if not provided
+          '09:00:00', '17:00:00', // Default event times
+          schoolEventType,        // Required for school-based
+          communityEventType,     // Required for community-based
+          status
+        ];
+
+        const [insertResult] = await pool.query(insertQuery, insertValues);
+        const newProposalId = insertResult.insertId;
+
+        console.log('✅ MySQL: New proposal created with ID:', newProposalId);
+
+        res.status(201).json({
+          id: newProposalId,
+          message: 'Section 2 organization data saved successfully to MySQL',
+          data: {
+            title, description, category: category || 'partnership', organizationType,
+            contactPerson, contactEmail, contactPhone, status
+          },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+    } catch (queryError) {
+      throw queryError; // Re-throw to be caught by outer catch
+    }
+
+  } catch (error) {
+    console.error('❌ MySQL: Error saving Section 2 data:', error);
+    res.status(500).json({
+      error: 'Database error',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// @route   POST api/proposals/section3-event
+// @desc    Update proposal with Section 3 event details
+// @access  Public (no auth required for testing)
+router.post("/section3-event", async (req, res) => {
+  console.log('📥 MySQL: Received Section 3 event data:', req.body);
+
+  const {
+    proposal_id,
+    venue,
+    start_date,
+    end_date,
+    time_start,
+    time_end,
+    event_type,
+    event_mode,
+    return_service_credit,
+    target_audience,
+    status = 'pending'
+  } = req.body;
+
+  // ✅ ENHANCED DEBUG: Log event type validation
+  console.log('🔧 EVENT TYPE VALIDATION:');
+  console.log('  Received event_type:', event_type);
+  console.log('  Valid enum values: academic-enhancement, workshop-seminar-webinar, conference, competition, cultural-show, sports-fest, other');
+
+  const validEventTypes = ['academic-enhancement', 'workshop-seminar-webinar', 'conference', 'competition', 'cultural-show', 'sports-fest', 'other'];
+  const isValidEventType = validEventTypes.includes(event_type);
+  console.log('  Is valid:', isValidEventType);
+
+  if (!isValidEventType) {
+    console.warn('⚠️ WARNING: Invalid event_type received, will use fallback "other"');
+  }
+
+  try {
+    // Basic validation
+    if (!proposal_id) {
+      return res.status(400).json({
+        error: 'Missing required field: proposal_id'
+      });
+    }
+
+    console.log('✅ MySQL: Updating existing proposal with event details:', proposal_id);
+
+    const updateQuery = `
+      UPDATE proposals 
+      SET event_venue = ?, 
+          event_start_date = ?, 
+          event_end_date = ?,
+          event_start_time = ?, 
+          event_end_time = ?,
+          school_event_type = ?,
+          event_mode = ?,
+          proposal_status = ?, 
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `;
+
+    const updateValues = [
+      venue || 'TBD',
+      start_date || null,
+      end_date || null,
+      time_start || null,
+      time_end || null,
+      event_type || 'other', // ✅ FIXED: Use valid enum value 'other' instead of 'academic'
+      event_mode || 'offline',
+      status,
+      proposal_id
+    ];
+
+    const [updateResult] = await pool.query(updateQuery, updateValues);
+
+    if (updateResult.affectedRows === 0) {
+      return res.status(404).json({
+        error: 'Proposal not found',
+        proposal_id: proposal_id
+      });
+    }
+
+    console.log('✅ MySQL: Proposal updated with event details successfully:', proposal_id);
+
+    res.status(200).json({
+      id: proposal_id,
+      message: 'Section 3 event data updated successfully in MySQL',
+      data: {
+        venue, start_date, end_date, time_start, time_end,
+        event_type, event_mode, return_service_credit,
+        target_audience, status
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ MySQL: Error updating Section 3 event data:', error);
+    res.status(500).json({
+      error: 'Database error',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// @route   GET api/proposals/debug/:id
+// @desc    Debug endpoint to get detailed proposal information
+// @access  Public (for debugging)
+router.get("/debug/:id", async (req, res) => {
+  console.log('🔍 Debug: Getting proposal details for ID:', req.params.id);
+
+  try {
+    const proposalId = req.params.id;
+
+    // First try MongoDB
+    let mongoProposal = null;
+    try {
+      const Proposal = require("../models/Proposal");
+      mongoProposal = await Proposal.findById(proposalId);
+      console.log('🔍 MongoDB proposal:', mongoProposal ? 'Found' : 'Not found');
+    } catch (mongoError) {
+      console.log('🔍 MongoDB error (expected if using MySQL ID):', mongoError.message);
+    }
+
+    // Then try MySQL
+    let mysqlProposal = null;
+    try {
+      const [rows] = await pool.query('SELECT * FROM proposals WHERE id = ?', [proposalId]);
+      mysqlProposal = rows[0] || null;
+      console.log('🔍 MySQL proposal:', mysqlProposal ? 'Found' : 'Not found');
+    } catch (mysqlError) {
+      console.log('🔍 MySQL error:', mysqlError.message);
+    }
+
+    res.json({
+      success: true,
+      proposalId: proposalId,
+      mongodb: {
+        found: !!mongoProposal,
+        data: mongoProposal ? {
+          id: mongoProposal._id,
+          title: mongoProposal.title,
+          contactEmail: mongoProposal.contactEmail,
+          status: mongoProposal.status
+        } : null
+      },
+      mysql: {
+        found: !!mysqlProposal,
+        data: mysqlProposal ? {
+          id: mysqlProposal.id,
+          organization_name: mysqlProposal.organization_name,
+          contact_email: mysqlProposal.contact_email,
+          proposal_status: mysqlProposal.proposal_status
+        } : null
+      },
+      recommendations: {
+        hasData: !!(mongoProposal || mysqlProposal),
+        source: mongoProposal ? 'MongoDB' : mysqlProposal ? 'MySQL' : 'None',
+        nextStep: !mongoProposal && !mysqlProposal ? 'Complete Section 2 first' : 'Data found, proceed to Section 3'
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Debug endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// @route   POST api/proposals/search
+// @desc    Search for proposal by organization name and contact email
+// @access  Public (no auth required for testing)
+router.post("/search", async (req, res) => {
+  console.log('🔍 MySQL: Searching for proposal:', req.body);
+
+  const { organization_name, contact_email } = req.body;
+
+  // Basic validation
+  if (!organization_name || !contact_email) {
+    return res.status(400).json({
+      error: 'Missing required search parameters',
+      required: ['organization_name', 'contact_email']
+    });
+  }
+
+  try {
+    const searchQuery = `
+      SELECT id, organization_name, contact_email, proposal_status, created_at
+      FROM proposals 
+      WHERE organization_name = ? AND contact_email = ?
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `;
+
+    const [rows] = await pool.query(searchQuery, [organization_name, contact_email]);
+
+    if (rows.length === 0) {
+      console.log('🔍 MySQL: No proposal found for:', { organization_name, contact_email });
+      return res.status(404).json({
+        error: 'No proposal found',
+        message: 'No proposal found with the given organization name and contact email'
+      });
+    }
+
+    const proposal = rows[0];
+    console.log('✅ MySQL: Found proposal:', proposal);
+
+    res.status(200).json({
+      id: proposal.id,
+      organization_name: proposal.organization_name,
+      contact_email: proposal.contact_email,
+      proposal_status: proposal.proposal_status,
+      created_at: proposal.created_at,
+      message: 'Proposal found successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ MySQL: Error searching for proposal:', error);
+    res.status(500).json({
+      error: 'Database error',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// @route   POST api/proposals/section2-mock
+// @desc    Mock Section 2 endpoint for testing without database
+// @access  Public (no auth required for testing)
+router.post("/section2-mock", async (req, res) => {
+  console.log('📥 MOCK: Received Section 2 organization data:', req.body);
+
+  // 🔍 Debug the specific required fields
+  console.log('🔍 MOCK: Required field values:');
+  console.log(`  title: "${req.body.title}" (type: ${typeof req.body.title}, length: ${req.body.title?.length || 0})`);
+  console.log(`  contactPerson: "${req.body.contactPerson}" (type: ${typeof req.body.contactPerson}, length: ${req.body.contactPerson?.length || 0})`);
+  console.log(`  contactEmail: "${req.body.contactEmail}" (type: ${typeof req.body.contactEmail}, length: ${req.body.contactEmail?.length || 0})`);
+
+  const {
+    title, description, category, organizationType,
+    contactPerson, contactEmail, contactPhone,
+    startDate, endDate, location, budget, objectives, volunteersNeeded,
+    status = 'draft',
+    proposal_id
+  } = req.body;
+
+  try {
+    // Basic validation
+    if (!title || !contactPerson || !contactEmail) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        required: ['title', 'contactPerson', 'contactEmail'],
+        received: {
+          title: title || 'missing',
+          contactPerson: contactPerson || 'missing',
+          contactEmail: contactEmail || 'missing'
+        }
+      });
+    }
+
+    console.log('✅ MOCK: All required fields provided');
+
+    // Simulate successful database save
+    const mockId = proposal_id || 'mock_' + Date.now();
+
+    const mockResult = {
+      id: mockId,
+      message: 'MOCK: Section 2 data saved successfully (no database)',
+      data: {
+        title,
+        description,
+        category,
+        organizationType,
+        contactPerson,
+        contactEmail,
+        contactPhone,
+        status
+      },
+      timestamp: new Date().toISOString()
+    };
+
+    console.log('✅ MOCK: Returning successful response:', mockResult);
+
+    res.status(201).json(mockResult);
+
+  } catch (error) {
+    console.error('❌ MOCK: Error processing request:', error);
+    res.status(500).json({
+      error: 'MOCK: Processing error',
+      message: error.message
+    });
+  }
+});
+
+// ===================================================================
+// UNIFIED PROPOSALS API ROUTES - WORKS WITH NEW PROPOSALS TABLE
+// ===================================================================
+// This replaces separate school-events and community-events routes
+// All data goes to the single 'proposals' table
+
+// @route   POST api/proposals
+// @desc    Create a new proposal
+// @access  Private (Typically accessible by 'student' or 'partner' roles)
 router.post(
   "/",
   [
-    auth, // Authenticates the user and adds req.user
+    validateToken, // Authenticates the user and adds req.user
     // Add checkRole here if only specific roles can create proposals
     // E.g., checkRole(ROLES.STUDENT, ROLES.PARTNER),
 
-    upload.array("documents", 5), // Handles file uploads (max 5 files)
+    upload.fields([
+      { name: 'school_gpoa_file', maxCount: 1 },
+      { name: 'school_proposal_file', maxCount: 1 },
+      { name: 'community_gpoa_file', maxCount: 1 },
+      { name: 'community_proposal_file', maxCount: 1 },
+      { name: 'accomplishment_report_file', maxCount: 1 }
+    ]),
 
     // Validation using express-validator
     body("title", "Title is required").trim().not().isEmpty(), // Trim whitespace
@@ -231,10 +824,10 @@ router.post(
   },
 )
 
-// @route   GET api/proposals
-// @desc    Get all proposals (or filtered list)
-// @access  Private (Access control logic within route)
-router.get("/", auth, async (req, res) => {
+// @route   GET api/proposals
+// @desc    Get all proposals (or filtered list)
+// @access  Private (Access control logic within route)
+router.get("/", validateToken, async (req, res) => {
   try {
     // Build the query object for Mongoose find()
     const query = {};
@@ -292,10 +885,10 @@ router.get("/", auth, async (req, res) => {
   }
 })
 
-// @route   GET api/proposals/:id
-// @desc    Get proposal by ID
-// @access  Private (Access control logic within route)
-router.get("/:id", auth, async (req, res) => {
+// @route   GET api/proposals/:id
+// @desc    Get proposal by ID
+// @access  Private (Access control logic within route)
+router.get("/:id", validateToken, async (req, res) => {
   try {
     // Find proposal by ID and populate related fields
     const proposal = await Proposal.findById(req.params.id)
@@ -336,20 +929,26 @@ router.get("/:id", auth, async (req, res) => {
   }
 })
 
-// @route   PUT api/proposals/:id
-// @desc    Update a proposal
-// @access  Private (Access control logic within route)
+// @route   PUT api/proposals/:id
+// @desc    Update a proposal
+// @access  Private (Access control logic within route)
 // Note: This route handles both text field updates and adding/updating files.
 // Deleting files is handled by a separate DELETE route.
 router.put(
   "/:id",
   [
-    auth, // Authenticate the user
+    validateToken, // Authenticate the user
     // Add checkRole here if only specific roles can update certain fields/proposals
     // E.g., Managers/Admins might update status, Partners might update draft content.
     // checkRole(ROLES.STUDENT, ROLES.HEAD_ADMIN, ROLES.MANAGER), // Example: allow students (partners) and admins/managers
 
-    upload.array("documents", 5), // Handle potential document uploads
+    upload.fields([
+      { name: 'school_gpoa_file', maxCount: 1 },
+      { name: 'school_proposal_file', maxCount: 1 },
+      { name: 'community_gpoa_file', maxCount: 1 },
+      { name: 'community_proposal_file', maxCount: 1 },
+      { name: 'accomplishment_report_file', maxCount: 1 }
+    ]), // Handle potential document uploads
 
     // Validation rules for fields that can be updated (optional() makes the field not required)
     body("title", "Title is required").optional().trim().not().isEmpty(),
@@ -506,10 +1105,10 @@ router.put(
   },
 )
 
-// @route   DELETE api/proposals/:id
-// @desc    Delete a proposal
-// @access  Private (Access control logic within route)
-router.delete("/:id", auth, async (req, res) => {
+// @route   DELETE api/proposals/:id
+// @desc    Delete a proposal
+// @access  Private (Access control logic within route)
+router.delete("/:id", validateToken, async (req, res) => {
   const proposalId = req.params.id;
   const requestingUser = req.user;
 
@@ -579,10 +1178,10 @@ router.delete("/:id", auth, async (req, res) => {
   }
 })
 
-// @route   POST api/proposals/:id/documents
-// @desc    Add documents to an existing proposal
-// @access  Private (Typically accessible by owner or admin/manager)
-router.post("/:id/documents", [auth, upload.array("documents", 5)], async (req, res) => {
+// @route   POST api/proposals/:id/documents
+// @desc    Add documents to an existing proposal
+// @access  Private (Typically accessible by owner or admin/manager)
+router.post("/:id/documents", [validateToken, upload.array("documents", 5)], async (req, res) => {
   const proposalId = req.params.id;
   const requestingUser = req.user;
 
@@ -645,10 +1244,10 @@ router.post("/:id/documents", [auth, upload.array("documents", 5)], async (req, 
   }
 });
 
-// @route   DELETE api/proposals/:id/documents/:docId
-// @desc    Delete a document from a proposal
-// @access  Private (Typically accessible by owner or admin/manager)
-router.delete("/:id/documents/:docId", auth, async (req, res) => {
+// @route   DELETE api/proposals/:id/documents/:docId
+// @desc    Delete a document from a proposal
+// @access  Private (Typically accessible by owner or admin/manager)
+router.delete("/:id/documents/:docId", validateToken, async (req, res) => {
   const proposalId = req.params.id;
   const docId = req.params.docId;
   const requestingUser = req.user;
@@ -719,117 +1318,444 @@ router.delete("/:id/documents/:docId", auth, async (req, res) => {
   }
 });
 
+// ===================================================================
+// SCHOOL EVENTS SPECIFIC ENDPOINT - FOR SECTION 3 COMPATIBILITY
+// ===================================================================
 
-// --- Placeholder Routes for Review/Status Management ---
+// @route   POST api/proposals/school-events
+// @desc    Create a school-based event proposal with file uploads
+// @access  Public (for testing - add auth later)
+router.post('/school-events', [
+  upload.fields([
+    { name: 'gpoaFile', maxCount: 1 },
+    { name: 'proposalFile', maxCount: 1 }
+  ]),
+  // Basic validation for required fields
+  body('organization_id', 'Organization ID is required').not().isEmpty(),
+  body('name', 'Event name is required').trim().not().isEmpty(),
+  body('venue', 'Venue is required').trim().not().isEmpty(),
+  body('start_date', 'Start date is required').not().isEmpty(),
+  body('end_date', 'End date is required').not().isEmpty(),
+  body('time_start', 'Start time is required').not().isEmpty(),
+  body('time_end', 'End time is required').not().isEmpty(),
+  body('event_type', 'Event type is required').not().isEmpty(),
+  body('event_mode', 'Event mode is required').not().isEmpty(),
+  body('contact_person', 'Contact person is required').trim().not().isEmpty(),
+  body('contact_email', 'Contact email is required').trim().isEmail(),
+], async (req, res) => {
+  console.log('📥 Backend: Received school event data:', req.body);
+  console.log('📁 Backend: Received files:', req.files);
 
-// @route   POST api/proposals/:id/assign-reviewer
-// @desc    Assign a reviewer to a proposal
+  // Check for validation errors
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    // Clean up uploaded files if validation fails
+    if (req.files) {
+      Object.values(req.files).flat().forEach(file => {
+        fs.unlink(file.path, (err) => {
+          if (err) console.error('Failed to delete file after validation error:', err);
+        });
+      });
+    }
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const {
+    organization_id, name, venue, start_date, end_date, time_start, time_end,
+    event_type, event_mode, return_service_credit, proposal_status,
+    target_audience, contact_person, contact_email, contact_phone, admin_comments
+  } = req.body;
+
+  try {
+    // Process uploaded files
+    const documents = [];
+    if (req.files) {
+      if (req.files.gpoaFile) {
+        documents.push({
+          name: req.files.gpoaFile[0].originalname,
+          path: req.files.gpoaFile[0].path,
+          type: 'gpoa',
+          mimetype: req.files.gpoaFile[0].mimetype,
+          size: req.files.gpoaFile[0].size,
+          uploadedAt: new Date()
+        });
+      }
+      if (req.files.proposalFile) {
+        documents.push({
+          name: req.files.proposalFile[0].originalname,
+          path: req.files.proposalFile[0].path,
+          type: 'proposal',
+          mimetype: req.files.proposalFile[0].mimetype,
+          size: req.files.proposalFile[0].size,
+          uploadedAt: new Date()
+        });
+      }
+    }
+
+    // Parse target_audience if it's a JSON string
+    let parsedTargetAudience = [];
+    try {
+      if (typeof target_audience === 'string') {
+        parsedTargetAudience = JSON.parse(target_audience);
+      } else if (Array.isArray(target_audience)) {
+        parsedTargetAudience = target_audience;
+      }
+    } catch (parseError) {
+      console.warn('Failed to parse target_audience:', parseError);
+    }
+
+    // Create a new proposal document for MongoDB
+    const proposal = new Proposal({
+      title: name,
+      description: `School-based event: ${name}`,
+      category: 'school-event',
+      organizationType: 'school-based',
+      startDate: new Date(start_date),
+      endDate: new Date(end_date),
+      location: venue,
+      budget: 0, // Default budget
+      objectives: `School event objectives for ${name}`,
+      volunteersNeeded: 0, // Default volunteers
+      submitter: organization_id, // Use organization_id as submitter for now
+      contactPerson: contact_person,
+      contactEmail: contact_email,
+      contactPhone: contact_phone || '0000000000',
+      status: proposal_status || 'draft',
+      documents: documents,
+      // School-specific fields stored in a nested object
+      schoolEventDetails: {
+        timeStart: time_start,
+        timeEnd: time_end,
+        eventType: event_type,
+        eventMode: event_mode,
+        returnServiceCredit: parseInt(return_service_credit) || 0,
+        targetAudience: parsedTargetAudience,
+        adminComments: admin_comments || ''
+      }
+    });
+
+    // Save to MongoDB
+    const savedProposal = await proposal.save();
+
+    console.log('✅ Backend: School event saved to MongoDB:', savedProposal._id);
+
+    // Return success response
+    res.status(201).json({
+      id: savedProposal._id,
+      message: 'School event proposal created successfully',
+      data: {
+        id: savedProposal._id,
+        name: savedProposal.title,
+        venue: savedProposal.location,
+        status: savedProposal.status,
+        documents: documents.map(doc => ({
+          name: doc.name,
+          type: doc.type,
+          size: doc.size
+        }))
+      }
+    });
+
+  } catch (err) {
+    console.error('❌ Backend: Error creating school event proposal:', err);
+
+    // Clean up uploaded files if database save fails
+    if (req.files) {
+      Object.values(req.files).flat().forEach(file => {
+        fs.unlink(file.path, (unlinkErr) => {
+          if (unlinkErr) console.error('Failed to delete file after DB error:', unlinkErr);
+        });
+      });
+    }
+
+    // Check for specific error types
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: Object.values(err.errors).map(e => ({
+          field: e.path,
+          message: e.message
+        }))
+      });
+    }
+
+    res.status(500).json({
+      error: 'Server error',
+      message: 'Failed to create school event proposal'
+    });
+  }
+});
+
+// ===================================================================
+// ADMIN ROUTES - FOR ADMIN DASHBOARD
+// ===================================================================
+
+// @route   GET api/proposals/admin/proposals
+// @desc    Get all proposals for admin dashboard with pagination and filtering
 // @access  Private (Admin/Manager only)
-// router.post("/:id/assign-reviewer", [auth, checkRole(ROLES.HEAD_ADMIN, ROLES.MANAGER)], async (req, res) => {
-//     const proposalId = req.params.id;
-//     const { reviewerId } = req.body; // Expecting the ID of the user to assign
+router.get('/admin/proposals', async (req, res) => {
+  console.log('📊 Admin: Fetching proposals for admin dashboard');
+  console.log('📊 Query params:', req.query);
 
-//     try {
-//         // Find the proposal
-//         const proposal = await Proposal.findById(proposalId);
-//         if (!proposal) { return res.status(404).json({ msg: "Proposal not found" }); }
+  try {
+    // Extract pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
 
-//         // Optional: Verify reviewerId is a valid user with the 'reviewer' role
-//         const reviewer = await User.findOne({ _id: reviewerId, role: ROLES.REVIEWER });
-//         if (!reviewer) { return res.status(400).json({ msg: "Invalid reviewer ID or user is not a reviewer" }); }
+    // Extract filter parameters
+    const { status, category, search, organizationType } = req.query;
 
-//         // Update the proposal, assuming a field like 'assignedTo' (ref to User)
-//         const updatedProposal = await Proposal.findByIdAndUpdate(proposalId,
-//             { $set: { assignedTo: reviewerId, status: 'under_review' } }, // Set assignedTo and update status
-//             { new: true }
-//         ).populate("assignedTo", "name email"); // Populate to return reviewer info
+    // Build query for both MySQL and MongoDB
+    let query = {};
 
-//         // Optional: Send email notification to the assigned reviewer
+    // Apply filters
+    if (status) {
+      query.status = status;
+    }
+    if (category) {
+      query.category = category;
+    }
+    if (organizationType) {
+      query.organizationType = organizationType;
+    }
 
-//         res.json(updatedProposal);
+    // Search functionality
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      query.$or = [
+        { title: searchRegex },
+        { description: searchRegex },
+        { contactPerson: searchRegex },
+        { contactEmail: searchRegex }
+      ];
+    }
 
-//     } catch (err) {
-//         console.error(err.message);
-//         res.status(500).send("Server error");
-//     }
-// });
+    console.log('📊 MongoDB query:', query);
 
-// @route   POST api/proposals/:id/review
-// @desc    Submit a review comment/rating for a proposal
-// @access  Private (Reviewer only)
-// router.post("/:id/review", [auth, checkRole(ROLES.REVIEWER)], async (req, res) => {
-//     const proposalId = req.params.id;
-//     const reviewerId = req.user.id; // The authenticated user is the reviewer
-//     const { comments, rating } = req.body; // Expecting comments and rating
+    // Fetch proposals from MongoDB with pagination
+    const proposals = await Proposal.find(query)
+      .populate('submitter', 'name email organization')
+      .populate('assignedTo', 'name email')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
 
-//     try {
-//         // Find the proposal
-//         const proposal = await Proposal.findById(proposalId);
-//         if (!proposal) { return res.status(404).json({ msg: "Proposal not found" }); }
+    // Get total count for pagination
+    const totalCount = await Proposal.countDocuments(query);
+    const totalPages = Math.ceil(totalCount / limit);
 
-//         // Optional: Check if this reviewer is assigned to this proposal, or if any reviewer can review
-//         // if (proposal.assignedTo && proposal.assignedTo.toString() !== reviewerId) {
-//         //    return res.status(403).json({ msg: "Not assigned to review this proposal" });
-//         // }
+    console.log(`📊 Found ${proposals.length} proposals (${totalCount} total)`);
 
-//         // Create a new review comment object
-//         const newReviewComment = {
-//             reviewer: reviewerId, // Reference to the reviewer user
-//             comments: comments,
-//             rating: rating, // Assuming rating is a number
-//             createdAt: new Date(),
-//         };
+    // Format response data
+    const formattedProposals = proposals.map(proposal => ({
+      id: proposal._id,
+      title: proposal.title,
+      organization: proposal.submitter?.organization || 'Unknown Organization',
+      submittedOn: proposal.createdAt.toISOString().split('T')[0],
+      status: proposal.status,
+      assignedTo: proposal.assignedTo?.name || 'Unassigned',
+      description: proposal.description,
+      proposedVenue: proposal.location,
+      proposedSchedule: proposal.startDate ? proposal.startDate.toISOString().split('T')[0] : null,
+      expectedParticipants: proposal.volunteersNeeded || 0,
+      intendedGoal: proposal.objectives,
+      requiredResources: proposal.budget || 0,
+      contactPerson: proposal.contactPerson,
+      contactEmail: proposal.contactEmail,
+      contactPhone: proposal.contactPhone,
+      category: proposal.category,
+      organizationType: proposal.organizationType
+    }));
 
-//         // Add the review comment to the proposal's reviewComments array
-//         const updatedProposal = await Proposal.findByIdAndUpdate(proposalId,
-//             { $push: { reviewComments: newReviewComment } }, // Push the new comment to the array
-//             { new: true }
-//         ).populate("reviewComments.reviewer", "name email role"); // Populate the new comment's reviewer info
+    // Response with pagination metadata
+    res.json({
+      success: true,
+      data: formattedProposals,
+      pagination: {
+        currentPage: page,
+        totalPages: totalPages,
+        totalCount: totalCount,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+        limit: limit
+      },
+      filters: {
+        status,
+        category,
+        search,
+        organizationType
+      }
+    });
 
-//         res.json(updatedProposal);
+  } catch (error) {
+    console.error('❌ Admin: Error fetching proposals:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch proposals',
+      message: error.message
+    });
+  }
+});
 
-//     } catch (err) {
-//         console.error(err.message);
-//         res.status(500).send("Server error");
-//     }
-// });
+// @route   GET api/proposals/admin/stats
+// @desc    Get proposal statistics for admin dashboard
+// @access  Private (Admin/Manager only)
+router.get('/admin/stats', async (req, res) => {
+  console.log('📊 Admin: Fetching proposal statistics');
 
-// @route   POST api/proposals/:id/status
-// @desc    Update proposal status (Admin/Manager only)
-// @access  Private
-// router.post("/:id/status", [auth, checkRole(ROLES.HEAD_ADMIN, ROLES.MANAGER)], async (req, res) => {
-//     const proposalId = req.params.id;
-//     const { status } = req.body; // Expecting the new status
+  try {
+    // Get counts by status
+    const pendingCount = await Proposal.countDocuments({ status: 'pending' });
+    const approvedCount = await Proposal.countDocuments({ status: 'approved' });
+    const rejectedCount = await Proposal.countDocuments({ status: 'rejected' });
+    const totalCount = await Proposal.countDocuments();
 
-//     // Validate the status value
-//     const allowedStatuses = ['draft', 'pending', 'under_review', 'approved', 'rejected'];
-//     if (!status || !allowedStatuses.includes(status)) {
-//         return res.status(400).json({ msg: `Invalid or missing status. Allowed: ${allowedStatuses.join(', ')}` });
-//     }
+    // Calculate approval rate
+    const approvalRate = totalCount > 0 ? Math.round((approvedCount / totalCount) * 100) : 0;
 
-//     try {
-//         // Find the proposal
-//         const proposal = await Proposal.findById(proposalId);
-//         if (!proposal) { return res.status(404).json({ msg: "Proposal not found" }); }
+    console.log('📊 Stats calculated:', {
+      pending: pendingCount,
+      approved: approvedCount,
+      rejected: rejectedCount,
+      total: totalCount,
+      approvalRate: approvalRate
+    });
 
-//         // Optional: Add logic here to prevent invalid status transitions
-//         // E.g., cannot go from rejected to approved without a new submission
+    res.json({
+      success: true,
+      stats: {
+        pendingReview: pendingCount,
+        approved: approvedCount,
+        rejected: rejectedCount,
+        total: totalCount,
+        approvalRate: approvalRate
+      }
+    });
 
-//         // Update the status
-//         const updatedProposal = await Proposal.findByIdAndUpdate(proposalId,
-//             { $set: { status: status } },
-//             { new: true }
-//         );
+  } catch (error) {
+    console.error('❌ Admin: Error fetching stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch statistics',
+      message: error.message
+    });
+  }
+});
 
-//         // Optional: Send email notification to the submitter about the status change
+// @route   PATCH api/proposals/admin/proposals/:id/status
+// @desc    Update proposal status (approve, reject, etc.)
+// @access  Private (Admin/Manager only)
+router.patch('/admin/proposals/:id/status', async (req, res) => {
+  console.log('📊 Admin: Updating proposal status');
+  console.log('📊 Proposal ID:', req.params.id);
+  console.log('📊 Request body:', req.body);
 
-//         res.json(updatedProposal);
+  try {
+    const proposalId = req.params.id;
+    const { status, adminComments } = req.body;
 
-//     } catch (err) {
-//         console.error(err.message);
-//         res.status(500).send("Server error");
-//     }
-// });
+    // Validate the new status
+    const validStatuses = ['pending', 'approved', 'rejected', 'draft'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid status',
+        message: `Status must be one of: ${validStatuses.join(', ')}`
+      });
+    }
 
+    // Find and update the proposal
+    const proposal = await Proposal.findByIdAndUpdate(
+      proposalId,
+      {
+        status: status,
+        adminComments: adminComments || '',
+        updatedAt: new Date()
+      },
+      {
+        new: true, // Return the updated document
+        runValidators: true // Run schema validations
+      }
+    ).populate('submitter', 'name email organization');
+
+    if (!proposal) {
+      return res.status(404).json({
+        success: false,
+        error: 'Proposal not found',
+        message: `No proposal found with ID: ${proposalId}`
+      });
+    }
+
+    console.log('✅ Admin: Proposal status updated successfully');
+    console.log('📊 Updated proposal:', {
+      id: proposal._id,
+      title: proposal.title,
+      oldStatus: 'unknown', // We don't have the old status here
+      newStatus: proposal.status
+    });
+
+    // Return success response
+    res.json({
+      success: true,
+      message: `Proposal ${status} successfully`,
+      proposal: {
+        id: proposal._id,
+        title: proposal.title,
+        status: proposal.status,
+        adminComments: proposal.adminComments,
+        updatedAt: proposal.updatedAt
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Admin: Error updating proposal status:', error);
+
+    // Handle MongoDB validation errors
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation error',
+        message: Object.values(error.errors).map(e => e.message).join(', ')
+      });
+    }
+
+    // Handle MongoDB CastError (invalid ObjectId)
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid proposal ID',
+        message: 'The provided proposal ID is not valid'
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update proposal status',
+      message: error.message
+    });
+  }
+});
+
+// ===================================================================
+// ERROR HANDLING MIDDLEWARE
+// ===================================================================
+
+router.use((error, req, res, next) => {
+  if (error instanceof multer.MulterError) {
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        error: 'File too large',
+        message: 'File size cannot exceed 5MB'
+      });
+    }
+  }
+
+  console.error('Unhandled error in proposals router:', error);
+  res.status(500).json({
+    error: 'Internal server error',
+    message: error.message
+  });
+});
 
 module.exports = router
