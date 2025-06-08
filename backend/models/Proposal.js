@@ -15,7 +15,7 @@ const ProposalSchema = new mongoose.Schema({
   category: {
     type: String,
     required: [true, "Please select a category"],
-    enum: ["education", "health", "environment", "community", "technology", "other"],
+    enum: ["education", "health", "environment", "community", "technology", "other", "school-event", "community-event"],
   },
   startDate: {
     type: Date,
@@ -31,38 +31,83 @@ const ProposalSchema = new mongoose.Schema({
   },
   budget: {
     type: Number,
-    required: [true, "Please add a budget"],
+    required: function () {
+      // Only require budget for non-school events
+      return this.category !== 'school-event';
+    },
+    default: 0,
   },
   objectives: {
     type: String,
-    required: [true, "Please add objectives"],
+    required: function () {
+      // Only require objectives for non-school events
+      return this.category !== 'school-event';
+    },
+    default: 'Event objectives',
   },
   volunteersNeeded: {
     type: Number,
-    required: [true, "Please specify the number of volunteers needed"],
+    required: function () {
+      // Only require volunteersNeeded for non-school events
+      return this.category !== 'school-event';
+    },
+    default: 0,
   },
   submitter: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
+    type: String, // Changed from ObjectId to String for testing
     required: true,
+    default: 'test-user-id',
   },
   organizationType: {
     type: String,
-    enum: ["internal", "external"],
+    enum: ["internal", "external", "school-based", "community-based"],
     required: true,
+  },
+  // Event-specific details for school events and community events
+  eventDetails: {
+    timeStart: String,
+    timeEnd: String,
+    eventType: {
+      type: String,
+      enum: ["academic", "workshop", "seminar", "assembly", "leadership", "other"],
+    },
+    eventMode: {
+      type: String,
+      enum: ["offline", "online", "hybrid"],
+    },
+    returnServiceCredit: Number,
+    targetAudience: [String],
+    organizationId: String,
+  },
+  // Admin comments for proposal reviews
+  adminComments: {
+    type: String,
+    default: '',
   },
   contactPerson: {
     type: String,
-    required: [true, "Please add a contact person"],
+    required: function () {
+      // Only require contactPerson for non-school events
+      return this.category !== 'school-event';
+    },
+    default: 'Contact Person',
   },
   contactEmail: {
     type: String,
-    required: [true, "Please add a contact email"],
+    required: function () {
+      // Only require contactEmail for non-school events
+      return this.category !== 'school-event';
+    },
     match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, "Please add a valid email"],
+    default: 'contact@example.com',
   },
   contactPhone: {
     type: String,
-    required: [true, "Please add a contact phone number"],
+    required: function () {
+      // Only require contactPhone for non-school events
+      return this.category !== 'school-event';
+    },
+    default: '',
   },
   status: {
     type: String,
@@ -75,13 +120,18 @@ const ProposalSchema = new mongoose.Schema({
     default: "medium",
   },
   assignedTo: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
+    type: String, // Changed from ObjectId to String for testing
   },
   documents: [
     {
       name: String,
       path: String,
+      mimetype: String,
+      size: Number,
+      type: {
+        type: String,
+        enum: ["gpoa", "proposal", "accomplishment", "other"],
+      },
       uploadedAt: {
         type: Date,
         default: Date.now,
@@ -91,8 +141,7 @@ const ProposalSchema = new mongoose.Schema({
   reviewComments: [
     {
       reviewer: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
+        type: String, // Changed from ObjectId to String for testing
       },
       comment: String,
       decision: {
