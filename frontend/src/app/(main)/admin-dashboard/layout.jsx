@@ -17,20 +17,40 @@ export const metadata = {
 export const viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#0c2d6b"
 }
-
-export const themeColor = "#0c2d6b"
 
 export default function RootLayout({ children }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-      <SidebarProvider>
-        <div className="flex min-h-screen flex-col md:flex-row">
-          <AppSidebar />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <AppHeader />
-            <main className="flex-1 overflow-auto">{children}</main>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="light"
+      enableSystem={false}
+      disableTransitionOnChange
+    >
+      <SidebarProvider defaultOpen={true}>
+        <div className="bg-background layout-container">
+          <div className="flex h-screen">
+            {/* Fixed Sidebar */}
+            <AppSidebar />
+
+            {/* Main Content Area with Responsive Margin */}
+            <div
+              className="flex-1 flex flex-col sidebar-main-content transition-all duration-300 ease-out container-reset"
+              style={{ backgroundColor: 'transparent' }}
+            >
+              {/* Header with responsive padding */}
+              <header className="sticky top-0 z-header bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
+                <AppHeader />
+              </header>
+
+              {/* Main content with responsive overflow handling */}
+              <main className="flex-1 main-content-responsive z-content" style={{ backgroundColor: 'transparent' }}>
+                {children}
+              </main>
+            </div>
           </div>
         </div>
         <Toaster />
