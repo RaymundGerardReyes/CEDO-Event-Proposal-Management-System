@@ -3,14 +3,21 @@ const express = require("express")
 const cors = require("cors")
 const morgan = require("morgan")
 const path = require("path")
+const mysql = require('mysql2/promise');
+
+// Import MongoDB connection
+const { connectMongoDB } = require("./config/mongodb")
 
 // Require database config and routes from the root backend directory
 const { pool } = require("./config/db") // Path adjusted based on your structure
 const authRoutes = require("./routes/auth") // Path adjusted based on your structure
 const userRoutes = require("./routes/users") // Path adjusted based on your structure
-const proposalRoutes = require("./routes/proposals") // Path adjusted based on your structure
 const errorHandler = require("./middleware/error-handler")
 const { ensureTablesExist } = require("./middleware/db-check")
+
+// ✅ Import proposals routes
+const proposalsRouter = require('./routes/proposals');  // MySQL-focused proposals
+const mongoUnifiedRouter = require('./routes/mongodb-unified-api');  // Hybrid admin API
 
 // Initialize express app
 const app = express()
@@ -40,6 +47,7 @@ app.use(
 ) // Enables CORS for all origins (adjust in production)
 app.use(express.json()) // Parses JSON bodies
 app.use(morgan("dev")) // Logs HTTP requests in development mode
+app.use(express.urlencoded({ extended: true }));
 
 // Test DB connection
 async function testConnection() {
@@ -163,17 +171,36 @@ app.post("/api/create-tables", async (req, res) => {
 // FIXED: Wrap in try/catch to prevent unhandled promise rejections
 try {
   testConnection()
+  // Initialize MongoDB connection
+  connectMongoDB()
 } catch (error) {
   console.error("Error during database connection test:", error)
 }
 
 // Define routes
 app.use("/api/auth", authRoutes)
+app.use("/api/events", require("./routes/events"))
 app.use("/api/users", userRoutes)
-app.use("/api/proposals", proposalRoutes)
+app.use("/api/proposals", proposalsRouter)  // ✅ SINGLE PROPOSALS ROUTER - MySQL focused
 app.use("/api/reviews", require("./routes/reviews"))
 app.use("/api/reports", require("./routes/reports"))
 app.use("/api/compliance", require("./routes/compliance"))
+const organizationRoutes = require('./routes/organizations');
+app.use('/api/organizations', organizationRoutes);
+
+// ✅ Hybrid MongoDB+MySQL API on separate path for admin features
+app.use('/api/mongodb-proposals', mongoUnifiedRouter);
+
+// ✅ Admin Dashboard Route
+const adminRoutes = require('./routes/admin');
+app.use('/api/admin', adminRoutes);
+
+// ✅ Database API Routes
+const databaseApiRoutes = require('./routes/database-api');
+app.use('/api/db', databaseApiRoutes);
+
+// Static file serving for uploads
+app.use('/uploads', express.static('uploads'));
 
 // Error handling middleware
 // This should be the last middleware added
@@ -214,16 +241,19 @@ try {
   const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV} mode`)
     console.log(`API base URL: http://localhost:${PORT}/api`)
+    console.log(`📊 MySQL Proposals API: http://localhost:${PORT}/api/proposals`)
+    console.log(`📊 Hybrid Admin API: http://localhost:${PORT}/api/mongodb-proposals`)
 
     if (process.env.NODE_ENV === "development") {
       // Listing routes can be helpful in dev
       console.log("\nConfigured API Routes:")
-      console.log(`- /api/auth: Authentication & User management via Auth`)
+      console.log(`- /api/auth: Authentication & User management`)
       console.log(`- /api/users: User data access`)
-      console.log(`- /api/proposals: Proposal management`)
+      console.log(`- /api/proposals: Main proposal management (MySQL)`)
+      console.log(`- /api/mongodb-proposals: Hybrid admin API (MySQL + MongoDB files)`)
+      console.log(`- /api/organizations: Organization management`)
       console.log(`- /health: Server health check endpoint`)
       console.log(`- /api/db-check: Database connection check endpoint`)
-      // Add other routes here
       console.log("\nAccess the API endpoints using tools like Postman or your frontend application.")
     }
   })
