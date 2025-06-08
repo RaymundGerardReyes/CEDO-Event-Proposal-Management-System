@@ -538,4 +538,85 @@ export const ResponsiveFormCard = forwardRef(({
 
 ResponsiveFormCard.displayName = "ResponsiveFormCard"
 
+// FormSection component for organizing form content
+export const FormSection = forwardRef(({
+  children,
+  title,
+  description,
+  className,
+  ...props
+}, ref) => {
+  return (
+    <div
+      ref={ref}
+      className={cn("space-y-4", className)}
+      {...props}
+    >
+      {title && (
+        <div className="space-y-1">
+          <h3 className="text-lg font-medium leading-none tracking-tight">
+            {title}
+          </h3>
+          {description && (
+            <p className="text-sm text-muted-foreground">
+              {description}
+            </p>
+          )}
+        </div>
+      )}
+      {children}
+    </div>
+  )
+})
+
+FormSection.displayName = "FormSection"
+
+// FormActions component for form buttons
+export const FormActions = forwardRef(({
+  children,
+  className,
+  align = "right", // left, center, right, between
+  variant = "default", // default, inline, stacked
+  ...props
+}, ref) => {
+  const getAlignClasses = () => {
+    const alignments = {
+      left: "justify-start",
+      center: "justify-center",
+      right: "justify-end",
+      between: "justify-between"
+    }
+    return alignments[align] || alignments.right
+  }
+
+  const getVariantClasses = () => {
+    const variants = {
+      default: "flex gap-3",
+      inline: "flex gap-2",
+      stacked: "flex flex-col gap-2"
+    }
+    return variants[variant] || variants.default
+  }
+
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "pt-4 mt-6 border-t border-border",
+        getVariantClasses(),
+        getAlignClasses(),
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  )
+})
+
+FormActions.displayName = "FormActions"
+
+// FormField component (alias for ResponsiveFormField for compatibility)
+export const FormField = ResponsiveFormField
+
 export default ResponsiveForm
