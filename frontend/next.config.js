@@ -1,176 +1,229 @@
 /** @type {import('next').NextConfig} */
+
+// Bundle analyzer configuration
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.ANALYZE === 'true',
+  openAnalyzer: true,
+});
+
 const nextConfig = {
-  // React strict mode helps identify potential problems in an application
-  reactStrictMode: true,
-  // swcMinify is removed as it's enabled by default in Next.js 15.3.2
+  // React strict mode - disabled for faster development builds
+  reactStrictMode: false,
 
-  // Add allowedDevOrigins here
-  allowedDevOrigins: [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    // Add your machine's local network IP if you access it from other devices on your LAN
-    // For example: 'http://192.168.1.100:3000'
-  ],
-
-  // Image optimization configuration
-  images: {
-    domains: ["localhost", "placekitten.com", "picsum.photos"],
-  },
-
-  // API route rewrites
-  async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: "http://localhost:5050/api/:path*",
-
+  // FIXED: Turbopack configuration for Next.js 15.3.2 (Stable)
+  turbopack: {
+    // CORRECTED: Proper Turbopack rules for Next.js 15.3.2
+    rules: {
+      // Remove css-loader references - Turbopack handles CSS natively
+      "*.module.css": {
+        loaders: ["css"],
+        as: "*.module.css",
       },
-    ]
+    },
+    // CORRECTED: Resolve alias format for stable Turbopack
+    resolveAlias: {
+      "@": "./src",
+      "@components": "./src/components",
+      "@hooks": "./src/hooks",
+      "@utils": "./src/utils",
+      "@lib": "./src/lib",
+      "@contexts": "./src/contexts",
+    },
   },
 
-  // Security headers
-  async headers() {
-    return [
-      {
-        source: "/(.*)",
-        headers: [
-          {
-            key: "X-Content-Type-Options",
-            value: "nosniff",
-          },
-          {
-            key: "X-Frame-Options",
-            value: "DENY",
-          },
-          {
-            key: "X-XSS-Protection",
-            value: "1; mode=block",
-          },
-          {
-            key: "Referrer-Policy",
-            value: "strict-origin-when-cross-origin",
-          },
-          {
-            key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=()",
-          },
-        ],
-      },
-    ]
-  },
-
-  // Optimize webpack configuration
-  webpack: (config, { dev }) => {
-    if (dev) {
-      config.watchOptions = {
-        ...config.watchOptions,
-        poll: false,
-        ignored: /node_modules/,
-      }
-    }
-    return config
-  },
-
-  // Optimize page loading
-  pageExtensions: ["js", "jsx", "ts", "tsx", "mdx"],
-
-  // Optimize build output
-  output: "standalone", // Creates a standalone build that's easier to deploy
-
-  // Optimize module imports
+  // Experimental features (reduced for stability)
   experimental: {
-    // Optimize package imports (reduces bundle size)
+    // Optimize package imports (critical for your heavy dependencies)
+
     optimizePackageImports: [
+      // Radix UI components
+      "@radix-ui/react-avatar",
+      "@radix-ui/react-checkbox",
+      "@radix-ui/react-collapsible",
+      "@radix-ui/react-dialog",
+      "@radix-ui/react-dropdown-menu",
+      "@radix-ui/react-hover-card",
+      "@radix-ui/react-label",
+      "@radix-ui/react-popover",
+      "@radix-ui/react-progress",
+      "@radix-ui/react-radio-group",
+      "@radix-ui/react-scroll-area",
+      "@radix-ui/react-select",
+      "@radix-ui/react-separator",
+      "@radix-ui/react-slot",
+      "@radix-ui/react-tabs",
+      "@radix-ui/react-toast",
+      "@radix-ui/react-tooltip",
+      // Icon libraries
       "lucide-react",
-      "@radix-ui/react-icons",
-      "@mui/icons-material",
-      "@mui/material",
+      "react-icons",
+      // Heavy libraries
+      "framer-motion",
       "date-fns",
-      "lodash",
+      "react-hook-form",
+      "@hookform/resolvers",
+      "class-variance-authority",
+      "clsx",
+      "tailwind-merge",
+      // State management
+      "@xstate/react",
+      "xstate",
+      // Other utilities
+      "zod",
     ],
 
-    // Enable server components features
+    // Server Actions optimization
     serverActions: {
-      allowedOrigins: ["localhost:3000"],
+      allowedOrigins: ["localhost:3000", "127.0.0.1:3000"],
       bodySizeLimit: "2mb",
     },
 
-    // Configure Turbopack for faster development
-    turbo:
-      process.env.NEXT_USE_TURBO === "true"
-        ? {
-          rules: {
-            // Add any custom Turbopack rules here
-          },
-        }
-        : undefined,
-
-    // Optimize client-side navigation
+    // Enable optimistic client cache for faster navigation
     optimisticClientCache: true,
+
+    // FIXED: Disable CSS optimization to prevent critters error
     optimizeCss: false,
+
+    // Enable scroll restoration
     scrollRestoration: true,
+
+    // FIXED: Disable parallel processing to prevent build worker errors
+    parallelServerBuildTraces: false,
+    parallelServerCompiles: false,
   },
 
-  // Configure compiler options
+  // CORRECTED: SWC Compiler options for Next.js 15.3.2
   compiler: {
-    // Remove console.log in production
+    // Remove console.log in production only
     removeConsole:
       process.env.NODE_ENV === "production"
         ? {
-          exclude: ["error", "warn"],
+          exclude: ["error", "warn", "info"],
         }
         : false,
 
-    // Enable styled-components
+    // Enable styled-components for faster CSS-in-JS
     styledComponents: true,
+
+    // FIXED: Correct property name and structure
+    reactRemoveProperties:
+      process.env.NODE_ENV === "production"
+        ? {
+          properties: ["^data-testid$", "^data-test$", "^data-cy$"],
+        }
+        : false,
+
+    // Enable emotion for faster CSS-in-JS (if using emotion)
+    emotion: true,
   },
 
-  // Configure internationalization (if needed)
-  i18n:
-    process.env.NEXT_ENABLE_I18N === "true"
-      ? {
-        locales: ["en", "fr", "es"],
-        defaultLocale: "en",
-      }
-      : undefined,
+  // CORRECTED: External packages moved to correct location
+  serverExternalPackages: ["axios", "jose", "react-google-recaptcha"],
 
-  // TypeScript and ESLint configuration
+  // Image optimization
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'placekitten.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'picsum.photos',
+        pathname: '/**',
+      },
+    ],
+    formats: ["image/webp", "image/avif"],
+    minimumCacheTTL: 60,
+    dangerouslyAllowSVG: true,
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+  },
+
+  // Page extensions (optimized for JavaScript)
+  pageExtensions: ["js", "jsx"],
+
+  // Build output optimization - reverted for compatibility with dynamic features
+  output: "standalone",
+
+  // ESLint configuration
   eslint: {
     ignoreDuringBuilds: true,
-    dirs: ["pages", "app", "components", "lib", "src"],
+    dirs: ["src", "pages", "components"],
   },
+
+  // TypeScript configuration (for mixed projects)
   typescript: {
     ignoreBuildErrors: true,
-    tsconfigPath: "./tsconfig.json",
   },
 
-  // Configure redirects (if needed)
-  async redirects() {
-    return []
-  },
-
-  // Configure powered by header
-  poweredByHeader: false,
-
-  // Configure trailing slash
-  trailingSlash: false,
-
-  // Configure environment variables
+  // Environment variables
   env: {
     NEXT_PUBLIC_APP_ENV: process.env.NODE_ENV || "development",
   },
 
-  // Configure build directory
+  // Build directory
   distDir: ".next",
+
+  // Disable powered by header
+  poweredByHeader: false,
+
+  // Trailing slash configuration
+  trailingSlash: false,
+
+  // Compress responses
+  compress: true,
+
+  // Generate ETags for better caching
+  generateEtags: true,
+
+  // FIXED: Development indicators for Next.js 15.3.2
+  devIndicators: {
+    position: "bottom-right",
+  },
+
+  // Enhanced HMR and Fast Refresh configuration
+  webpack: (config, { dev, isServer }) => {
+    // Windows-specific optimizations
+    if (process.platform === 'win32') {
+      config.watchOptions = {
+        poll: 1000,
+        aggregateTimeout: 500,
+        ignored: ['**/node_modules/**', '**/.next/**'],
+      };
+
+      // Prevent permission issues on Windows
+      config.output = {
+        ...config.output,
+        clean: false, // Disable auto-clean to prevent permission issues
+      };
+    }
+
+    if (dev && !isServer) {
+      // Improve HMR performance and fix timing issues
+      config.watchOptions = {
+        ...config.watchOptions,
+        poll: 1000,
+        aggregateTimeout: 300,
+        ignored: /node_modules/,
+      };
+
+      // Fix Fast Refresh timing calculations
+      config.optimization = {
+        ...config.optimization,
+        providedExports: false,
+        usedExports: false,
+      };
+    }
+
+    return config;
+  },
 }
 
-// Conditionally apply configurations based on environment
-if (process.env.ANALYZE === "true") {
-  // Enable bundle analyzer in special builds
-  const withBundleAnalyzer = require("@next/bundle-analyzer")({
-    enabled: true,
-  })
-  module.exports = withBundleAnalyzer(nextConfig)
-} else {
-  module.exports = nextConfig
-}
+// Export configuration with bundle analyzer
+module.exports = withBundleAnalyzer(nextConfig);
