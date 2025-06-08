@@ -97,7 +97,7 @@ export const authApi = {
 
   getProfile: async () => {
     try {
-      const response = await api.get("/auth/me")
+      const response = await api.get("/users/me")
       return response.data
     } catch (error) {
       throw error
