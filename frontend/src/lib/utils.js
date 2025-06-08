@@ -1,10 +1,13 @@
+import { clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
+
 /**
  * Combines multiple class names into a single string
  * @param  {...any} classes - Class names to combine
  * @returns {string} - Combined class names
  */
-export function cn(...classes) {
-    return classes.filter(Boolean).join(" ")
+export function cn(...inputs) {
+    return twMerge(clsx(inputs))
 }
 
 /**
@@ -58,4 +61,57 @@ export function truncateText(text, length = 50) {
  */
 export function generateId() {
     return Math.random().toString(36).substring(2, 9)
+}
+
+// Enhanced responsive utilities
+export const breakpoints = {
+    xs: 475,
+    sm: 640,
+    md: 768,
+    lg: 1024,
+    xl: 1280,
+    '2xl': 1536,
+}
+
+export function getBreakpoint(width) {
+    if (width < breakpoints.sm) return 'xs'
+    if (width < breakpoints.md) return 'sm'
+    if (width < breakpoints.lg) return 'md'
+    if (width < breakpoints.xl) return 'lg'
+    if (width < breakpoints['2xl']) return 'xl'
+    return '2xl'
+}
+
+export function isMobileWidth(width) {
+    return width < breakpoints.md
+}
+
+// Debounce utility for performance
+export function debounce(func, wait) {
+    let timeout
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout)
+            func(...args)
+        }
+        clearTimeout(timeout)
+        timeout = setTimeout(later, wait)
+    }
+}
+
+// Safe JSON parse
+export function safeJsonParse(str, fallback = null) {
+    try {
+        return JSON.parse(str)
+    } catch {
+        return fallback
+    }
+}
+
+// Responsive grid column calculator
+export function getResponsiveColumns(totalItems, maxColumns = 4) {
+    if (totalItems <= 1) return 1
+    if (totalItems <= 2) return 2
+    if (totalItems <= 3) return 3
+    return Math.min(totalItems, maxColumns)
 }
