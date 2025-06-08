@@ -1,7 +1,11 @@
 "use client"
 
-import { PageHeader } from "@/components/page-header"
-import { Suspense } from "react"
+// Force dynamic rendering to prevent SSG issues
+export const dynamic = 'force-dynamic';
+
+import { PageHeader } from "@/components/page-header";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
 // Loading component
 function NewProposalLoading() {
@@ -22,7 +26,6 @@ function NewProposalLoading() {
 
 // Component that uses useSearchParams
 function NewProposalContent() {
-  const { useSearchParams } = require("next/navigation")
   const searchParams = useSearchParams()
 
   const type = searchParams.get("type") || "standard"
@@ -39,6 +42,10 @@ function NewProposalContent() {
       {/* New proposal form */}
       <form className="space-y-4">
         {/* Your form fields */}
+        <div className="p-4 bg-gray-50 rounded">
+          <p>Form fields for {type} proposal would go here...</p>
+          {template && <p>Using template: {template}</p>}
+        </div>
       </form>
     </div>
   )
