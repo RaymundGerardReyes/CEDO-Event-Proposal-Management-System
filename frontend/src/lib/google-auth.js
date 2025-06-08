@@ -243,7 +243,8 @@ export function renderGoogleSignInButton(elementOrId, buttonOptions = {}) {
         currentSignInPromiseActions = null;
         return;
       }
-      buttonDiv.innerHTML = ''; // Clear previous button if any, good for SPA views.
+      // Note: Avoiding innerHTML = '' to prevent React DOM conflicts
+      // Google will handle button replacement automatically
 
       const defaultRenderOptions = {
         theme: "outline",
