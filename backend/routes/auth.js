@@ -273,29 +273,16 @@ router.post("/google", async (req, res, next) => {
       }
 
       if (!user) {
-        isNewUser = true;
-        console.log(`Backend [/google]: Creating new user for Email: ${email}, GoogleID: ${googleId}`);
-        try {
-          const autoApproveNewGoogleUsers = process.env.AUTO_APPROVE_NEW_GOOGLE_USERS === 'true';
-          console.log(`Backend [/google]: New user auto-approval status: ${autoApproveNewGoogleUsers}`);
-
-          const [result] = await pool.query(
-            "INSERT INTO users (name, email, password, google_id, avatar, role, is_approved) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [name || email.split("@")[0], email, null, googleId, picture, ROLES.STUDENT, autoApproveNewGoogleUsers]
-          );
-          const [createdUsers] = await pool.query("SELECT * FROM users WHERE id = ?", [result.insertId]);
-          user = createdUsers[0];
-          await sessionManager.logAccess(user.id, user.role, "google_register");
-          console.log(`Backend [/google]: Successfully created new user ID ${user.id}. Approved: ${user.is_approved}`);
-        } catch (dbError) {
-          console.error(`Backend [/google] DB Error: Database error creating user:`, dbError.message);
-          return res.status(500).json({
-            message: "Could not create user account. Please try again later.",
-            error: process.env.NODE_ENV === "development" ? dbError.message : undefined,
-            reason: "DB_CREATE_USER_FAILED"
-          });
-        }
+        // For security: Only allow existing users to sign in with Google
+        // Do not create new users automatically to prevent unauthorized data storage
+        console.log(`Backend [/google]: User ${email} not found in system. Rejecting Google sign-in attempt.`);
+        return res.status(403).json({
+          message: "Account not found. Please contact an administrator to create your account first.",
+          reason: "USER_NOT_FOUND",
+          email: email // Optional: include email for admin reference
+        });
       } else {
+        // User found by email - link Google ID if not already linked
         console.log(`Backend [/google]: Linking Google ID ${googleId} to existing user ${user.id} (Email: ${email})`);
         try {
           await pool.query(
@@ -315,6 +302,7 @@ router.post("/google", async (req, res, next) => {
         }
       }
     } else {
+      // User found by Google ID - update profile if needed
       console.log(`Backend [/google]: User ${user.id} (Email: ${user.email}) found by Google ID. Checking for profile updates.`);
       if ((name && user.name !== name) || (picture && user.avatar !== picture)) {
         console.log(`Backend [/google]: Profile differences found. Updating name/avatar for user ${user.id}.`);
