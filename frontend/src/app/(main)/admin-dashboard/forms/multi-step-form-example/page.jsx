@@ -1,5 +1,8 @@
 "use client"
 
+// Force dynamic rendering to prevent SSG issues
+export const dynamic = 'force-dynamic';
+
 import { FormWizard } from "@/components/dashboard/admin/form-wizard"
 import { PageHeader } from "@/components/dashboard/admin/page-header"
 import { FormSection, ResponsiveForm } from "@/components/dashboard/admin/responsive-form"
