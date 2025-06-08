@@ -1,352 +1,221 @@
 "use client"
 
-import { useState, Suspense } from "react"
+// Force dynamic rendering to prevent SSG issues
+export const dynamic = 'force-dynamic';
+
+import { Suspense, useState } from "react"
+// Ensure the path to PageHeader is correct for the admin dashboard
 import { PageHeader } from "@/components/dashboard/admin/page-header"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/dashboard/admin/ui/card"
-import { Tabs, TabsList, TabsTrigger } from "@/components/dashboard/admin/ui/tabs"
-import { Button } from "@/components/dashboard/admin/ui/button"
-import { Input } from "@/components/dashboard/admin/ui/input"
 import { Badge } from "@/components/dashboard/admin/ui/badge"
+import { Button } from "@/components/dashboard/admin/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/dashboard/admin/ui/card"
+import { Input } from "@/components/dashboard/admin/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/dashboard/admin/ui/select"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
-  FileText,
-  CheckCircle,
-  Calendar,
-  X,
   AlertCircle,
-  Edit,
-  MessageSquare,
-  Search,
+  Archive,
+  Bell,
+  Calendar,
+  CheckCircle,
   ChevronDown,
   ChevronUp,
+  FileText,
+  MessageSquare,
   MoreHorizontal,
-  RefreshCw,
-  Bell,
+  Search,
+  X
 } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
-// Sample notification data
+// Sample notification data (enhanced for variety)
 const allNotifications = [
-  // Organization notifications
   {
-    id: "notif-001",
-    type: "proposal_submitted",
-    title: "New Proposal Submitted",
-    message: "Science Fair Exhibition proposal was submitted by Alex Johnson",
-    organization: "Science Department",
-    timestamp: "2023-04-23T10:30:00",
-    relativeTime: "10 minutes ago",
-    status: "unread",
-    actionTag: "New",
-    icon: <FileText className="h-4 w-4" />,
-    iconBg: "bg-blue-100",
-    iconColor: "text-blue-600",
-    category: "organization",
+    id: "notif-001", type: "proposal_submitted", title: "New Proposal: Science Fair 2025",
+    message: "The Science Department has submitted a proposal for the annual Science Fair.",
+    organization: "Science Department", timestamp: "2023-04-23T10:30:00Z",
+    status: "unread", actionTag: "Review", icon: <FileText className="h-4 w-4" />,
+    iconBg: "bg-blue-100 dark:bg-blue-900", iconColor: "text-blue-600 dark:text-blue-300", category: "organization",
+    details: "Proposal includes budget for new equipment and guest speaker fees. Deadline for review: May 1st."
   },
   {
-    id: "notif-002",
-    type: "proposal_approved",
-    title: "Proposal Approved",
-    message: "Leadership Workshop proposal has been approved",
-    organization: "Student Council",
-    timestamp: "2023-04-23T08:15:00",
-    relativeTime: "2 hours ago",
-    status: "read",
-    actionTag: "Approved",
-    icon: <CheckCircle className="h-4 w-4" />,
-    iconBg: "bg-green-100",
-    iconColor: "text-green-600",
-    category: "organization",
+    id: "notif-002", type: "proposal_approved", title: "Approved: Leadership Workshop",
+    message: "Student Council's Leadership Workshop proposal has been approved.",
+    organization: "Student Council", timestamp: "2023-04-23T08:15:00Z",
+    status: "read", actionTag: "Approved", icon: <CheckCircle className="h-4 w-4" />,
+    iconBg: "bg-green-100 dark:bg-green-900", iconColor: "text-green-600 dark:text-green-300", category: "organization",
+    details: "Funding allocated. Event scheduled for June 10th. Promotion materials can now be prepared."
   },
   {
-    id: "notif-003",
-    type: "event_reminder",
-    title: "Event Reminder",
-    message: "Community Service Day starts tomorrow at 8:00 AM",
-    organization: "Community Outreach",
-    timestamp: "2023-04-22T10:30:00",
-    relativeTime: "1 day ago",
-    status: "unread",
-    actionTag: "Reminder",
-    icon: <Calendar className="h-4 w-4" />,
-    iconBg: "bg-amber-100",
-    iconColor: "text-amber-600",
-    category: "organization",
+    id: "notif-003", type: "event_reminder", title: "Reminder: Community Day Tomorrow",
+    message: "Community Service Day starts tomorrow at 8:00 AM. Volunteers to gather at main hall.",
+    organization: "Community Outreach", timestamp: "2023-04-22T10:30:00Z",
+    status: "unread", actionTag: "Reminder", icon: <Calendar className="h-4 w-4" />,
+    iconBg: "bg-amber-100 dark:bg-amber-900", iconColor: "text-amber-600 dark:text-amber-300", category: "organization",
+    details: "Ensure all team leaders have their volunteer lists and equipment ready."
   },
   {
-    id: "notif-004",
-    type: "proposal_rejected",
-    title: "Proposal Rejected",
-    message: "Tech Conference proposal was rejected. See comments for details.",
-    organization: "Tech Club",
-    timestamp: "2023-04-22T09:45:00",
-    relativeTime: "1 day ago",
-    status: "read",
-    actionTag: "Rejected",
-    icon: <X className="h-4 w-4" />,
-    iconBg: "bg-red-100",
-    iconColor: "text-red-600",
-    category: "organization",
+    id: "admin-notif-001", type: "system_update", title: "System Maintenance Scheduled",
+    message: "A system update is scheduled for May 5th, 2 AM - 4 AM. Expect brief downtime.",
+    organization: "IT Department", timestamp: "2023-04-24T14:00:00Z",
+    status: "unread", actionTag: "System", icon: <AlertCircle className="h-4 w-4" />,
+    iconBg: "bg-orange-100 dark:bg-orange-900", iconColor: "text-orange-600 dark:text-orange-300", category: "admin",
+    details: "This update includes security patches and performance improvements for the proposal management module."
   },
   {
-    id: "notif-005",
-    type: "revision_requested",
-    title: "Revision Requested",
-    message: "Please revise your Cultural Festival proposal based on the feedback",
-    organization: "Cultural Affairs",
-    timestamp: "2023-04-21T14:20:00",
-    relativeTime: "2 days ago",
-    status: "read",
-    actionTag: "Needs Revision",
-    icon: <Edit className="h-4 w-4" />,
-    iconBg: "bg-purple-100",
-    iconColor: "text-purple-600",
-    category: "organization",
+    id: "admin-notif-002", type: "user_feedback", title: "New User Feedback Received",
+    message: "A faculty member submitted feedback regarding the file upload process.",
+    organization: "System Feedback", timestamp: "2023-04-24T11:20:00Z",
+    status: "unread", actionTag: "Feedback", icon: <MessageSquare className="h-4 w-4" />,
+    iconBg: "bg-indigo-100 dark:bg-indigo-900", iconColor: "text-indigo-600 dark:text-indigo-300", category: "admin",
+    details: "User suggests increasing the maximum file size for supporting documents. See feedback ID #FDBK-789 for full text."
   },
   {
-    id: "notif-006",
-    type: "comment_added",
-    title: "New Comment",
-    message: "Admin has added a comment to your Alumni Networking Event proposal",
-    organization: "Alumni Association",
-    timestamp: "2023-04-20T11:30:00",
-    relativeTime: "3 days ago",
-    status: "read",
-    actionTag: "Comment",
-    icon: <MessageSquare className="h-4 w-4" />,
-    iconBg: "bg-indigo-100",
-    iconColor: "text-indigo-600",
-    category: "organization",
+    id: "student-notif-001", type: "event_cancelled", title: "Event Cancelled: Coding Workshop",
+    message: "The Advanced Coding Workshop scheduled for next Monday has been cancelled due to unforeseen circumstances.",
+    organization: "Tech Club", timestamp: "2023-04-24T09:00:00Z",
+    status: "read", actionTag: "Cancelled", icon: <X className="h-4 w-4" />,
+    iconBg: "bg-red-100 dark:bg-red-900", iconColor: "text-red-600 dark:text-red-300", category: "student",
+    details: "All registered participants have been notified. We apologize for any inconvenience."
   },
-  {
-    id: "notif-007",
-    type: "concern_raised",
-    title: "Concern Raised",
-    message: "A concern has been raised about the Research Symposium venue",
-    organization: "Research Department",
-    timestamp: "2023-04-19T09:15:00",
-    relativeTime: "4 days ago",
-    status: "read",
-    actionTag: "Concern",
-    icon: <AlertCircle className="h-4 w-4" />,
-    iconBg: "bg-orange-100",
-    iconColor: "text-orange-600",
-    category: "organization",
-  },
+];
 
-  // Admin notifications
-  {
-    id: "admin-notif-001",
-    type: "proposal_submitted",
-    title: "New Proposal Submitted",
-    message: "Annual Sports Tournament proposal submitted by Athletics Department",
-    organization: "Athletics Department",
-    timestamp: "2023-04-23T10:25:00",
-    relativeTime: "5 minutes ago",
-    status: "unread",
-    actionTag: "New",
-    icon: <FileText className="h-4 w-4" />,
-    iconBg: "bg-blue-100",
-    iconColor: "text-blue-600",
-    category: "admin",
-  },
-  {
-    id: "admin-notif-002",
-    type: "proposal_edited",
-    title: "Proposal Updated",
-    message: "Music Club has updated their Concert Series proposal",
-    organization: "Music Club",
-    timestamp: "2023-04-23T10:00:00",
-    relativeTime: "30 minutes ago",
-    status: "unread",
-    actionTag: "Updated",
-    icon: <Edit className="h-4 w-4" />,
-    iconBg: "bg-purple-100",
-    iconColor: "text-purple-600",
-    category: "admin",
-  },
-  {
-    id: "admin-notif-003",
-    type: "concern_raised",
-    title: "Student Concern",
-    message: "A student has raised a concern about the Debate Competition judging criteria",
-    organization: "Debate Society",
-    timestamp: "2023-04-23T09:30:00",
-    relativeTime: "1 hour ago",
-    status: "unread",
-    actionTag: "Concern",
-    icon: <AlertCircle className="h-4 w-4" />,
-    iconBg: "bg-orange-100",
-    iconColor: "text-orange-600",
-    category: "admin",
-  },
-  {
-    id: "admin-notif-004",
-    type: "proposal_approved",
-    title: "Proposal Approved",
-    message: "You approved the Photography Exhibition proposal from Photography Club",
-    organization: "Photography Club",
-    timestamp: "2023-04-22T15:45:00",
-    relativeTime: "1 day ago",
-    status: "read",
-    actionTag: "Approved",
-    icon: <CheckCircle className="h-4 w-4" />,
-    iconBg: "bg-green-100",
-    iconColor: "text-green-600",
-    category: "admin",
-  },
-  {
-    id: "admin-notif-005",
-    type: "proposal_rejected",
-    title: "Proposal Rejected",
-    message: "You rejected the Off-Campus Trip proposal from Adventure Club",
-    organization: "Adventure Club",
-    timestamp: "2023-04-22T14:30:00",
-    relativeTime: "1 day ago",
-    status: "read",
-    actionTag: "Rejected",
-    icon: <X className="h-4 w-4" />,
-    iconBg: "bg-red-100",
-    iconColor: "text-red-600",
-    category: "admin",
-  },
+// Utility to format date for display (e.g., "April 23, 2023")
+const formatDateHeading = (dateString) => {
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "Invalid Date";
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
 
-  // Student notifications
-  {
-    id: "student-notif-001",
-    type: "event_registration",
-    title: "Event Registration Confirmed",
-    message: "Your registration for the Leadership Workshop has been confirmed",
-    organization: "Student Council",
-    timestamp: "2023-04-23T09:45:00",
-    relativeTime: "45 minutes ago",
-    status: "unread",
-    actionTag: "Confirmed",
-    icon: <CheckCircle className="h-4 w-4" />,
-    iconBg: "bg-green-100",
-    iconColor: "text-green-600",
-    category: "student",
-  },
-  {
-    id: "student-notif-002",
-    type: "event_reminder",
-    title: "Event Reminder",
-    message: "The Science Fair Exhibition starts tomorrow at 9:00 AM",
-    organization: "Science Department",
-    timestamp: "2023-04-22T10:30:00",
-    relativeTime: "1 day ago",
-    status: "read",
-    actionTag: "Reminder",
-    icon: <Calendar className="h-4 w-4" />,
-    iconBg: "bg-amber-100",
-    iconColor: "text-amber-600",
-    category: "student",
-  },
-  {
-    id: "student-notif-003",
-    type: "comment_response",
-    title: "Response to Your Comment",
-    message: "The organizer has responded to your question about the Cultural Festival",
-    organization: "Cultural Affairs",
-    timestamp: "2023-04-21T15:30:00",
-    relativeTime: "2 days ago",
-    status: "read",
-    actionTag: "Response",
-    icon: <MessageSquare className="h-4 w-4" />,
-    iconBg: "bg-indigo-100",
-    iconColor: "text-indigo-600",
-    category: "student",
-  },
-]
+  if (date.toDateString() === today.toDateString()) return "Today";
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+
+  return date.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+};
+
+// Utility to format time for display (e.g., "10:30 AM")
+const formatTime = (dateString) => {
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
+// Fallback for PageHeader if it uses useSearchParams or takes time to load
+const PageHeaderFallback = () => (
+  <div className="mb-6 animate-pulse">
+    <div className="h-8 w-3/4 bg-gray-200 dark:bg-gray-700 rounded mb-2"></div>
+    <div className="h-4 w-1/2 bg-gray-200 dark:bg-gray-700 rounded"></div>
+  </div>
+);
 
 function NotificationsContent() {
-  const [notifications, setNotifications] = useState(allNotifications)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [typeFilter, setTypeFilter] = useState("all")
-  const [expandedNotification, setExpandedNotification] = useState(null)
+  const [notifications, setNotifications] = useState(allNotifications);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [expandedNotification, setExpandedNotification] = useState(null);
 
-  const markAllAsRead = () => {
+  // If PageHeader needs useSearchParams, it must be a client component.
+  // And it's good practice to import useSearchParams here if this component *also* used it.
+  // import { useSearchParams } from 'next/navigation';
+  // const searchParams = useSearchParams(); 
+
+  const handleMarkAsRead = (id) => {
     setNotifications(
-      notifications.map((notif) => ({
-        ...notif,
-        status: "read",
-      })),
-    )
-  }
+      notifications.map((notif) =>
+        notif.id === id ? { ...notif, status: "read" } : notif
+      )
+    );
+  };
 
-  const markAsRead = (id) => {
-    setNotifications(notifications.map((notif) => (notif.id === id ? { ...notif, status: "read" } : notif)))
-  }
+  const handleMarkAllAsRead = () => {
+    setNotifications(
+      notifications.map((notif) => ({ ...notif, status: "read" }))
+    );
+  };
+
+  const handleDeleteNotification = (id) => {
+    setNotifications(notifications.filter(notif => notif.id !== id));
+    // Consider adding a toast notification for deletion using your useToast hook
+  };
 
   const toggleExpand = (id) => {
-    setExpandedNotification(expandedNotification === id ? null : id)
-  }
+    setExpandedNotification(expandedNotification === id ? null : id);
+  };
 
-  const bumpNotification = (id) => {
-    // In a real app, this would call an API to bump the notification
-    alert(`Notification ${id} has been bumped to the top of the admin's queue.`)
-  }
-
-  // Filter notifications based on search, status, and type
   const filteredNotifications = notifications.filter((notif) => {
+    const lowerSearchTerm = searchTerm.toLowerCase();
     const matchesSearch =
-      notif.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      notif.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      notif.organization.toLowerCase().includes(searchTerm.toLowerCase())
+      notif.title.toLowerCase().includes(lowerSearchTerm) ||
+      notif.message.toLowerCase().includes(lowerSearchTerm) ||
+      notif.organization.toLowerCase().includes(lowerSearchTerm);
+    const matchesStatus = statusFilter === "all" || notif.status === statusFilter;
+    const matchesCategory = categoryFilter === "all" || notif.category === categoryFilter;
+    return matchesSearch && matchesStatus && matchesCategory;
+  });
 
-    const matchesStatus = statusFilter === "all" || notif.status === statusFilter
-    const matchesType = typeFilter === "all" || notif.type.includes(typeFilter)
-
-    return matchesSearch && matchesStatus && matchesType
-  })
-
-  // Group notifications by date
   const groupedNotifications = filteredNotifications.reduce((groups, notif) => {
-    const date = new Date(notif.timestamp).toLocaleDateString()
-    if (!groups[date]) {
-      groups[date] = []
+    const dateKey = new Date(notif.timestamp).toDateString();
+    if (!groups[dateKey]) {
+      groups[dateKey] = [];
     }
-    groups[date].push(notif)
-    return groups
-  }, {})
+    groups[dateKey].push(notif);
+    return groups;
+  }, {});
 
-  // Sort dates in descending order
-  const sortedDates = Object.keys(groupedNotifications).sort((a, b) => {
-    return new Date(b) - new Date(a)
-  })
+  const sortedDateKeys = Object.keys(groupedNotifications).sort(
+    (a, b) => new Date(b) - new Date(a)
+  );
 
   return (
-    <div className="flex-1 bg-[#f8f9fa] p-6 md:p-8">
-      <PageHeader title="Notifications" subtitle="Track all activities and updates" />
+    <div className="flex-1 bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 md:p-8">
+      {/* Wrap PageHeader in its own Suspense boundary.
+        This is crucial if PageHeader itself uses useSearchParams or other client hooks.
+        Ensure PageHeader component file (e.g., @/components/dashboard/admin/page-header.jsx)
+        has "use client"; at the top.
+      */}
+      <Suspense fallback={<PageHeaderFallback />}>
+        <PageHeader title="Notifications" subtitle="Track all activities and updates across the system" />
+      </Suspense>
 
-      <Card className="mb-6">
-        <CardHeader className="pb-3">
-          <CardTitle>Notification Center</CardTitle>
+      <Card className="mb-6 border dark:border-gray-700 shadow-sm rounded-lg">
+        <CardHeader className="pb-4 border-b dark:border-gray-700">
+          <CardTitle className="text-lg font-medium text-gray-900 dark:text-white">Notification Center</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <Tabs defaultValue="all" className="w-full sm:w-auto">
-              <TabsList className="grid w-full sm:w-auto grid-cols-3">
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="unread">Unread</TabsTrigger>
-                <TabsTrigger value="admin">Admin</TabsTrigger>
-              </TabsList>
-            </Tabs>
-
-            <div className="flex w-full sm:w-auto gap-2 flex-wrap sm:flex-nowrap">
-              <div className="relative w-full sm:w-auto">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Search notifications..."
-                  className="pl-8 w-full sm:w-[250px]"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
+        <CardContent className="pt-4">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
+            <div className="relative w-full md:flex-grow md:max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
+              <Input
+                type="search"
+                placeholder="Search notifications..."
+                className="pl-10 w-full bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-full sm:w-[150px] bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  <SelectItem value="organization">Organization</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="student">Student</SelectItem>
+                </SelectContent>
+              </Select>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[130px]">
+                <SelectTrigger className="w-full sm:w-[130px] bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -355,198 +224,126 @@ function NotificationsContent() {
                   <SelectItem value="read">Read</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="w-[130px]">
-                  <SelectValue placeholder="Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="proposal">Proposals</SelectItem>
-                  <SelectItem value="event">Events</SelectItem>
-                  <SelectItem value="comment">Comments</SelectItem>
-                  <SelectItem value="concern">Concerns</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="outline" onClick={markAllAsRead} className="text-black">
+              <Button variant="outline" onClick={handleMarkAllAsRead} className="w-full sm:w-auto border-gray-300 dark:border-gray-600">
                 Mark All Read
               </Button>
             </div>
           </div>
 
+          {filteredNotifications.length === 0 && (
+            <div className="text-center py-10">
+              <Bell className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No notifications</h3>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {searchTerm || statusFilter !== 'all' || categoryFilter !== 'all'
+                  ? "No notifications match your current filters."
+                  : "You're all caught up!"}
+              </p>
+            </div>
+          )}
+
           <div className="space-y-6">
-            {sortedDates.length > 0 ? (
-              sortedDates.map((date) => (
-                <div key={date} className="space-y-2">
-                  <h3 className="text-sm font-medium text-muted-foreground sticky top-0 bg-[#f8f9fa] py-1">
-                    {date === new Date().toLocaleDateString() ? "Today" : date}
-                  </h3>
-                  <div className="space-y-1 rounded-md border overflow-hidden">
-                    {groupedNotifications[date].map((notification) => (
-                      <div key={notification.id} className="border-b last:border-b-0">
-                        <div
-                          className={`flex items-start gap-3 p-4 hover:bg-muted/30 transition-colors ${
-                            notification.status === "unread" ? "bg-blue-50/50" : ""
-                          }`}
-                        >
-                          <div
-                            className={`h-10 w-10 rounded-full ${notification.iconBg} flex items-center justify-center ${notification.iconColor} flex-shrink-0`}
-                          >
-                            {notification.icon}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <p className="text-sm font-medium text-black">{notification.title}</p>
-                                <p className="text-xs text-muted-foreground truncate max-w-[300px] sm:max-w-[400px] md:max-w-full">
-                                  {notification.message}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                <Badge variant="outline" className="text-xs h-5">
-                                  {notification.actionTag}
-                                </Badge>
-                                <span className="text-xs text-muted-foreground">{notification.relativeTime}</span>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6"
-                                  onClick={() => toggleExpand(notification.id)}
-                                >
-                                  {expandedNotification === notification.id ? (
-                                    <ChevronUp className="h-4 w-4" />
-                                  ) : (
-                                    <ChevronDown className="h-4 w-4" />
+            {sortedDateKeys.map((dateKey) => (
+              <div key={dateKey}>
+                <h3 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 py-2 my-2 border-b dark:border-gray-700">
+                  {formatDateHeading(dateKey)}
+                </h3>
+                <ul className="space-y-1">
+                  {groupedNotifications[dateKey].map((notification) => (
+                    <li key={notification.id} className={`rounded-md transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/50 border dark:border-gray-700 ${notification.status === "unread" ? "bg-blue-50 dark:bg-blue-900/30 border-l-4 border-blue-500 dark:border-blue-500" : "bg-white dark:bg-gray-800/50"}`}>
+                      <div className="flex items-start gap-3 p-3">
+                        <div className={`mt-1 h-8 w-8 rounded-full ${notification.iconBg} flex items-center justify-center ${notification.iconColor} flex-shrink-0`}>
+                          {notification.icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-start">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">{notification.title}</p>
+                            <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                              <Badge variant={notification.status === "unread" ? "default" : "outline"} className={`text-xs h-5 whitespace-nowrap ${notification.status === "unread" ? "bg-blue-500 text-white dark:bg-blue-600 dark:text-blue-50" : "dark:border-gray-600"}`}>
+                                {notification.actionTag}
+                              </Badge>
+                              <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{formatTime(notification.timestamp)}</span>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => toggleExpand(notification.id)}>
+                                    {expandedNotification === notification.id ? <ChevronUp className="mr-2 h-4 w-4" /> : <ChevronDown className="mr-2 h-4 w-4" />}
+                                    {expandedNotification === notification.id ? "Hide Details" : "Show Details"}
+                                  </DropdownMenuItem>
+                                  {notification.status === "unread" && (
+                                    <DropdownMenuItem onClick={() => handleMarkAsRead(notification.id)}>
+                                      <CheckCircle className="mr-2 h-4 w-4" /> Mark as read
+                                    </DropdownMenuItem>
                                   )}
-                                </Button>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-6 w-6">
-                                      <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => markAsRead(notification.id)}>
-                                      Mark as read
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => bumpNotification(notification.id)}>
-                                      Bump notification
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
+                                  <DropdownMenuItem>
+                                    <Archive className="mr-2 h-4 w-4" /> Archive
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem className="text-red-600 dark:text-red-500 focus:bg-red-50 dark:focus:bg-red-900/50 focus:text-red-700 dark:focus:text-red-400" onClick={() => handleDeleteNotification(notification.id)}>
+                                    <X className="mr-2 h-4 w-4" /> Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
-                            <div className="flex justify-between items-center mt-1">
-                              <p className="text-xs text-muted-foreground">{notification.organization}</p>
-                              {notification.status === "unread" && (
-                                <div className="h-2 w-2 rounded-full bg-blue-600"></div>
-                              )}
-                            </div>
+                          </div>
+                          <p className="text-sm text-gray-600 dark:text-gray-300 truncate max-w-full">{notification.message}</p>
+                          <p className="text-xs text-gray-400 dark:text-gray-500">{notification.organization}</p>
+                        </div>
+                      </div>
+                      {expandedNotification === notification.id && (
+                        <div className="p-3 ml-11 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 rounded-b-md">
+                          <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">Details:</h4>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{notification.details || "No additional details."}</p>
+                          <div className="mt-2 flex gap-2">
+                            <Button size="xs" variant="outline" className="dark:border-gray-600">View Related Item</Button>
+                            {notification.category === "admin" && notification.type === "user_feedback" && (
+                              <Button size="xs" variant="outline" className="dark:border-gray-600">Respond to Feedback</Button>
+                            )}
                           </div>
                         </div>
-
-                        {expandedNotification === notification.id && (
-                          <div className="p-4 bg-gray-50 border-t animate-in slide-in-from-top duration-300">
-                            <div className="space-y-3">
-                              <div>
-                                <h4 className="text-sm font-medium">Details</h4>
-                                <p className="text-sm">{notification.message}</p>
-                              </div>
-
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                  <h4 className="text-sm font-medium">Organization</h4>
-                                  <p className="text-sm text-muted-foreground">{notification.organization}</p>
-                                </div>
-                                <div>
-                                  <h4 className="text-sm font-medium">Timestamp</h4>
-                                  <p className="text-sm text-muted-foreground">
-                                    {new Date(notification.timestamp).toLocaleString()}
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="flex justify-between items-center pt-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-cedo-blue"
-                                  onClick={() => markAsRead(notification.id)}
-                                >
-                                  Mark as read
-                                </Button>
-
-                                <div className="flex gap-2">
-                                  <Button variant="outline" size="sm" onClick={() => bumpNotification(notification.id)}>
-                                    <RefreshCw className="h-3 w-3 mr-1" />
-                                    Bump
-                                  </Button>
-                                  <Button variant="default" size="sm" className="bg-cedo-blue hover:bg-cedo-blue/90">
-                                    View Related Item
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <div className="rounded-full bg-gray-100 p-3">
-                  <Bell className="h-6 w-6 text-gray-400" />
-                </div>
-                <h3 className="mt-4 text-lg font-medium">No notifications found</h3>
-                <p className="mt-2 text-sm text-muted-foreground">Try adjusting your filters or check back later</p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </div>
-            )}
+            ))}
           </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
 
-// Loading state for Suspense fallback
-function NotificationsLoading() {
+// Fallback component for Suspense, used when the main content is loading
+function NotificationsPageLoading() {
   return (
-    <div className="flex-1 bg-[#f8f9fa] p-6 md:p-8">
-      <div className="h-8 w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
-      <div className="h-4 w-64 bg-gray-200 rounded animate-pulse mb-8"></div>
-      
-      <div className="rounded-lg border bg-white shadow-sm mb-6">
-        <div className="p-4 border-b">
-          <div className="h-6 w-40 bg-gray-200 rounded animate-pulse"></div>
+    <div className="flex-1 bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 md:p-8 animate-pulse">
+      <PageHeaderFallback /> {/* Use the specific fallback for PageHeader */}
+      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="h-6 w-1/3 bg-gray-300 dark:bg-gray-700 rounded"></div>
         </div>
         <div className="p-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <div className="h-10 w-60 bg-gray-200 rounded animate-pulse"></div>
-            <div className="flex gap-2">
-              <div className="h-10 w-40 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-10 w-32 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-10 w-32 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-10 w-32 bg-gray-200 rounded animate-pulse"></div>
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
+            <div className="h-10 w-full md:w-1/3 bg-gray-200 dark:bg-gray-700 rounded"></div>
+            <div className="flex gap-2 w-full md:w-auto">
+              <div className="h-10 w-28 bg-gray-200 dark:bg-gray-700 rounded"></div>
+              <div className="h-10 w-28 bg-gray-200 dark:bg-gray-700 rounded"></div>
+              <div className="h-10 w-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
             </div>
           </div>
-          
-          <div className="space-y-6">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="space-y-2">
-                <div className="h-5 w-20 bg-gray-200 rounded animate-pulse"></div>
-                <div className="border rounded-md overflow-hidden">
-                  {[1, 2, 3].map((j) => (
-                    <div key={j} className="border-b p-4">
-                      <div className="flex gap-3">
-                        <div className="h-10 w-10 rounded-full bg-gray-200 animate-pulse"></div>
-                        <div className="flex-1">
-                          <div className="h-5 w-40 bg-gray-200 rounded animate-pulse mb-2"></div>
-                          <div className="h-4 w-full bg-gray-200 rounded animate-pulse"></div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+          <div className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="flex items-start gap-3 p-3 rounded-md bg-gray-100 dark:bg-gray-700/50">
+                <div className="h-8 w-8 rounded-full bg-gray-300 dark:bg-gray-600 flex-shrink-0"></div>
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div className="h-4 w-3/4 bg-gray-300 dark:bg-gray-600 rounded"></div>
+                  <div className="h-3 w-full bg-gray-200 dark:bg-gray-500 rounded"></div>
+                  <div className="h-3 w-1/2 bg-gray-200 dark:bg-gray-500 rounded"></div>
                 </div>
               </div>
             ))}
@@ -554,13 +351,13 @@ function NotificationsLoading() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
-export default function NotificationsPage() {
+export default function AdminNotificationsPage() {
   return (
-    <Suspense fallback={<NotificationsLoading />}>
+    <Suspense fallback={<NotificationsPageLoading />}>
       <NotificationsContent />
     </Suspense>
-  )
+  );
 }
