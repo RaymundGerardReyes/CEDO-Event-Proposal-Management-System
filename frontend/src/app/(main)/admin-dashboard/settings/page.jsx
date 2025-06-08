@@ -1,491 +1,614 @@
-// src/app/(main)/admin-dashboard/settings/page.jsx
-// This page displays User Data / User Monitoring information from the backend.
-// It relies on a backend API to fetch from and update the 'cedo_auth.users' table.
-"use client";
+"use client"
 
-import { useAuth } from "@/contexts/auth-context"; // Assumes fetchAllUsers & updateUserApproval interact with your backend/DB
+// Force dynamic rendering to prevent SSR issues with the whitelist hook
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+
+import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
 
-// ShadCN UI Components & Lucide Icons
-import { PageHeader as AdminPageHeader } from "@/components/dashboard/admin/page-header";
-import { Alert, AlertDescription, AlertTitle } from "@/components/dashboard/admin/ui/alert";
-import { Badge } from "@/components/dashboard/admin/ui/badge"; // Used for user.role and user.is_approved
-import { Button } from "@/components/dashboard/admin/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/dashboard/admin/ui/card";
-import { useToast } from "@/components/dashboard/admin/ui/use-toast";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"; // Uses user.avatar, user.name
-import {
-    Dialog,
-    DialogClose,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle
-} from "@/components/ui/dialog";
+// Dynamic imports for better performance
+import NextDynamic from 'next/dynamic';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+
+// Custom Hook and Components
+import ConfirmationDialog from "./components/ConfirmationDialog";
+import UserTable from "./components/UserTable";
+import { useWhitelist } from "./hooks/useWhitelist";
+
+// Dynamically import EditUserModal to improve initial page load performance
+const EditUserModal = NextDynamic(() => import('./components/EditUserModal'), {
+    loading: () => <div className="flex items-center justify-center p-4">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cedo-blue"></div>
+    </div>,
+    ssr: false
+});
+
+// UI Components
+import { PageHeader } from "@/components/dashboard/admin/page-header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-import { AlertTriangle, Download, Loader2, Search, UserCheck, UserX, Users, Eye as ViewIcon, XCircle } from "lucide-react";
+// Icons
+import {
+    AlertTriangle,
+    Check,
+    ChevronDown,
+    Copy,
+    Download,
+    Eye,
+    EyeOff,
+    Key,
+    Mail,
+    Plus,
+    RefreshCw,
+    Search,
+    User,
+    Users,
+    X
+} from "lucide-react";
 
-// USER_ROLES should align with the enum definition in your 'users' table for the 'role' column.
-const USER_ROLES = ['student', 'head_admin', 'manager', 'partner', 'reviewer'];
+const WhitelistManagementPage = memo(() => {
+    const { user: authUser, loading: authLoading, isInitialized, ROLES: AuthRoles } = useAuth()
+    const router = useRouter()
 
-const UserMonitoringPage = () => {
-    // useAuth hook is critical. Its implementation must handle DB interactions via API calls.
-    // AuthRoles.head_admin should correspond to 'head_admin' in your DB 'role' enum.
-    const { user: authUser, loading: authLoading, fetchAllUsers, updateUserApproval, ROLES: AuthRoles } = useAuth();
-    const router = useRouter();
-    const { toast } = useToast();
+    // Use the custom whitelist hook for all business logic
+    const whitelist = useWhitelist(authUser)
 
-    const [usersList, setUsersList] = useState([]); // Stores data likely from 'SELECT * FROM users'
-    const [isLoadingUsers, setIsLoadingUsers] = useState(true);
-    const [fetchUsersError, setFetchUsersError] = useState(null);
-    const [isUpdatingApproval, setIsUpdatingApproval] = useState(false);
+    // Edit modal state
+    const [editModal, setEditModal] = useState({
+        isOpen: false,
+        user: null,
+        isSaving: false
+    })
 
-    const [searchTerm, setSearchTerm] = useState("");
-    const [selectedRole, setSelectedRole] = useState("");
-    const [selectedApprovalStatus, setSelectedApprovalStatus] = useState("");
-
-    const [selectedUser, setSelectedUser] = useState(null); // Holds one user object matching the DB schema
-    const [isUserDetailOpen, setIsUserDetailOpen] = useState(false);
-
-    // Authorization and Redirection Effect - This is client-side. Middleware handles server-side.
+    // Fix: Move authorization check to useEffect to prevent render-time router updates
     useEffect(() => {
-        if (authLoading) return;
-        // Ensure AuthRoles.head_admin matches the 'head_admin' string literal for DB role
-        if (!authUser || authUser.role !== AuthRoles.head_admin) {
-            router.replace("/");
+        if (!authLoading && isInitialized && (!authUser || authUser.role !== AuthRoles.head_admin)) {
+            router.replace("/sign-in");
         }
-    }, [authUser, authLoading, router, AuthRoles?.head_admin]); // Added optional chaining for safety
+    }, [authLoading, isInitialized, authUser, AuthRoles, router]);
 
-    // Fetching Users Callback
-    const loadUsers = useCallback(async () => {
-        // Ensure current user is authorized to fetch all users
-        if (!authLoading && authUser && authUser.role === AuthRoles.head_admin) {
-            setIsLoadingUsers(true);
-            setFetchUsersError(null);
-            try {
-                const response = await fetchAllUsers(); // This function in useAuth calls your backend API
-                // Backend should return users data matching the 'users' table schema
-                // e.g., each user object having id, name, email, role, is_approved, created_at, etc.
-                setUsersList(response.users || response || []);
-            } catch (error) {
-                console.error("Failed to fetch user data:", error);
-                setFetchUsersError(error.message || "An unexpected error occurred while fetching users.");
-                setUsersList([]);
-            }
-            finally {
-                setIsLoadingUsers(false);
-            }
-        } else if (!authLoading && (!authUser || authUser.role !== AuthRoles.head_admin)) {
-            setUsersList([]); // Clear list if not authorized
-            setIsLoadingUsers(false);
-        }
-    }, [authUser, authLoading, fetchAllUsers, AuthRoles?.head_admin]); // Added optional chaining
+    // Destructure needed values from the hook
+    const {
+        users,
+        isLoading,
+        searchTerm,
+        setSearchTerm,
+        selectedRole,
+        setSelectedRole,
+        clearFilters,
+        exportUsers,
+        newUser,
+        setNewUser,
+        formErrors,
+        isAddingUser,
+        addUserSuccess,
+        handleAddUser,
+        generatedPassword,
+        showPassword,
+        setShowPassword,
+        passwordCopied,
+        handleGeneratePassword,
+        copyPasswordToClipboard,
+        handleRoleChange,
+        deleteConfirmation,
+        initiateDeleteUser,
+        confirmDeleteUser,
+        cancelDeleteUser,
+        saveEdit, // We'll use this for the modal save
+        USER_ROLES,
+        userCount,
+        filteredCount
+    } = whitelist
 
-    useEffect(() => {
-        if (AuthRoles) { // Ensure AuthRoles is loaded before attempting to load users
-            loadUsers();
-        }
-    }, [loadUsers, AuthRoles]);
-
-    const filteredUsers = useMemo(() => {
-        return usersList.filter(user => {
-            const searchTermLower = searchTerm.toLowerCase();
-            // Assumes user object has name, email, organization fields from DB
-            const matchesSearch =
-                (user.name && user.name.toLowerCase().includes(searchTermLower)) ||
-                (user.email && user.email.toLowerCase().includes(searchTermLower)) ||
-                (user.organization && user.organization.toLowerCase().includes(searchTermLower));
-
-            const matchesRole = selectedRole ? user.role === selectedRole : true; // user.role from DB
-
-            // user.is_approved (boolean/tinyint) from DB
-            const userApprovalStatus = user.is_approved ? "approved" : "pending";
-            const matchesApproval = selectedApprovalStatus ? userApprovalStatus === selectedApprovalStatus : true;
-
-            return matchesSearch && matchesRole && matchesApproval;
+    // Memoized handlers for better performance
+    const handleEditUser = useCallback((user) => {
+        setEditModal({
+            isOpen: true,
+            user: user,
+            isSaving: false
         });
-    }, [usersList, searchTerm, selectedRole, selectedApprovalStatus]);
+    }, []);
 
-    const handleViewUserDetails = (userToView) => {
-        setSelectedUser(userToView); // userToView is an object from usersList
-        setIsUserDetailOpen(true);
-    };
+    const handleCloseEditModal = useCallback(() => {
+        if (!editModal.isSaving) {
+            setEditModal({
+                isOpen: false,
+                user: null,
+                isSaving: false
+            });
+        }
+    }, [editModal.isSaving]);
 
-    const handleApprovalChange = async (userToUpdate, newStatus) => {
-        if (!userToUpdate || !userToUpdate.id) return; // userToUpdate.id is users.id PK
-        setIsUpdatingApproval(true);
+    // Memoized save handler for edit modal
+    const handleSaveUserEdit = useCallback(async (userId, formData) => {
+        setEditModal(prev => ({ ...prev, isSaving: true }));
         try {
-            // updateUserApproval in useAuth calls backend API to update 'is_approved', 'approved_by', 'approved_at'
-            // It should pass userToUpdate.id and newStatus. Backend uses authUser.id for 'approved_by'.
-            await updateUserApproval(userToUpdate.id, newStatus);
-            toast({
-                title: "User Updated",
-                description: `${userToUpdate.name}'s approval status changed to ${newStatus ? 'Approved' : 'Pending'}.`,
-                variant: "success",
-            });
-            await loadUsers(); // Refresh user list
-
-            // Update details if the currently viewed user was the one updated
-            if (selectedUser && selectedUser.id === userToUpdate.id) {
-                setSelectedUser(prev => ({ ...prev, is_approved: newStatus }));
-                // Optionally, you might want to re-fetch the single user's complete data if 'approved_by' and 'approved_at' are displayed and changed
-            } else {
-                // If a different user's detail was open, or if it should reset. Consider if this is desired.
-                // Keeping it open might be fine if the list updates behind it.
-                // setIsUserDetailOpen(false);
-            }
-        } catch (error) {
-            console.error("Error updating user approval:", error);
-            toast({
-                title: "Update Failed",
-                description: error.message || "Could not update user approval status.",
-                variant: "destructive",
-            });
+            await saveEdit(userId, 'name', formData.name);
+            await saveEdit(userId, 'email', formData.email);
+            await saveEdit(userId, 'role', formData.role);
+            await saveEdit(userId, 'organization', formData.organization);
         } finally {
-            setIsUpdatingApproval(false);
+            setEditModal(prev => ({ ...prev, isSaving: false }));
         }
-    };
+    }, [saveEdit]);
 
-    const getApprovalBadgeVariant = (is_approved) => { // Based on user.is_approved from DB
-        return is_approved ? "success" : "warning";
-    };
+    // Memoized form handlers
+    const handleInputChange = useCallback((field, value) => {
+        setNewUser(prev => ({ ...prev, [field]: value }));
+    }, [setNewUser]);
 
-    const getRoleBadgeVariant = (role) => { // Based on user.role from DB
-        switch (role) {
-            case 'head_admin': return "destructive";
-            case 'manager': return "info";
-            case 'student': return "secondary";
-            case 'partner': return "outline";
-            case 'reviewer': return "default"; // Assuming 'default' is a defined Badge variant
-            default: return "secondary";
-        }
-    };
+    // Memoized role options for better performance
+    const roleOptions = useMemo(() => USER_ROLES, [USER_ROLES]);
 
-    const getUserInitial = (name) => { // Based on user.name from DB
-        if (!name) return "U";
-        const parts = name.split(" ");
-        if (parts.length > 1) {
-            return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-        }
-        return name.substring(0, 2).toUpperCase();
-    };
+    // Memoized loading state
+    const isPageLoading = useMemo(() => {
+        return authLoading || !isInitialized;
+    }, [authLoading, isInitialized]);
 
-    const handleDownloadUsers = () => {
-        // filteredUsers contains objects that should mirror the DB structure
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(filteredUsers, null, 2));
-        const downloadAnchorNode = document.createElement('a');
-        downloadAnchorNode.setAttribute("href", dataStr);
-        downloadAnchorNode.setAttribute("download", "user_data.json");
-        document.body.appendChild(downloadAnchorNode);
-        downloadAnchorNode.click();
-        downloadAnchorNode.remove();
-    };
-
-    const clearFilters = () => {
-        setSearchTerm("");
-        setSelectedRole("");
-        setSelectedApprovalStatus("");
-    };
-
-    // Loading state for initial auth check
-    if (authLoading || !AuthRoles) { // Also wait for AuthRoles to be defined
+    // Show loading state
+    if (isPageLoading) {
         return (
-            <div className="p-6 space-y-6">
-                <Skeleton className="h-10 w-1/3" />
-                <Card>
-                    <CardHeader><Skeleton className="h-8 w-1/4" /></CardHeader>
-                    <CardContent className="space-y-4">
-                        {[...Array(3)].map((_, i) => (
-                            <div key={i} className="flex items-center space-x-4">
-                                <Skeleton className="h-12 w-12 rounded-full" />
-                                <div className="space-y-2">
-                                    <Skeleton className="h-4 w-[250px]" />
-                                    <Skeleton className="h-4 w-[200px]" />
-                                </div>
-                            </div>
-                        ))}
-                    </CardContent>
-                </Card>
+            <div className="min-h-screen flex items-center justify-center p-4">
+                <div className="w-full max-w-md">
+                    <div className="flex items-center justify-center mb-4">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cedo-blue"></div>
+                    </div>
+                    <p className="text-center text-muted-foreground">Loading...</p>
+                </div>
             </div>
-        );
+        )
     }
 
-    // Access Denied if not head_admin (client-side check)
+    // Show access denied if not authorized
     if (!authUser || authUser.role !== AuthRoles.head_admin) {
         return (
-            <div className="p-6">
-                <Alert variant="destructive">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Access Denied</AlertTitle>
-                    <AlertDescription>You do not have permission to view this page. Redirecting...</AlertDescription>
-                </Alert>
+            <div className="min-h-screen flex items-center justify-center p-4">
+                <div className="w-full max-w-md">
+                    <Alert variant="destructive" className="shadow-lg">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertTitle className="text-base sm:text-lg">Access Denied</AlertTitle>
+                        <AlertDescription className="text-sm sm:text-base mt-2">
+                            You do not have permission to view this page. Only head administrators can manage the user whitelist.
+                        </AlertDescription>
+                    </Alert>
+                </div>
             </div>
-        );
+        )
     }
 
-    // Main Page Content
+    // Custom select input with dropdown icon (Enhanced with responsive design)
+    const CustomSelect = ({ value, onChange, options, placeholder }) => (
+        <div className="relative">
+            <select
+                className="appearance-none h-10 w-full min-w-[120px] sm:min-w-[180px] lg:min-w-[200px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 transition-all duration-200"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+            >
+                <option value="">{placeholder}</option>
+                {options.map((option) => (
+                    <option key={option} value={option}>
+                        {option
+                            .split("_")
+                            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                            .join(" ")}
+                    </option>
+                ))}
+            </select>
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </div>
+        </div>
+    )
+
     return (
-        <div className="p-4 md:p-6 space-y-6">
-            <AdminPageHeader
-                title="User Management & Monitoring"
-                description="View, filter, and manage user accounts within the system."
+        <div className="flex-1 bg-[#f8f9fa] p-6 md:p-8">
+            <PageHeader
+                title="User Whitelist Management"
+                subtitle="View and manage all users authorized to access the system"
             />
 
-            {/* Filters Card */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Filters & Search Users</CardTitle>
-                    <CardDescription>Refine user list by searching or selecting filters.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="relative">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            type="search"
-                            placeholder="Search by name, email, organization..." // Matches user.name, user.email, user.organization
-                            className="pl-8 w-full"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Select value={selectedRole} onValueChange={setSelectedRole}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Filter by Role" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="">All Roles</SelectItem>
-                                {USER_ROLES.map(role => ( // USER_ROLES matches DB enum for 'role'
-                                    <SelectItem key={role} value={role}>{role.charAt(0).toUpperCase() + role.slice(1).replace('_', ' ')}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <Select value={selectedApprovalStatus} onValueChange={setSelectedApprovalStatus}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Filter by Approval Status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="">All Statuses</SelectItem>
-                                <SelectItem value="approved">Approved</SelectItem>
-                                <SelectItem value="pending">Pending Approval</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <Button onClick={clearFilters} variant="outline" className="w-full md:w-auto">
-                            <XCircle className="mr-2 h-4 w-4" /> Clear Filters
-                        </Button>
-                    </div>
-                </CardContent>
-                <CardFooter className="flex justify-end">
-                    <Button onClick={handleDownloadUsers} disabled={isLoadingUsers || filteredUsers.length === 0}>
-                        <Download className="mr-2 h-4 w-4" /> Download Filtered Users (JSON)
-                    </Button>
-                </CardFooter>
-            </Card>
+            {/* Main content - CSS Grid responsive layout (from article examples) */}
+            <div className="mt-6">
+                <Tabs defaultValue="whitelist" className="w-full">
+                    {/* Responsive tabs - mobile-first design */}
+                    <TabsList className="grid w-full grid-cols-2 mb-4 sm:mb-6 h-auto">
+                        <TabsTrigger
+                            value="whitelist"
+                            className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm md:text-base"
+                        >
+                            <Users className="h-3 w-3 sm:h-4 sm:w-4" />
+                            <span className="hidden xs:inline sm:hidden lg:inline">View Whitelist</span>
+                            <span className="xs:hidden sm:inline lg:hidden">Whitelist</span>
+                            <span className="hidden sm:inline">({userCount})</span>
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="add-user"
+                            className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm md:text-base"
+                        >
+                            <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
+                            <span className="hidden xs:inline sm:hidden lg:inline">Add New User</span>
+                            <span className="xs:hidden sm:inline lg:hidden">Add User</span>
+                        </TabsTrigger>
+                    </TabsList>
 
-            {/* Loading Skeletons for Users Table */}
-            {isLoadingUsers && (
-                <Card>
-                    <CardHeader><CardTitle>Loading User Data...</CardTitle></CardHeader>
-                    <CardContent className="space-y-3 pt-4">
-                        {[...Array(5)].map((_, i) => (
-                            <div key={i} className="flex items-center space-x-4 p-2 border-b">
-                                <Skeleton className="h-10 w-10 rounded-full" />
-                                <div className="flex-1 space-y-1">
-                                    <Skeleton className="h-4 w-3/4" />
-                                    <Skeleton className="h-3 w-1/2" />
+                    {/* Whitelist View Tab - Implementing responsive grid patterns */}
+                    <TabsContent value="whitelist" className="space-y-4 sm:space-y-6">
+                        <Card className="border border-gray-100 shadow-sm rounded-lg bg-white transition-all duration-200 hover:shadow-md">
+                            <CardHeader className="p-4 sm:p-6">
+                                <CardTitle className="text-lg sm:text-xl lg:text-2xl font-medium text-cedo-blue mb-2 flex items-center gap-2">
+                                    <Users className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" />
+                                    <span>Whitelisted Users</span>
+                                    <Badge variant="secondary" className="ml-auto text-xs sm:text-sm">
+                                        {userCount}
+                                    </Badge>
+                                </CardTitle>
+                                <p className="text-xs sm:text-sm lg:text-base text-muted-foreground">
+                                    Users authorized to access the system
+                                </p>
+                            </CardHeader>
+                            <CardContent className="p-4 sm:p-6 pt-0 space-y-4 sm:space-y-6">
+                                {/* Responsive search and filters - CSS Grid layout */}
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-12 sm:gap-6 lg:gap-8">
+                                    {/* Search bar - responsive width */}
+                                    <div className="relative sm:col-span-6 lg:col-span-8">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            type="search"
+                                            placeholder="Search users..."
+                                            className="pl-9 w-full h-10 sm:h-11 text-sm sm:text-base"
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
+                                    </div>
+
+                                    {/* Filters - responsive positioning */}
+                                    <div className="sm:col-span-6 lg:col-span-4">
+                                        <CustomSelect
+                                            value={selectedRole}
+                                            onChange={setSelectedRole}
+                                            options={roleOptions}
+                                            placeholder="All Roles"
+                                        />
+                                    </div>
                                 </div>
-                                <Skeleton className="h-6 w-24" />
-                            </div>
-                        ))}
-                    </CardContent>
-                </Card>
-            )}
 
-            {/* Error Fetching Users Alert */}
-            {fetchUsersError && !isLoadingUsers && (
-                <Alert variant="destructive">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Error Fetching Users</AlertTitle>
-                    <AlertDescription>{fetchUsersError}</AlertDescription>
-                </Alert>
-            )}
+                                {/* Action buttons - responsive flex layout */}
+                                <div className="flex flex-col xs:flex-row gap-3 sm:gap-4">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={clearFilters}
+                                        disabled={!searchTerm && !selectedRole}
+                                        className="w-full xs:w-auto text-xs sm:text-sm"
+                                    >
+                                        <X className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                                        Clear Filters
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={exportUsers}
+                                        disabled={filteredCount === 0}
+                                        className="w-full xs:w-auto text-xs sm:text-sm"
+                                    >
+                                        <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                                        <span className="hidden sm:inline">Export</span>
+                                        <span className="sm:hidden">Export JSON</span>
+                                    </Button>
+                                </div>
 
-            {/* Users Table */}
-            {!isLoadingUsers && !fetchUsersError && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>User Accounts ({filteredUsers.length})</CardTitle>
-                        <CardDescription>List of registered users in the system.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {filteredUsers.length === 0 ? (
-                            <div className="text-center py-10">
-                                <Users className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
-                                <p className="text-muted-foreground">No users found matching your criteria.</p>
-                            </div>
-                        ) : (
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="w-[60px]">Avatar</TableHead> {/* user.avatar */}
-                                        <TableHead>Name</TableHead> {/* user.name, user.id */}
-                                        <TableHead>Email</TableHead> {/* user.email */}
-                                        <TableHead>Role</TableHead> {/* user.role */}
-                                        <TableHead>Organization</TableHead> {/* user.organization, user.organization_type */}
-                                        <TableHead>Status</TableHead> {/* user.is_approved */}
-                                        <TableHead>Joined</TableHead> {/* user.created_at */}
-                                        <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {filteredUsers.map((user) => ( // Each 'user' object here matches the DB schema
-                                        <TableRow key={user.id /* users.id */}>
-                                            <TableCell>
-                                                <Avatar className="h-9 w-9">
-                                                    <AvatarImage src={user.avatar /* users.avatar */} alt={user.name} />
-                                                    <AvatarFallback>{getUserInitial(user.name /* users.name */)}</AvatarFallback>
-                                                </Avatar>
-                                            </TableCell>
-                                            <TableCell className="font-medium">
-                                                {user.name /* users.name */}
-                                                <div className="text-xs text-muted-foreground">ID: {user.id /* users.id */}</div>
-                                            </TableCell>
-                                            <TableCell>{user.email /* users.email */}</TableCell>
-                                            <TableCell>
-                                                <Badge variant={getRoleBadgeVariant(user.role /* users.role */)}>
-                                                    {user.role.charAt(0).toUpperCase() + user.role.slice(1).replace('_', ' ')}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                {user.organization || "N/A" /* users.organization */}
-                                                {user.organization_type && <span className="text-xs text-muted-foreground block">({user.organization_type /* users.organization_type */})</span>}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant={getApprovalBadgeVariant(user.is_approved /* users.is_approved */)}>
-                                                    {user.is_approved ? "Approved" : "Pending"}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>{new Date(user.created_at /* users.created_at */).toLocaleDateString()}</TableCell>
-                                            <TableCell className="text-right">
-                                                <Button variant="ghost" size="sm" onClick={() => handleViewUserDetails(user)} disabled={isUpdatingApproval}>
-                                                    <ViewIcon className="h-4 w-4 mr-1" /> View
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                {/* Enhanced User Table with Modal Editing */}
+                                <UserTable
+                                    users={users}
+                                    isLoading={isLoading}
+                                    onEditUser={handleEditUser}
+                                    onDeleteUser={initiateDeleteUser}
+                                />
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    {/* Add User Tab - Responsive form design */}
+                    <TabsContent value="add-user" className="space-y-4 sm:space-y-6">
+                        <Card className="border border-gray-100 shadow-sm rounded-lg bg-white transition-all duration-200 hover:shadow-md">
+                            <CardHeader className="p-4 sm:p-6">
+                                <CardTitle className="text-lg sm:text-xl lg:text-2xl font-medium text-cedo-blue mb-2 flex items-center gap-2">
+                                    <Plus className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" />
+                                    Add New User to Whitelist
+                                </CardTitle>
+                                <p className="text-xs sm:text-sm lg:text-base text-muted-foreground">
+                                    Manually authorize a new user to access the system
+                                </p>
+                            </CardHeader>
+                            <CardContent className="p-4 sm:p-6 pt-0">
+                                <form onSubmit={handleAddUser} className="space-y-4 sm:space-y-6">
+                                    {/* Responsive form grid - following article patterns */}
+                                    <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="email" className="text-xs sm:text-sm font-medium">
+                                                Email Address <span className="text-destructive">*</span>
+                                            </Label>
+                                            <div className="relative">
+                                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+                                                <Input
+                                                    id="email"
+                                                    type="email"
+                                                    placeholder="user@example.com"
+                                                    className={`pl-8 sm:pl-9 h-10 sm:h-11 text-sm sm:text-base ${formErrors.email ? "border-destructive ring-destructive/10" : ""}`}
+                                                    value={newUser.email}
+                                                    onChange={(e) => handleInputChange('email', e.target.value)}
+                                                />
+                                            </div>
+                                            {formErrors.email && <p className="text-xs sm:text-sm text-destructive">{formErrors.email}</p>}
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="name" className="text-xs sm:text-sm font-medium">
+                                                Full Name <span className="text-destructive">*</span>
+                                            </Label>
+                                            <div className="relative">
+                                                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+                                                <Input
+                                                    id="name"
+                                                    type="text"
+                                                    placeholder="John Doe"
+                                                    className={`pl-8 sm:pl-9 h-10 sm:h-11 text-sm sm:text-base ${formErrors.name ? "border-destructive ring-destructive/10" : ""}`}
+                                                    value={newUser.name}
+                                                    onChange={(e) => handleInputChange('name', e.target.value)}
+                                                />
+                                            </div>
+                                            {formErrors.name && <p className="text-xs sm:text-sm text-destructive">{formErrors.name}</p>}
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="role" className="text-xs sm:text-sm font-medium">
+                                                Role <span className="text-destructive">*</span>
+                                            </Label>
+                                            <CustomSelect
+                                                value={newUser.role}
+                                                onChange={handleRoleChange}
+                                                options={roleOptions}
+                                                placeholder="Select a role"
+                                            />
+                                            {formErrors.role && <p className="text-xs sm:text-sm text-destructive">{formErrors.role}</p>}
+                                        </div>
+
+                                        {/* Manager Password Generation Section */}
+                                        {newUser.role === "manager" && (
+                                            <div className="col-span-full space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                                <div className="flex items-center gap-2">
+                                                    <Key className="h-4 w-4 text-blue-600" />
+                                                    <Label className="text-sm font-medium text-blue-900">
+                                                        Manager Password Generation
+                                                    </Label>
+                                                </div>
+                                                <p className="text-xs text-blue-700">
+                                                    A secure temporary password will be generated for this manager account.
+                                                </p>
+
+                                                {generatedPassword && (
+                                                    <div className="space-y-3">
+                                                        <Label className="text-xs font-medium text-blue-900">
+                                                            Generated Password:
+                                                        </Label>
+                                                        <div className="relative">
+                                                            <Input
+                                                                type={showPassword ? "text" : "password"}
+                                                                value={generatedPassword}
+                                                                readOnly
+                                                                className="pr-20 font-mono text-sm bg-white border-blue-300 focus:border-blue-500"
+                                                            />
+                                                            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    className="h-6 w-6 p-0 hover:bg-blue-100"
+                                                                    onClick={() => setShowPassword(!showPassword)}
+                                                                >
+                                                                    {showPassword ? (
+                                                                        <EyeOff className="h-3 w-3" />
+                                                                    ) : (
+                                                                        <Eye className="h-3 w-3" />
+                                                                    )}
+                                                                </Button>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    className="h-6 w-6 p-0 hover:bg-blue-100"
+                                                                    onClick={copyPasswordToClipboard}
+                                                                >
+                                                                    {passwordCopied ? (
+                                                                        <Check className="h-3 w-3 text-green-600" />
+                                                                    ) : (
+                                                                        <Copy className="h-3 w-3" />
+                                                                    )}
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex gap-2">
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={handleGeneratePassword}
+                                                                className="text-xs border-blue-300 text-blue-700 hover:bg-blue-50"
+                                                            >
+                                                                <RefreshCw className="h-3 w-3 mr-1" />
+                                                                Regenerate
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={copyPasswordToClipboard}
+                                                                className="text-xs border-blue-300 text-blue-700 hover:bg-blue-50"
+                                                            >
+                                                                {passwordCopied ? (
+                                                                    <>
+                                                                        <Check className="h-3 w-3 mr-1 text-green-600" />
+                                                                        Copied!
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Copy className="h-3 w-3 mr-1" />
+                                                                        Copy Password
+                                                                    </>
+                                                                )}
+                                                            </Button>
+                                                        </div>
+
+                                                        <div className="text-xs text-blue-600 bg-blue-100 p-2 rounded">
+                                                            <p className="font-medium mb-1">Important:</p>
+                                                            <ul className="space-y-1 text-blue-700">
+                                                                <li>• This password will be sent to the manager via email</li>
+                                                                <li>• They should change it upon first login</li>
+                                                                <li>• Copy this password before submitting the form</li>
+                                                            </ul>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="organization" className="text-xs sm:text-sm font-medium">
+                                                Organization
+                                            </Label>
+                                            <Input
+                                                id="organization"
+                                                type="text"
+                                                placeholder="University or Organization"
+                                                className="h-10 sm:h-11 text-sm sm:text-base"
+                                                value={newUser.organization}
+                                                onChange={(e) => handleInputChange('organization', e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Responsive form actions */}
+                                    <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => {
+                                                setNewUser({
+                                                    email: "",
+                                                    name: "",
+                                                    role: "",
+                                                    organization: "",
+                                                })
+                                            }}
+                                            disabled={isAddingUser}
+                                            className="w-full sm:w-auto text-xs sm:text-sm"
+                                        >
+                                            <X className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                                            Clear Form
+                                        </Button>
+                                        <Button
+                                            type="submit"
+                                            className={`${addUserSuccess
+                                                ? "bg-green-600 hover:bg-green-700"
+                                                : "bg-cedo-blue hover:bg-cedo-blue/90"
+                                                } text-white w-full sm:w-auto text-xs sm:text-sm transition-all duration-300`}
+                                            disabled={isAddingUser}
+                                        >
+                                            {isAddingUser ? (
+                                                <>
+                                                    <div className="h-3 w-3 sm:h-4 sm:w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                                    Adding...
+                                                </>
+                                            ) : addUserSuccess ? (
+                                                <>
+                                                    <Check className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-white" />
+                                                    Added Successfully!
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Check className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                                                    Add to Whitelist
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
+                                </form>
+                            </CardContent>
+                        </Card>
+
+                        {/* Success Notification Card */}
+                        {addUserSuccess && (
+                            <Card className="border-green-200 bg-green-50 transition-all duration-500 animate-in slide-in-from-top-5">
+                                <CardContent className="p-4 sm:p-6">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                                            <Check className="h-4 w-4 text-green-600" />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <h4 className="font-semibold text-green-800 text-sm sm:text-base">
+                                                ✅ User Added Successfully!
+                                            </h4>
+                                            <p className="text-xs sm:text-sm text-green-700 mt-1">
+                                                The new user has been successfully added to the whitelist and can now access the system.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
                         )}
-                    </CardContent>
-                    {filteredUsers.length > 0 && (
-                        <CardFooter>
-                            <p className="text-xs text-muted-foreground">
-                                Displaying {filteredUsers.length} of {usersList.length} total users.
-                            </p>
-                        </CardFooter>
-                    )}
-                </Card>
-            )}
 
-            {/* User Details Dialog */}
-            {selectedUser && ( // selectedUser is an object matching DB schema
-                <Dialog open={isUserDetailOpen} onOpenChange={setIsUserDetailOpen}>
-                    <DialogContent className="sm:max-w-lg">
-                        <DialogHeader>
-                            <DialogTitle>User Details: {selectedUser.name} (ID: {selectedUser.id})</DialogTitle>
-                            <DialogDescription>
-                                {/* Displaying user.role, user.created_at */}
-                                Role: {selectedUser.role.charAt(0).toUpperCase() + selectedUser.role.slice(1).replace('_', ' ')} | Joined: {new Date(selectedUser.created_at).toLocaleString()}
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="grid gap-3 py-4 text-sm max-h-[60vh] overflow-y-auto pr-2">
-                            {/* All fields below are from selectedUser, matching DB columns */}
-                            <div className="grid grid-cols-[150px_1fr] items-center gap-2">
-                                <Label>Full Name:</Label><p>{selectedUser.name}</p>
-                            </div>
-                            <div className="grid grid-cols-[150px_1fr] items-center gap-2">
-                                <Label>Email Address:</Label><p>{selectedUser.email}</p>
-                            </div>
-                            <div className="grid grid-cols-[150px_1fr] items-center gap-2">
-                                <Label>Role:</Label>
-                                <Badge variant={getRoleBadgeVariant(selectedUser.role)}>{selectedUser.role.charAt(0).toUpperCase() + selectedUser.role.slice(1).replace('_', ' ')}</Badge>
-                            </div>
-                            <div className="grid grid-cols-[150px_1fr] items-center gap-2">
-                                <Label>Organization:</Label><p>{selectedUser.organization || "N/A"}</p>
-                            </div>
-                            <div className="grid grid-cols-[150px_1fr] items-center gap-2">
-                                <Label>Organization Type:</Label>
-                                <p>{selectedUser.organization_type ? selectedUser.organization_type.charAt(0).toUpperCase() + selectedUser.organization_type.slice(1) : "N/A"}</p>
-                            </div>
-                            <div className="grid grid-cols-[150px_1fr] items-center gap-2">
-                                <Label>Approval Status:</Label>
-                                <Badge variant={getApprovalBadgeVariant(selectedUser.is_approved)}>{selectedUser.is_approved ? "Approved" : "Pending Approval"}</Badge>
-                            </div>
-                            {selectedUser.is_approved && selectedUser.approved_by && ( // users.approved_by
-                                <div className="grid grid-cols-[150px_1fr] items-center gap-2">
-                                    <Label>Approved By (ID):</Label>
-                                    <p>{selectedUser.approved_by}</p>
+                        {/* Information Card - Responsive design */}
+                        <Card className="border-cedo-blue/20 bg-cedo-blue/5">
+                            <CardContent className="p-4 sm:p-6">
+                                <div className="flex items-start gap-3">
+                                    <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-cedo-blue/10 flex items-center justify-center flex-shrink-0 mt-1">
+                                        <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4 text-cedo-blue" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <h4 className="font-semibold text-cedo-blue mb-2 text-sm sm:text-base">Important Information</h4>
+                                        <ul className="text-xs sm:text-sm text-muted-foreground space-y-1">
+                                            <li>• Only users added to this whitelist can access the system</li>
+                                            <li>• Users cannot self-register or request access</li>
+                                            <li>• All access control is managed through this interface</li>
+                                            <li>• Changes take effect immediately</li>
+                                        </ul>
+                                    </div>
                                 </div>
-                            )}
-                            {selectedUser.is_approved && selectedUser.approved_at && ( // users.approved_at
-                                <div className="grid grid-cols-[150px_1fr] items-center gap-2">
-                                    <Label>Approved At:</Label>
-                                    <p>{new Date(selectedUser.approved_at).toLocaleString()}</p>
-                                </div>
-                            )}
-                            <div className="grid grid-cols-[150px_1fr] items-center gap-2">
-                                <Label>Google ID:</Label><p>{selectedUser.google_id || "Not linked"}</p> {/* users.google_id */}
-                            </div>
-                            <div className="grid grid-cols-[150px_1fr] items-center gap-2">
-                                <Label>Avatar URL:</Label><p className="truncate">{selectedUser.avatar || "No avatar"}</p> {/* users.avatar */}
-                            </div>
-                            <div className="grid grid-cols-[150px_1fr] items-center gap-2">
-                                <Label>Account Created:</Label><p>{new Date(selectedUser.created_at).toLocaleString()}</p> {/* users.created_at */}
-                            </div>
-                            <div className="grid grid-cols-[150px_1fr] items-center gap-2">
-                                <Label>Last Updated:</Label><p>{new Date(selectedUser.updated_at).toLocaleString()}</p> {/* users.updated_at */}
-                            </div>
-                        </div>
-                        <DialogFooter className="mt-2 flex flex-col sm:flex-row sm:justify-between items-center">
-                            <div className="flex gap-2 mb-2 sm:mb-0">
-                                {!selectedUser.is_approved ? (
-                                    <Button
-                                        variant="success"
-                                        size="sm"
-                                        onClick={() => handleApprovalChange(selectedUser, true)}
-                                        disabled={isUpdatingApproval}
-                                    >
-                                        {isUpdatingApproval ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserCheck className="mr-2 h-4 w-4" />}
-                                        Approve User
-                                    </Button>
-                                ) : (
-                                    <Button
-                                        variant="destructive"
-                                        size="sm"
-                                        onClick={() => handleApprovalChange(selectedUser, false)}
-                                        disabled={isUpdatingApproval}
-                                    >
-                                        {isUpdatingApproval ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserX className="mr-2 h-4 w-4" />}
-                                        Revoke Approval
-                                    </Button>
-                                )}
-                            </div>
-                            <DialogClose asChild>
-                                <Button type="button" variant="outline" disabled={isUpdatingApproval}>Close</Button>
-                            </DialogClose>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-            )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                </Tabs>
+            </div>
+
+            {/* Confirmation Dialog for User Deletion */}
+            <ConfirmationDialog
+                isOpen={deleteConfirmation.isOpen}
+                onClose={cancelDeleteUser}
+                onConfirm={confirmDeleteUser}
+                user={deleteConfirmation.user}
+                isDeleting={deleteConfirmation.isDeleting}
+            />
+
+            {/* Edit User Modal - Dynamically Loaded */}
+            <EditUserModal
+                isOpen={editModal.isOpen}
+                onClose={handleCloseEditModal}
+                onSave={handleSaveUserEdit}
+                user={editModal.user}
+                isSaving={editModal.isSaving}
+            />
         </div>
-    );
-};
+    )
+})
 
-export default UserMonitoringPage;
+WhitelistManagementPage.displayName = 'WhitelistManagementPage';
+
+export default WhitelistManagementPage
