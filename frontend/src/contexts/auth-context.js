@@ -7,7 +7,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5050/api";
-const SESSION_TIMEOUT_DURATION = 500 * 1000; // 500 seconds in milliseconds
+
+// Read session timeout from environment variable (in minutes), convert to milliseconds
+// Default to 30 minutes if not specified
+const SESSION_TIMEOUT_MINUTES = parseInt(process.env.NEXT_PUBLIC_SESSION_TIMEOUT_MINUTES);
+const SESSION_TIMEOUT_DURATION = SESSION_TIMEOUT_MINUTES * 60 * 1000; // Convert minutes to milliseconds
 
 const internalApi = axios.create({
   baseURL: API_URL,
@@ -71,12 +75,15 @@ export function AuthProvider({ children }) {
     if (axios.isAxiosError(error)) {
       const status = error.response?.status;
       const message = error.response?.data?.message;
+      const reason = error.response?.data?.reason;
 
       switch (status) {
         case 403:
-          if (message && message.toLowerCase().includes("pending approval")) {
+          if (reason === "USER_NOT_APPROVED" || (message && message.toLowerCase().includes("pending approval"))) {
             title = "Account Pending Approval";
             description = "Your account is currently pending approval. Please contact an administrator to activate your account.";
+            // Don't show toast for pending approval - let the calling component handle it
+            return { title, description, skipToast: true };
           } else if (message && message.toLowerCase().includes("not approved")) {
             title = "Account Not Approved";
             description = "Your account has not been approved yet. Please contact an administrator for assistance.";
@@ -106,8 +113,13 @@ export function AuthProvider({ children }) {
       description = error.message;
     }
 
-    showErrorToast(title, description);
-    return { title, description };
+    // Only show toast if not explicitly skipped
+    const errorInfo = { title, description };
+    if (!errorInfo.skipToast) {
+      showErrorToast(title, description);
+    }
+
+    return errorInfo;
   }, [showErrorToast]);
 
   const performRedirect = useCallback(
@@ -153,7 +165,7 @@ export function AuthProvider({ children }) {
     clearTimeout(sessionTimeoutId);
     if (user) {
       sessionTimeoutId = setTimeout(() => {
-        console.log(`Session timed out due to inactivity (${SESSION_TIMEOUT_DURATION / 1000} seconds).`);
+        console.log(`Session timed out due to inactivity (${SESSION_TIMEOUT_MINUTES} minutes).`);
         if (commonSignOutLogicWithDependencies) {
           commonSignOutLogicWithDependencies(true, `/sign-in?reason=session_timeout_activity&redirect=${encodeURIComponent(pathname)}`);
         }
@@ -277,12 +289,12 @@ export function AuthProvider({ children }) {
         if (storedUser) {
           currentUserData = JSON.parse(storedUser);
         } else {
-          const { data: meData } = await internalApi.get("/auth/me");
+          const { data: meData } = await internalApi.get("/users/me");
           if (meData && meData.user) {
             currentUserData = meData.user;
             localStorage.setItem("cedo_user", JSON.stringify(meData.user));
           } else {
-            throw new Error("No user data from /auth/me despite having a token.");
+            throw new Error("No user data from /users/me despite having a token.");
           }
         }
         setUser(currentUserData);
@@ -334,11 +346,6 @@ export function AuthProvider({ children }) {
       } catch (error) {
         // Use the new error handling system
         const errorInfo = handleAuthError(error, "Sign-In");
-
-        // Only log to console in development for debugging
-        if (process.env.NODE_ENV === 'development') {
-          console.error("AuthContext: Sign-In Error Details:", error);
-        }
 
         await commonSignOutLogicWithDependencies(false);
         setIsLoading(false);
@@ -435,13 +442,36 @@ export function AuthProvider({ children }) {
           throw new Error("Google Sign-In failed: No valid token or user data received from backend server.");
         }
       } catch (error) {
-        // Use the new error handling system instead of console.error
-        const errorInfo = handleAuthError(error, "Google Sign-In");
+        // Special handling for 403 pending approval errors
+        if (axios.isAxiosError(error) && error.response?.status === 403) {
+          const message = error.response?.data?.message;
+          const reason = error.response?.data?.reason;
 
-        // Only log to console in development for debugging
-        if (process.env.NODE_ENV === 'development') {
-          console.error("AuthContext: Google Sign-In Error Details:", error);
+          // Handle USER_NOT_FOUND error (new unauthorized user attempting Google sign-in)
+          if (reason === "USER_NOT_FOUND") {
+            const notFoundError = new Error("Account not found. Please contact an administrator to create your account first.");
+            notFoundError.isUserNotFound = true;
+            promiseActions.reject(notFoundError);
+            return;
+          }
+
+          // More robust detection of pending approval errors
+          if (reason === "USER_NOT_APPROVED" ||
+            (message && (
+              message.toLowerCase().includes("pending approval") ||
+              message.toLowerCase().includes("account pending") ||
+              message.toLowerCase().includes("not approved")
+            ))) {
+            // For pending approval, don't show toast - let the sign-in page handle it with the error dialog
+            const pendingApprovalError = new Error("Your account is currently pending approval. Please contact an administrator to activate your account.");
+            pendingApprovalError.isPendingApproval = true;
+            promiseActions.reject(pendingApprovalError);
+            return;
+          }
         }
+
+        // For all other errors, use the existing error handling system
+        const errorInfo = handleAuthError(error, "Google Sign-In");
 
         promiseActions.reject(new Error(errorInfo.description));
       } finally {
@@ -453,15 +483,17 @@ export function AuthProvider({ children }) {
     [commonSignInSuccess, handleAuthError, showSuccessToast]
   );
 
-  const signInWithGoogleAuth = useCallback(async (elementIdToRenderButtonIn, buttonOptions = {}) => {
-    console.log("AuthContext: signInWithGoogleAuth CALLED. Checking lock...");
+  const signInWithGoogleAuth = useCallback(async (buttonContainerElement, buttonOptions = {}) => {
+    console.log("AuthContext: signInWithGoogleAuth CALLED. Attempting to acquire lock...");
     return new Promise(async (resolveOuter, rejectOuter) => {
       if (currentGoogleSignInPromiseActions.current) {
-        console.warn("AuthContext: Another Google Sign-In operation is already in progress. Please wait.");
+        const errMessage = "AuthContext: Another Google Sign-In operation is already in progress. Please wait.";
+        console.warn(errMessage);
+        rejectOuter(new Error(errMessage)); // Ensure this outer promise is rejected
         return;
       }
 
-      console.log("AuthContext: LOCK ACQUIRED. Setting currentGoogleSignInPromiseActions.current.");
+      console.log("AuthContext: Lock acquired. Setting currentGoogleSignInPromiseActions.current.");
       currentGoogleSignInPromiseActions.current = { resolve: resolveOuter, reject: rejectOuter, initiatedAt: new Date().toISOString() };
 
       try {
@@ -480,7 +512,7 @@ export function AuthProvider({ children }) {
             console.log("AuthContext: signInWithGoogleAuth - Initializing google.accounts.id...");
             window.google.accounts.id.initialize({
               client_id: clientId,
-              callback: handleGoogleCredentialResponse,
+              callback: handleGoogleCredentialResponse, // This callback will use the resolveOuter/rejectOuter from currentGoogleSignInPromiseActions
               auto_select: false,
             });
             gsiClientInitialized = true;
@@ -493,41 +525,46 @@ export function AuthProvider({ children }) {
           console.log("AuthContext: signInWithGoogleAuth - GSI already initialized.");
         }
 
-        console.log(`AuthContext: signInWithGoogleAuth - Attempting to render button in element: ${elementIdToRenderButtonIn}`);
-        const buttonDiv = document.getElementById(elementIdToRenderButtonIn);
-        if (buttonDiv) {
-          buttonDiv.innerHTML = '';
+        console.log("AuthContext: signInWithGoogleAuth - Attempting to render button in element: ", buttonContainerElement);
+        const buttonDiv = buttonContainerElement;
+
+        // CRITICAL CHECK: Ensure the buttonDiv is a valid, attached DOM element before calling renderButton
+        if (buttonDiv && typeof buttonDiv.appendChild === 'function' && document.body.contains(buttonDiv)) {
           const defaultRenderOptions = {
             theme: "outline", size: "large", type: "standard", text: "signin_with",
           };
           const mergedOptions = { ...defaultRenderOptions, ...buttonOptions };
-          window.google.accounts.id.renderButton(buttonDiv, mergedOptions);
-          console.log(`AuthContext: signInWithGoogleAuth - Google button rendered in ${elementIdToRenderButtonIn}. Waiting for callback...`);
-        } else {
-          let errorMsg = `Google Sign-In Button Error: HTML element with ID '${elementIdToRenderButtonIn}' was not found in the DOM.`;
-          if (!elementIdToRenderButtonIn) {
-            errorMsg = `Google Sign-In Button Error: The 'elementIdToRenderButtonIn' parameter was not provided or was invalid. Cannot render button.`;
+
+          try {
+            await new Promise(resolve => setTimeout(resolve, 200)); // Delay for DOM stability
+            console.log("AuthContext: Pre-renderButton check. buttonDiv:", buttonDiv, "Parent:", buttonDiv.parentNode);
+            window.google.accounts.id.renderButton(buttonDiv, mergedOptions);
+            console.log(`AuthContext: signInWithGoogleAuth - Google button render initiated in ${buttonContainerElement}. Waiting for GSI callback...`);
+          } catch (renderError) {
+            console.error("AuthContext: Error during window.google.accounts.id.renderButton:", renderError.message, renderError);
+            currentGoogleSignInPromiseActions.current = null; // Release lock
+            rejectOuter(new Error(`Failed to render Google Sign-In button: ${renderError.message}`));
           }
-          console.error(`AuthContext: signInWithGoogleAuth - ${errorMsg}`);
-          throw new Error(errorMsg);
-        }
-      } catch (error) {
-        console.error("AuthContext: ERROR in signInWithGoogleAuth setup phase. Error message:", error.message, "Stack:", error.stack);
-        const promiseActionsForThisAttempt = currentGoogleSignInPromiseActions.current;
-        if (promiseActionsForThisAttempt && promiseActionsForThisAttempt.reject === rejectOuter) {
-          console.log("AuthContext: signInWithGoogleAuth catch - Rejecting promise for this attempt.");
-          promiseActionsForThisAttempt.reject(error);
-        } else if (promiseActionsForThisAttempt) {
-          console.warn("AuthContext: signInWithGoogleAuth catch - Mismatch in promise actions. Current promiseActions' initiatedAt:", promiseActionsForThisAttempt.initiatedAt);
-          rejectOuter(error);
         } else {
-          console.warn("AuthContext: signInWithGoogleAuth catch - No promise actions found. The promise might have been cleared.");
-          rejectOuter(error);
+          let errorMsg = "Google Sign-In Button Error: The provided button container element is invalid, not a function, or not attached to the DOM right before rendering.";
+          if (!buttonDiv) {
+            errorMsg = "Google Sign-In Button Error: The 'buttonContainerElement' was null or undefined when attempting to render.";
+          } else if (typeof buttonDiv.appendChild !== 'function') {
+            errorMsg = `Google Sign-In Button Error: The provided button container element is not a valid DOM element (appendChild not a function). Type: ${typeof buttonDiv}`;
+          } else if (!document.body.contains(buttonDiv)) {
+            errorMsg = "Google Sign-In Button Error: The provided button container element is not attached to the document body.";
+          }
+          console.error(`AuthContext: signInWithGoogleAuth - ${errorMsg}`, buttonDiv);
+          currentGoogleSignInPromiseActions.current = null; // Release lock
+          rejectOuter(new Error(errorMsg));
         }
-        console.log("AuthContext: signInWithGoogleAuth catch - Releasing LOCK by setting currentGoogleSignInPromiseActions.current to null. Old value:", currentGoogleSignInPromiseActions.current);
-        currentGoogleSignInPromiseActions.current = null;
-        console.log("AuthContext: signInWithGoogleAuth catch - LOCK RELEASED. currentGoogleSignInPromiseActions.current is now null.");
+      } catch (error) { // Catches errors from loadGoogleScript, GSI init, client ID checks, etc.
+        console.error("AuthContext: ERROR in signInWithGoogleAuth setup phase (before renderButton call). Error message:", error.message, "Stack:", error.stack);
+        currentGoogleSignInPromiseActions.current = null; // Release lock
+        rejectOuter(error); // Reject the promise for this specific call
       }
+      // If try block completes successfully (renderButton called), lock remains.
+      // It's released by handleGoogleCredentialResponse or if renderButton itself fails.
     });
   }, [loadGoogleScript, handleGoogleCredentialResponse]);
 
@@ -563,6 +600,8 @@ export function AuthProvider({ children }) {
     }
     try {
       console.log(`AuthContext: Updating approval for user ${userIdToUpdate} to ${newApprovalStatus}`);
+
+      // Ensure the payload is correct
       const response = await internalApi.put(`/users/${userIdToUpdate}/approval`, { is_approved: newApprovalStatus });
 
       // Show success message
