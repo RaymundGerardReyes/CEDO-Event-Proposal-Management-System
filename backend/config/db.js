@@ -4,7 +4,8 @@ require("dotenv").config() // Ensure environment variables are loaded
 
 console.log("Attempting to setup MySQL connection pool...") // Log startup step
 console.log("Database connection parameters:", {
-  host: process.env.DB_HOST || process.env.MYSQL_HOST || "localhost",
+  host: process.env.DB_HOST || process.env.MYSQL_HOST || "127.0.0.1",
+  port: process.env.DB_PORT || process.env.MYSQL_PORT || 3306,
   user: process.env.DB_USER || process.env.MYSQL_USER || "root",
   database: process.env.DB_NAME || process.env.MYSQL_DATABASE || "cedo_auth",
   // Not logging password for security reasons
@@ -12,7 +13,8 @@ console.log("Database connection parameters:", {
 
 // Create the connection pool using environment variables
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || process.env.MYSQL_HOST || "localhost",
+  host: process.env.DB_HOST || process.env.MYSQL_HOST || "127.0.0.1", // Use 127.0.0.1 instead of localhost (fixes connection issues)
+  port: process.env.DB_PORT || process.env.MYSQL_PORT || 3306, // Use port 3306 (standard MySQL port)
   user: process.env.DB_USER || process.env.MYSQL_USER || "root",
   password: process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || "",
   database: process.env.DB_NAME || process.env.MYSQL_DATABASE || "cedo_auth", // Database name
