@@ -61,8 +61,8 @@ module.exports = {
           primary: "hsl(var(--sidebar-primary))",
           "primary-foreground": "hsl(var(--sidebar-primary-foreground))",
         },
-        "cedo-blue": "#0066cc",
-        "cedo-gold": "#f7b928",
+        "cedo-blue": "#0E2B63",
+        "cedo-gold": "#F3BB02",
       },
       borderRadius: {
         lg: "var(--radius)",
