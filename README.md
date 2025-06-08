@@ -1,64 +1,62 @@
-To set up your CEDO Partnership Management System project, you will need to follow specific instructions for both the frontend and backend. Below are the detailed steps, including the necessary dependencies from the `package.json` files for both the frontend and backend.
-
 ### Project Setup Instructions
 
 #### Prerequisites
 Before you begin, ensure you have the following installed on your machine:
-- **Node.js** (v14 or higher)
+- **Node.js** (v14 or higher) Recommended to use this "node v20.19.1 (64-bit)" to avoid much Debugging
 - **MySQL** (v8 or higher)
 
 #### Step 1: Clone the Repository
 Clone the project repository to your local machine:
 ```bash
-git clone <repository-url>
-cd CEDO-Admin-Manager
+git clone https://github.com/2402-XU-CSCC22A/groupI
+cd CEDO-Admin-Manager-Student
 ```
 
-#### Step 2: Install Dependencies
+   #### Step 2: Install Dependencies
 
-##### Frontend Setup
-1. Navigate to the frontend directory:
-   ```bash
-   cd frontend
-   ```
+   ##### Frontend Setup
+   1. Navigate to the frontend directory:
+      ```bash
+      cd frontend
+      ```
 
-2. Install the frontend dependencies:
-   ```bash
-   npm install
-   ```
+   2. Install the frontend dependencies:
+      ```bash
+      npm install
+      ```
 
-   **Frontend Dependencies** (from `frontend/package.json`):
-   - `@google-recaptcha/react`: For Google reCAPTCHA integration.
-   - `@radix-ui/react-*`: Various UI components from Radix UI.
-   - `axios`: For making HTTP requests.
-   - `lucide-react`: For using icons.
-   - `next`: The Next.js framework.
-   - `react` and `react-dom`: React library and DOM bindings.
-   - `react-hook-form`: For handling forms.
-   - `tailwindcss`: For styling.
-   - `react-router-dom`: For routing (if needed).
+      **Frontend Dependencies** (from `frontend/package.json`):
+      - `@google-recaptcha/react`: For Google reCAPTCHA integration.
+      - `@radix-ui/react-*`: Various UI components from Radix UI.
+      - `axios`: For making HTTP requests.
+      - `lucide-react`: For using icons.
+      - `next`: The Next.js framework.
+      - `react` and `react-dom`: React library and DOM bindings.
+      - `react-hook-form`: For handling forms.
+      - `tailwindcss`: For styling.
+      - `react-router-dom`: For routing (if needed).
 
-##### Backend Setup
-1. Navigate to the backend directory:
-   ```bash
-   cd ../backend
-   ```
+   ##### Backend Setup
+   1. Navigate to the backend directory:
+      ```bash
+      cd ../backend
+      ```
 
-2. Install the backend dependencies:
-   ```bash
-   npm install
-   ```
+   2. Install the backend dependencies:
+      ```bash
+      npm install
+      ```
 
-   **Backend Dependencies** (from `backend/package.json`):
-   - `axios`: For making HTTP requests.
-   - `bcryptjs`: For hashing passwords.
-   - `cors`: For enabling CORS.
-   - `dotenv`: For loading environment variables.
-   - `express`: The Express.js framework.
-   - `express-validator`: For validating request data.
-   - `google-auth-library`: For Google authentication.
-   - `jsonwebtoken`: For handling JWTs.
-   - `mongoose`: For MongoDB object modeling (if using MongoDB).
+      **Backend Dependencies** (from `backend/package.json`):
+      - `axios`: For making HTTP requests.
+      - `bcryptjs`: For hashing passwords.
+      - `cors`: For enabling CORS.
+      - `dotenv`: For loading environment variables.
+      - `express`: The Express.js framework.
+      - `express-validator`: For validating request data.
+      - `google-auth-library`: For Google authentication.
+      - `jsonwebtoken`: For handling JWTs.
+      - `mongoose`: For MongoDB object modeling (if using MongoDB).
    - `mysql2`: For MySQL database connection.
    - `nodemailer`: For sending emails.
 
@@ -93,7 +91,6 @@ npm run init-db
 1. **Start the Backend**:
    ```bash
    cd backend
-   npm run dev
    ```
 
 2. **Start the Frontend**:
