@@ -16,7 +16,6 @@ import {
   DialogPortal,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FormControl, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
@@ -134,7 +133,7 @@ export default function SignInPage() {
         // if its only purpose is to show a spinner during this specific operation.
         setIsGoogleAuthProcessing(true); // For UI feedback, like showing your Loader2
 
-        signInWithGoogleAuth(GOOGLE_BUTTON_CONTAINER_ID)
+        signInWithGoogleAuth(container)
           .then(() => {
             setIsGoogleButtonRendered(true); // Mark that rendering was initiated successfully
             // No need to setIsGoogleAuthProcessing(false) here if the button is now rendered
@@ -305,67 +304,50 @@ export default function SignInPage() {
                 </div>
               </div>
 
-              <form onSubmit={handleSubmit}>
-                <div className="space-y-4">
-                  <FormItem>
-                    <FormLabel htmlFor="email" className="dark:text-gray-300">Email</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-gray-500" />
-                        <Input id="email" placeholder="your.email@example.com" type="email" autoComplete="email" name="email" value={formData.email} onChange={handleChange} className="pl-10 pr-2 w-full dark:bg-neutral-800 dark:text-gray-200 dark:border-neutral-600" disabled={isSubmittingEmail || isSubmittingGoogle} required />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-
-                  <FormItem>
-                    <div className="flex items-center justify-between">
-                      <FormLabel htmlFor="password" className="dark:text-gray-300">Password</FormLabel>
-                      <Link href="/forgot-password" tabIndex={-1} className="text-xs text-cedo-blue hover:underline dark:text-blue-400">
-                        Forgot password?
-                      </Link>
-                    </div>
-                    <FormControl>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-gray-500" />
-                        <Input id="password" placeholder="••••••••" type={showPassword ? "text" : "password"} autoComplete="current-password" name="password" value={formData.password} onChange={handleChange} className="pl-10 pr-10 w-full dark:bg-neutral-800 dark:text-gray-200 dark:border-neutral-600" disabled={isSubmittingEmail || isSubmittingGoogle} required />
-                        {/* Only show the toggle button if there is a password value */}
-                        {formData.password && (
-                          <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3 py-2 text-muted-foreground hover:bg-transparent dark:text-gray-400 dark:hover:bg-neutral-700" onClick={() => setShowPassword(!showPassword)} disabled={isSubmittingEmail || isSubmittingGoogle} aria-label={showPassword ? "Hide password" : "Show password"}>
-                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </Button>
-                        )}
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-
-                  {recaptchaSiteKey && (
-                    <div className="flex justify-center my-4">
-                      <ReCAPTCHA
-                        ref={recaptchaRef}
-                        sitekey={recaptchaSiteKey}
-                        onChange={handleCaptchaVerify}
-                        onErrored={handleCaptchaError}
-                        onExpired={resetCaptcha}
-                      />
-                    </div>
-                  )}
-
-                  <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                    <FormControl>
-                      <Checkbox id="rememberMe" name="rememberMe" checked={formData.rememberMe} onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, rememberMe: !!checked }))} disabled={isSubmittingEmail || isSubmittingGoogle} className="dark:border-neutral-600" />
-                    </FormControl>
-                    <FormLabel htmlFor="rememberMe" className="text-sm font-normal cursor-pointer dark:text-gray-300">
-                      Remember me
-                    </FormLabel>
-                  </FormItem>
-
-                  <Button type="submit" className="w-full dark:bg-blue-600 dark:hover:bg-blue-700" disabled={isSubmittingEmail || isSubmittingGoogle || (recaptchaSiteKey && !captchaToken)}>
-                    {isSubmittingEmail && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {isSubmittingEmail ? "Signing in..." : "Sign in"}
-                  </Button>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-1">
+                  <label htmlFor="email" className="block text-sm font-medium dark:text-gray-300">Email</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-gray-500" />
+                    <Input id="email" placeholder="your.email@example.com" type="email" autoComplete="email" name="email" value={formData.email} onChange={handleChange} className="pl-10 pr-2 w-full dark:bg-neutral-800 dark:text-gray-200 dark:border-neutral-600" disabled={isSubmittingEmail || isSubmittingGoogle} required />
+                  </div>
                 </div>
+
+                <div className="space-y-1">
+                  <label htmlFor="password" className="block text-sm font-medium dark:text-gray-300">Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-gray-500" />
+                    <Input id="password" placeholder="••••••••" type={showPassword ? "text" : "password"} autoComplete="current-password" name="password" value={formData.password} onChange={handleChange} className="pl-10 pr-10 w-full dark:bg-neutral-800 dark:text-gray-200 dark:border-neutral-600" disabled={isSubmittingEmail || isSubmittingGoogle} required />
+                    <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground dark:text-gray-500" onClick={() => setShowPassword(!showPassword)} aria-label="Toggle password visibility">
+                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center space-x-2">
+                    <Checkbox id="rememberMe" name="rememberMe" checked={formData.rememberMe} onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, rememberMe: checked }))} disabled={isSubmittingEmail || isSubmittingGoogle} />
+                    <span className="text-sm dark:text-gray-300">Remember me</span>
+                  </label>
+                  <Link href="/forgot-password" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Forgot password?</Link>
+                </div>
+
+                {recaptchaSiteKey && (
+                  <div className="flex justify-center my-4">
+                    <ReCAPTCHA
+                      ref={recaptchaRef}
+                      sitekey={recaptchaSiteKey}
+                      onChange={handleCaptchaVerify}
+                      onErrored={handleCaptchaError}
+                      onExpired={resetCaptcha}
+                    />
+                  </div>
+                )}
+
+                <Button type="submit" className="w-full dark:bg-blue-600 dark:hover:bg-blue-700" disabled={isSubmittingEmail || isSubmittingGoogle || (recaptchaSiteKey && !captchaToken)}>
+                  {isSubmittingEmail && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {isSubmittingEmail ? "Signing in..." : "Sign in"}
+                </Button>
               </form>
             </CardContent>
           </Card>
