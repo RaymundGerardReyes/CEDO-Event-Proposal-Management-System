@@ -1,308 +1,303 @@
-// frontend/src/lib/google-auth.js
+/**
+ * Google Authentication Library - Simplified for COOP Compatibility
+ * 
+ * A simplified wrapper for Google Identity Services that works with
+ * relaxed Cross-Origin-Opener-Policy settings for popup communication.
+ * 
+ * Features:
+ * - Google Identity Services SDK integration
+ * - Custom button rendering with theme options
+ * - Simplified promise handling
+ * - COOP-compatible popup communication
+ * - Development mode optimizations
+ * 
+ * @see https://developers.google.com/identity/gsi/web
+ * @see https://medium.com/@aswathyraj/google-oauth-in-node-js-express-and-react-js-6cb2e23e82e5
+ * 
+ * @module lib/google-auth
+ */
+
+// src/lib/google-auth.js
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
-let googleScriptLoadPromise = null;
-let gsiClientInitPromise = null;
-
-// Stores the resolve/reject functions for the current sign-in attempt's promise
-let currentSignInPromiseActions = null;
+let googleScriptPromise = null;
+let isGSIInitialized = false;
 
 /**
- * Handles the credential response from Google Identity Services.
- * This function is set as the global callback during GIS initialization.
- * It resolves or rejects the promise associated with the current sign-in attempt.
- * @param {object} response - The credential response object from Google.
+ * Simple credential response handler
+ * This function is registered globally and handles Google's authentication response
  */
 function handleCredentialResponse(response) {
-  if (!currentSignInPromiseActions) {
-    console.warn("Google Auth: Received credential response but no active sign-in promise was expecting it.", response);
-    return;
+  console.log('🔧 Google credential response received:', response);
+
+  // Dispatch global event for React components to listen
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('google-signin-response', {
+      detail: response
+    }));
   }
 
-  const { resolve, reject } = currentSignInPromiseActions;
-  currentSignInPromiseActions = null; // Consume the promise actions, critical for state management
+  // Handle active promise if exists
+  const actions = window.__currentGoogleSignInActions;
+  if (actions) {
+    window.__currentGoogleSignInActions = null;
 
-  if (response.error) {
-    console.warn("Google Auth Credential Error:", response.error, response.error_description || response.error_subtype);
-    const errorMessage = response.error_description || response.error_subtype || response.error || "Google Sign-In failed or was cancelled by the user.";
-    reject(new Error(errorMessage));
-  } else if (response.credential) {
-    resolve({ token: response.credential });
-  } else {
-    // This case should ideally not be reached if response.error is properly provided by Google for all error scenarios
-    reject(new Error("Google authentication failed: No credential in response and no error object."));
+    if (response.error) {
+      actions.reject(new Error(response.error_description || response.error));
+    } else if (response.credential) {
+      actions.resolve({ token: response.credential });
+    } else {
+      actions.reject(new Error('No credential received from Google'));
+    }
   }
 }
 
 /**
- * Loads the Google Identity Services (GIS) client script.
- * This function is idempotent: it ensures the script is loaded only once.
- * @returns {Promise<void>} A promise that resolves when the script is loaded, or rejects on error.
+ * Load Google Identity Services script
  */
-export function loadGoogleGIS() {
-  if (!googleScriptLoadPromise) {
-    googleScriptLoadPromise = new Promise((resolve, reject) => {
-      // Check if GIS client script is already effectively loaded and window.google.accounts.id is available
-      if (window.google && window.google.accounts && window.google.accounts.id) {
-        // console.log("Google GSI script already loaded.");
+export function loadGoogleScript() {
+  if (!googleScriptPromise) {
+    googleScriptPromise = new Promise((resolve, reject) => {
+      if (typeof window === 'undefined') {
+        return reject(new Error('Not in browser environment'));
+      }
+
+      // Register global callback
+      window.handleCredentialResponse = handleCredentialResponse;
+
+      // Check if already loaded
+      if (window.google?.accounts?.id) {
         return resolve();
       }
 
-      const scriptId = 'google-gsi-client-script';
-      let scriptElement = document.getElementById(scriptId);
+      // Create script element
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
 
-      if (scriptElement) {
-        // If script tag exists, it might be loading or failed.
-        // This simple check doesn't guarantee it's fully loaded and ready.
-        // Relying on window.google.accounts.id above is safer.
-        // For robustness, if the script element exists but window.google.accounts.id is not yet there,
-        // it means it's either still loading or failed.
-        // The `onload` and `onerror` handlers are crucial.
-        // If another instance of this function is called while script is loading,
-        // they should all await the same `googleScriptLoadPromise`.
-      }
-
-      if (!scriptElement) {
-        scriptElement = document.createElement("script");
-        scriptElement.id = scriptId;
-        scriptElement.src = "https://accounts.google.com/gsi/client";
-        scriptElement.async = true;
-        scriptElement.defer = true;
-        document.head.appendChild(scriptElement);
-      }
-
-      scriptElement.onload = () => {
-        if (window.google && window.google.accounts && window.google.accounts.id) {
-          resolve();
-        } else {
-          console.error("Google GSI script loaded but window.google.accounts.id not found.");
-          googleScriptLoadPromise = null; // Allow retry on next call
-          reject(new Error("Google GSI script loaded but not correctly initialized by Google."));
-        }
+      script.onload = () => {
+        // Wait for Google API to be available
+        const checkGoogle = () => {
+          if (window.google?.accounts?.id) {
+            resolve();
+          } else {
+            setTimeout(checkGoogle, 100);
+          }
+        };
+        checkGoogle();
       };
 
-      scriptElement.onerror = (error) => {
-        console.error("Failed to load Google GSI script:", error);
-        if (scriptElement && scriptElement.parentNode) {
-          scriptElement.parentNode.removeChild(scriptElement); // Clean up failed script tag
-        }
-        googleScriptLoadPromise = null; // Allow retry on next call
-        reject(new Error("Failed to load Google GSI script."));
+      script.onerror = () => {
+        googleScriptPromise = null;
+        reject(new Error('Failed to load Google script'));
       };
+
+      document.head.appendChild(script);
     });
   }
-  return googleScriptLoadPromise;
+
+  return googleScriptPromise;
 }
 
 /**
- * Initializes the Google Identity Services client with the configured Client ID and callback.
- * This function is idempotent.
- * @returns {Promise<void>} A promise that resolves when GIS is initialized, or rejects on error.
+ * Initialize Google Identity Services
  */
-export function initializeGoogleGIS() {
-  if (!gsiClientInitPromise) {
-    gsiClientInitPromise = loadGoogleGIS().then(() => {
-      if (!GOOGLE_CLIENT_ID) {
-        console.error("Google Client ID is not configured for GSI initialization.");
-        throw new Error("Google Client ID is not configured."); // This will reject gsiClientInitPromise
-      }
-      if (!window.google || !window.google.accounts || !window.google.accounts.id) {
-        // Should be caught by loadGoogleGIS, but as a safeguard:
-        console.error("Google GSI client not available for initialization (window.google.accounts.id is missing).");
-        throw new Error("Google Sign-In script not loaded or available before initialization.");
-      }
-
-      try {
-        window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: handleCredentialResponse, // Global callback handler for all GIS credential responses
-          auto_select: false, // Set to true if you want One Tap to attempt auto sign-in on init
-          cancel_on_tap_outside: true, // For the One Tap prompt
-        });
-        return Promise.resolve(); // Google's initialize is synchronous
-      } catch (error) {
-        console.error("Error initializing Google GSI client:", error);
-        gsiClientInitPromise = null; // Allow retry on next call
-        throw error; // Rethrow to reject the promise
-      }
-    }).catch(error => {
-      gsiClientInitPromise = null; // Ensure reset on any failure in the chain
-      throw error; // Propagate error to the caller
-    });
-  }
-  return gsiClientInitPromise;
-}
-
-/**
- * Attempts to sign in the user using Google's One Tap prompt.
- * @returns {Promise<{token: string}>} A promise that resolves with the ID token, or rejects on error/cancellation.
- */
-export function signInWithGooglePrompt() {
-  if (currentSignInPromiseActions) {
-    console.warn("Google Auth: signInWithGooglePrompt called while another sign-in operation is already in progress.");
-    return Promise.reject(new Error("Another Google Sign-In operation is already in progress."));
-  }
-
-  return new Promise(async (resolve, reject) => {
-    currentSignInPromiseActions = { resolve, reject };
-
+export function initializeGoogleGSI() {
+  return loadGoogleScript().then(() => {
     if (!GOOGLE_CLIENT_ID) {
-      // This check is also in initializeGoogleGIS, but good for early exit.
-      currentSignInPromiseActions.reject(new Error("Google Client ID is not configured."));
-      currentSignInPromiseActions = null;
-      return;
+      throw new Error('Google Client ID not configured');
     }
 
-    try {
-      await initializeGoogleGIS(); // Ensures GIS is loaded and initialized.
-
-      window.google.accounts.id.prompt((notification) => {
-        // This notification callback is for the prompt's lifecycle, distinct from the credential callback.
-        if (!currentSignInPromiseActions && !notification.isDismissedMoment() && !notification.isSkippedMoment() && !notification.isNotDisplayed()) {
-          // If there's no active promise but a positive notification, it's an unexpected state.
-          // This might happen if the prompt displays and then currentSignInPromiseActions is cleared externally before resolution.
-          // console.warn("Google Auth: Prompt notification received but no active promise handler.", notification);
-          // For most cases, if a credential is returned, handleCredentialResponse will be called.
-          // This block primarily handles cases where the prompt *doesn't* lead to a credential immediately.
-        }
-
-        if (notification.isNotDisplayed()) {
-          const reason = notification.getNotDisplayedReason();
-          console.warn("Google Sign-In prompt not displayed:", reason);
-          if (currentSignInPromiseActions) {
-            currentSignInPromiseActions.reject(new Error(`Google prompt not displayed: ${reason}. Consider showing a sign-in button.`));
-            currentSignInPromiseActions = null;
-          }
-        } else if (notification.isSkippedMoment()) {
-          const reason = notification.getSkippedReason();
-          console.warn("Google Sign-In prompt skipped:", reason);
-          if (currentSignInPromiseActions) {
-            currentSignInPromiseActions.reject(new Error(`Google prompt skipped: ${reason}.`));
-            currentSignInPromiseActions = null;
-          }
-        } else if (notification.isDismissedMoment()) {
-          // This means the user closed the prompt (e.g., clicked 'X' or ESC).
-          const reason = notification.getDismissedReason();
-          console.warn("Google Sign-In prompt dismissed by user:", reason);
-          if (currentSignInPromiseActions) {
-            currentSignInPromiseActions.reject(new Error(`Google prompt dismissed by user: ${reason}.`));
-            currentSignInPromiseActions = null;
-          }
-        }
-        // If the prompt displays and the user selects an account, 
-        // `handleCredentialResponse` will be invoked by Google's library,
-        // which will then resolve/reject `currentSignInPromiseActions`.
+    if (!isGSIInitialized) {
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleCredentialResponse,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+        // ✅ COOP-compatible settings
+        use_fedcm_for_prompt: false, // Disable FedCM for better COOP compatibility
+        itp_support: true,
       });
-    } catch (error) {
-      console.error("Google sign-in via prompt error:", error);
-      if (currentSignInPromiseActions) {
-        currentSignInPromiseActions.reject(error);
-        currentSignInPromiseActions = null;
-      } else {
-        // If currentSignInPromiseActions is null here, an error occurred after it was already cleared
-        // or before it was properly set. The initial reject passed to new Promise should handle it.
-        // This specific path might not be hit if logic above is sound.
-      }
+      isGSIInitialized = true;
     }
+
+    return Promise.resolve();
   });
 }
 
 /**
- * Renders a Google Sign-In button in the specified HTML element and returns a promise for the sign-in result.
- * @param {string|HTMLElement} elementOrId - The HTML element or its ID where the button should be rendered.
- * @param {object} [buttonOptions] - Customization options for the button (e.g., theme, size, text).
- * See Google's documentation for `IdConfiguration.text` for text options.
- * Example: { text: "Sign in with Google" } or { text: "continue_with" }
- * @returns {Promise<{token: string}>} A promise that resolves with the ID token upon successful sign-in, or rejects on error/cancellation.
+ * Render Google Sign-In button
+ * 
+ * @param {HTMLElement|string} elementOrId - Container element or ID
+ * @param {Object} options - Button customization options
+ * @returns {Promise} Promise that resolves with user token
  */
-export function renderGoogleSignInButton(elementOrId, buttonOptions = {}) {
-  if (currentSignInPromiseActions) {
-    console.warn("Google Auth: renderGoogleSignInButton called while another sign-in operation is already in progress.");
-    return Promise.reject(new Error("Another Google Sign-In operation is already in progress."));
+export function renderGoogleSignInButton(elementOrId, options = {}) {
+  if (typeof window === 'undefined') {
+    return Promise.reject(new Error('Not in browser environment'));
+  }
+
+  // Enhanced check for existing operation with automatic cleanup
+  if (window.__currentGoogleSignInActions) {
+    console.warn('⚠️ Google Sign-In operation detected, attempting cleanup...');
+
+    // Force cleanup and retry
+    cleanupGoogleAuth();
+
+    // Wait a moment for cleanup to complete
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        // Check again after cleanup
+        if (window.__currentGoogleSignInActions) {
+          reject(new Error('Google Sign-In already in progress - please wait and try again'));
+        } else {
+          // Retry the operation
+          renderGoogleSignInButton(elementOrId, options).then(resolve).catch(reject);
+        }
+      }, 100);
+    });
   }
 
   return new Promise(async (resolve, reject) => {
-    currentSignInPromiseActions = { resolve, reject };
-
-    if (!GOOGLE_CLIENT_ID) {
-      currentSignInPromiseActions.reject(new Error("Google Client ID is not configured."));
-      currentSignInPromiseActions = null;
-      return;
-    }
-
     try {
-      await initializeGoogleGIS(); // Ensure GIS is loaded and initialized.
+      // Set up promise actions
+      window.__currentGoogleSignInActions = { resolve, reject };
 
-      const buttonDiv = typeof elementOrId === 'string'
+      // Initialize GSI
+      await initializeGoogleGSI();
+
+      // Get container element
+      const container = typeof elementOrId === 'string'
         ? document.getElementById(elementOrId)
         : elementOrId;
 
-      if (!buttonDiv) {
-        currentSignInPromiseActions.reject(new Error(`HTML element '${elementOrId}' not found for Google Sign-In button.`));
-        currentSignInPromiseActions = null;
-        return;
+      if (!container) {
+        throw new Error(`Container element '${elementOrId}' not found`);
       }
-      // Note: Avoiding innerHTML = '' to prevent React DOM conflicts
-      // Google will handle button replacement automatically
 
-      const defaultRenderOptions = {
-        theme: "outline",
-        size: "large",
-        type: "standard",
-        text: "signin_with", // Default text, Google handles localization. Override with buttonOptions.text.
+      // Clear container
+      container.innerHTML = '';
+
+      // Default button options
+      const defaultOptions = {
+        theme: 'outline',
+        size: 'large',
+        type: 'standard',
+        text: 'signin_with',
+        width: '280',
       };
 
-      const mergedOptions = { ...defaultRenderOptions, ...buttonOptions };
+      const buttonOptions = { ...defaultOptions, ...options };
 
-      window.google.accounts.id.renderButton(buttonDiv, mergedOptions);
-      // The promise (currentSignInPromiseActions) will be resolved or rejected by `handleCredentialResponse` 
-      // when the user interacts with the rendered button and completes or cancels the Google Sign-In flow.
-      // No explicit resolve/reject here from renderButton itself, it's all async via the global callback.
+      // Render button
+      window.google.accounts.id.renderButton(container, buttonOptions);
 
     } catch (error) {
-      console.error("Error rendering Google Sign-In button:", error);
-      if (currentSignInPromiseActions) {
-        currentSignInPromiseActions.reject(error);
-        currentSignInPromiseActions = null;
-      }
+      window.__currentGoogleSignInActions = null;
+      reject(error);
     }
   });
 }
 
 /**
- * Decodes a JWT token (client-side). 
- * WARNING: This is for inspection (e.g., debugging, getting user info like name/email from ID token)
- * and NOT for security validation. Secure validation of ID tokens must be done on your backend server.
- * @param {string} token - The JWT token string.
- * @returns {object|null} The decoded payload of the JWT, or null if decoding fails.
+ * One Tap prompt for Google Sign-In
  */
-export function decodeJwtResponse(token) {
-  if (!token || typeof token !== 'string') {
-    console.error("Invalid token provided for decoding.");
-    return null;
+export function promptGoogleOneTap() {
+  if (typeof window === 'undefined') {
+    return Promise.reject(new Error('Not in browser environment'));
   }
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) {
-      throw new Error("Invalid JWT: The token must have 3 parts.");
+
+  return new Promise(async (resolve, reject) => {
+    try {
+      await initializeGoogleGSI();
+
+      window.__currentGoogleSignInActions = { resolve, reject };
+
+      window.google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed()) {
+          window.__currentGoogleSignInActions = null;
+          reject(new Error(`Google prompt not displayed: ${notification.getNotDisplayedReason()}`));
+        } else if (notification.isSkippedMoment()) {
+          window.__currentGoogleSignInActions = null;
+          reject(new Error(`Google prompt skipped: ${notification.getSkippedReason()}`));
+        } else if (notification.isDismissedMoment()) {
+          window.__currentGoogleSignInActions = null;
+          reject(new Error(`Google prompt dismissed: ${notification.getDismissedReason()}`));
+        }
+      });
+
+    } catch (error) {
+      window.__currentGoogleSignInActions = null;
+      reject(error);
     }
-    const base64Url = parts[1];
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
-    );
-    return JSON.parse(jsonPayload);
-  } catch (error) {
-    console.error("Error decoding JWT:", error);
-    return null;
+  });
+}
+
+/**
+ * Cleanup Google Sign-In state
+ * Enhanced cleanup to prevent "Google Sign-In already in progress" errors
+ */
+export function cleanupGoogleAuth() {
+  if (typeof window !== 'undefined') {
+    console.log('🧹 Cleaning up Google Auth state...');
+
+    // Clear current sign-in actions
+    window.__currentGoogleSignInActions = null;
+
+    if (window.google?.accounts?.id) {
+      try {
+        // Cancel any ongoing Google Sign-In operations
+        window.google.accounts.id.cancel();
+
+        // Disable auto-select to prevent automatic re-signin
+        window.google.accounts.id.disableAutoSelect();
+
+        console.log('✅ Google Sign-In operations cancelled and auto-select disabled');
+      } catch (e) {
+        console.warn('⚠️ Error during Google Sign-In cleanup:', e);
+      }
+    }
+
+    // Clear any Google Auth related iframes or prompts
+    try {
+      const googleIframes = document.querySelectorAll('iframe[src*="accounts.google.com"]');
+      googleIframes.forEach(iframe => {
+        try {
+          iframe.remove();
+        } catch (e) {
+          console.warn('Warning: Could not remove Google iframe:', e);
+        }
+      });
+
+      const googleDivs = document.querySelectorAll('div[data-client-id]');
+      googleDivs.forEach(div => {
+        try {
+          if (div.innerHTML.includes('Sign in with Google')) {
+            div.innerHTML = '';
+          }
+        } catch (e) {
+          console.warn('Warning: Could not clear Google div:', e);
+        }
+      });
+    } catch (e) {
+      console.warn('Warning: Error cleaning Google DOM elements:', e);
+    }
+
+    console.log('🔄 Google Auth cleanup completed');
   }
 }
 
-// Note: The redirect-based OAuth flow functions (redirectToGoogleAuth, getGoogleTokensFromServer)
-// from your original code are a separate authentication mechanism. They can be included here
-// if you need both GIS (for pop-up/One Tap) and a traditional redirect OAuth flow.
-// For this exercise, the focus has been on enhancing the GIS prompt and button flows.
+/**
+ * Reset Google Auth state for testing
+ */
+export function __resetGoogleAuthStateForTests() {
+  if (typeof window !== 'undefined') {
+    window.__currentGoogleSignInActions = null;
+    window.handleCredentialResponse = handleCredentialResponse;
+    window.google = undefined;
+  }
+  googleScriptPromise = null;
+  isGSIInitialized = false;
+}
