@@ -1,6 +1,6 @@
 {
     "name": "cedo-partnership-management-backend",
-    "version": "1.0.0",
+    "version": "0.3.0",
     "description": "Backend for Partnership Proposal Management System",
     "main": "server.js",
     "scripts": {
@@ -16,6 +16,8 @@
     "dependencies": {
         "@google-cloud/recaptcha-enterprise": "^6.1.0",
         "bcryptjs": "^2.4.3",
+        "cookie-parser": "^1.4.7",
+        "cookie-session": "^2.1.0",
         "cors": "^2.8.5",
         "dotenv": "^16.5.0",
         "express": "^4.21.2",
@@ -27,8 +29,10 @@
         "mongoose": "^8.14.1",
         "morgan": "^1.10.0",
         "multer": "^1.4.5-lts.1",
-        "mysql2": "^3.2.0",
+        "mysql2": "^3.14.1",
         "nodemailer": "^6.9.1",
+        "passport": "^0.7.0",
+        "passport-google-oauth20": "^2.0.0",
         "winston": "^3.17.0"
     },
     "devDependencies": {

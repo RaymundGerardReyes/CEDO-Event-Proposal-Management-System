@@ -3,216 +3,201 @@
 // Force dynamic rendering to prevent SSG issues
 export const dynamic = 'force-dynamic';
 
-import { ResponsiveContainer } from "@/components/dashboard/admin/responsive-container";
 import { Badge } from "@/components/dashboard/admin/ui/badge";
 import { Button } from "@/components/dashboard/admin/ui/button";
-import { Card, CardContent } from "@/components/dashboard/admin/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/dashboard/admin/ui/card";
 import { Input } from "@/components/dashboard/admin/ui/input";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { Activity, Calendar, ChevronLeft, Clock, FileText, Search, TrendingUp, Users } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
+import React from "react";
 
-// Sample data for proposals
+import {
+  Activity,
+  ArrowDownRight,
+  ArrowUpRight,
+  BarChart3,
+  Calendar,
+  Clock,
+  Download,
+  Eye,
+  FileText,
+  MoreVertical,
+  Search,
+  TrendingUp,
+  Users
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+// Enhanced sample data with more realistic content
 const recentProposals = [
   {
     id: "PROP-1001",
-    title: "Sports Festival",
-    organization: "USTP Organization",
-    submittedOn: "2023-05-15",
+    title: "Sports Festival 2024",
+    organization: "USTP Sports Council",
+    submittedOn: "2024-01-15",
     status: "pending",
     assignedTo: "Gerard Reyes",
-    description: "A festival to promote sports and healthy activities among students.",
+    description: "Annual sports festival promoting healthy lifestyle among students.",
     proposedVenue: "University Gymnasium",
     proposedSchedule: "2024-04-20",
-    proposedSpeakers: "Various sports personalities",
-    expectedParticipants: "200",
-    intendedGoal: "To encourage student participation in sports.",
-    requiredResources: "Sports equipment, venue, and refreshments.",
+    expectedParticipants: 200,
+    priority: "high",
+    category: "Sports & Recreation"
   },
   {
     id: "PROP-1002",
-    title: "HIV And Awareness Month",
-    organization: "XU Organization",
-    submittedOn: "2023-05-12",
+    title: "HIV Awareness Campaign",
+    organization: "XU Health Advocates",
+    submittedOn: "2024-01-12",
     status: "approved",
     assignedTo: "Eva Torres",
-    description: "A month-long campaign to raise awareness about HIV and AIDS.",
-    location: "City Park",
-    schedule: "2024-03-15",
-    speakers: "Dr. Emily Carter, HIV Specialist",
-    participants: ["John Doe", "Jane Smith", "Robert Johnson", "Emily Davis", "Michael Brown"],
-    sponsors: "Global Health Organization, Local NGOs",
-    purpose: "To educate the public and reduce the stigma associated with HIV.",
+    description: "Month-long campaign to raise HIV/AIDS awareness.",
+    proposedVenue: "City Park",
+    proposedSchedule: "2024-03-15",
+    expectedParticipants: 300,
+    priority: "medium",
+    category: "Health & Wellness"
   },
   {
     id: "PROP-1003",
-    title: "Tech Conference",
-    organization: "Lourdes College Organization",
-    submittedOn: "2023-05-10",
+    title: "Tech Innovation Summit",
+    organization: "Lourdes College IT Society",
+    submittedOn: "2024-01-10",
     status: "rejected",
     assignedTo: "Mike Johnson",
-    description: "A conference focused on the latest trends and innovations in technology.",
-    proposedVenue: "Conference Center",
+    description: "Conference on latest tech trends and innovations.",
+    proposedVenue: "Convention Center",
     proposedSchedule: "2024-05-10",
-    proposedSpeakers: "Tech industry leaders",
-    expectedParticipants: "150",
-    intendedGoal: "To provide a platform for tech enthusiasts to learn and network.",
-    requiredResources: "Conference venue, speakers, and presentation equipment.",
+    expectedParticipants: 150,
+    priority: "low",
+    category: "Technology"
   },
   {
     id: "PROP-1004",
-    title: "Marketing Strategy for Local Business",
-    organization: "XU Organization",
-    submittedOn: "2023-05-08",
+    title: "Local Business Marketing Workshop",
+    organization: "XU Business Club",
+    submittedOn: "2024-01-08",
     status: "approved",
     assignedTo: "Khecy Egar",
-    description: "A workshop to help local businesses develop effective marketing strategies.",
-    location: "Community Hall",
-    schedule: "2024-04-01",
-    speakers: "Marketing experts",
-    participants: ["Alice Johnson", "Bob Williams", "Catherine Davis"],
-    sponsors: "Local Business Association",
-    purpose: "To support local businesses and promote economic growth.",
+    description: "Workshop for local businesses on digital marketing strategies.",
+    proposedVenue: "Community Hall",
+    proposedSchedule: "2024-04-01",
+    expectedParticipants: 80,
+    priority: "medium",
+    category: "Business & Finance"
   },
   {
     id: "PROP-1005",
-    title: "KSB",
-    organization: "CSO Organization",
-    submittedOn: "2023-05-05",
+    title: "Community Clean-Up Drive",
+    organization: "CSO Environmental Team",
+    submittedOn: "2024-01-05",
     status: "pending",
     assignedTo: "Robert Brown",
-    description: "A community service project to clean up and beautify the local park.",
+    description: "Community service project for environmental conservation.",
     proposedVenue: "City Park",
     proposedSchedule: "2024-03-28",
-    proposedSpeakers: "Community leaders",
-    expectedParticipants: "75",
-    intendedGoal: "To improve the quality of life in the community.",
-    requiredResources: "Cleaning supplies, volunteers, and refreshments.",
-    signedUpMembers: ["David Lee", "Sarah Kim", "Tom Wilson"],
+    expectedParticipants: 75,
+    priority: "high",
+    category: "Environment"
   },
 ]
 
-// Sample data for upcoming events
 const upcomingEvents = [
   {
     id: "EVENT-001",
     title: "Science Fair Exhibition",
     date: "Mon, Mar 20",
+    time: "9:00 AM",
     location: "Main Campus Hall",
     attendees: 120,
+    status: "confirmed",
+    category: "Academic"
   },
   {
     id: "EVENT-002",
     title: "Leadership Workshop",
     date: "Wed, Mar 22",
+    time: "2:00 PM",
     location: "Conference Room B",
     attendees: 45,
+    status: "pending",
+    category: "Training"
   },
   {
     id: "EVENT-003",
     title: "Community Service Day",
     date: "Sat, Mar 25",
+    time: "8:00 AM",
     location: "City Park",
     attendees: 75,
+    status: "confirmed",
+    category: "Community"
   },
 ]
 
-// Define responsive table columns
-const proposalColumns = [
-  {
-    key: "title",
-    label: "Title",
-    sortable: true,
-    render: (value) => (
-      <div className="border border-cedo-blue text-cedo-blue px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs sm:text-sm font-medium">
-        {value}
-      </div>
-    )
-  },
-  {
-    key: "organization",
-    label: "Organization",
-    className: "hidden sm:table-cell",
-    render: (value) => (
-      <div className="border border-cedo-blue text-cedo-blue px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs sm:text-sm">
-        {value}
-      </div>
-    )
-  },
-  {
-    key: "submittedOn",
-    label: "Submitted",
-    className: "hidden md:table-cell",
-    render: (value) => (
-      <div className="border border-cedo-blue text-cedo-blue px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs sm:text-sm">
-        {value}
-      </div>
-    )
-  },
-  {
-    key: "status",
-    label: "Status",
-    render: (value) => (
-      <Badge
-        className={
-          value === "approved"
-            ? "bg-green-100 text-green-800 hover:bg-green-100 border-green-200"
-            : value === "pending"
-              ? "bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200"
-              : "bg-red-100 text-red-800 hover:bg-red-100 border-red-200"
-        }
-      >
-        {value.charAt(0).toUpperCase() + value.slice(1)}
-      </Badge>
-    )
-  },
-  {
-    key: "assignedTo",
-    label: "Assigned To",
-    className: "hidden lg:table-cell",
-    render: (value) => (
-      <div className="border border-cedo-blue text-cedo-blue px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs sm:text-sm">
-        {value}
-      </div>
-    )
-  }
-]
-
-// Error Boundary Component
+// Enhanced Error Boundary with better UX
 function ErrorBoundary({ children, fallback }) {
   const [hasError, setHasError] = useState(false)
+  const [errorDetails, setErrorDetails] = useState(null)
 
   useEffect(() => {
     const handleError = (error) => {
+      const errorMessage = error.message || error.toString()
+      if (errorMessage.includes('className') && errorMessage.includes('includes is not a function')) {
+        console.warn('DOM className error detected and handled:', errorMessage)
+        return
+      }
       console.error('Dashboard Error:', error)
       setHasError(true)
+      setErrorDetails(errorMessage || 'Unknown error occurred')
+    }
+
+    const handleRejection = (event) => {
+      const reason = event.reason
+      const reasonMessage = reason?.message || reason?.toString() || 'Promise rejection occurred'
+      if (reasonMessage.includes('className') && reasonMessage.includes('includes is not a function')) {
+        console.warn('DOM className promise rejection detected and handled:', reasonMessage)
+        event.preventDefault()
+        return
+      }
+      console.error('Unhandled Promise Rejection:', reason)
+      setHasError(true)
+      setErrorDetails(reasonMessage)
     }
 
     window.addEventListener('error', handleError)
-    window.addEventListener('unhandledrejection', handleError)
+    window.addEventListener('unhandledrejection', handleRejection)
 
     return () => {
       window.removeEventListener('error', handleError)
-      window.removeEventListener('unhandledrejection', handleError)
+      window.removeEventListener('unhandledrejection', handleRejection)
     }
   }, [])
 
   if (hasError) {
     return fallback || (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold mb-2">Something went wrong</h2>
-          <button
-            onClick={() => {
-              setHasError(false)
-              window.location.reload()
-            }}
-            className="px-4 py-2 bg-cedo-blue text-white rounded-md hover:bg-cedo-blue/90"
-          >
-            Refresh Page
-          </button>
-        </div>
+      <div className="flex items-center justify-center p-6">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+                <Activity className="w-6 h-6 text-red-600" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-lg font-semibold text-gray-900">Something went wrong</h2>
+                <p className="text-sm text-gray-600">We encountered an error while loading the dashboard.</p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                <Button onClick={() => { setHasError(false); setErrorDetails(null) }} variant="outline" size="sm">
+                  Try Again
+                </Button>
+                <Button onClick={() => window.location.reload()} size="sm" className="bg-cedo-blue hover:bg-cedo-blue/90">
+                  Refresh Page
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     )
   }
@@ -220,168 +205,205 @@ function ErrorBoundary({ children, fallback }) {
   return children
 }
 
-// Stats Card Component
-function StatsCard({ title, value, subtitle, subtitleColor = "text-muted-foreground", icon, iconBg }) {
+// Responsive Stats Card with modern design
+function StatsCard({ title, value, subtitle, trend, icon, iconBg, isLoading = false }) {
+  if (isLoading) {
+    return (
+      <Card className="relative overflow-hidden border-0 shadow-sm">
+        <CardContent className="p-4 lg:p-6">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-8 w-8 rounded-xl" />
+            </div>
+            <Skeleton className="h-8 w-16" />
+            <Skeleton className="h-3 w-28" />
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const trendIcon = trend?.direction === 'up' ? ArrowUpRight : ArrowDownRight
+  const trendColor = trend?.direction === 'up' ? 'text-emerald-600' : 'text-red-500'
+
   return (
-    <Card className="cedo-card cedo-hover-lift">
-      <CardContent className="cedo-stats-card responsive-padding">
-        <div>
-          <p className="text-muted-foreground cedo-body-sm">{title}</p>
-          <h2 className="cedo-heading-3 mt-1 text-cedo-blue">{value}</h2>
-          <p className={`cedo-body-sm ${subtitleColor} mt-1`}>{subtitle}</p>
-        </div>
-        <div className={`h-8 w-8 sm:h-10 sm:w-10 rounded-full ${iconBg} flex items-center justify-center`}>
-          {icon}
+    <Card className="
+      group relative overflow-hidden 
+      border-0 shadow-sm hover:shadow-md
+      bg-white/80 backdrop-blur-sm
+      transition-all duration-300 ease-out
+      hover:-translate-y-0.5
+    ">
+      <CardContent className="p-4 lg:p-6 relative">
+        <div className="relative space-y-3 lg:space-y-4">
+          {/* Header */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1 flex-1 min-w-0">
+              <p className="text-sm font-medium text-slate-600 leading-tight">
+                {title}
+              </p>
+            </div>
+            <div className={`
+              shrink-0 w-10 h-10 lg:w-12 lg:h-12 
+              rounded-xl ${iconBg} 
+              flex items-center justify-center 
+              transition-transform duration-300 
+              group-hover:scale-110
+            `}>
+              {React.cloneElement(icon, {
+                className: "w-5 h-5 lg:w-6 lg:h-6 text-slate-700"
+              })}
+            </div>
+          </div>
+
+          {/* Value */}
+          <div className="space-y-1">
+            <div className="text-2xl lg:text-3xl font-bold text-slate-900 leading-none">
+              {value}
+            </div>
+            {/* Subtitle with trend */}
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-slate-600">{subtitle}</span>
+              {trend && (
+                <div className={`flex items-center gap-1 ${trendColor}`}>
+                  {React.createElement(trendIcon, { className: "w-3 h-3" })}
+                  <span className="text-xs font-medium">{trend.value}</span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>
   )
 }
 
-// Proposal Search Input Component
-function ProposalSearchInput() {
-  const [searchTerm, setSearchTerm] = useState("")
+// Responsive Event Card
+function EventCard({ title, eventId, date, time, location, attendees, status, category }) {
+  const statusColors = {
+    confirmed: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    pending: "bg-amber-100 text-amber-800 border-amber-200",
+    cancelled: "bg-red-100 text-red-800 border-red-200"
+  }
 
   return (
-    <div className="relative flex-1 sm:flex-initial">
-      <Search className="absolute left-2 sm:left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
-      <Input
-        type="search"
-        placeholder="Search proposals..."
-        className="pl-7 sm:pl-8 w-full sm:w-[200px] md:w-[250px] h-8 sm:h-10 text-xs sm:text-sm"
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-      />
-    </div>
+    <Card className="
+      group hover:shadow-md transition-all duration-200 
+      border-slate-200 hover:border-blue-300/30
+      bg-white/90 backdrop-blur-sm
+    ">
+      <CardContent className="p-4">
+        <div className="space-y-3">
+          {/* Header */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <h4 className="font-semibold text-slate-900 text-sm leading-tight line-clamp-2 mb-1">
+                {title}
+              </h4>
+              <Badge variant="outline" className="text-xs px-2 py-0.5 text-slate-600 border-slate-300">
+                {category}
+              </Badge>
+            </div>
+            <Badge className={`text-xs ${statusColors[status] || statusColors.pending}`}>
+              {status}
+            </Badge>
+          </div>
+
+          {/* Event Details */}
+          <div className="grid grid-cols-1 gap-2 text-xs text-slate-600">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-3 h-3 text-slate-400" />
+              <span>{date} at {time}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Users className="w-3 h-3 text-slate-400" />
+              <span>{location}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Users className="w-3 h-3 text-slate-400" />
+              <span>{attendees} attendees</span>
+            </div>
+          </div>
+
+          {/* Action */}
+          <div className="pt-2 border-t border-slate-100">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-colors text-xs h-8 justify-center"
+            >
+              <Eye className="w-3 h-3 mr-1" />
+              View Details
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
-// Proposals Table Component
-function ProposalsTable() {
+// Enhanced Loading Component
+function DashboardSkeleton() {
   return (
-    <>
-      {/* Desktop Table */}
-      <div className="hidden sm:block overflow-x-auto">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="border-b">
-              <th className="text-left p-2 sm:p-3 md:p-4 font-semibold text-muted-foreground text-xs sm:text-sm">Title</th>
-              <th className="text-left p-2 sm:p-3 md:p-4 font-semibold text-muted-foreground text-xs sm:text-sm hidden sm:table-cell">Organization</th>
-              <th className="text-left p-2 sm:p-3 md:p-4 font-semibold text-muted-foreground text-xs sm:text-sm hidden md:table-cell">Submitted</th>
-              <th className="text-left p-2 sm:p-3 md:p-4 font-semibold text-muted-foreground text-xs sm:text-sm">Status</th>
-              <th className="text-left p-2 sm:p-3 md:p-4 font-semibold text-muted-foreground text-xs sm:text-sm hidden lg:table-cell">Assigned To</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recentProposals.map((proposal) => (
-              <tr key={proposal.id} className="border-b hover:bg-muted/50 transition-colors cursor-pointer">
-                <td className="p-2 sm:p-3 md:p-4 text-xs sm:text-sm">
-                  <div className="border border-cedo-blue text-cedo-blue px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs sm:text-sm font-medium">
-                    {proposal.title}
-                  </div>
-                </td>
-                <td className="p-2 sm:p-3 md:p-4 text-xs sm:text-sm hidden sm:table-cell">
-                  <div className="border border-cedo-blue text-cedo-blue px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs sm:text-sm">
-                    {proposal.organization}
-                  </div>
-                </td>
-                <td className="p-2 sm:p-3 md:p-4 text-xs sm:text-sm hidden md:table-cell">
-                  <div className="border border-cedo-blue text-cedo-blue px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs sm:text-sm">
-                    {proposal.submittedOn}
-                  </div>
-                </td>
-                <td className="p-2 sm:p-3 md:p-4 text-xs sm:text-sm">
-                  <Badge
-                    className={
-                      proposal.status === "approved"
-                        ? "bg-green-100 text-green-800 hover:bg-green-100 border-green-200"
-                        : proposal.status === "pending"
-                          ? "bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200"
-                          : "bg-red-100 text-red-800 hover:bg-red-100 border-red-200"
-                    }
-                  >
-                    {proposal.status.charAt(0).toUpperCase() + proposal.status.slice(1)}
-                  </Badge>
-                </td>
-                <td className="p-2 sm:p-3 md:p-4 text-xs sm:text-sm hidden lg:table-cell">
-                  <div className="border border-cedo-blue text-cedo-blue px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs sm:text-sm">
-                    {proposal.assignedTo}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <div className="space-y-6">
+      {/* Header Skeleton */}
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-64" />
       </div>
 
-      {/* Mobile Cards */}
-      <div className="block sm:hidden space-y-3">
-        {recentProposals.map((proposal) => (
-          <Card key={proposal.id} className="cedo-card-compact cedo-hover-lift cursor-pointer">
-            <CardContent className="p-3 sm:p-4">
-              <div className="flex flex-col sm:flex-row items-start gap-2 sm:gap-3 flex-wrap">
-                <div className="min-w-0 flex-1">
-                  <h4 className="cedo-body font-semibold text-cedo-blue truncate mb-1">{proposal.title}</h4>
-                  <p className="cedo-body-sm text-muted-foreground truncate mb-2">{proposal.organization}</p>
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      className={
-                        proposal.status === "approved"
-                          ? "bg-green-100 text-green-800 hover:bg-green-100 border-green-200"
-                          : proposal.status === "pending"
-                            ? "bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200"
-                            : "bg-red-100 text-red-800 hover:bg-red-100 border-red-200"
-                      }
-                    >
-                      {proposal.status.charAt(0).toUpperCase() + proposal.status.slice(1)}
-                    </Badge>
-                    <span className="cedo-body-sm text-muted-foreground">{proposal.submittedOn}</span>
-                  </div>
+      {/* Stats Grid Skeleton */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i} className="border-0 shadow-sm">
+            <CardContent className="p-4 lg:p-6">
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-8 w-8 rounded-xl" />
                 </div>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600">
-                  <ChevronLeft className="h-3 w-3" />
-                </Button>
+                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-3 w-24" />
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
-    </>
-  )
-}
 
-// Event Card Component
-function EventCard({ title, eventId, date, location, attendees }) {
-  return (
-    <div className="border border-gray-100 rounded-lg p-3 sm:p-4 hover:border-cedo-blue/30 transition-colors cedo-hover-lift cursor-pointer">
-      <div className="flex flex-col sm:flex-row items-start gap-2 sm:gap-3 flex-wrap mb-2">
-        <h4 className="cedo-body font-medium text-cedo-blue line-clamp-2">{title}</h4>
-        <Badge variant="outline" className="cedo-badge-primary shrink-0">
-          {eventId}
-        </Badge>
-      </div>
-      <div className="space-y-1 cedo-body-sm text-muted-foreground">
-        <div className="flex items-center gap-1">
-          <Calendar className="h-3 w-3" />
-          {date}
+      {/* Content Grid Skeleton */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-2">
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <Skeleton className="h-6 w-32" />
+                  <Skeleton className="h-9 w-48" />
+                </div>
+                <div className="space-y-3">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Skeleton key={i} className="h-16 w-full" />
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
-        <div className="flex items-center gap-1">
-          <Users className="h-3 w-3" />
-          {location}
+        <div>
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                <Skeleton className="h-6 w-32" />
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-24 w-full" />
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
-        <div className="flex items-center gap-1">
-          <Users className="h-3 w-3" />
-          {attendees} attendees
-        </div>
-      </div>
-      <div className="mt-3">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-cedo-blue hover:text-cedo-blue/70 hover:bg-cedo-blue/5 px-0 transition-colors text-xs sm:text-sm"
-        >
-          View Details
-        </Button>
       </div>
     </div>
   )
@@ -389,30 +411,27 @@ function EventCard({ title, eventId, date, location, attendees }) {
 
 export default function AdminDashboard() {
   const router = useRouter()
-  const isMobile = useIsMobile()
-  const [expandedProposalId, setExpandedProposalId] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
+  const [statusFilter, setStatusFilter] = useState("all")
   const [isClient, setIsClient] = useState(false)
   const [networkError, setNetworkError] = useState(false)
 
-  // Enhanced client-side rendering with network error handling
+  // Enhanced initialization
   useEffect(() => {
     let mounted = true
+    let timeoutId
 
     const initializeComponent = async () => {
       try {
-        // Simulate network check
         if (typeof window !== 'undefined') {
           setIsClient(true)
-
-          // Add a small delay to ensure proper hydration
-          await new Promise(resolve => setTimeout(resolve, 100))
-
-          if (mounted) {
-            setIsLoading(false)
-            setNetworkError(false)
-          }
+          timeoutId = setTimeout(() => {
+            if (mounted) {
+              setIsLoading(false)
+              setNetworkError(false)
+            }
+          }, 800)
         }
       } catch (error) {
         console.error('Dashboard initialization error:', error)
@@ -427,160 +446,377 @@ export default function AdminDashboard() {
 
     return () => {
       mounted = false
+      if (timeoutId) clearTimeout(timeoutId)
     }
   }, [])
 
-  const toggleExpandProposal = (proposal) => {
-    setExpandedProposalId(expandedProposalId === proposal.id ? null : proposal.id)
-  }
+  // Memoized filtered proposals for performance
+  const filteredProposals = useMemo(() => {
+    try {
+      return recentProposals.filter(proposal => {
+        const matchesSearch = proposal.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          proposal.organization.toLowerCase().includes(searchTerm.toLowerCase())
+        const matchesStatus = statusFilter === "all" || proposal.status === statusFilter
+        return matchesSearch && matchesStatus
+      })
+    } catch (error) {
+      console.error('Filter error:', error)
+      return recentProposals
+    }
+  }, [searchTerm, statusFilter])
 
-  // Filter proposals based on search
-  const filteredProposals = recentProposals.filter(proposal =>
-    proposal.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    proposal.organization.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // Memoized stats calculation
+  const dashboardStats = useMemo(() => {
+    try {
+      const total = recentProposals.length
+      const pending = recentProposals.filter(p => p.status === 'pending').length
+      const approved = recentProposals.filter(p => p.status === 'approved').length
+      const rejected = recentProposals.filter(p => p.status === 'rejected').length
+      const approvalRate = total > 0 ? Math.round((approved / total) * 100) : 0
+
+      return {
+        pending: { value: pending, trend: { direction: 'up', value: '+5' } },
+        approved: { value: approved, trend: { direction: 'up', value: `${approvalRate}%` } },
+        rejected: { value: rejected, trend: { direction: 'down', value: '-2' } },
+        total: { value: total, trend: { direction: 'up', value: '+6%' } }
+      }
+    } catch (error) {
+      console.error('Stats calculation error:', error)
+      return {
+        pending: { value: 0, trend: { direction: 'up', value: '0' } },
+        approved: { value: 0, trend: { direction: 'up', value: '0%' } },
+        rejected: { value: 0, trend: { direction: 'down', value: '0' } },
+        total: { value: 0, trend: { direction: 'up', value: '0%' } }
+      }
+    }
+  }, [])
+
+  // Callbacks for performance
+  const handleSearch = useCallback((value) => {
+    try {
+      setSearchTerm(value)
+    } catch (error) {
+      console.error('Search error:', error)
+    }
+  }, [])
+
+  const handleStatusFilter = useCallback((status) => {
+    try {
+      setStatusFilter(status)
+    } catch (error) {
+      console.error('Filter error:', error)
+    }
+  }, [])
 
   // Network error state
   if (networkError) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold mb-2">Network Error</h2>
-          <p className="text-muted-foreground mb-4">Unable to load dashboard data</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-cedo-blue text-white rounded-md hover:bg-cedo-blue/90"
-          >
-            Retry
-          </button>
-        </div>
+      <div className="flex items-center justify-center p-6">
+        <Card className="w-full max-w-md border-0 shadow-sm">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+                <Activity className="w-6 h-6 text-red-600" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-lg font-semibold text-slate-900">Network Error</h2>
+                <p className="text-sm text-slate-600">Unable to load dashboard data</p>
+              </div>
+              <Button onClick={() => window.location.reload()} className="bg-blue-600 hover:bg-blue-700">
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
-  // Prevent rendering until client-side
-  if (!isClient) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cedo-blue"></div>
-      </div>
-    )
-  }
-
-  if (isLoading) {
-    return (
-      <ResponsiveContainer size="full" padding="none" className="px-2 sm:px-3 md:px-4 py-3 sm:py-4">
-        <div className="mb-4 sm:mb-6">
-          <div className="h-6 sm:h-8 w-32 sm:w-40 bg-gray-200 rounded mb-2 animate-pulse"></div>
-          <div className="h-3 sm:h-4 w-48 sm:w-60 bg-gray-200 rounded animate-pulse"></div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mb-6 sm:mb-8">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-24 sm:h-32 bg-gray-200 rounded-lg animate-pulse"></div>
-          ))}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
-          <div className="lg:col-span-2">
-            <div className="h-64 sm:h-96 bg-gray-200 rounded-lg animate-pulse"></div>
-          </div>
-          <div>
-            <div className="h-64 sm:h-96 bg-gray-200 rounded-lg animate-pulse"></div>
-          </div>
-        </div>
-      </ResponsiveContainer>
-    )
+  // Loading state
+  if (!isClient || isLoading) {
+    return <DashboardSkeleton />
   }
 
   return (
     <ErrorBoundary>
-      <ResponsiveContainer
-        size="full"
-        padding="none"
-        className="w-full max-w-none animate-fade-in bg-[#f8f9fa] min-h-screen px-2 sm:px-3 md:px-4 py-3 sm:py-4"
-      >
-        {/* Dashboard Header */}
-        <div className="mb-4 sm:mb-6">
-          <div className="space-y-1">
-            <h1 className="text-xl font-bold tracking-tight text-cedo-blue sm:text-2xl md:text-3xl">
-              Dashboard
-            </h1>
-            <p className="text-sm text-muted-foreground sm:text-base">Summary</p>
+      {/* Dashboard Container - Mobile First, Responsive */}
+      <div className="space-y-6 lg:space-y-8">
+
+        {/* Enhanced Dashboard Header - Responsive */}
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="space-y-1">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-slate-900">
+                Dashboard
+              </h1>
+              <p className="text-sm sm:text-base text-slate-600">
+                Overview of proposals, events, and system activity
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="shrink-0 border-slate-300 hover:border-slate-400">
+                <Download className="w-4 h-4 mr-2" />
+                Export
+              </Button>
+              <Button variant="outline" size="sm" className="shrink-0 border-slate-300 hover:border-slate-400">
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Analytics
+              </Button>
+            </div>
           </div>
         </div>
 
-        {/* Stats Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mb-6 sm:mb-8">
+        {/* Enhanced Stats Grid - Mobile First Responsive */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6">
           <StatsCard
             title="Pending Review"
-            value="23"
-            subtitle="5 new since yesterday"
-            icon={<Clock className="h-4 w-4 sm:h-5 sm:w-5 text-amber-500" />}
+            value={dashboardStats.pending.value}
+            subtitle="Since yesterday"
+            trend={dashboardStats.pending.trend}
+            icon={<Clock />}
             iconBg="bg-amber-100"
+            isLoading={isLoading}
           />
           <StatsCard
             title="Approved"
-            value="86"
-            subtitle="72% approval rate"
-            icon={<TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />}
-            iconBg="bg-green-100"
+            value={dashboardStats.approved.value}
+            subtitle="Approval rate"
+            trend={dashboardStats.approved.trend}
+            icon={<TrendingUp />}
+            iconBg="bg-emerald-100"
+            isLoading={isLoading}
           />
           <StatsCard
             title="Rejected"
-            value="19"
-            subtitle="Requires feedback"
-            icon={<Activity className="h-4 w-4 sm:h-5 sm:w-5 text-red-500" />}
+            value={dashboardStats.rejected.value}
+            subtitle="This month"
+            trend={dashboardStats.rejected.trend}
+            icon={<Activity />}
             iconBg="bg-red-100"
+            isLoading={isLoading}
           />
           <StatsCard
             title="Total Proposals"
-            value="128"
-            subtitle="↑ 6%"
-            subtitleColor="text-green-600"
-            icon={<FileText className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />}
+            value={dashboardStats.total.value}
+            subtitle="Growth rate"
+            trend={dashboardStats.total.trend}
+            icon={<FileText />}
             iconBg="bg-blue-100"
+            isLoading={isLoading}
           />
         </div>
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
-          {/* Recent Proposals - Takes up 2/3 of the space on large screens */}
-          <div className="lg:col-span-2">
-            <Card className="cedo-card">
-              <CardContent className="responsive-padding">
-                <div className="space-y-4 sm:space-y-6">
-                  {/* Header */}
-                  <div className="responsive-flex-between responsive-gap">
-                    <div>
-                      <h3 className="cedo-heading-3">Recent Proposals</h3>
-                      <p className="cedo-body text-muted-foreground">
-                        Latest proposal submissions and their status
-                      </p>
+        {/* Enhanced Main Content Grid - Responsive Layout */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-8">
+
+          {/* Recent Proposals - Enhanced with Better Filtering */}
+          <div className="xl:col-span-2">
+            <Card className="shadow-sm border-slate-200 bg-white/90 backdrop-blur-sm">
+              <CardHeader className="pb-4">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                  <div className="space-y-1">
+                    <CardTitle className="text-lg lg:text-xl text-slate-900">
+                      Recent Proposals
+                    </CardTitle>
+                    <p className="text-sm text-slate-600">
+                      Latest submissions and their current status
+                    </p>
+                  </div>
+
+                  {/* Enhanced Filter Controls */}
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative flex-1 lg:flex-none">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input
+                        type="search"
+                        placeholder="Search proposals..."
+                        className="pl-9 lg:w-64 border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+                        value={searchTerm}
+                        onChange={(e) => handleSearch(e.target.value)}
+                      />
                     </div>
-                    <div className="flex flex-col sm:flex-row justify-start items-start gap-2 sm:gap-3 flex-wrap w-full sm:w-auto">
-                      <ProposalSearchInput />
-                      <Button variant="outline" size="sm" className="text-xs sm:text-sm">
-                        Export
+                    <div className="flex gap-2">
+                      <Button
+                        variant={statusFilter === "all" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handleStatusFilter("all")}
+                        className={statusFilter === "all" ? "bg-blue-600 hover:bg-blue-700" : "border-slate-300 hover:border-slate-400"}
+                      >
+                        All
+                      </Button>
+                      <Button
+                        variant={statusFilter === "pending" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handleStatusFilter("pending")}
+                        className={statusFilter === "pending" ? "bg-amber-500 hover:bg-amber-600" : "border-slate-300 hover:border-slate-400"}
+                      >
+                        Pending
+                      </Button>
+                      <Button
+                        variant={statusFilter === "approved" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handleStatusFilter("approved")}
+                        className={statusFilter === "approved" ? "bg-emerald-500 hover:bg-emerald-600" : "border-slate-300 hover:border-slate-400"}
+                      >
+                        Approved
                       </Button>
                     </div>
                   </div>
+                </div>
+              </CardHeader>
 
-                  {/* Table Content */}
-                  <div className="w-full responsive-rounded">
-                    <ProposalsTable />
+              <CardContent className="p-0">
+                {/* Enhanced Responsive Table */}
+                <div className="overflow-hidden">
+
+                  {/* Desktop Table */}
+                  <div className="hidden lg:block">
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-slate-50 border-y border-slate-200">
+                          <tr>
+                            <th className="text-left py-3 px-6 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                              Proposal
+                            </th>
+                            <th className="text-left py-3 px-6 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                              Organization
+                            </th>
+                            <th className="text-left py-3 px-6 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                              Date
+                            </th>
+                            <th className="text-left py-3 px-6 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                              Status
+                            </th>
+                            <th className="text-left py-3 px-6 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                              Assigned
+                            </th>
+                            <th className="text-center py-3 px-6 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {filteredProposals.map((proposal, index) => (
+                            <tr
+                              key={proposal.id}
+                              className={`hover:bg-slate-50 transition-colors cursor-pointer ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'
+                                }`}
+                            >
+                              <td className="py-4 px-6">
+                                <div className="space-y-1">
+                                  <div className="font-medium text-slate-900 text-sm">
+                                    {proposal.title}
+                                  </div>
+                                  <Badge variant="outline" className="text-xs border-slate-300 text-slate-600">
+                                    {proposal.category}
+                                  </Badge>
+                                </div>
+                              </td>
+                              <td className="py-4 px-6">
+                                <div className="text-sm text-slate-900">
+                                  {proposal.organization}
+                                </div>
+                              </td>
+                              <td className="py-4 px-6">
+                                <div className="text-sm text-slate-600">
+                                  {new Date(proposal.submittedOn).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric'
+                                  })}
+                                </div>
+                              </td>
+                              <td className="py-4 px-6">
+                                <Badge
+                                  className={
+                                    proposal.status === "approved"
+                                      ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-emerald-200"
+                                      : proposal.status === "pending"
+                                        ? "bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200"
+                                        : "bg-red-100 text-red-800 hover:bg-red-100 border-red-200"
+                                  }
+                                >
+                                  {proposal.status.charAt(0).toUpperCase() + proposal.status.slice(1)}
+                                </Badge>
+                              </td>
+                              <td className="py-4 px-6">
+                                <div className="text-sm text-slate-900">
+                                  {proposal.assignedTo}
+                                </div>
+                              </td>
+                              <td className="py-4 px-6 text-center">
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-slate-100">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
 
-                  {/* Pagination */}
-                  <div className="responsive-flex-between responsive-gap pt-2">
-                    <div className="cedo-body-sm text-muted-foreground">
-                      Showing 5 of 5 proposals
-                    </div>
-                    <div className="flex flex-col sm:flex-row justify-start items-start gap-2 sm:gap-3 flex-wrap">
-                      <Button variant="outline" size="sm" disabled className="text-xs sm:text-sm">
-                        Previous
-                      </Button>
-                      <Button variant="outline" size="sm" disabled className="text-xs sm:text-sm">
-                        Next
-                      </Button>
+                  {/* Mobile/Tablet Cards */}
+                  <div className="lg:hidden p-4 space-y-4">
+                    {filteredProposals.map((proposal) => (
+                      <Card key={proposal.id} className="border-slate-200 hover:shadow-md transition-shadow bg-white/90">
+                        <CardContent className="p-4">
+                          <div className="space-y-3">
+                            <div className="flex items-start justify-between">
+                              <div className="space-y-1 flex-1 min-w-0">
+                                <h4 className="font-semibold text-slate-900 text-sm">
+                                  {proposal.title}
+                                </h4>
+                                <p className="text-xs text-slate-600">
+                                  {proposal.organization}
+                                </p>
+                              </div>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0 hover:bg-slate-100">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <Badge
+                                className={
+                                  proposal.status === "approved"
+                                    ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-emerald-200"
+                                    : proposal.status === "pending"
+                                      ? "bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200"
+                                      : "bg-red-100 text-red-800 hover:bg-red-100 border-red-200"
+                                }
+                              >
+                                {proposal.status.charAt(0).toUpperCase() + proposal.status.slice(1)}
+                              </Badge>
+                              <span className="text-xs text-slate-500">
+                                {new Date(proposal.submittedOn).toLocaleDateString()}
+                              </span>
+                            </div>
+
+                            <div className="text-xs text-slate-600 pt-2 border-t border-slate-100">
+                              Assigned to: <span className="font-medium">{proposal.assignedTo}</span>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+
+                  {/* Enhanced Pagination */}
+                  <div className="bg-slate-50 px-4 py-3 sm:px-6 border-t border-slate-200">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                      <div className="text-sm text-slate-600">
+                        Showing <span className="font-medium">{filteredProposals.length}</span> of{' '}
+                        <span className="font-medium">{recentProposals.length}</span> proposals
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" disabled className="border-slate-300">
+                          Previous
+                        </Button>
+                        <Button variant="outline" size="sm" disabled className="border-slate-300">
+                          Next
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -588,48 +824,48 @@ export default function AdminDashboard() {
             </Card>
           </div>
 
-          {/* Upcoming Events - Takes up 1/3 of the space on large screens */}
-          <div>
-            <Card className="cedo-card">
-              <CardContent className="responsive-padding">
-                <div className="space-y-4 sm:space-y-6">
-                  <div>
-                    <h3 className="cedo-heading-3">Upcoming Events</h3>
-                    <p className="cedo-body text-muted-foreground">
-                      Events scheduled for the next 7 days
-                    </p>
-                  </div>
-
-                  <div className="space-y-3 sm:space-y-4">
-                    {upcomingEvents.map((event) => (
-                      <EventCard
-                        key={event.id}
-                        title={event.title}
-                        eventId={event.id}
-                        date={event.date}
-                        location={event.location}
-                        attendees={event.attendees}
-                      />
-                    ))}
-                  </div>
-
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full text-cedo-blue hover:text-cedo-blue/70 hover:bg-cedo-blue/5 transition-colors text-xs sm:text-sm"
-                    onClick={() => {
-                      router.push("/admin-dashboard/events?filter=upcoming&timeframe=7days")
-                    }}
-                  >
-                    <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                    View All Events
-                  </Button>
+          {/* Enhanced Upcoming Events */}
+          <div className="xl:col-span-1">
+            <Card className="shadow-sm border-slate-200 bg-white/90 backdrop-blur-sm">
+              <CardHeader>
+                <div className="space-y-1">
+                  <CardTitle className="text-lg text-slate-900">Upcoming Events</CardTitle>
+                  <p className="text-sm text-slate-600">
+                    Events scheduled for the next 7 days
+                  </p>
                 </div>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                {upcomingEvents.map((event) => (
+                  <EventCard
+                    key={event.id}
+                    title={event.title}
+                    eventId={event.id}
+                    date={event.date}
+                    time={event.time}
+                    location={event.location}
+                    attendees={event.attendees}
+                    status={event.status}
+                    category={event.category}
+                  />
+                ))}
+
+                <Button
+                  variant="ghost"
+                  className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+                  onClick={() => {
+                    router.push("/admin-dashboard/events?filter=upcoming&timeframe=7days")
+                  }}
+                >
+                  <Calendar className="w-4 h-4 mr-2" />
+                  View All Events
+                </Button>
               </CardContent>
             </Card>
           </div>
         </div>
-      </ResponsiveContainer>
+      </div>
     </ErrorBoundary>
   )
 }

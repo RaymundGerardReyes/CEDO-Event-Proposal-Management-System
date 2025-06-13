@@ -4,13 +4,19 @@ const cors = require("cors")
 const morgan = require("morgan")
 const path = require("path")
 const mysql = require('mysql2/promise');
+const cookieSession = require('cookie-session');
+const cookieParser = require('cookie-parser');
 
 // Import MongoDB connection
 const { connectMongoDB } = require("./config/mongodb")
 
+// Import OAuth configuration
+const { passport } = require('./config/oauth');
+
 // Require database config and routes from the root backend directory
 const { pool } = require("./config/db") // Path adjusted based on your structure
 const authRoutes = require("./routes/auth") // Path adjusted based on your structure
+const oauthRoutes = require("./routes/oauth") // New OAuth routes
 const userRoutes = require("./routes/users") // Path adjusted based on your structure
 const errorHandler = require("./middleware/error-handler")
 const { ensureTablesExist } = require("./middleware/db-check")
@@ -38,13 +44,85 @@ console.log(`- FRONTEND_URL: ${process.env.FRONTEND_URL || "not set"}`)
 console.log(`- GOOGLE_CLIENT_ID_BACKEND: ${process.env.GOOGLE_CLIENT_ID_BACKEND ? "set" : "not set"}`)
 console.log(`- RECAPTCHA_SECRET_KEY: ${process.env.RECAPTCHA_SECRET_KEY ? "set" : "not set"}`)
 
-// Middleware
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000", // Allow requests from your frontend
-    credentials: true,
-  }),
-) // Enables CORS for all origins (adjust in production)
+// ✅ ENHANCED CORS CONFIGURATION FOR GOOGLE OAUTH
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    const allowedOrigins = [
+      process.env.FRONTEND_URL || "http://localhost:3000",
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "https://accounts.google.com", // Google OAuth domain
+      "https://www.google.com", // Google domain
+      "https://apis.google.com", // Google APIs domain
+    ];
+
+    // Check if the origin is in the allowed list
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    // Allow any localhost origin in development
+    if (process.env.NODE_ENV === 'development' && origin && origin.includes('localhost')) {
+      return callback(null, true);
+    }
+
+    // Allow the request anyway but log it
+    console.warn(`CORS: Origin ${origin} not in allowed list, but allowing in ${process.env.NODE_ENV} mode`);
+    return callback(null, true);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization',
+    'Cache-Control',
+    'X-CSRF-Token',
+    'X-Api-Version',
+  ],
+  exposedHeaders: ['Set-Cookie'],
+  maxAge: 86400, // 24 hours
+};
+
+app.use(cors(corsOptions));
+
+// ✅ Additional headers for Google OAuth compatibility
+app.use((req, res, next) => {
+  // Set permissive headers for OAuth
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  res.header('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  res.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,PATCH,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, X-CSRF-Token');
+    return res.status(200).json({});
+  }
+
+  next();
+});
+
+// Cookie and session middleware (must be before passport)
+app.use(cookieParser());
+app.use(cookieSession({
+  maxAge: 24 * 60 * 60 * 1000, // 24 hours
+  keys: [process.env.COOKIE_SECRET || 'your-default-secret-key-change-in-production'],
+  secure: process.env.NODE_ENV === 'production',
+  httpOnly: true,
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+}));
+
+// Passport middleware (must be after session middleware)
+app.use(passport.initialize());
+app.use(passport.session());
+
 app.use(express.json()) // Parses JSON bodies
 app.use(morgan("dev")) // Logs HTTP requests in development mode
 app.use(express.urlencoded({ extended: true }));
@@ -179,6 +257,8 @@ try {
 
 // Define routes
 app.use("/api/auth", authRoutes)
+app.use("/auth/oauth", oauthRoutes) // OAuth routes (no /api prefix for OAuth callback compatibility)
+app.use("/auth", oauthRoutes) // Also mount on /auth for backwards compatibility
 app.use("/api/events", require("./routes/events"))
 app.use("/api/users", userRoutes)
 app.use("/api/proposals", proposalsRouter)  // ✅ SINGLE PROPOSALS ROUTER - MySQL focused
@@ -198,6 +278,10 @@ app.use('/api/admin', adminRoutes);
 // ✅ Database API Routes
 const databaseApiRoutes = require('./routes/database-api');
 app.use('/api/db', databaseApiRoutes);
+
+// Profile routes
+const profileRoutes = require('./routes/profile');
+app.use('/api/profile', profileRoutes);
 
 // Static file serving for uploads
 app.use('/uploads', express.static('uploads'));

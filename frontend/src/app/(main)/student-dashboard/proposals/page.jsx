@@ -1,9 +1,16 @@
+"use client" // Ensures this page and its direct children can use client-side hooks
 
-"use client"
-import { PageHeader } from "@/components/page-header"
-import { ProposalTable } from "@/components/proposal-table"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+// Force dynamic rendering to prevent SSG issues
+export const dynamic = 'force-dynamic';
+
+import { PageHeader } from "@/components/page-header";
+import { ProposalTable } from "@/components/proposal-table"; // Assuming this is the component using useSearchParams or rendering one that does
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Suspense } from 'react'; // Import Suspense
+
+// A simple fallback UI. You can customize this with a skeleton loader.
+const ProposalsLoadingFallback = () => <div>Loading proposals...</div>;
 
 export default function ProposalsPage() {
   return (
@@ -26,27 +33,38 @@ export default function ProposalsPage() {
             </TabsList>
 
             <TabsContent value="all" className="space-y-4">
-              <ProposalTable />
+              {/* Wrap the component that uses useSearchParams */}
+              <Suspense fallback={<ProposalsLoadingFallback />}>
+                <ProposalTable />
+              </Suspense>
             </TabsContent>
 
             <TabsContent value="pending" className="space-y-4">
-              <ProposalTable />
+              <Suspense fallback={<ProposalsLoadingFallback />}>
+                <ProposalTable />
+              </Suspense>
             </TabsContent>
 
             <TabsContent value="approved" className="space-y-4">
-              <ProposalTable />
+              <Suspense fallback={<ProposalsLoadingFallback />}>
+                <ProposalTable />
+              </Suspense>
             </TabsContent>
 
             <TabsContent value="rejected" className="space-y-4">
-              <ProposalTable />
+              <Suspense fallback={<ProposalsLoadingFallback />}>
+                <ProposalTable />
+              </Suspense>
             </TabsContent>
 
             <TabsContent value="drafts" className="space-y-4">
-              <ProposalTable />
+              <Suspense fallback={<ProposalsLoadingFallback />}>
+                <ProposalTable />
+              </Suspense>
             </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

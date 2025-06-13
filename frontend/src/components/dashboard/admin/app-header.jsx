@@ -9,6 +9,15 @@ import { Bell, Check, ChevronDown, Clock, LogOut, Settings, User, X } from "luci
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+// Responsive breakpoints following mobile-first approach
+const RESPONSIVE_BREAKPOINTS = {
+  sm: 640,
+  md: 768,
+  lg: 1024,
+  xl: 1280,
+  '2xl': 1536
+}
+
 // Sample notifications data (can be fetched from an API)
 const sampleNotifications = [
   {
@@ -63,6 +72,7 @@ export function AppHeader() {
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
+  // Enhanced click outside handler with responsive considerations
   useEffect(() => {
     function handleClickOutside(event) {
       if (notificationRef.current && !notificationRef.current.contains(event.target)) {
@@ -72,7 +82,9 @@ export function AppHeader() {
         setShowProfile(false);
       }
     }
-    document.addEventListener("mousedown", handleClickOutside);
+
+    // Add passive listeners for better performance
+    document.addEventListener("mousedown", handleClickOutside, { passive: true });
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
@@ -90,18 +102,22 @@ export function AppHeader() {
     setNotifications(notifications.map((notif) => ({ ...notif, read: true })));
   };
 
+  // Enhanced notification icons with responsive sizing
   const getNotificationIcon = (type) => {
+    const iconSize = "h-3 w-3 md:h-4 md:w-4 lg:h-5 lg:w-5";
+    const containerSize = "h-6 w-6 md:h-8 md:w-8 lg:h-10 lg:w-10";
+
     switch (type) {
       case "proposal":
-        return <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0"><Bell className="h-3 w-3 sm:h-4 sm:w-4" /></div>;
+        return <div className={`${containerSize} rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0`}><Bell className={iconSize} /></div>;
       case "approval":
-        return <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 shrink-0"><Check className="h-3 w-3 sm:h-4 sm:w-4" /></div>;
+        return <div className={`${containerSize} rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0`}><Check className={iconSize} /></div>;
       case "rejection":
-        return <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-red-100 flex items-center justify-center text-red-600 shrink-0"><X className="h-3 w-3 sm:h-4 sm:w-4" /></div>;
+        return <div className={`${containerSize} rounded-full bg-red-100 flex items-center justify-center text-red-600 shrink-0`}><X className={iconSize} /></div>;
       case "reminder":
-        return <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 shrink-0"><Clock className="h-3 w-3 sm:h-4 sm:w-4" /></div>;
+        return <div className={`${containerSize} rounded-full bg-amber-100 flex items-center justify-center text-amber-600 shrink-0`}><Clock className={iconSize} /></div>;
       default:
-        return <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 shrink-0"><Bell className="h-3 w-3 sm:h-4 sm:w-4" /></div>;
+        return <div className={`${containerSize} rounded-full bg-slate-100 flex items-center justify-center text-slate-600 shrink-0`}><Bell className={iconSize} /></div>;
     }
   };
 
@@ -115,15 +131,26 @@ export function AppHeader() {
     setShowNotifications(false);
   };
 
-  // Handle cases where user might be null during initial load
+  // Enhanced loading state with responsive design
   if (!user) {
     return (
-      <div className="h-12 sm:h-14 md:h-16 border-b bg-white flex items-center justify-end px-3 sm:px-4 md:px-6 sticky top-0 z-40 shadow-sm">
+      <div className="
+        h-14 md:h-16 lg:h-20 
+        flex items-center justify-end 
+        px-4 md:px-6 lg:px-8
+        transition-all duration-200
+      ">
         <Button
           variant="outline"
           size={isMobile ? "sm" : "default"}
           onClick={() => router.push('/sign-in')}
-          className="text-xs sm:text-sm"
+          className="
+            text-xs md:text-sm lg:text-base 
+            border-slate-300 hover:border-slate-400
+            min-h-[40px] md:min-h-[44px] lg:min-h-[48px]
+            px-4 md:px-6 lg:px-8
+            transition-all duration-200
+          "
         >
           Sign In
         </Button>
@@ -132,39 +159,72 @@ export function AppHeader() {
   }
 
   return (
-    <div className="h-12 sm:h-14 md:h-16 border-b bg-white/95 backdrop-blur-sm flex items-center justify-between px-3 sm:px-4 md:px-6 sticky top-0 z-40 shadow-sm transition-all duration-200">
-      {/* Left section - Brand/Search (responsive) */}
+    <div className="
+      h-14 md:h-16 lg:h-20 
+      flex items-center justify-between 
+      px-4 md:px-6 lg:px-8
+      transition-all duration-200
+      bg-white/95 backdrop-blur-md
+      border-b border-slate-200/60
+      shadow-sm
+    ">
+
+      {/* Enhanced left section with responsive brand */}
       <div className="flex items-center min-w-0 flex-1">
-        {/* Optional brand/logo for larger screens */}
+        {/* Responsive brand/logo */}
         <div className="hidden md:block">
-          <h1 className="text-lg font-semibold text-cedo-blue truncate">
+          <h1 className="
+            text-lg md:text-xl lg:text-2xl xl:text-3xl 
+            font-semibold text-slate-900 truncate
+            transition-all duration-200
+          ">
             CEDO Admin
           </h1>
         </div>
 
-        {/* Search could go here on larger screens */}
-        <div className="flex-1 max-w-md mx-4 hidden lg:block">
-          {/* Placeholder for search functionality */}
+        {/* Mobile brand */}
+        <div className="block md:hidden">
+          <h1 className="text-base font-semibold text-slate-900 truncate">
+            Admin
+          </h1>
         </div>
       </div>
 
-      {/* Right section - Notifications and Profile (responsive) */}
-      <div className="flex items-center gap-1 sm:gap-2 ml-auto">
-        {/* Notifications dropdown with responsive design */}
+      {/* Enhanced right section with responsive spacing */}
+      <div className="flex items-center gap-2 md:gap-3 lg:gap-4 xl:gap-5 ml-auto">
+
+        {/* Enhanced notifications dropdown with responsive design */}
         <div className="relative" ref={notificationRef}>
           <Button
             variant="ghost"
-            size={isMobile ? "sm" : "default"}
-            className="relative h-8 w-8 sm:h-9 sm:w-9 p-0 hover:bg-gray-100"
+            size="sm"
+            className="
+              relative cursor-pointer
+              h-9 w-9 md:h-10 md:w-10 lg:h-11 lg:w-11 xl:h-12 xl:w-12 p-0 
+              hover:bg-slate-100 active:bg-slate-200 transition-all duration-200
+              rounded-xl
+              focus:outline-none focus:ring-2 focus:ring-cedo-gold/50
+            "
             onClick={() => {
               setShowNotifications(!showNotifications);
               setShowProfile(false);
             }}
             aria-label="Toggle notifications"
           >
-            <Bell className="h-4 w-4 sm:h-5 sm:w-5 text-gray-600" />
+            <Bell className="
+              h-4 w-4 md:h-5 md:w-5 lg:h-6 lg:w-6 
+              text-slate-600 transition-transform duration-200 
+              hover:scale-110 active:scale-95
+            " />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 h-4 w-4 sm:h-5 sm:w-5 bg-red-500 rounded-full text-[10px] sm:text-xs text-white flex items-center justify-center font-medium">
+              <span className="
+                absolute -top-1 -right-1 
+                h-4 w-4 md:h-5 md:w-5 lg:h-6 lg:w-6 
+                bg-red-500 rounded-full 
+                text-[10px] md:text-xs lg:text-sm text-white 
+                flex items-center justify-center font-medium
+                border-2 border-white
+              ">
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
@@ -177,73 +237,112 @@ export function AppHeader() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
                 transition={{ duration: 0.2 }}
-                className="absolute right-0 mt-2 bg-white rounded-lg sm:rounded-xl shadow-xl border overflow-hidden z-50 w-72 sm:w-80 md:w-96"
+                className="
+                  absolute right-0 mt-2 
+                  bg-white rounded-xl shadow-xl border border-slate-200
+                  overflow-hidden z-50 
+                  w-80 md:w-96 lg:w-[420px] xl:w-[480px]
+                  max-h-[85vh] md:max-h-[80vh]
+                "
               >
-                {/* Header with responsive spacing */}
-                <div className="p-3 sm:p-4 border-b flex justify-between items-center bg-gray-50">
-                  <h3 className="font-semibold text-gray-900 text-sm sm:text-base">Notifications</h3>
-                  {unreadCount > 0 && (
-                    <Button
-                      variant="link"
-                      size="sm"
-                      onClick={markAllAsRead}
-                      className="text-xs sm:text-sm h-auto p-0 text-blue-600 hover:text-blue-700"
-                    >
-                      Mark all read
-                    </Button>
-                  )}
+                {/* Enhanced header with responsive typography */}
+                <div className="p-4 md:p-5 lg:p-6 border-b border-slate-200 bg-slate-50">
+                  <div className="flex justify-between items-center">
+                    <h3 className="
+                      font-semibold text-slate-900 
+                      text-sm md:text-base lg:text-lg
+                    ">
+                      Notifications
+                    </h3>
+                    {unreadCount > 0 && (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={markAllAsRead}
+                        className="
+                          text-xs md:text-sm lg:text-base h-auto p-0 
+                          text-blue-600 hover:text-blue-700
+                          transition-colors duration-200
+                        "
+                      >
+                        Mark all read
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
-                {/* Notifications list with responsive design */}
-                <div className="max-h-[60vh] sm:max-h-[70vh] overflow-y-auto scrollbar-thin">
+                {/* Enhanced notifications list with responsive scrolling */}
+                <div className="
+                  max-h-96 md:max-h-[400px] lg:max-h-[450px] 
+                  overflow-y-auto
+                  scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent
+                ">
                   {notifications.length > 0 ? (
                     <div>
                       {notifications.map((notification) => (
                         <div
                           key={notification.id}
-                          className={`p-3 sm:p-4 border-b hover:bg-gray-50 transition-colors cursor-pointer ${!notification.read ? "bg-blue-50/50" : ""
-                            }`}
+                          className={`
+                            p-4 md:p-5 lg:p-6 border-b border-slate-100 
+                            hover:bg-slate-50 active:bg-slate-100 transition-colors duration-200 cursor-pointer
+                            ${!notification.read ? "bg-blue-50/50" : ""}
+                          `}
                           onClick={() => markAsRead(notification.id, notification.link)}
                           role="button"
                           tabIndex={0}
                           onKeyDown={(e) => e.key === 'Enter' && markAsRead(notification.id, notification.link)}
                         >
-                          <div className="flex gap-2 sm:gap-3">
+                          <div className="flex gap-3 md:gap-4">
                             {getNotificationIcon(notification.type)}
                             <div className="flex-1 min-w-0">
                               <div className="flex justify-between items-start gap-2">
-                                <p className="text-xs sm:text-sm font-medium text-gray-900 line-clamp-2">
+                                <p className="
+                                  text-sm md:text-base lg:text-lg font-medium text-slate-900 line-clamp-2
+                                  transition-colors duration-200
+                                ">
                                   {notification.title}
                                 </p>
                                 {!notification.read && (
-                                  <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 bg-blue-600 rounded-full mt-1 shrink-0"></span>
+                                  <span className="h-2 w-2 md:h-3 md:w-3 bg-blue-600 rounded-full mt-1 shrink-0"></span>
                                 )}
                               </div>
-                              <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                              <p className="
+                                text-xs md:text-sm lg:text-base text-slate-600 mt-1 line-clamp-2
+                                transition-colors duration-200
+                              ">
                                 {notification.message}
                               </p>
-                              <p className="text-xs text-gray-500 mt-1">{notification.timestamp}</p>
+                              <p className="text-xs md:text-sm text-slate-500 mt-1">{notification.timestamp}</p>
                             </div>
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="p-6 sm:p-8 text-center">
-                      <div className="h-12 w-12 sm:h-16 sm:w-16 mx-auto mb-3 sm:mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-                        <Bell className="h-6 w-6 sm:h-8 sm:w-8 text-gray-400" />
+                    <div className="p-8 md:p-10 lg:p-12 text-center">
+                      <div className="
+                        h-16 w-16 md:h-20 md:w-20 lg:h-24 lg:w-24 
+                        mx-auto mb-4 rounded-full bg-slate-100 
+                        flex items-center justify-center
+                      ">
+                        <Bell className="h-8 w-8 md:h-10 md:w-10 lg:h-12 lg:w-12 text-slate-400" />
                       </div>
-                      <p className="text-sm sm:text-base text-gray-500">No notifications</p>
+                      <p className="text-sm md:text-base lg:text-lg text-slate-500">No notifications</p>
                     </div>
                   )}
                 </div>
 
-                {/* Footer with responsive design */}
-                <div className="p-2 sm:p-3 border-t bg-gray-50">
+                {/* Enhanced footer with responsive button */}
+                <div className="p-3 md:p-4 lg:p-5 border-t border-slate-200 bg-slate-50">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="w-full text-gray-700 hover:bg-gray-100 text-xs sm:text-sm"
+                    className="
+                      w-full text-slate-700 hover:bg-slate-100 
+                      text-xs md:text-sm lg:text-base
+                      h-9 md:h-10 lg:h-11
+                      transition-all duration-200
+                    "
                     onClick={viewAllNotifications}
                   >
                     View all notifications
@@ -254,11 +353,19 @@ export function AppHeader() {
           </AnimatePresence>
         </div>
 
-        {/* Profile dropdown with responsive design */}
+        {/* Enhanced profile dropdown with responsive design */}
         <div className="relative" ref={profileRef}>
           <Button
             variant="ghost"
-            className={`flex items-center gap-1 sm:gap-2 h-8 sm:h-9 px-1 sm:px-2 hover:bg-gray-100 transition-colors`}
+            className="
+              flex items-center cursor-pointer
+              gap-2 md:gap-3 lg:gap-4
+              h-9 md:h-10 lg:h-11 xl:h-12 
+              px-2 md:px-3 lg:px-4
+              hover:bg-slate-100 active:bg-slate-200 transition-all duration-200
+              rounded-xl
+              focus:outline-none focus:ring-2 focus:ring-cedo-gold/50
+            "
             onClick={() => {
               setShowProfile(!showProfile);
               setShowNotifications(false);
@@ -266,24 +373,37 @@ export function AppHeader() {
             aria-label="Toggle user profile menu"
             aria-expanded={showProfile}
           >
-            <Avatar className="h-6 w-6 sm:h-7 sm:w-7">
+            <Avatar className="h-7 w-7 md:h-8 md:w-8 lg:h-9 lg:w-9 xl:h-10 xl:w-10">
               <AvatarImage src={user.avatar} alt={user.name} />
-              <AvatarFallback className="bg-cedo-blue text-white text-xs">
+              <AvatarFallback className="
+                bg-blue-600 text-white 
+                text-xs md:text-sm lg:text-base xl:text-lg
+              ">
                 {user.name.split(" ").map((n) => n[0]).join("").toUpperCase()}
               </AvatarFallback>
             </Avatar>
 
-            {/* User info - hidden on very small screens */}
-            <div className="hidden sm:block text-left min-w-0 max-w-[120px] md:max-w-[150px]">
-              <p className="text-xs font-medium leading-none text-gray-900 truncate">
+            {/* Enhanced user info with responsive visibility */}
+            <div className="hidden sm:block text-left min-w-0 max-w-[120px] md:max-w-[150px] lg:max-w-[180px] xl:max-w-[200px]">
+              <p className="
+                text-xs md:text-sm lg:text-base font-medium leading-none text-slate-900 truncate
+                transition-colors duration-200
+              ">
                 {user.name}
               </p>
-              <p className="text-xs text-gray-500 truncate mt-0.5">
+              <p className="
+                text-xs md:text-sm text-slate-500 truncate mt-0.5
+                transition-colors duration-200
+              ">
                 {user.role}
               </p>
             </div>
 
-            <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 text-gray-500 hidden sm:block" />
+            <ChevronDown className="
+              h-3 w-3 md:h-4 md:w-4 lg:h-5 lg:w-5 text-slate-500 
+              hidden sm:block transition-transform duration-200
+              group-hover:rotate-180
+            " />
           </Button>
 
           <AnimatePresence>
@@ -293,37 +413,58 @@ export function AppHeader() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
                 transition={{ duration: 0.2 }}
-                className="absolute right-0 mt-2 bg-white rounded-lg sm:rounded-xl shadow-xl border overflow-hidden z-50 w-56 sm:w-64"
+                className="
+                  absolute right-0 mt-2 
+                  bg-white rounded-xl shadow-xl border border-slate-200
+                  overflow-hidden z-50 
+                  w-64 md:w-72 lg:w-80 xl:w-96
+                "
               >
-                {/* Profile header with responsive design */}
-                <div className="p-3 sm:p-4 border-b bg-gray-50">
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <Avatar className="h-8 w-8 sm:h-10 sm:w-10">
+                {/* Enhanced profile header with responsive sizing */}
+                <div className="p-4 md:p-5 lg:p-6 border-b border-slate-200 bg-slate-50">
+                  <div className="flex items-center gap-3 md:gap-4">
+                    <Avatar className="h-10 w-10 md:h-12 md:w-12 lg:h-14 lg:w-14">
                       <AvatarImage src={user.avatar} alt={user.name} />
-                      <AvatarFallback className="bg-cedo-blue text-white text-sm">
+                      <AvatarFallback className="
+                        bg-blue-600 text-white 
+                        text-sm md:text-base lg:text-lg
+                      ">
                         {user.name.split(" ").map((n) => n[0]).join("").toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-gray-900 text-sm sm:text-base truncate">
+                      <p className="
+                        font-medium text-slate-900 
+                        text-sm md:text-base lg:text-lg truncate
+                        transition-colors duration-200
+                      ">
                         {user.name}
                       </p>
-                      <p className="text-xs sm:text-sm text-gray-500 truncate">
+                      <p className="
+                        text-xs md:text-sm lg:text-base text-slate-500 truncate
+                        transition-colors duration-200
+                      ">
                         {user.email}
                       </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Profile menu items with responsive design */}
-                <div className="p-1 sm:p-2">
+                {/* Enhanced profile menu with responsive items */}
+                <div className="p-2 md:p-3">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="w-full justify-start text-gray-700 hover:bg-gray-100 h-8 sm:h-9 text-xs sm:text-sm"
+                    className="
+                      w-full justify-start cursor-pointer
+                      text-slate-700 hover:bg-slate-100 active:bg-slate-200
+                      h-9 md:h-10 lg:h-11 
+                      text-xs md:text-sm lg:text-base
+                      rounded-lg transition-all duration-200
+                    "
                     onClick={() => handleNavigation("/admin-dashboard/profile")}
                   >
-                    <User className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                    <User className="h-3 w-3 md:h-4 md:w-4 lg:h-5 lg:w-5 mr-2 md:mr-3" />
                     My Profile
                   </Button>
 
@@ -331,26 +472,45 @@ export function AppHeader() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="w-full justify-start text-gray-700 hover:bg-gray-100 h-8 sm:h-9 text-xs sm:text-sm"
+                      className="
+                        w-full justify-start cursor-pointer
+                        text-slate-700 hover:bg-slate-100 active:bg-slate-200
+                        h-9 md:h-10 lg:h-11 
+                        text-xs md:text-sm lg:text-base
+                        rounded-lg transition-all duration-200
+                      "
                       onClick={() => handleNavigation("/admin-dashboard/settings")}
                     >
-                      <Settings className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                      <Settings className="h-3 w-3 md:h-4 md:w-4 lg:h-5 lg:w-5 mr-2 md:mr-3" />
                       Settings
                     </Button>
                   )}
 
-                  <div className="border-t my-1 sm:my-2" />
+                  <div className="border-t my-1 md:my-2" />
 
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 h-8 sm:h-9 text-xs sm:text-sm"
-                    onClick={() => {
-                      signOut();
-                      setShowProfile(false);
+                    className="
+                      w-full justify-start cursor-pointer
+                      text-red-600 hover:text-red-700 hover:bg-red-50 active:bg-red-100
+                      h-9 md:h-10 lg:h-11 
+                      text-xs md:text-sm lg:text-base
+                      rounded-lg transition-all duration-200
+                    "
+                    onClick={async () => {
+                      try {
+                        setShowProfile(false);
+                        // Enhanced sign-out with cleanup
+                        await signOut();
+                      } catch (error) {
+                        console.warn('Sign-out error:', error);
+                        // Force cleanup even if sign-out fails
+                        setShowProfile(false);
+                      }
                     }}
                   >
-                    <LogOut className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                    <LogOut className="h-3 w-3 md:h-4 md:w-4 lg:h-5 lg:w-5 mr-2 md:mr-3" />
                     Sign out
                   </Button>
                 </div>

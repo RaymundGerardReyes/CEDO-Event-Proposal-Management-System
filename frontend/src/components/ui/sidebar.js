@@ -1,19 +1,19 @@
 "use client"
 
 import { Slot } from "@radix-ui/react-slot"; // Import Slot
-import { cva } from "class-variance-authority"
-import { PanelLeft } from "lucide-react"
-import * as React from "react"
+import { cva } from "class-variance-authority";
+import { PanelLeft } from "lucide-react";
+import * as React from "react";
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
-import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 // Assuming Sheet and other components are correctly imported if used by this simplified sidebar version
 // For instance, the mobile version in your provided sidebar.js was simplified
 // compared to the .tsx version. If Sheet is needed, ensure it's imported.
 
-const SIDEBAR_WIDTH = "16rem"
+const SIDEBAR_WIDTH = "2rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 
 const SidebarContext = React.createContext(null)
@@ -306,5 +306,5 @@ export {
   SidebarSeparator,
   SidebarTrigger,
   useSidebar
-}
+};
 

@@ -3,36 +3,123 @@
 import { Badge } from "@/components/dashboard/student/ui/badge";
 import { Button } from "@/components/dashboard/student/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/dashboard/student/ui/card";
-import Progress from '@/components/dashboard/student/ui/progress'; // Note the plural 'components'
+import Progress from '@/components/dashboard/student/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from "@/components/dashboard/student/ui/tabs";
 import { Calendar, ChevronRight, Clock, FileText, PlusCircle } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
+
+// ✅ Memoized StatusPanel for development debugging
+const StatusPanel = memo(() => {
+  const [mounted, setMounted] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [collapsed] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // Only show in development
+  if (process.env.NODE_ENV !== 'development') return null;
+
+  return (
+    <div className="fixed top-2 right-2 z-50 bg-white/95 dark:bg-gray-900/95 border rounded-lg shadow-lg px-3 py-2 text-xs space-y-1 backdrop-blur-sm sm:top-4 sm:right-4 sm:px-4 sm:text-sm">
+      <div>Mounted: <span className={mounted ? "text-green-600" : "text-red-600"}>{mounted ? "✅" : "❌"}</span></div>
+      <div>Mobile: <span className={isMobile ? "text-green-600" : "text-red-600"}>{isMobile ? "✅" : "❌"}</span></div>
+      <div>Collapsed: <span className={collapsed ? "text-green-600" : "text-red-600"}>{collapsed ? "✅" : "❌"}</span></div>
+      <div className="hidden sm:block">Class: <span className="font-mono">md:ml-72</span></div>
+      <div className="hidden sm:block">Style: <span className="font-mono">0rem</span></div>
+    </div>
+  );
+});
+
+StatusPanel.displayName = "StatusPanel";
+
+// ✅ Enhanced Memoized StatCard component with better responsive design
+const StatCard = memo(({ title, value, icon: Icon, bgColor, textColor }) => (
+  <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+    <CardContent className="p-4 sm:p-6 flex justify-between items-center">
+      <div className="flex-1 min-w-0">
+        <h3 className={`text-sm sm:text-base lg:text-lg font-medium ${textColor} mb-1 truncate`}>
+          {title}
+        </h3>
+        <p className={`text-2xl sm:text-3xl lg:text-4xl font-bold ${textColor} tabular-nums`}>
+          {value}
+        </p>
+      </div>
+      <div className={`${bgColor} p-2 sm:p-3 rounded-full flex-shrink-0 ml-2 sm:ml-4`}>
+        <Icon className={`h-5 w-5 sm:h-6 sm:w-6 ${textColor}`} aria-hidden="true" />
+      </div>
+    </CardContent>
+  </Card>
+));
+
+StatCard.displayName = "StatCard";
+
+// ✅ Enhanced Memoized ProgressItem component
+const ProgressItem = memo(({ label, current, total, value }) => (
+  <div className="space-y-2">
+    <div className="flex justify-between items-center">
+      <span className="text-sm sm:text-base font-medium truncate">{label}</span>
+      <span className="text-xs sm:text-sm text-muted-foreground flex-shrink-0 ml-2">
+        {current} / {total}
+      </span>
+    </div>
+    <Progress value={value} className="h-2 sm:h-2.5" />
+  </div>
+));
+
+ProgressItem.displayName = "ProgressItem";
+
+// ✅ Enhanced Memoized EventRow component with better mobile design
+const EventRow = memo(({ event, activeTab }) => {
+  return (
+    <tr className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+      <td className="py-3 pl-4 pr-3 sm:pl-0">
+        <div className="font-medium text-gray-900 text-sm sm:text-base truncate max-w-[150px] sm:max-w-none">
+          {event.title}
+        </div>
+        <div className="text-xs sm:text-sm text-gray-500 mt-1 capitalize">{event.type}</div>
+      </td>
+      <td className="px-2 sm:px-3 py-3 text-xs sm:text-sm text-gray-500 hidden xs:table-cell">
+        {event.date}
+      </td>
+      <td className="px-2 sm:px-3 py-3">
+        <Badge
+          variant={event.status === 'approved' ? 'default' : event.status === 'pending' ? 'secondary' : 'destructive'}
+          className={`text-xs ${event.status === 'approved'
+            ? 'bg-green-100 text-green-800 hover:bg-green-100'
+            : event.status === 'pending'
+              ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100'
+              : 'bg-red-100 text-red-800 hover:bg-red-100'
+            }`}
+        >
+          {event.status}
+        </Badge>
+      </td>
+      <td className="px-2 sm:px-3 py-3 text-xs sm:text-sm text-gray-500 text-center">
+        {event.credits}
+      </td>
+    </tr>
+  );
+});
+
+EventRow.displayName = "EventRow";
 
 export default function DashboardPage() {
-  const [activeTab, setActiveTab] = useState("all")
+  const [activeTab, setActiveTab] = useState("all");
 
-  // Sample data for SDP credits
-  // In a real application, this data would likely come from an API
-  const sdpCredits = {
-    totalEarned: 24, // Example: directly use the number you had in the JSX
-    pending: 8,      // Example
-    // You can expand this object if other parts of sdpCredits data are needed
-    // total: 100,
-    // earned: 45, // This was in the sample data, but the JSX used 24
-    // pending: 15, // This was in the sample data, but the JSX used 8
-    // required: 100,
-    // breakdown: {
-    //   academic: 20,
-    //   leadership: 15,
-    //   volunteerism: 10,
-    //   cultural: 0,
-    // },
-  }
+  // ✅ Memoized data to prevent unnecessary recalculations
+  const sdpCredits = useMemo(() => ({
+    totalEarned: 24,
+    pending: 8,
+  }), []);
 
-  // Sample data for recent events
-  // In a real application, this data would likely come from an API
-  const recentEvents = [
+  const recentEvents = useMemo(() => [
     {
       id: "EVENT-001",
       title: "Leadership Workshop",
@@ -65,233 +152,205 @@ export default function DashboardPage() {
       type: "academic",
       credits: 0,
     },
-  ]
+  ], []);
 
-  // Example: calculate upcoming events count (you might have a different logic)
-  const upcomingEventsCount = recentEvents.filter(event => new Date(event.date) > new Date() && (event.status === 'approved' || event.status === 'pending')).length;
-  const overallProgressPercentage = 67; // As per your hardcoded value
-  const overallProgressText = "24 of 36 credits"; // As per your hardcoded value
+  // ✅ Memoized calculated values
+  const dashboardStats = useMemo(() => {
+    const upcomingEventsCount = recentEvents.filter(event =>
+      new Date(event.date) > new Date() && (event.status === 'approved' || event.status === 'pending')
+    ).length;
+
+    const overallProgressPercentage = 67;
+    const overallProgressText = "24 of 36 credits";
+
+    return {
+      upcomingEventsCount,
+      overallProgressPercentage,
+      overallProgressText,
+    };
+  }, [recentEvents]);
+
+  // ✅ Memoized filtered events
+  const filteredEvents = useMemo(() => {
+    if (activeTab === "all") return recentEvents;
+    return recentEvents.filter(event => event.status === activeTab);
+  }, [recentEvents, activeTab]);
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight mb-1">Dashboard</h1>
-          <p className="text-muted-foreground">Track your Scholars Development Program events and credits</p>
-        </div>
-        <Link href="/student-dashboard/submit-event">
-          <Button className="bg-[#001a56] hover:bg-[#001a56]/90">
-            <PlusCircle className="h-4 w-4 mr-2" aria-hidden="true" />
-            <span>New Event</span>
-          </Button>
-        </Link>
-      </div>
-
-      {/* SDP Credits Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card className="shadow-sm">
-          <CardContent className="p-6 flex justify-between items-center">
-            <div>
-              <h3 className="text-lg font-medium text-[#001a56] mb-1">Total SDP Credits</h3>
-              <p className="text-3xl font-bold text-[#001a56]">{sdpCredits.totalEarned}</p>
-            </div>
-            <div className="bg-[#001a56]/10 p-3 rounded-full">
-              <FileText className="h-6 w-6 text-[#001a56]" aria-hidden="true" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardContent className="p-6 flex justify-between items-center">
-            <div>
-              <h3 className="text-lg font-medium text-[#001a56] mb-1">Pending Credits</h3>
-              <p className="text-3xl font-bold text-[#f0c14b]">{sdpCredits.pending}</p>
-            </div>
-            <div className="bg-[#f0c14b]/10 p-3 rounded-full">
-              <Clock className="h-6 w-6 text-[#001a56]" aria-hidden="true" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardContent className="p-6 flex justify-between items-center">
-            <div>
-              <h3 className="text-lg font-medium text-[#001a56] mb-1">Upcoming Events</h3>
-              <p className="text-3xl font-bold text-green-600">{upcomingEventsCount}</p> {/* Made dynamic based on sample data */}
-            </div>
-            <div className="bg-green-100 p-3 rounded-full">
-              <Calendar className="h-6 w-6 text-green-600" aria-hidden="true" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Credit Progress */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Credit Progress</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div>
-              <div className="flex justify-between mb-2">
-                <h4 className="font-medium">Overall Progress</h4>
-                <span className="text-sm text-muted-foreground">{overallProgressText}</span>
-              </div>
-              <div className="h-2.5 w-full rounded-full bg-[#f0c14b]">
-                <div
-                  className="h-2.5 rounded-full bg-[#001a56]"
-                  style={{ width: `${overallProgressPercentage}%` }} // Made dynamic
-                  role="progressbar"
-                  aria-valuenow={overallProgressPercentage} // Made dynamic
-                  aria-valuemin="0"
-                  aria-valuemax="100"
-                ></div>
-              </div>
-              <div className="mt-1 text-right text-sm text-muted-foreground">{overallProgressPercentage}% complete</div> {/* Made dynamic */}
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium">Leadership</span>
-                  <span className="text-sm text-muted-foreground">8 / 12</span> {/* Consider making this dynamic */}
-                </div>
-                <Progress value={67} className="h-2" /> {/* Consider making value dynamic */}
-              </div>
-
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium">Community Service</span>
-                  <span className="text-sm text-muted-foreground">10 / 12</span> {/* Consider making this dynamic */}
-                </div>
-                <Progress value={83} className="h-2" /> {/* Consider making value dynamic */}
-              </div>
-
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium">Professional Development</span>
-                  <span className="text-sm text-muted-foreground">6 / 12</span> {/* Consider making this dynamic */}
-                </div>
-                <Progress value={50} className="h-2" /> {/* Consider making value dynamic */}
-              </div>
-            </div>
+    <>
+      <StatusPanel />
+      <div className="space-y-6 sm:space-y-8 p-4 sm:p-6 lg:p-8">
+        {/* Enhanced Header Section */}
+        <div className="flex flex-col space-y-4 sm:flex-row sm:justify-between sm:items-start sm:space-y-0 lg:items-center">
+          <div className="space-y-1 sm:space-y-2">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">
+              Dashboard
+            </h1>
+            <p className="text-sm sm:text-base text-muted-foreground max-w-2xl">
+              Track your Scholars Development Program events and credits
+            </p>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Recent Events */}
-      <Card className="shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-          <CardTitle>Recent Events</CardTitle>
-          <Link href="/events">
-            <Button variant="ghost" size="sm" className="gap-1 text-[#001a56]">
-              View All
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          <Link href="/student-dashboard/submit-event" prefetch={true}>
+            <Button className="bg-[#001a56] hover:bg-[#001a56]/90 w-full sm:w-auto">
+              <PlusCircle className="h-4 w-4 mr-2" aria-hidden="true" />
+              <span className="text-sm sm:text-base">New Event</span>
             </Button>
           </Link>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="mb-4 w-full sm:w-auto grid grid-cols-4 sm:inline-flex">
-              <TabsTrigger value="all" className="flex-1 sm:flex-initial">
-                All Events
-              </TabsTrigger>
-              <TabsTrigger value="approved" className="flex-1 sm:flex-initial">
-                Approved
-              </TabsTrigger>
-              <TabsTrigger value="pending" className="flex-1 sm:flex-initial">
-                Pending
-              </TabsTrigger>
-              <TabsTrigger value="draft" className="flex-1 sm:flex-initial"> {/* Assuming 'draft' is a valid status, or adjust filter */}
-                Draft
-              </TabsTrigger>
-            </TabsList>
+        </div>
 
-            <div className="overflow-x-auto -mx-4 sm:mx-0">
-              <div className="inline-block min-w-full align-middle">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead>
-                    <tr className="text-left text-sm font-medium text-muted-foreground">
-                      <th scope="col" className="py-3 pl-4 pr-3 sm:pl-0">
-                        Event Title
-                      </th>
-                      <th scope="col" className="px-3 py-3">
-                        Date
-                      </th>
-                      <th scope="col" className="px-3 py-3">
-                        Type
-                      </th>
-                      <th scope="col" className="px-3 py-3">
-                        Credits
-                      </th>
-                      <th scope="col" className="px-3 py-3">
-                        Status
-                      </th>
-                      <th scope="col" className="px-3 py-3 text-right">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {recentEvents
-                      .filter((event) => activeTab === "all" || event.status === activeTab || (activeTab === "draft" && event.status === "draft")) // Ensure 'draft' status handling if it exists
-                      .map((event) => (
-                        <tr key={event.id} className="hover:bg-muted/50">
-                          <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-0">
-                            {event.title}
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                            {new Date(event.date).toLocaleDateString()}
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                            <Badge
-                              className={
-                                event.type === "academic"
-                                  ? "bg-blue-100 text-blue-800 hover:bg-blue-100"
-                                  : event.type === "leadership"
-                                    ? "bg-[#f0c14b]/20 text-[#001a56] hover:bg-[#f0c14b]/20"
-                                    : event.type === "volunteerism"
-                                      ? "bg-green-100 text-green-800 hover:bg-green-100"
-                                      : "bg-purple-100 text-purple-800 hover:bg-purple-100" // Default/cultural
-                              }
-                            >
-                              {event.type.charAt(0).toUpperCase() + event.type.slice(1)}
-                            </Badge>
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{event.credits}</td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                            <Badge
-                              className={
-                                event.status === "approved"
-                                  ? "bg-green-100 text-green-800 hover:bg-green-100 border-green-200"
-                                  : event.status === "pending"
-                                    ? "bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200"
-                                    : event.status === "rejected"
-                                      ? "bg-red-100 text-red-800 hover:bg-red-100 border-red-200"
-                                      : "bg-gray-100 text-gray-800 hover:bg-gray-100 border-gray-200" // Default for other statuses like 'draft'
-                              }
-                            >
-                              {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
-                            </Badge>
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 text-right">
-                            {/* Add actual action, e.g., Link to event details page */}
-                            <Link href={`/events/${event.id}`}>
-                              <Button variant="ghost" size="sm" className="text-[#001a56] hover:text-[#001a56]/70">
-                                View
-                              </Button>
-                            </Link>
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
+        {/* Enhanced SDP Credits Summary */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
+          <StatCard
+            title="Total SDP Credits"
+            value={sdpCredits.totalEarned}
+            icon={FileText}
+            bgColor="bg-[#001a56]/10"
+            textColor="text-[#001a56]"
+          />
+
+          <StatCard
+            title="Pending Credits"
+            value={sdpCredits.pending}
+            icon={Clock}
+            bgColor="bg-[#f0c14b]/10"
+            textColor="text-[#001a56]"
+          />
+
+          <StatCard
+            title="Upcoming Events"
+            value={dashboardStats.upcomingEventsCount}
+            icon={Calendar}
+            bgColor="bg-green-100"
+            textColor="text-green-600"
+          />
+        </div>
+
+        {/* Enhanced Credit Progress */}
+        <Card className="shadow-sm">
+          <CardHeader className="pb-4 sm:pb-6">
+            <CardTitle className="text-lg sm:text-xl">Credit Progress</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6 sm:space-y-8">
+            <div className="grid grid-cols-1 gap-6 sm:gap-8 xl:grid-cols-2">
+              {/* Overall Progress */}
+              <div className="space-y-3 sm:space-y-4">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-medium text-sm sm:text-base">Overall Progress</h4>
+                  <span className="text-xs sm:text-sm text-muted-foreground">
+                    {dashboardStats.overallProgressText}
+                  </span>
+                </div>
+                <div className="h-2.5 w-full rounded-full bg-[#f0c14b]">
+                  <div
+                    className="h-2.5 rounded-full bg-[#001a56] transition-all duration-500 ease-out"
+                    style={{ width: `${dashboardStats.overallProgressPercentage}%` }}
+                    role="progressbar"
+                    aria-valuenow={dashboardStats.overallProgressPercentage}
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                  ></div>
+                </div>
+                <div className="text-right text-xs sm:text-sm text-muted-foreground">
+                  {dashboardStats.overallProgressPercentage}% complete
+                </div>
+              </div>
+
+              {/* Category Progress */}
+              <div className="space-y-4 sm:space-y-6">
+                <ProgressItem label="Leadership" current={8} total={12} value={67} />
+                <ProgressItem label="Community Service" current={10} total={12} value={83} />
+                <ProgressItem label="Professional Development" current={6} total={12} value={50} />
               </div>
             </div>
-          </Tabs>
-        </CardContent>
-      </Card>
-    </div>
-  )
+          </CardContent>
+        </Card>
+
+        {/* Enhanced Recent Events */}
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 pb-4 sm:pb-6">
+            <CardTitle className="text-lg sm:text-xl">Recent Events</CardTitle>
+            <Link href="/student-dashboard/events" prefetch={true}>
+              <Button variant="ghost" size="sm" className="gap-1 text-[#001a56] w-full sm:w-auto">
+                View All
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="w-full">
+              {/* Enhanced Tabs */}
+              <TabsList className="mb-4 w-full grid grid-cols-4 h-auto p-1 sm:w-auto sm:inline-flex sm:h-10">
+                <TabsTrigger
+                  value="all"
+                  className="text-xs sm:text-sm px-2 sm:px-4 py-2 sm:py-2.5"
+                >
+                  All
+                </TabsTrigger>
+                <TabsTrigger
+                  value="approved"
+                  className="text-xs sm:text-sm px-2 sm:px-4 py-2 sm:py-2.5"
+                >
+                  Approved
+                </TabsTrigger>
+                <TabsTrigger
+                  value="pending"
+                  className="text-xs sm:text-sm px-2 sm:px-4 py-2 sm:py-2.5"
+                >
+                  Pending
+                </TabsTrigger>
+                <TabsTrigger
+                  value="draft"
+                  className="text-xs sm:text-sm px-2 sm:px-4 py-2 sm:py-2.5"
+                >
+                  Draft
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Enhanced Table with Better Mobile Responsiveness */}
+              <div className="overflow-x-auto -mx-4 sm:mx-0 rounded-lg border border-gray-200">
+                <div className="inline-block min-w-full align-middle">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr className="text-left text-xs sm:text-sm font-medium text-muted-foreground">
+                        <th scope="col" className="py-3 pl-4 pr-3 sm:pl-6">
+                          Event
+                        </th>
+                        <th scope="col" className="px-2 sm:px-3 py-3 hidden xs:table-cell">
+                          Date
+                        </th>
+                        <th scope="col" className="px-2 sm:px-3 py-3">
+                          Status
+                        </th>
+                        <th scope="col" className="px-2 sm:px-3 py-3 text-center">
+                          Credits
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 bg-white">
+                      {filteredEvents.length > 0 ? (
+                        filteredEvents.map((event) => (
+                          <EventRow key={event.id} event={event} activeTab={activeTab} />
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="4" className="py-8 text-center text-gray-500">
+                            <div className="flex flex-col items-center space-y-2">
+                              <FileText className="h-8 w-8 text-gray-300" />
+                              <p className="text-sm sm:text-base">
+                                No {activeTab !== "all" ? activeTab : ""} events found
+                              </p>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </div>
+    </>
+  );
 }

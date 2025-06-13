@@ -1,9 +1,10 @@
-import { createMachine, assign } from "xstate"
+import { assign, createMachine } from "xstate"
 
 // Status constants
 export const STATUS = {
   OVERVIEW: "overview",
-  ORG_INFO: "orgInfo",
+  EVENT_TYPE_SELECTION: "eventTypeSelection",
+  ORG_INFO: "organizationInfo",
   SCHOOL_EVENT: "schoolEvent",
   COMMUNITY_EVENT: "communityEvent",
   PENDING_REVIEW: "pendingReview",
@@ -12,7 +13,7 @@ export const STATUS = {
   REPORTING: "reporting",
   REPORT_PENDING: "reportPending",
   REPORT_APPROVED: "reportApproved",
-  REPORT_DENIED: "reportDenied",
+  REPORT_REVISION: "reportRevision",
   SUBMITTING: "submitting",
   ERROR: "error",
 }
@@ -23,9 +24,55 @@ export const loadPersistedFormData = () => {
 
   try {
     const savedData = localStorage.getItem("eventProposalFormData")
-    return savedData ? JSON.parse(savedData) : {}
+    if (!savedData) {
+      console.log('📭 No persisted form data found')
+      return {}
+    }
+
+    const parsedDataRaw = JSON.parse(savedData)
+
+    // 🔄 LEGACY MIGRATION: Early versions stored the Org-Info section id as
+    // "orgInfo".  Normalise it to the canonical "organizationInfo" so the
+    // state-machine and the UI are in sync regardless of snapshot age.
+    const parsedData = {
+      ...parsedDataRaw,
+      currentSection: parsedDataRaw.currentSection === 'orgInfo'
+        ? 'organizationInfo'
+        : parsedDataRaw.currentSection,
+    }
+
+    console.log('📖 Loaded persisted form data:', parsedData)
+
+    // Validate that essential fields exist
+    if (!parsedData || typeof parsedData !== 'object') {
+      console.warn('⚠️ Invalid persisted data format, resetting')
+      localStorage.removeItem("eventProposalFormData")
+      return {}
+    }
+
+    // Ensure minimal required structure
+    const validatedData = {
+      currentSection: parsedData.currentSection || "overview",
+      organizationName: parsedData.organizationName || "",
+      organizationTypes: Array.isArray(parsedData.organizationTypes) ? parsedData.organizationTypes : [],
+      selectedEventType: parsedData.selectedEventType || "",
+      hasActiveProposal: Boolean(parsedData.hasActiveProposal),
+      proposalStatus: parsedData.proposalStatus || "draft",
+      reportStatus: parsedData.reportStatus || "draft",
+      validationErrors: parsedData.validationErrors || {},
+      ...parsedData
+    }
+
+    console.log('✅ Validated form data:', validatedData)
+    return validatedData
   } catch (error) {
     console.error("Error loading persisted form data:", error)
+    // Clear corrupted data
+    try {
+      localStorage.removeItem("eventProposalFormData")
+    } catch (clearError) {
+      console.error("Error clearing corrupted data:", clearError)
+    }
     return {}
   }
 }
@@ -54,32 +101,68 @@ export const clearPersistedFormData = () => {
 
 // Create the state machine
 export const eventStateMachine = createMachine({
-  id: "eventProposal",
+  id: "eventSubmission",
   initial: STATUS.OVERVIEW,
   context: {
     formData: {
       currentSection: STATUS.OVERVIEW,
       organizationName: "",
       organizationTypes: [],
+      organizationDescription: "",
+      contactName: "",
+      contactEmail: "",
+      contactPhone: "",
+      selectedEventType: "",
       hasActiveProposal: false,
       proposalStatus: "draft",
       reportStatus: "draft",
       validationErrors: {},
+      organizationType: "",
+      submissionId: null,
+      // ✅ PROPOSAL ID FIELDS: Ensure these are always available
+      id: null,
+      proposalId: null,
+      organization_id: null,
     },
     errors: {},
     submissionId: null,
     error: null,
   },
+  on: {
+    UPDATE_FORM: {
+      actions: assign({
+        formData: ({ context, event }) => {
+          try {
+            const currentFormData = context?.formData || {};
+            const eventData = event?.data || {};
+            const merged = { ...currentFormData, ...eventData };
+            // Persist defensively – ignore quota errors to avoid interpreter crashes
+            try {
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('eventProposalFormData', JSON.stringify(merged));
+              }
+            } catch (e) {
+              console.warn('⚠️ Persist failed (ignored):', e?.message || e);
+            }
+            return merged;
+          } catch (err) {
+            console.error('❌ Global UPDATE_FORM handler error:', err);
+            return context.formData;
+          }
+        },
+      }),
+    },
+  },
   states: {
     [STATUS.OVERVIEW]: {
       on: {
         START_PROPOSAL: {
-          target: STATUS.ORG_INFO,
+          target: STATUS.EVENT_TYPE_SELECTION,
           actions: assign({
             formData: (context) => {
               const updatedFormData = {
                 ...context.formData,
-                currentSection: STATUS.ORG_INFO,
+                currentSection: STATUS.EVENT_TYPE_SELECTION,
                 validationErrors: {},
               }
               persistFormData(updatedFormData)
@@ -129,15 +212,36 @@ export const eventStateMachine = createMachine({
             },
           }),
         },
-        UPDATE_FORM: {
+      },
+    },
+    [STATUS.EVENT_TYPE_SELECTION]: {
+      on: {
+        SELECT_EVENT_TYPE: {
+          target: STATUS.ORG_INFO,
           actions: assign({
-            formData: (context, event) => {
-              // Safely handle event.data which might be undefined
-              const eventData = event && event.data ? event.data : {}
-
+            formData: ({ context, event }) => {
+              const eventType = event?.eventType || "school"
               const updatedFormData = {
                 ...context.formData,
-                ...eventData,
+                currentSection: STATUS.ORG_INFO,
+                selectedEventType: eventType,
+                organizationType: eventType,
+                organizationTypes: [eventType],
+                validationErrors: {},
+              }
+              persistFormData(updatedFormData)
+              return updatedFormData
+            },
+          }),
+        },
+        PREVIOUS: {
+          target: STATUS.OVERVIEW,
+          actions: assign({
+            formData: (context) => {
+              const updatedFormData = {
+                ...context.formData,
+                currentSection: STATUS.OVERVIEW,
+                validationErrors: {},
               }
               persistFormData(updatedFormData)
               return updatedFormData
@@ -155,6 +259,20 @@ export const eventStateMachine = createMachine({
               const updatedFormData = {
                 ...context.formData,
                 currentSection: STATUS.SCHOOL_EVENT,
+                validationErrors: {},
+              }
+              persistFormData(updatedFormData)
+              return updatedFormData
+            },
+          }),
+        },
+        NEXT_TO_COMMUNITY: {
+          target: STATUS.COMMUNITY_EVENT,
+          actions: assign({
+            formData: (context) => {
+              const updatedFormData = {
+                ...context.formData,
+                currentSection: STATUS.COMMUNITY_EVENT,
                 validationErrors: {},
               }
               persistFormData(updatedFormData)
@@ -192,32 +310,17 @@ export const eventStateMachine = createMachine({
             },
           }),
         },
-        UPDATE_FORM: {
-          actions: assign({
-            formData: (context, event) => {
-              // Safely handle event.data which might be undefined
-              const eventData = event && event.data ? event.data : {}
-
-              const updatedFormData = {
-                ...context.formData,
-                ...eventData,
-              }
-              persistFormData(updatedFormData)
-              return updatedFormData
-            },
-          }),
-        },
       },
     },
     [STATUS.SCHOOL_EVENT]: {
       on: {
         NEXT: {
-          target: STATUS.COMMUNITY_EVENT,
+          target: STATUS.REPORTING,
           actions: assign({
             formData: (context) => {
               const updatedFormData = {
                 ...context.formData,
-                currentSection: STATUS.COMMUNITY_EVENT,
+                currentSection: STATUS.REPORTING,
                 validationErrors: {},
               }
               persistFormData(updatedFormData)
@@ -255,32 +358,31 @@ export const eventStateMachine = createMachine({
             },
           }),
         },
-        UPDATE_FORM: {
+      },
+    },
+    [STATUS.COMMUNITY_EVENT]: {
+      on: {
+        NEXT: {
+          target: STATUS.REPORTING,
           actions: assign({
-            formData: (context, event) => {
-              // Safely handle event.data which might be undefined
-              const eventData = event && event.data ? event.data : {}
-
+            formData: (context) => {
               const updatedFormData = {
                 ...context.formData,
-                ...eventData,
+                currentSection: STATUS.REPORTING,
+                validationErrors: {},
               }
               persistFormData(updatedFormData)
               return updatedFormData
             },
           }),
         },
-      },
-    },
-    [STATUS.COMMUNITY_EVENT]: {
-      on: {
         PREVIOUS: {
-          target: STATUS.SCHOOL_EVENT,
+          target: STATUS.ORG_INFO,
           actions: assign({
             formData: (context) => {
               const updatedFormData = {
                 ...context.formData,
-                currentSection: STATUS.SCHOOL_EVENT,
+                currentSection: STATUS.ORG_INFO,
                 validationErrors: {},
               }
               persistFormData(updatedFormData)
@@ -307,21 +409,6 @@ export const eventStateMachine = createMachine({
         SUBMIT: {
           target: STATUS.SUBMITTING,
         },
-        UPDATE_FORM: {
-          actions: assign({
-            formData: (context, event) => {
-              // Safely handle event.data which might be undefined
-              const eventData = event && event.data ? event.data : {}
-
-              const updatedFormData = {
-                ...context.formData,
-                ...eventData,
-              }
-              persistFormData(updatedFormData)
-              return updatedFormData
-            },
-          }),
-        },
       },
     },
     [STATUS.SUBMITTING]: {
@@ -329,7 +416,7 @@ export const eventStateMachine = createMachine({
         SUBMIT: {
           target: STATUS.PENDING_REVIEW,
           actions: assign({
-            formData: (context, event) => {
+            formData: ({ context, event }) => {
               // Safely handle event.data which might be undefined
               const submissionId =
                 event && event.data && event.data.submissionId ? event.data.submissionId : `event-${Date.now()}`
@@ -345,7 +432,7 @@ export const eventStateMachine = createMachine({
               persistFormData(updatedFormData)
               return updatedFormData
             },
-            submissionId: (_, event) => {
+            submissionId: ({ event }) => {
               return event && event.data && event.data.submissionId ? event.data.submissionId : `event-${Date.now()}`
             },
           }),
@@ -353,7 +440,7 @@ export const eventStateMachine = createMachine({
         ERROR: {
           target: STATUS.ERROR,
           actions: assign({
-            error: (_, event) => {
+            error: ({ event }) => {
               return event && event.data && event.data.error ? event.data.error : "Unknown error occurred"
             },
           }),
@@ -406,21 +493,6 @@ export const eventStateMachine = createMachine({
             },
           }),
         },
-        UPDATE_FORM: {
-          actions: assign({
-            formData: (context, event) => {
-              // Safely handle event.data which might be undefined
-              const eventData = event && event.data ? event.data : {}
-
-              const updatedFormData = {
-                ...context.formData,
-                ...eventData,
-              }
-              persistFormData(updatedFormData)
-              return updatedFormData
-            },
-          }),
-        },
       },
     },
     [STATUS.APPROVED]: {
@@ -447,21 +519,6 @@ export const eventStateMachine = createMachine({
                 ...context.formData,
                 currentSection: STATUS.REPORTING,
                 validationErrors: {},
-              }
-              persistFormData(updatedFormData)
-              return updatedFormData
-            },
-          }),
-        },
-        UPDATE_FORM: {
-          actions: assign({
-            formData: (context, event) => {
-              // Safely handle event.data which might be undefined
-              const eventData = event && event.data ? event.data : {}
-
-              const updatedFormData = {
-                ...context.formData,
-                ...eventData,
               }
               persistFormData(updatedFormData)
               return updatedFormData
@@ -517,21 +574,6 @@ export const eventStateMachine = createMachine({
             },
           }),
         },
-        UPDATE_FORM: {
-          actions: assign({
-            formData: (context, event) => {
-              // Safely handle event.data which might be undefined
-              const eventData = event && event.data ? event.data : {}
-
-              const updatedFormData = {
-                ...context.formData,
-                ...eventData,
-              }
-              persistFormData(updatedFormData)
-              return updatedFormData
-            },
-          }),
-        },
       },
     },
     [STATUS.REPORTING]: {
@@ -559,21 +601,6 @@ export const eventStateMachine = createMachine({
                 currentSection: STATUS.REPORT_PENDING,
                 reportStatus: "pending",
                 validationErrors: {},
-              }
-              persistFormData(updatedFormData)
-              return updatedFormData
-            },
-          }),
-        },
-        UPDATE_FORM: {
-          actions: assign({
-            formData: (context, event) => {
-              // Safely handle event.data which might be undefined
-              const eventData = event && event.data ? event.data : {}
-
-              const updatedFormData = {
-                ...context.formData,
-                ...eventData,
               }
               persistFormData(updatedFormData)
               return updatedFormData
@@ -613,30 +640,15 @@ export const eventStateMachine = createMachine({
             },
           }),
         },
-        DENY_REPORT: {
-          target: STATUS.REPORT_DENIED,
+        REQUEST_REVISION: {
+          target: STATUS.REPORT_REVISION,
           actions: assign({
             formData: (context) => {
               const updatedFormData = {
                 ...context.formData,
-                currentSection: STATUS.REPORT_DENIED,
-                reportStatus: "denied",
+                currentSection: STATUS.REPORT_REVISION,
+                reportStatus: "revision",
                 validationErrors: {},
-              }
-              persistFormData(updatedFormData)
-              return updatedFormData
-            },
-          }),
-        },
-        UPDATE_FORM: {
-          actions: assign({
-            formData: (context, event) => {
-              // Safely handle event.data which might be undefined
-              const eventData = event && event.data ? event.data : {}
-
-              const updatedFormData = {
-                ...context.formData,
-                ...eventData,
               }
               persistFormData(updatedFormData)
               return updatedFormData
@@ -667,24 +679,9 @@ export const eventStateMachine = createMachine({
             },
           }),
         },
-        UPDATE_FORM: {
-          actions: assign({
-            formData: (context, event) => {
-              // Safely handle event.data which might be undefined
-              const eventData = event && event.data ? event.data : {}
-
-              const updatedFormData = {
-                ...context.formData,
-                ...eventData,
-              }
-              persistFormData(updatedFormData)
-              return updatedFormData
-            },
-          }),
-        },
       },
     },
-    [STATUS.REPORT_DENIED]: {
+    [STATUS.REPORT_REVISION]: {
       on: {
         BACK_TO_OVERVIEW: {
           target: STATUS.OVERVIEW,
@@ -715,21 +712,6 @@ export const eventStateMachine = createMachine({
             },
           }),
         },
-        UPDATE_FORM: {
-          actions: assign({
-            formData: (context, event) => {
-              // Safely handle event.data which might be undefined
-              const eventData = event && event.data ? event.data : {}
-
-              const updatedFormData = {
-                ...context.formData,
-                ...eventData,
-              }
-              persistFormData(updatedFormData)
-              return updatedFormData
-            },
-          }),
-        },
       },
     },
     [STATUS.ERROR]: {
@@ -745,21 +727,6 @@ export const eventStateMachine = createMachine({
                 ...context.formData,
                 currentSection: STATUS.COMMUNITY_EVENT,
                 validationErrors: {},
-              }
-              persistFormData(updatedFormData)
-              return updatedFormData
-            },
-          }),
-        },
-        UPDATE_FORM: {
-          actions: assign({
-            formData: (context, event) => {
-              // Safely handle event.data which might be undefined
-              const eventData = event && event.data ? event.data : {}
-
-              const updatedFormData = {
-                ...context.formData,
-                ...eventData,
               }
               persistFormData(updatedFormData)
               return updatedFormData

@@ -1,5 +1,8 @@
 "use client"
 
+// Force dynamic rendering to prevent SSG issues
+export const dynamic = 'force-dynamic';
+
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { PageHeader } from "@/components/dashboard/student/ui/page-header"

@@ -3,6 +3,88 @@ const router = express.Router()
 const { pool } = require("../config/db") // MySQL connection pool
 const { validateToken, validateAdmin } = require("../middleware/auth") // Updated JWT authentication middleware
 
+// ===============================================
+// GET /api/events/approved  –  Approved proposals -> "events" list
+// ===============================================
+
+/**
+ * Returns all proposals that have `proposal_status = 'approved'`.  If the caller
+ * provides `email` as a query-string ( ?email=user@example.com ) we additionally
+ * filter so the student only sees their own events.
+ *
+ * The shape of each record matches what the front-end SubmitEvent flow expects
+ * (see Section1_Overview.jsx → fetchApprovedEvents).
+ */
+router.get("/approved", async (req, res) => {
+    try {
+        const contactEmail = req.query.email; // optional filter by email
+        const statusParam = req.query.status || 'approved'; // can be comma-separated
+
+        // Split, trim and dedupe statuses
+        const statuses = Array.from(new Set(statusParam.split(',').map(s => s.trim().toLowerCase())));
+
+        console.log("📋 Events API: fetching proposals with statuses:", statuses, contactEmail ? `for ${contactEmail}` : "(no email filter)");
+
+        // Build SQL & params dynamically (IN (? , ? ...))
+        let placeholders = statuses.map(() => '?').join(',');
+        let sql = `
+            SELECT id,
+                   organization_name,
+                   organization_type,
+                   contact_email,
+                   contact_name,
+                   event_name,
+                   event_venue,
+                   event_start_date,
+                   event_end_date,
+                   proposal_status,
+                   event_status,
+                   created_at,
+                   updated_at,
+                   0  AS form_completion_percentage,
+                   NULL AS report_status,
+                   NULL AS accomplishment_report_file_name
+            FROM   proposals
+            WHERE  proposal_status IN (${placeholders})`;
+
+        const params = [...statuses];
+        if (contactEmail) {
+            sql += ' AND contact_email = ?';
+            params.push(contactEmail);
+        }
+
+        sql += ' ORDER BY updated_at DESC';
+
+        const [rows] = await pool.query(sql, params);
+
+        // Normalise / alias fields so the client doesn't have to guess
+        const events = rows.map((row) => ({
+            id: row.id,
+            uuid: null,
+            organization_name: row.organization_name,
+            organization_type: row.organization_type,
+            event_name: row.event_name,
+            event_venue: row.event_venue,
+            event_start_date: row.event_start_date,
+            event_end_date: row.event_end_date,
+            proposal_status: row.proposal_status,
+            report_status: row.report_status || "not_applicable",
+            accomplishment_report_file_name: row.accomplishment_report_file_name || null,
+            contact_email: row.contact_email,
+            contact_name: row.contact_name,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            event_status: row.event_status || "pending",
+            form_completion_percentage: row.form_completion_percentage || 0,
+        }));
+
+        res.json({ success: true, events, count: events.length });
+    } catch (err) {
+        console.error("❌ Events API: failed to fetch approved events", err);
+        res.status(500).json({ success: false, error: "Failed to fetch approved events", message: err.message });
+    }
+});
+
 // @route   GET /api/events
 // @desc    Get all events
 // @access  Public (or Private if you want auth)

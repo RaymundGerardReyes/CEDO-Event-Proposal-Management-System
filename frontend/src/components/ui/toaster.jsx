@@ -8,7 +8,7 @@ import {
   ToastTitle,
   ToastViewport,
 } from "@/components/ui/toast"; // Assuming this path is correct and components are JS/JSX
-import { useToast } from "@/hooks/use-toast"; // Assuming this path is correct and useToast is JS/JSX
+import { useToast } from "@/hooks/use-toast";
 
 export function Toaster() {
   const { toasts } = useToast()

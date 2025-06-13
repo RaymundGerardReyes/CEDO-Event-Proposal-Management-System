@@ -11,9 +11,9 @@
     --card-foreground: 222.2 84% 4.9%;
 
     /* Sidebar width variables - flexible instead of hardcoded */
-    --sidebar-width-expanded: 14rem;
-    /* Changed from 16rem to 14rem */
-    --sidebar-width-collapsed: 4rem;
+    --sidebar-width-expanded: 18rem;
+    /* Updated to 18rem for proper responsive behavior */
+    --sidebar-width-collapsed: 6rem;
 
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;

@@ -1,7 +1,7 @@
 // frontend/jest.setup.js
 
 import '@testing-library/jest-dom';
-import 'cross-fetch/polyfill';
+import 'cross-fetch/dist/node-polyfill.js';
 
 /**
  * Mocks for Browser-Specific APIs in JSDOM

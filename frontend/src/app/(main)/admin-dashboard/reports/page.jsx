@@ -3,16 +3,16 @@
 // Force dynamic rendering to prevent SSG issues
 export const dynamic = 'force-dynamic';
 
-import { PageHeader } from "@/components/dashboard/admin/page-header"
-import { Avatar, AvatarFallback } from "@/components/dashboard/admin/ui/avatar"
-import { Badge } from "@/components/dashboard/admin/ui/badge"
-import { Button } from "@/components/dashboard/admin/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/dashboard/admin/ui/card"
-import { Input } from "@/components/dashboard/admin/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/dashboard/admin/ui/select"
-import { Separator } from "@/components/dashboard/admin/ui/separator"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/dashboard/admin/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/dashboard/admin/ui/tabs"
+import { PageHeader } from "@/components/dashboard/admin/page-header";
+import { Avatar, AvatarFallback } from "@/components/dashboard/admin/ui/avatar";
+import { Badge } from "@/components/dashboard/admin/ui/badge";
+import { Button } from "@/components/dashboard/admin/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/dashboard/admin/ui/card";
+import { Input } from "@/components/dashboard/admin/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/dashboard/admin/ui/select";
+import { Separator } from "@/components/dashboard/admin/ui/separator";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/dashboard/admin/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/dashboard/admin/ui/tabs";
 import {
   ArrowUpDown,
   BarChart,
@@ -27,187 +27,13 @@ import {
   Users,
   UserX,
   X,
-} from "lucide-react"
-import { useRouter } from "next/navigation"
-import { Suspense, useState } from "react"
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
-// Sample data for organizations
-const organizations = [
-  {
-    id: "ORG-001",
-    name: "Student Council",
-    category: "community",
-    region: "North District",
-    totalEvents: 12,
-    completedEvents: 8,
-    pendingEvents: 4,
-    members: 45,
-    completionRate: 67,
-    lastActivity: "2023-04-15",
-  },
-  {
-    id: "ORG-002",
-    name: "Environmental Club",
-    category: "community",
-    region: "East District",
-    totalEvents: 8,
-    completedEvents: 7,
-    pendingEvents: 1,
-    members: 32,
-    completionRate: 88,
-    lastActivity: "2023-04-10",
-  },
-  {
-    id: "ORG-003",
-    name: "Science Society",
-    category: "institutionalized",
-    region: "Central District",
-    totalEvents: 15,
-    completedEvents: 10,
-    pendingEvents: 5,
-    members: 60,
-    completionRate: 67,
-    lastActivity: "2023-04-18",
-  },
-  {
-    id: "ORG-004",
-    name: "Arts Association",
-    category: "community",
-    region: "West District",
-    totalEvents: 10,
-    completedEvents: 6,
-    pendingEvents: 4,
-    members: 38,
-    completionRate: 60,
-    lastActivity: "2023-04-05",
-  },
-  {
-    id: "ORG-005",
-    name: "Sports Federation",
-    category: "institutionalized",
-    region: "South District",
-    totalEvents: 20,
-    completedEvents: 15,
-    pendingEvents: 5,
-    members: 75,
-    completionRate: 75,
-    lastActivity: "2023-04-20",
-  },
-  {
-    id: "ORG-006",
-    name: "Technology Club",
-    category: "institutionalized",
-    region: "North District",
-    totalEvents: 9,
-    completedEvents: 7,
-    pendingEvents: 2,
-    members: 40,
-    completionRate: 78,
-    lastActivity: "2023-04-12",
-  },
-  {
-    id: "ORG-007",
-    name: "Debate Society",
-    category: "community",
-    region: "Central District",
-    totalEvents: 6,
-    completedEvents: 4,
-    pendingEvents: 2,
-    members: 25,
-    completionRate: 67,
-    lastActivity: "2023-04-08",
-  },
-  {
-    id: "ORG-008",
-    name: "Music Club",
-    category: "community",
-    region: "East District",
-    totalEvents: 12,
-    completedEvents: 9,
-    pendingEvents: 3,
-    members: 35,
-    completionRate: 75,
-    lastActivity: "2023-04-17",
-  },
-  // Add more organizations to reach 41 total
-  // ...
-]
+// Real data will be fetched from API - removing static data
 
-// Sample data for events
-const events = [
-  {
-    id: "EVENT-001",
-    orgId: "ORG-001",
-    title: "Community Clean-up Drive",
-    date: "2023-04-15",
-    status: "completed",
-    location: "North District Park",
-    expectedParticipants: 30,
-    actualParticipants: 28,
-    description: "A community initiative to clean up the local park and surrounding areas.",
-    category: "community",
-    duration: "4 hours",
-    impact: "Collected 45 bags of trash and recyclables",
-  },
-  {
-    id: "EVENT-002",
-    orgId: "ORG-001",
-    title: "Leadership Workshop",
-    date: "2023-05-10",
-    status: "pending",
-    location: "Student Center",
-    expectedParticipants: 25,
-    actualParticipants: null,
-    description: "Workshop focused on developing leadership skills among student representatives.",
-    category: "institutionalized",
-    duration: "3 hours",
-    impact: "Pending",
-  },
-  {
-    id: "EVENT-003",
-    orgId: "ORG-002",
-    title: "Tree Planting Initiative",
-    date: "2023-04-10",
-    status: "completed",
-    location: "East District Green Belt",
-    expectedParticipants: 20,
-    actualParticipants: 25,
-    description: "Environmental initiative to plant native trees in designated areas.",
-    category: "community",
-    duration: "5 hours",
-    impact: "Planted 100 native trees",
-  },
-  {
-    id: "EVENT-004",
-    orgId: "ORG-003",
-    title: "Science Fair",
-    date: "2023-04-18",
-    status: "completed",
-    location: "Central District School",
-    expectedParticipants: 50,
-    actualParticipants: 65,
-    description: "Annual science fair showcasing student projects and innovations.",
-    category: "institutionalized",
-    duration: "8 hours",
-    impact: "Engaged 200+ visitors and community members",
-  },
-  {
-    id: "EVENT-005",
-    orgId: "ORG-003",
-    title: "STEM Workshop",
-    date: "2023-05-20",
-    status: "pending",
-    location: "Science Building",
-    expectedParticipants: 40,
-    actualParticipants: null,
-    description: "Workshop to promote STEM education among high school students.",
-    category: "institutionalized",
-    duration: "4 hours",
-    impact: "Pending",
-  },
-  // Add more events
-  // ...
-]
+// Real events data will be fetched dynamically from API
 
 // Sample data for participants
 const participants = [
@@ -248,6 +74,105 @@ const participants = [
   // ...
 ]
 
+// ===================================================================
+// API FUNCTIONS FOR FETCHING REAL DATA
+// ===================================================================
+
+// API base URL - adjust according to your backend setup
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+
+// Fetch organizations with real data from MySQL database
+const fetchOrganizations = async (filters = {}) => {
+  try {
+    console.log('📊 Frontend: Fetching organizations from API...');
+
+    const queryParams = new URLSearchParams();
+    if (filters.category && filters.category !== 'all') queryParams.append('category', filters.category);
+    if (filters.region && filters.region !== 'all') queryParams.append('region', filters.region);
+    if (filters.search) queryParams.append('search', filters.search);
+    if (filters.sort) queryParams.append('sort', filters.sort);
+    if (filters.order) queryParams.append('order', filters.order);
+
+    const response = await fetch(`${API_BASE_URL}/proposals/reports/organizations?${queryParams.toString()}`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('📊 Frontend: Organizations fetched successfully:', data);
+
+    return data;
+  } catch (error) {
+    console.error('❌ Frontend: Error fetching organizations:', error);
+    throw error;
+  }
+};
+
+// Fetch events for a specific organization
+const fetchOrganizationEvents = async (organizationName, statusFilter = 'all') => {
+  try {
+    console.log('📊 Frontend: Fetching events for organization:', organizationName);
+
+    const encodedOrgName = encodeURIComponent(organizationName);
+    const response = await fetch(`${API_BASE_URL}/proposals/reports/events/${encodedOrgName}?status=${statusFilter}`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('📊 Frontend: Events fetched successfully:', data);
+
+    return data;
+  } catch (error) {
+    console.error('❌ Frontend: Error fetching organization events:', error);
+    throw error;
+  }
+};
+
+// Fetch analytics data
+const fetchAnalytics = async () => {
+  try {
+    console.log('📊 Frontend: Fetching analytics from API...');
+
+    const response = await fetch(`${API_BASE_URL}/proposals/reports/analytics`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('📊 Frontend: Analytics fetched successfully:', data);
+
+    return data;
+  } catch (error) {
+    console.error('❌ Frontend: Error fetching analytics:', error);
+    throw error;
+  }
+};
+
+// Fetch participants for an event
+const fetchEventParticipants = async (eventId) => {
+  try {
+    console.log('📊 Frontend: Fetching participants for event:', eventId);
+
+    const response = await fetch(`${API_BASE_URL}/proposals/reports/participants/${eventId}`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('📊 Frontend: Participants fetched successfully:', data);
+
+    return data;
+  } catch (error) {
+    console.error('❌ Frontend: Error fetching event participants:', error);
+    throw error;
+  }
+};
+
 // CSS for animations (replacing framer-motion)
 const styles = {
   modalOverlay: {
@@ -278,83 +203,211 @@ const styles = {
 
 function ReportsContent() {
   const router = useRouter()
+
+  // Client-side check to prevent SSR issues
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // State for filters and search
   const [searchTerm, setSearchTerm] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [regionFilter, setRegionFilter] = useState("all")
   const [timeFilter, setTimeFilter] = useState("all")
   const [sortBy, setSortBy] = useState("name")
   const [sortOrder, setSortOrder] = useState("asc")
+  const [eventFilter, setEventFilter] = useState("all")
+
+  // State for modals
   const [selectedOrg, setSelectedOrg] = useState(null)
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [isOrgDialogOpen, setIsOrgDialogOpen] = useState(false)
   const [isEventDialogOpen, setIsEventDialogOpen] = useState(false)
-  const [eventFilter, setEventFilter] = useState("all")
 
-  // Filter organizations based on search and filters
-  const filteredOrgs = organizations.filter((org) => {
-    const matchesSearch =
-      org.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      org.id.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCategory = categoryFilter === "all" || org.category === categoryFilter
-    const matchesRegion = regionFilter === "all" || org.region === regionFilter
+  // State for real data from API
+  const [organizations, setOrganizations] = useState([])
+  const [orgEvents, setOrgEvents] = useState([])
+  const [analytics, setAnalytics] = useState(null)
+  const [participants, setParticipants] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-    return matchesSearch && matchesCategory && matchesRegion
-  })
+  // Fetch organizations with debounced filtering
+  const loadOrganizations = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
 
-  // Sort organizations
-  const sortedOrgs = [...filteredOrgs].sort((a, b) => {
-    let comparison = 0
+      const filters = {
+        category: categoryFilter,
+        region: regionFilter,
+        search: searchTerm,
+        sort: sortBy,
+        order: sortOrder
+      }
 
-    if (sortBy === "name") {
-      comparison = a.name.localeCompare(b.name)
-    } else if (sortBy === "completionRate") {
-      comparison = a.completionRate - b.completionRate
-    } else if (sortBy === "totalEvents") {
-      comparison = a.totalEvents - b.totalEvents
-    } else if (sortBy === "lastActivity") {
-      comparison = new Date(a.lastActivity) - new Date(b.lastActivity)
+      console.log('📊 Frontend: Attempting to fetch organizations with filters:', filters)
+      const response = await fetchOrganizations(filters)
+
+      if (response.success) {
+        setOrganizations(response.organizations || [])
+        console.log('📊 Frontend: Organizations loaded successfully:', response.organizations?.length)
+      } else {
+        throw new Error(response.error || 'Failed to fetch organizations')
+      }
+    } catch (err) {
+      console.error('❌ Frontend: Error loading organizations:', err)
+
+      // Provide more detailed error messages
+      let errorMessage = 'Failed to load organizations'
+      if (err.message.includes('500')) {
+        errorMessage = 'Server error - please check if the database is running and properly configured'
+      } else if (err.message.includes('404')) {
+        errorMessage = 'Reports API endpoint not found - please check backend configuration'
+      } else if (err.message.includes('Failed to fetch')) {
+        errorMessage = 'Cannot connect to server - please check if the backend is running'
+      } else {
+        errorMessage = err.message
+      }
+
+      setError(errorMessage)
+      setOrganizations([]) // Fallback to empty array
+    } finally {
+      setLoading(false)
     }
+  }, [categoryFilter, regionFilter, searchTerm, sortBy, sortOrder])
 
-    return sortOrder === "asc" ? comparison : -comparison
-  })
+  // Load analytics data
+  const loadAnalytics = useCallback(async () => {
+    try {
+      const response = await fetchAnalytics()
 
-  // Get events for selected organization
-  const getOrgEvents = (orgId) => {
-    return events.filter((event) => event.orgId === orgId)
-  }
+      if (response.success) {
+        setAnalytics(response.analytics)
+        console.log('📊 Frontend: Analytics loaded successfully')
+      } else {
+        console.warn('⚠️ Frontend: Analytics fetch failed:', response.error)
+      }
+    } catch (err) {
+      console.error('❌ Frontend: Error loading analytics:', err)
+    }
+  }, [])
 
-  // Filter events based on status
-  const filterEvents = (events, filter) => {
-    if (filter === "all") return events
-    return events.filter((event) => event.status === filter)
-  }
+  // Load organization events when modal opens
+  const loadOrgEvents = useCallback(async (organizationName) => {
+    try {
+      setLoading(true)
+      const response = await fetchOrganizationEvents(organizationName, eventFilter)
 
-  // Get participants for an event
-  const getEventParticipants = (eventId) => {
-    const eventParticipants = participants.find((p) => p.eventId === eventId)
-    return eventParticipants ? eventParticipants.registered : []
-  }
+      if (response.success) {
+        setOrgEvents(response.events || [])
+        console.log('📊 Frontend: Organization events loaded:', response.events?.length)
+      } else {
+        throw new Error(response.error || 'Failed to fetch organization events')
+      }
+    } catch (err) {
+      console.error('❌ Frontend: Error loading organization events:', err)
+      setOrgEvents([])
+    } finally {
+      setLoading(false)
+    }
+  }, [eventFilter])
+
+  // Load event participants when event modal opens
+  const loadEventParticipants = useCallback(async (eventId) => {
+    try {
+      const response = await fetchEventParticipants(eventId)
+
+      if (response.success) {
+        setParticipants(response.participants || [])
+        console.log('📊 Frontend: Event participants loaded:', response.participants?.length)
+      } else {
+        console.warn('⚠️ Frontend: Participants fetch failed:', response.error)
+        setParticipants([])
+      }
+    } catch (err) {
+      console.error('❌ Frontend: Error loading event participants:', err)
+      setParticipants([])
+    }
+  }, [])
+
+  // Initial data load - only run on client side
+  useEffect(() => {
+    if (mounted) {
+      console.log('📊 Frontend: Initial data load')
+      loadOrganizations()
+      loadAnalytics()
+    }
+  }, [mounted, loadOrganizations, loadAnalytics])
+
+  // Reload events when organization is selected
+  useEffect(() => {
+    if (selectedOrg && isOrgDialogOpen) {
+      loadOrgEvents(selectedOrg.name)
+    }
+  }, [selectedOrg, isOrgDialogOpen, eventFilter, loadOrgEvents])
+
+  // Reload participants when event is selected
+  useEffect(() => {
+    if (selectedEvent && isEventDialogOpen) {
+      loadEventParticipants(selectedEvent.id)
+    }
+  }, [selectedEvent, isEventDialogOpen, loadEventParticipants])
 
   // Handle organization click
-  const handleOrgClick = (org) => {
+  const handleOrgClick = useCallback((org) => {
+    console.log('📊 Frontend: Organization clicked:', org.name)
     setSelectedOrg(org)
     setIsOrgDialogOpen(true)
-  }
+  }, [])
 
   // Handle event click
-  const handleEventClick = (event) => {
+  const handleEventClick = useCallback((event) => {
+    console.log('📊 Frontend: Event clicked:', event.title)
     setSelectedEvent(event)
     setIsEventDialogOpen(true)
-  }
+  }, [])
 
   // Toggle sort order
-  const toggleSort = (column) => {
+  const toggleSort = useCallback((column) => {
     if (sortBy === column) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc")
     } else {
       setSortBy(column)
       setSortOrder("asc")
     }
+  }, [sortBy, sortOrder])
+
+  // Get events for selected organization (from loaded data)
+  const getOrgEvents = useCallback(() => {
+    return orgEvents
+  }, [orgEvents])
+
+  // Filter events based on status
+  const filterEvents = useCallback((events, filter) => {
+    if (filter === "all") return events
+    return events.filter((event) => event.status === filter)
+  }, [])
+
+  // Get participants for an event
+  const getEventParticipants = useCallback(() => {
+    return participants
+  }, [participants])
+
+  // Show loading state during SSR/initial mount
+  if (!mounted) {
+    return (
+      <div className="flex-1 bg-[#f8f9fa] p-6 md:p-8">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="flex flex-col items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cedo-blue mb-4"></div>
+            <p className="text-lg text-cedo-blue">Loading Reports...</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -491,8 +544,34 @@ function ReportsContent() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {sortedOrgs.length > 0 ? (
-                          sortedOrgs.map((org) => (
+                        {loading ? (
+                          <TableRow>
+                            <TableCell colSpan={9} className="text-center py-6">
+                              <div className="flex flex-col items-center justify-center">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cedo-blue mb-2"></div>
+                                <p className="text-sm text-muted-foreground">Loading organizations...</p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : error ? (
+                          <TableRow>
+                            <TableCell colSpan={9} className="text-center py-6">
+                              <div className="flex flex-col items-center justify-center text-red-600">
+                                <X className="h-10 w-10 mb-2" />
+                                <h3 className="text-lg font-medium">Error Loading Data</h3>
+                                <p className="text-sm">{error}</p>
+                                <Button
+                                  variant="outline"
+                                  className="mt-2"
+                                  onClick={loadOrganizations}
+                                >
+                                  Try Again
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : organizations.length > 0 ? (
+                          organizations.map((org) => (
                             <TableRow key={org.id} className="cedo-table-row">
                               <TableCell>
                                 <div className="border border-cedo-blue text-cedo-blue px-3 py-1.5 rounded-md text-sm font-medium">
@@ -669,7 +748,9 @@ function ReportsContent() {
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm text-muted-foreground">Total Organizations</p>
-                            <p className="text-2xl font-bold text-cedo-blue">41</p>
+                            <p className="text-2xl font-bold text-cedo-blue">
+                              {analytics?.overview?.totalOrganizations || 0}
+                            </p>
                           </div>
                           <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
                             <Users className="h-5 w-5 text-blue-500" />
@@ -681,7 +762,9 @@ function ReportsContent() {
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm text-muted-foreground">Total Events</p>
-                            <p className="text-2xl font-bold text-cedo-blue">128</p>
+                            <p className="text-2xl font-bold text-cedo-blue">
+                              {analytics?.overview?.totalEvents || 0}
+                            </p>
                           </div>
                           <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
                             <Calendar className="h-5 w-5 text-purple-500" />
@@ -693,7 +776,9 @@ function ReportsContent() {
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm text-muted-foreground">Completed Events</p>
-                            <p className="text-2xl font-bold text-green-600">86</p>
+                            <p className="text-2xl font-bold text-green-600">
+                              {analytics?.overview?.completedEvents || 0}
+                            </p>
                           </div>
                           <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
                             <CheckCircle className="h-5 w-5 text-green-500" />
@@ -705,7 +790,9 @@ function ReportsContent() {
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm text-muted-foreground">Pending Events</p>
-                            <p className="text-2xl font-bold text-amber-600">42</p>
+                            <p className="text-2xl font-bold text-amber-600">
+                              {analytics?.overview?.pendingEvents || 0}
+                            </p>
                           </div>
                           <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
                             <Clock className="h-5 w-5 text-amber-500" />
@@ -717,11 +804,16 @@ function ReportsContent() {
                     <div className="mt-6">
                       <h3 className="text-md font-medium text-cedo-blue mb-3">Overall Completion Rate</h3>
                       <div className="w-full bg-gray-200 rounded-full h-4">
-                        <div className="h-4 rounded-full bg-green-500" style={{ width: "67%" }}></div>
+                        <div
+                          className="h-4 rounded-full bg-green-500"
+                          style={{ width: `${analytics?.overview?.overallCompletionRate || 0}%` }}
+                        ></div>
                       </div>
                       <div className="flex justify-between text-sm mt-1">
                         <span>0%</span>
-                        <span className="font-medium">67% Complete</span>
+                        <span className="font-medium">
+                          {analytics?.overview?.overallCompletionRate || 0}% Complete
+                        </span>
                         <span>100%</span>
                       </div>
                     </div>
@@ -845,7 +937,13 @@ function ReportsContent() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filterEvents(getOrgEvents(selectedOrg.id), eventFilter).map((event) => (
+                        {loading ? (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center py-6">
+                              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cedo-blue mx-auto"></div>
+                            </TableCell>
+                          </TableRow>
+                        ) : filterEvents(getOrgEvents(), eventFilter).map((event) => (
                           <TableRow key={event.id} className="cedo-table-row">
                             <TableCell className="font-medium">{event.id}</TableCell>
                             <TableCell>
@@ -895,7 +993,7 @@ function ReportsContent() {
                             </TableCell>
                           </TableRow>
                         ))}
-                        {filterEvents(getOrgEvents(selectedOrg.id), eventFilter).length === 0 && (
+                        {!loading && filterEvents(getOrgEvents(), eventFilter).length === 0 && (
                           <TableRow>
                             <TableCell colSpan={7} className="text-center py-6">
                               <div className="flex flex-col items-center justify-center text-muted-foreground">
@@ -1014,7 +1112,7 @@ function ReportsContent() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {getEventParticipants(selectedEvent.id).map((participant) => (
+                            {getEventParticipants().map((participant) => (
                               <TableRow key={participant.id} className="cedo-table-row">
                                 <TableCell className="font-medium">{participant.id}</TableCell>
                                 <TableCell>
@@ -1046,7 +1144,7 @@ function ReportsContent() {
                                 </TableCell>
                               </TableRow>
                             ))}
-                            {getEventParticipants(selectedEvent.id).length === 0 && (
+                            {getEventParticipants().length === 0 && (
                               <TableRow>
                                 <TableCell colSpan={4} className="text-center py-6">
                                   <div className="flex flex-col items-center justify-center text-muted-foreground">

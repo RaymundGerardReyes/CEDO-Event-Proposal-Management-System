@@ -3,13 +3,82 @@
 import { AppSidebar } from "@/components/dashboard/student/app-sidebar"
 import Header from "@/components/dashboard/student/header"
 import { ThemeProvider } from "@/components/dashboard/student/theme-provider"
-import { SidebarProvider } from "@/components/dashboard/student/ui/sidebar"
+import { SidebarProvider, useSidebar } from "@/components/dashboard/student/ui/sidebar"
 import { Toaster } from "@/components/dashboard/student/ui/toaster"
 import { Inter } from "next/font/google"
-import { useEffect, useState } from "react"
-import "./globals.css"
+import { memo, useCallback, useEffect, useMemo, useState } from "react"
 
 const inter = Inter({ subsets: ["latin"] })
+
+// ✅ Memoized sidebar layout wrapper
+const SidebarLayout = memo(({ children }) => {
+  return (
+    <div className="flex min-h-screen flex-col md:flex-row">
+      {children}
+    </div>
+  )
+});
+
+SidebarLayout.displayName = "SidebarLayout";
+
+// ✅ Optimized SidebarAwareContent with better memoization
+const SidebarAwareContent = memo(({ children }) => {
+  const { isMobile } = useSidebar()
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  // ✅ Memoized event handler to prevent recreation on every render
+  const handleSidebarToggle = useCallback((e) => {
+    if (!e.detail.isMobile) {
+      setSidebarCollapsed(e.detail.collapsed)
+    }
+  }, [])
+
+  // Listen for sidebar toggle events (keeping this for backward compatibility)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.addEventListener("sidebar-toggle", handleSidebarToggle)
+      return () => window.removeEventListener("sidebar-toggle", handleSidebarToggle)
+    }
+  }, [handleSidebarToggle])
+
+  // ✅ Memoized margin calculation - NOW USING OVERLAY APPROACH (0 margin)
+  const marginValues = useMemo(() => {
+    // Always use 0 margin - sidebar will overlay the content
+    return { class: "", style: "0rem" } // No margin - full width content with overlay sidebar
+  }, [isMounted, isMobile, sidebarCollapsed])
+
+  // ✅ Memoized inline styles - NOW FULL WIDTH OVERLAY APPROACH
+  const containerStyles = useMemo(() => ({
+    marginLeft: '0', // Always 0 - no margin
+    transition: 'margin-left 500ms ease-out',
+    width: '100%' // Always full width
+  }), [isMobile, marginValues.style])
+
+  return (
+    <div
+      className={`flex flex-1 flex-col min-h-screen transition-all duration-500 ease-out ${marginValues.class}`}
+      style={containerStyles}
+    >
+      {children}
+    </div>
+  )
+});
+
+SidebarAwareContent.displayName = "SidebarAwareContent";
+
+// ✅ Memoized main content wrapper
+const MainContent = memo(({ children }) => (
+  <main className="flex-0 overflow-auto bg-white p-4 sm:p-6 md:p-8 lg:p-10 min-h-0" role="main">
+    <div className="mx-auto w-full max-w-7xl space-y-6 md:space-y-8">{children}</div>
+  </main>
+));
+
+MainContent.displayName = "MainContent";
 
 export default function ClientLayout({ children }) {
   const [mounted, setMounted] = useState(false)
@@ -18,63 +87,42 @@ export default function ClientLayout({ children }) {
     setMounted(true)
   }, [])
 
-  // Base class from the font should be safe for SSR
-  let bodyClasses = inter.className
-  if (mounted) {
-    // Add other classes only after client has mounted
-    bodyClasses = `${inter.className} bg-[#f5f7fa]`
+  // ✅ Memoized body classes to prevent recalculation
+  const bodyClasses = useMemo(() => {
+    let classes = inter.className
+    if (mounted) {
+      classes = `${inter.className} bg-[#f5f7fa]`
+    }
+    return classes
+  }, [mounted])
+
+  // Don't render anything until mounted to prevent hydration issues
+  if (!mounted) {
+    return (
+      <div className={inter.className}>
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#001a56]"></div>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className={bodyClasses}>
-      {mounted && ( // Only render theme provider and children once mounted
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          <SidebarProvider>
-            <div className="flex min-h-screen flex-col md:flex-row">
-              <AppSidebar />
-              <SidebarAwareContent>
-                <Header />
-                <main className="flex-1 overflow-auto bg-white p-6 md:p-8 lg:p-10" role="main">
-                  <div className="mx-auto w-full max-w-7xl space-y-8">{children}</div>
-                </main>
-              </SidebarAwareContent>
-            </div>
-            <Toaster />
-          </SidebarProvider>
-        </ThemeProvider>
-      )}
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+        <SidebarProvider>
+          <SidebarLayout>
+            <AppSidebar />
+            <SidebarAwareContent>
+              <Header />
+              <MainContent>
+                {children}
+              </MainContent>
+            </SidebarAwareContent>
+          </SidebarLayout>
+          <Toaster />
+        </SidebarProvider>
+      </ThemeProvider>
     </div>
   )
-}
-
-// This component adjusts its margin based on sidebar state
-function SidebarAwareContent({ children }) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [isMounted, setIsMounted] = useState(false)
-
-  useEffect(() => {
-    setIsMounted(true)
-
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
-      setSidebarCollapsed(true)
-    }
-
-    const handleSidebarToggle = (e) => {
-      setSidebarCollapsed(e.detail.collapsed)
-    }
-
-    if (typeof window !== "undefined") {
-      window.addEventListener("sidebar-toggle", handleSidebarToggle)
-    }
-
-    return () => {
-      if (typeof window !== "undefined") {
-        window.removeEventListener("sidebar-toggle", handleSidebarToggle)
-      }
-    }
-  }, [])
-
-  const marginClass = isMounted ? (sidebarCollapsed ? "md:ml-16" : "md:ml-64") : "md:ml-64"
-
-  return <div className={`flex flex-1 flex-col transition-all duration-300 ${marginClass}`}>{children}</div>
 }

@@ -29,11 +29,13 @@ export const REQUIRED_FIELDS = {
                 }
 
                 if (Array.isArray(value)) {
-                    return value.length === 1 && (value[0] === 'school-based' || value[0] === 'community-based');
+                    const validTypes = ['school-based', 'community-based', 'school', 'community'];
+                    return value.length === 1 && validTypes.includes(value[0]);
                 }
 
                 if (typeof value === 'string') {
-                    return value === 'school-based' || value === 'community-based';
+                    const validTypes = ['school-based', 'community-based', 'school', 'community'];
+                    return validTypes.includes(value);
                 }
 
                 return false;
@@ -48,6 +50,18 @@ export const REQUIRED_FIELDS = {
             message: "Contact email is required",
             validator: (value) => /\S+@\S+\.\S+/.test(value),
             validationMessage: "Please enter a valid email address"
+        },
+        contactPhone: {
+            required: false, // Optional field
+            message: "Phone number must be exactly 11 digits",
+            validator: (value) => {
+                // If empty, it's valid (optional field)
+                if (!value || value.trim() === '') return true;
+                // If provided, must be exactly 12 digits
+                const phoneRegex = /^\d{11}$/;
+                return phoneRegex.test(value.replace(/\D/g, ''));
+            },
+            validationMessage: "Phone number must contain exactly 12 digits (numbers only)"
         }
     },
 

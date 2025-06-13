@@ -3,381 +3,183 @@
 // Force dynamic rendering to prevent SSG issues
 export const dynamic = 'force-dynamic';
 
-import { PageHeader } from "@/components/dashboard/admin/page-header"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/dashboard/admin/ui/avatar"
-import { Badge } from "@/components/dashboard/admin/ui/badge"
-import { Button } from "@/components/dashboard/admin/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/dashboard/admin/ui/card"
-import { Input } from "@/components/dashboard/admin/ui/input"
-import { Label } from "@/components/dashboard/admin/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/dashboard/admin/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/dashboard/admin/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/dashboard/admin/ui/tabs"
-import { Textarea } from "@/components/dashboard/admin/ui/textarea"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Download, FileText, Filter, MessageSquare, Search, XCircle } from "lucide-react"
-import { Suspense, useState } from "react"
-
-// Sample data for proposals
-const proposals = [
-  {
-    id: "PROP-1001",
-    title: "Annual Science Fair",
-    submitter: {
-      name: "Alex Johnson",
-      avatar: "/placeholder.svg?height=32&width=32",
-      initials: "AJ",
-    },
-    category: "Academic",
-    status: "pending",
-    date: "2023-03-15",
-    priority: "high",
-    details: {
-      purpose: "Submit Event Approval Form",
-      organization: {
-        description: "Green Campus & Community Outreach Initiative",
-        type: ["School-based", "Community-based"],
-      },
-      schoolEvent: {
-        description: "Workshop on campus recycling practices for freshmen.",
-        name: "Urban Gardening 101",
-        venue: "Campus Greenhouse, Building A",
-        startDate: "2025-06-10",
-        endDate: "2025-06-10",
-        startTime: "09:00 AM",
-        endTime: "12:00 PM",
-        type: "Workshops/Seminar/Webinar",
-        audience: ["1st Year", "All Levels"],
-        mode: "Offline",
-        credits: 2,
-        attachments: {
-          gpoa: "GreenCampusClub_GPOA.pdf",
-          proposal: "GreenCampusClub_PP.docx",
-        },
-      },
-      communityEvent: {
-        description: "Tree-planting drive in barangay Rizal for Earth Day.",
-        name: "Barangay Rizal Tree-Planting",
-        venue: "Barangay Rizal Community Park",
-        startDate: "2025-06-15",
-        endDate: "2025-06-15",
-        type: ["Academic Enhancement", "Others"],
-        audience: ["All Levels", "Leaders", "Alumni"],
-        mode: "Offline",
-        credits: 1,
-        attachments: {
-          gpoa: "GreenCampusClub_GPOA.pdf",
-          proposal: "GreenCampusClub_PP.docx",
-        },
-      },
-      comments: [
-        {
-          role: "Admin",
-          date: "Apr 10",
-          text: "Please clarify your participant recruitment plan.",
-        },
-        {
-          role: "Org",
-          date: "Apr 11",
-          text: "We will coordinate with student council and barangay offices.",
-        },
-        {
-          role: "Admin",
-          date: "Apr 12",
-          text: "Understood. Budget summary still missing—please upload.",
-        },
-        {
-          role: "Org",
-          date: "Apr 13",
-          text: "Uploaded OrganizationName_Budget.xlsx.",
-        },
-      ],
-    },
-  },
-  // Keep the other proposals but add the details property with similar structure
-  {
-    id: "PROP-1002",
-    title: "Leadership Workshop Series",
-    submitter: {
-      name: "Maria Garcia",
-      avatar: "/placeholder.svg?height=32&width=32",
-      initials: "MG",
-    },
-    category: "Development",
-    status: "pending",
-    date: "2023-03-14",
-    priority: "medium",
-    details: {
-      purpose: "Submit Event Approval Form",
-      organization: {
-        description: "Student Leadership Development Initiative",
-        type: ["School-based"],
-      },
-      schoolEvent: {
-        description: "Series of leadership workshops for student officers.",
-        name: "Leadership Excellence Program",
-        venue: "Student Center, Room 101",
-        startDate: "2025-07-05",
-        endDate: "2025-07-26",
-        startTime: "01:00 PM",
-        endTime: "04:00 PM",
-        type: "Workshops/Seminar/Webinar",
-        audience: ["Student Leaders", "All Levels"],
-        mode: "Offline",
-        credits: 3,
-        attachments: {
-          gpoa: "LeadershipProgram_GPOA.pdf",
-          proposal: "LeadershipProgram_PP.docx",
-        },
-      },
-      comments: [],
-    },
-  },
-  // Add similar details to other proposals
-  {
-    id: "PROP-1003",
-    title: "Community Service Day",
-    submitter: {
-      name: "David Kim",
-      avatar: "/placeholder.svg?height=32&width=32",
-      initials: "DK",
-    },
-    category: "Community",
-    status: "pending",
-    date: "2023-03-12",
-    priority: "low",
-    details: {
-      purpose: "Submit Event Approval Form",
-      organization: {
-        description: "Community Outreach Club",
-        type: ["Community-based"],
-      },
-      communityEvent: {
-        description: "Day of service activities in local community centers.",
-        name: "Community Service Day",
-        venue: "Various Community Centers",
-        startDate: "2025-08-15",
-        endDate: "2025-08-15",
-        type: ["Community Service", "Outreach"],
-        audience: ["All Levels", "Alumni"],
-        mode: "Offline",
-        credits: 2,
-        attachments: {
-          gpoa: "CommunityService_GPOA.pdf",
-          proposal: "CommunityService_PP.docx",
-        },
-      },
-      comments: [],
-    },
-  },
-  {
-    id: "PROP-1004",
-    title: "Cultural Exchange Program",
-    submitter: {
-      name: "Sarah Patel",
-      avatar: "/placeholder.svg?height=32&width=32",
-      initials: "SP",
-    },
-    category: "Cultural",
-    status: "pending",
-    date: "2023-03-10",
-    priority: "medium",
-    details: {
-      purpose: "Submit Event Approval Form",
-      organization: {
-        description: "International Students Association",
-        type: ["School-based", "Community-based"],
-      },
-      schoolEvent: {
-        description: "Cultural exchange program featuring international cuisines and performances.",
-        name: "Global Culture Festival",
-        venue: "University Quadrangle",
-        startDate: "2025-09-20",
-        endDate: "2025-09-20",
-        startTime: "10:00 AM",
-        endTime: "06:00 PM",
-        type: "Cultural Event",
-        audience: ["All Levels", "Faculty", "Staff"],
-        mode: "Offline",
-        credits: 2,
-        attachments: {
-          gpoa: "CulturalExchange_GPOA.pdf",
-          proposal: "CulturalExchange_PP.docx",
-        },
-      },
-      communityEvent: {
-        description: "Community cultural exchange program at the local community center.",
-        name: "Community Cultural Day",
-        venue: "Community Center",
-        startDate: "2025-09-27",
-        endDate: "2025-09-27",
-        type: ["Cultural", "Community Engagement"],
-        audience: ["All Levels", "Community Members"],
-        mode: "Offline",
-        credits: 1,
-        attachments: {
-          gpoa: "CulturalExchange_GPOA.pdf",
-          proposal: "CulturalExchange_PP.docx",
-        },
-      },
-      comments: [],
-    },
-  },
-  {
-    id: "PROP-1005",
-    title: "Tech Innovation Showcase",
-    submitter: {
-      name: "James Wilson",
-      avatar: "/placeholder.svg?height=32&width=32",
-      initials: "JW",
-    },
-    category: "Technology",
-    status: "pending",
-    date: "2023-03-08",
-    priority: "high",
-    details: {
-      purpose: "Submit Event Approval Form",
-      organization: {
-        description: "Technology and Innovation Club",
-        type: ["School-based"],
-      },
-      schoolEvent: {
-        description: "Showcase of student technology projects and innovations.",
-        name: "Tech Innovation Expo",
-        venue: "Engineering Building, Main Hall",
-        startDate: "2025-10-15",
-        endDate: "2025-10-16",
-        startTime: "09:00 AM",
-        endTime: "05:00 PM",
-        type: "Exhibition",
-        audience: ["All Levels", "Industry Partners"],
-        mode: "Offline",
-        credits: 3,
-        attachments: {
-          gpoa: "TechInnovation_GPOA.pdf",
-          proposal: "TechInnovation_PP.docx",
-        },
-      },
-      comments: [],
-    },
-  },
-  {
-    id: "PROP-1006",
-    title: "Green Campus Initiative",
-    submitter: {
-      name: "Emily Green",
-      avatar: "/placeholder.svg?height=32&width=32",
-      initials: "EG",
-    },
-    category: "Environmental",
-    status: "approved",
-    date: "2023-03-05",
-    priority: "high",
-    details: {
-      purpose: "Submit Event Approval Form",
-      organization: {
-        description: "Green Campus & Community Outreach Initiative",
-        type: ["School-based", "Community-based"],
-      },
-      schoolEvent: {
-        description: "Workshop on campus recycling practices for freshmen.",
-        name: "Urban Gardening 101",
-        venue: "Campus Greenhouse, Building A",
-        startDate: "2025-06-10",
-        endDate: "2025-06-10",
-        startTime: "09:00 AM",
-        endTime: "12:00 PM",
-        type: "Workshops/Seminar/Webinar",
-        audience: ["1st Year", "All Levels"],
-        mode: "Offline",
-        credits: 2,
-        attachments: {
-          gpoa: "GreenCampusClub_GPOA.pdf",
-          proposal: "GreenCampusClub_PP.docx",
-        },
-      },
-      communityEvent: {
-        description: "Tree-planting drive in barangay Rizal for Earth Day.",
-        name: "Barangay Rizal Tree-Planting",
-        venue: "Barangay Rizal Community Park",
-        startDate: "2025-06-15",
-        endDate: "2025-06-15",
-        type: ["Academic Enhancement", "Others"],
-        audience: ["All Levels", "Leaders", "Alumni"],
-        mode: "Offline",
-        credits: 1,
-        attachments: {
-          gpoa: "GreenCampusClub_GPOA.pdf",
-          proposal: "GreenCampusClub_PP.docx",
-        },
-      },
-      comments: [
-        {
-          role: "Admin",
-          date: "Apr 10",
-          text: "Please clarify your participant recruitment plan.",
-        },
-        {
-          role: "Org",
-          date: "Apr 11",
-          text: "We will coordinate with student council and barangay offices.",
-        },
-        {
-          role: "Admin",
-          date: "Apr 12",
-          text: "Understood. Budget summary still missing—please upload.",
-        },
-        {
-          role: "Org",
-          date: "Apr 13",
-          text: "Uploaded OrganizationName_Budget.xlsx.",
-        },
-        {
-          role: "Admin",
-          date: "Apr 14",
-          text: "Proposal approved. Please submit documentation after the event.",
-        },
-      ],
-      accomplishmentReport: {
-        description: "Event photos and attendance sheet attached.",
-        organizationType: ["School-based", "Community-based"],
-        organizationName: "Green Campus & Community Outreach Initiative",
-        eventName: "Urban Gardening 101 / Barangay Rizal Tree-Planting",
-        attachments: {
-          report: "GreenCampusClub_AR.pdf",
-        },
-        submitted: true,
-        submittedDate: "2025-06-20",
-      },
-    },
-  },
-]
+  DialogTitle
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Download, FileText, Filter, Search, XCircle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import CommentsPanel from "./comments";
+import DecisionPanel from "./decision";
+import EventDetails from "./EventDetails";
 
 export default function ReviewPage() {
+  // Live proposals pulled from the hybrid backend (MySQL + MongoDB)
+  const [proposals, setProposals] = useState([])
   const [selectedProposal, setSelectedProposal] = useState(null)
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false)
   const [reviewDecision, setReviewDecision] = useState(null)
   const [reviewComment, setReviewComment] = useState("")
   const [activeTab, setActiveTab] = useState("overview")
   const [newComment, setNewComment] = useState("")
+  const [searchTerm, setSearchTerm] = useState("")
+  const [filterStatus, setFilterStatus] = useState("approved")
 
-  const handleReviewClick = (proposal) => {
+  // Memoized filtered proposals for performance
+  const filteredProposals = useMemo(() => {
+    const term = searchTerm.toLowerCase()
+    return proposals.filter((proposal) => {
+      // Normalise strings safely (fallback to empty string)
+      const titleStr = (proposal.title || proposal.eventName || '').toLowerCase()
+      const submitterStr = (proposal.submitter?.name || proposal.contactPerson || '').toLowerCase()
+
+      const matchesSearch = !term || titleStr.includes(term) || submitterStr.includes(term)
+
+      // Backend may send "denied" while UI uses "rejected"
+      const normalisedStatus = proposal.status ? (proposal.status === 'denied' ? 'rejected' : proposal.status) : 'pending'
+      const matchesStatus = filterStatus === 'all' || normalisedStatus === filterStatus
+
+      return matchesSearch && matchesStatus
+    })
+  }, [proposals, searchTerm, filterStatus])
+
+  // Memoized status counts
+  const statusCounts = useMemo(() => ({
+    pending: proposals.filter(p => p.status === "pending").length,
+    approved: proposals.filter(p => p.status === "approved").length,
+    rejected: proposals.filter(p => p.status === "rejected" || p.status === 'denied').length,
+  }), [proposals]);
+
+  // Fetch proposals once on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
+        const res = await fetch(`${backendUrl}/api/mongodb-proposals/admin/proposals-hybrid?limit=100`)
+        const data = await res.json()
+        if (data.success) {
+          const transformed = (data.proposals || []).map((p) => {
+            const nameFallback = p.contactPerson || p.organizationName || 'Unknown'
+            const initials = nameFallback
+              .split(/\s+/)
+              .map((n) => n[0] || '')
+              .join('')
+              .slice(0, 2)
+              .toUpperCase()
+
+            const normalisedStatus = p.status ? (p.status === 'denied' ? 'rejected' : p.status) : 'pending'
+
+            // Build synthetic event detail blocks from flat MySQL columns so the
+            // UI tabs have something to display.
+
+            const buildSchoolEvent = () => {
+              if (!p.school_event_type && p.organizationType !== 'school-based') return undefined
+
+              const audienceRaw = p.school_target_audience ? (() => {
+                try { return JSON.parse(p.school_target_audience) } catch { return p.school_target_audience }
+              })() : []
+
+              return {
+                name: p.eventName || '',
+                description: p.description || '',
+                venue: p.venue || p.event_venue || '',
+                startDate: p.startDate || p.event_start_date || '',
+                endDate: p.endDate || p.event_end_date || '',
+                startTime: p.timeStart || p.event_start_time || '',
+                endTime: p.timeEnd || p.event_end_time || '',
+                type: p.school_event_type || '',
+                audience: audienceRaw,
+                mode: p.eventMode || p.event_mode || 'offline',
+                credits: p.school_return_service_credit || '',
+                attachments: {
+                  gpoa: p.school_gpoa_file_name || '—',
+                  proposal: p.school_proposal_file_name || '—',
+                },
+              }
+            }
+
+            const buildCommunityEvent = () => {
+              if (!p.community_event_type && p.organizationType !== 'community-based') return undefined
+
+              const audienceRaw = p.community_target_audience ? (() => {
+                try { return JSON.parse(p.community_target_audience) } catch { return p.community_target_audience }
+              })() : []
+
+              return {
+                name: p.eventName || '',
+                description: p.description || '',
+                venue: p.venue || p.event_venue || '',
+                startDate: p.startDate || p.event_start_date || '',
+                endDate: p.endDate || p.event_end_date || '',
+                type: p.community_event_type || '',
+                audience: audienceRaw,
+                mode: p.eventMode || p.event_mode || 'offline',
+                credits: p.community_sdp_credits || '',
+                attachments: {
+                  gpoa: p.community_gpoa_file_name || '—',
+                  proposal: p.community_proposal_file_name || '—',
+                },
+              }
+            }
+
+            const schoolEvent = buildSchoolEvent()
+            const communityEvent = buildCommunityEvent()
+
+            return {
+              ...p,
+              status: normalisedStatus,
+              priority: p.priority || 'medium',
+              title: p.title || p.eventName || 'Untitled Event',
+              date: p.submittedAt || p.created_at || p.createdAt || new Date().toISOString(),
+              category: p.category || p.organizationType || 'General',
+              submitter: {
+                name: nameFallback,
+                avatar: p.submitter?.avatar || null,
+                initials,
+              },
+              details: p.details || {
+                purpose: p.purpose || p.category || 'Event Proposal',
+                organization: {
+                  description: p.description || p.organizationDescription || '',
+                  type: [p.organizationType || 'unknown'],
+                },
+                ...(schoolEvent ? { schoolEvent } : {}),
+                ...(communityEvent ? { communityEvent } : {}),
+                comments: [],
+              },
+            }
+          })
+
+          setProposals(transformed)
+        } else {
+          console.error('Failed to load proposals:', data.error)
+        }
+      } catch (e) {
+        console.error('Network error fetching proposals', e)
+      }
+    })()
+  }, [])
+
+  const handleReviewClick = useCallback((proposal) => {
     setSelectedProposal(proposal)
     setReviewDialogOpen(true)
     setReviewDecision(null)
     setReviewComment("")
     setActiveTab(proposal.status === "approved" ? "documentation" : "overview")
     setNewComment("")
-  }
+  }, []);
 
-  const handleAddComment = () => {
+  const handleAddComment = useCallback(() => {
     if (!newComment.trim()) return
 
     // In a real app, this would send the comment to an API
@@ -395,9 +197,9 @@ export default function ReviewPage() {
       })
       setNewComment("")
     }
-  }
+  }, [newComment, selectedProposal]);
 
-  const handleSubmitReview = () => {
+  const handleSubmitReview = useCallback(() => {
     // In a real app, this would submit the review to an API
     console.log({
       proposalId: selectedProposal?.id,
@@ -405,54 +207,60 @@ export default function ReviewPage() {
       comment: reviewComment,
     })
     setReviewDialogOpen(false)
-  }
+  }, [selectedProposal, reviewDecision, reviewComment]);
 
   return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <div className="flex-1 bg-[#f8f9fa] p-6 md:p-8">
-        <PageHeader title="Review Proposals" subtitle="Review and approve or reject submitted proposals" />
+    <div className="flex-1 bg-[#f8f9fa] p-6 md:p-8">
 
-        <Card className="cedo-card">
-          <CardHeader>
-            <CardTitle className="text-cedo-blue">Proposal Review Queue</CardTitle>
-            <CardDescription>Review pending proposals in order of priority</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="pending" className="space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-                <TabsList>
-                  <TabsTrigger value="pending">Pending ({proposals.length})</TabsTrigger>
-                  <TabsTrigger value="approved">Approved (0)</TabsTrigger>
-                  <TabsTrigger value="rejected">Rejected (0)</TabsTrigger>
-                </TabsList>
 
-                <div className="flex w-full sm:w-auto gap-2">
-                  <div className="relative w-full sm:w-auto">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input type="search" placeholder="Search proposals..." className="pl-8 w-full sm:w-[250px]" />
-                  </div>
-                  <Button variant="outline" size="icon">
-                    <Filter className="h-4 w-4" />
-                  </Button>
+      <Card className="cedo-card">
+        <CardHeader>
+          <CardTitle className="text-cedo-blue">Proposal Review Queue</CardTitle>
+          <CardDescription>Review pending proposals in order of priority</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs value={filterStatus} onValueChange={setFilterStatus} className="space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+              <TabsList>
+                <TabsTrigger value="approved">Approved ({statusCounts.approved})</TabsTrigger>
+                <TabsTrigger value="rejected">Rejected ({statusCounts.rejected})</TabsTrigger>
+              </TabsList>
+
+              <div className="flex w-full sm:w-auto gap-2">
+                <div className="relative w-full sm:w-auto">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="search"
+                    placeholder="Search proposals..."
+                    className="pl-8 w-full sm:w-[250px]"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
                 </div>
+                <Button variant="outline" size="icon">
+                  <Filter className="h-4 w-4" />
+                </Button>
               </div>
+            </div>
 
-              <TabsContent value="pending" className="space-y-4">
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader className="cedo-table-header">
-                      <TableRow>
-                        <TableHead>ID</TableHead>
-                        <TableHead>Title</TableHead>
-                        <TableHead>Submitter</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Priority</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {proposals.map((proposal) => (
+            <TabsContent value="approved">
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader className="cedo-table-header">
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Title</TableHead>
+                      <TableHead>Submitter</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Documentation</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredProposals
+                      .filter((proposal) => proposal.status === "approved")
+                      .map((proposal) => (
                         <TableRow key={proposal.id} className="cedo-table-row">
                           <TableCell className="font-medium">{proposal.id}</TableCell>
                           <TableCell>{proposal.title}</TableCell>
@@ -470,569 +278,452 @@ export default function ReviewPage() {
                           <TableCell>{proposal.category}</TableCell>
                           <TableCell>{new Date(proposal.date).toLocaleDateString()}</TableCell>
                           <TableCell>
-                            <Badge
-                              variant="outline"
-                              className={
-                                proposal.priority === "high"
-                                  ? "bg-red-100 text-red-800 hover:bg-red-100"
-                                  : proposal.priority === "medium"
-                                    ? "bg-amber-100 text-amber-800 hover:bg-amber-100"
-                                    : "bg-green-100 text-green-800 hover:bg-green-100"
-                              }
-                            >
-                              {proposal.priority.charAt(0).toUpperCase() + proposal.priority.slice(1)}
-                            </Badge>
+                            {proposal.details.accomplishmentReport?.submitted ? (
+                              <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100">
+                                Submitted
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+                                Pending
+                              </Badge>
+                            )}
                           </TableCell>
                           <TableCell className="text-right">
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => handleReviewClick(proposal)}
-                              className="hover:bg-cedo-blue/5 hover:text-cedo-blue"
+                              className="hover:bg-cedo-blue/5 hover:text-cedo-blue flex items-center gap-1"
                             >
-                              Review
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="mr-1"
+                              >
+                                <path d="M12 20h9"></path>
+                                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                              </svg>
+                              Monitor Progress
                             </Button>
                           </TableCell>
                         </TableRow>
                       ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </TabsContent>
+                  </TableBody>
+                </Table>
+              </div>
+            </TabsContent>
 
-              <TabsContent value="approved">
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader className="cedo-table-header">
-                      <TableRow>
-                        <TableHead>ID</TableHead>
-                        <TableHead>Title</TableHead>
-                        <TableHead>Submitter</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Documentation</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {proposals
-                        .filter((proposal) => proposal.status === "approved")
-                        .map((proposal) => (
-                          <TableRow key={proposal.id} className="cedo-table-row">
-                            <TableCell className="font-medium">{proposal.id}</TableCell>
-                            <TableCell>{proposal.title}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Avatar className="h-6 w-6">
-                                  <AvatarImage src={proposal.submitter.avatar || "/placeholder.svg"} />
-                                  <AvatarFallback className="text-xs bg-cedo-blue text-white">
-                                    {proposal.submitter.initials}
+            <TabsContent value="rejected">
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <div className="rounded-full bg-red-100 p-3">
+                  <XCircle className="h-6 w-6 text-red-600" />
+                </div>
+                <h3 className="mt-4 text-lg font-medium">No rejected proposals yet</h3>
+                <p className="mt-2 text-sm text-muted-foreground">Rejected proposals will appear here</p>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+
+      <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+        <DialogContent className="
+          fixed left-[50%] top-[50%] z-50 
+          w-[98vw] max-w-[95vw] sm:max-w-[90vw] md:max-w-[85vw] lg:max-w-[1200px] xl:max-w-[1400px]
+          h-[95vh] max-h-[95vh] sm:max-h-[90vh] md:max-h-[85vh]
+          translate-x-[-50%] translate-y-[-50%]
+          flex flex-col
+          border border-gray-200/80 bg-white shadow-2xl
+          duration-300 ease-out
+          data-[state=open]:animate-in data-[state=closed]:animate-out 
+          data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 
+          data-[state=closed]:zoom-out-[0.98] data-[state=open]:zoom-in-[0.98]
+          data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%]
+          data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]
+          rounded-none sm:rounded-lg md:rounded-xl
+          overflow-hidden
+          backdrop-blur-sm
+        ">
+          {/* Enhanced Header with better visual hierarchy */}
+          <div className="
+            sticky top-0 z-20 
+            bg-white/95 backdrop-blur-sm border-b border-gray-200/60
+            px-4 sm:px-6 lg:px-8 py-4 sm:py-5 lg:py-6
+            shadow-sm
+          ">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+              <div className="flex-1 min-w-0 space-y-1 sm:space-y-2">
+                <div className="flex items-start justify-between sm:justify-start">
+                  <DialogTitle className="
+                    text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 
+                    leading-tight tracking-tight break-words pr-2
+                  ">
+                    System Review: Event Proposal
+                  </DialogTitle>
+                  {/* Mobile close button */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setReviewDialogOpen(false)}
+                    className="sm:hidden h-8 w-8 rounded-full hover:bg-gray-100"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </Button>
+                </div>
+                <DialogDescription className="text-sm sm:text-base text-gray-600 leading-relaxed">
+                  Review the complete proposal details and provide your decision
+                </DialogDescription>
+              </div>
+
+              {/* Enhanced status and ID display */}
+              {selectedProposal && (
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:flex-col sm:items-end">
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className={`
+                        px-3 py-1.5 text-sm font-semibold rounded-full
+                        ${selectedProposal.status === 'approved'
+                          ? 'bg-green-50 text-green-700 border-green-200'
+                          : selectedProposal.status === 'rejected'
+                            ? 'bg-red-50 text-red-700 border-red-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }
+                      `}
+                    >
+                      {selectedProposal.status?.charAt(0).toUpperCase() + selectedProposal.status?.slice(1)}
+                    </Badge>
+                  </div>
+                  <div className="text-xs sm:text-sm text-gray-500 font-mono bg-gray-50 px-2 py-1 rounded">
+                    ID: {selectedProposal.id}
+                  </div>
+                  {/* Desktop close button */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setReviewDialogOpen(false)}
+                    className="hidden sm:flex items-center gap-2 text-sm px-3 py-1.5"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Close
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Enhanced Content Area */}
+          {selectedProposal && (
+            <div className="flex-1 overflow-y-auto bg-gray-50/30">
+              <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+                <div className="max-w-none space-y-6 sm:space-y-8">
+                  <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="w-full">
+                    {/* Enhanced Tab Navigation */}
+                    <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border border-gray-200 rounded-lg p-1 mb-6 shadow-sm">
+                      <TabsList className="grid w-full grid-cols-4 h-12 bg-transparent p-0">
+                        <TabsTrigger
+                          value="overview"
+                          className="
+                            text-sm font-medium rounded-md transition-all duration-200
+                            data-[state=active]:bg-cedo-blue data-[state=active]:text-white data-[state=active]:shadow-sm
+                            hover:bg-gray-100 data-[state=active]:hover:bg-cedo-blue
+                          "
+                        >
+                          Overview
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="events"
+                          className="
+                            text-sm font-medium rounded-md transition-all duration-200
+                            data-[state=active]:bg-cedo-blue data-[state=active]:text-white data-[state=active]:shadow-sm
+                            hover:bg-gray-100 data-[state=active]:hover:bg-cedo-blue
+                          "
+                        >
+                          Event Details
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="comments"
+                          className="
+                            text-sm font-medium rounded-md transition-all duration-200
+                            data-[state=active]:bg-cedo-blue data-[state=active]:text-white data-[state=active]:shadow-sm
+                            hover:bg-gray-100 data-[state=active]:hover:bg-cedo-blue
+                          "
+                        >
+                          Comments
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="decision"
+                          className="
+                            text-sm font-medium rounded-md transition-all duration-200
+                            data-[state=active]:bg-cedo-blue data-[state=active]:text-white data-[state=active]:shadow-sm
+                            hover:bg-gray-100 data-[state=active]:hover:bg-cedo-blue
+                          "
+                        >
+                          Decision
+                        </TabsTrigger>
+                        {selectedProposal && selectedProposal.status === "approved" && (
+                          <TabsTrigger
+                            value="documentation"
+                            className="
+                              text-sm font-medium rounded-md transition-all duration-200
+                              data-[state=active]:bg-cedo-blue data-[state=active]:text-white data-[state=active]:shadow-sm
+                              hover:bg-gray-100 data-[state=active]:hover:bg-cedo-blue
+                            "
+                          >
+                            Documentation
+                          </TabsTrigger>
+                        )}
+                      </TabsList>
+                    </div>
+
+                    {/* Overview Tab - Enhanced Cards */}
+                    <TabsContent value="overview" className="space-y-6">
+                      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                        <div className="bg-gradient-to-r from-cedo-blue/5 to-cedo-blue/10 px-6 py-4 border-b border-gray-200">
+                          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                            <div className="w-2 h-2 bg-cedo-blue rounded-full mr-3"></div>
+                            Submission Overview
+                          </h3>
+                        </div>
+                        <div className="p-6">
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Proposal ID</Label>
+                              <p className="mt-2 text-base font-semibold text-gray-900">{selectedProposal.id}</p>
+                            </div>
+                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Submission Date</Label>
+                              <p className="mt-2 text-base text-gray-900">{new Date(selectedProposal.date).toLocaleDateString()}</p>
+                            </div>
+                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Purpose</Label>
+                              <p className="mt-2 text-base text-gray-900">{selectedProposal.details.purpose}</p>
+                            </div>
+                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Category</Label>
+                              <p className="mt-2 text-base text-gray-900">{selectedProposal.category}</p>
+                            </div>
+                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Priority</Label>
+                              <p className="mt-2 text-base text-gray-900 capitalize">{selectedProposal.priority}</p>
+                            </div>
+                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Status</Label>
+                              <Badge variant="outline" className="mt-2 font-medium">
+                                {selectedProposal.status.charAt(0).toUpperCase() + selectedProposal.status.slice(1)}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                        <div className="bg-gradient-to-r from-cedo-blue/5 to-cedo-blue/10 px-6 py-4 border-b border-gray-200">
+                          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                            <div className="w-2 h-2 bg-cedo-blue rounded-full mr-3"></div>
+                            Organization Information
+                          </h3>
+                        </div>
+                        <div className="p-6 space-y-6">
+                          <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Description</Label>
+                            <p className="mt-2 text-base text-gray-900 leading-relaxed">{selectedProposal.details.organization.description}</p>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Organization Type</Label>
+                              <p className="mt-2 text-base text-gray-900">{selectedProposal.details.organization.type.join(", ")}</p>
+                            </div>
+                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Submitter</Label>
+                              <div className="flex items-center gap-3 mt-2">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarImage src={selectedProposal.submitter.avatar || "/placeholder.svg"} />
+                                  <AvatarFallback className="text-xs bg-cedo-blue text-white font-medium">
+                                    {selectedProposal.submitter.initials}
                                   </AvatarFallback>
                                 </Avatar>
-                                <span className="text-sm">{proposal.submitter.name}</span>
+                                <span className="text-base text-gray-900 font-medium">{selectedProposal.submitter.name}</span>
                               </div>
-                            </TableCell>
-                            <TableCell>{proposal.category}</TableCell>
-                            <TableCell>{new Date(proposal.date).toLocaleDateString()}</TableCell>
-                            <TableCell>
-                              {proposal.details.accomplishmentReport?.submitted ? (
-                                <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100">
-                                  Submitted
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="bg-amber-100 text-amber-800 hover:bg-amber-100">
-                                  Pending
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleReviewClick(proposal)}
-                                className="hover:bg-cedo-blue/5 hover:text-cedo-blue flex items-center gap-1"
-                              >
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  width="14"
-                                  height="14"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  className="mr-1"
-                                >
-                                  <path d="M12 20h9"></path>
-                                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-                                </svg>
-                                Monitor Progress
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </TabsContent>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </TabsContent>
 
-              <TabsContent value="rejected">
-                <div className="flex flex-col items-center justify-center py-10 text-center">
-                  <div className="rounded-full bg-red-100 p-3">
-                    <XCircle className="h-6 w-6 text-red-600" />
-                  </div>
-                  <h3 className="mt-4 text-lg font-medium">No rejected proposals yet</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">Rejected proposals will appear here</p>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+                    {/* Event Details Tab */}
+                    <TabsContent value="events" className="space-y-6">
+                      <EventDetails selectedProposal={selectedProposal} />
+                    </TabsContent>
 
-        <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
-          <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>System Review: Event Proposal</DialogTitle>
-              <DialogDescription>Review the complete proposal details and provide your decision</DialogDescription>
-            </DialogHeader>
+                    {/* Comments Tab */}
+                    <TabsContent value="comments" className="space-y-6">
+                      <CommentsPanel
+                        selectedProposal={selectedProposal}
+                        newComment={newComment}
+                        setNewComment={setNewComment}
+                        handleAddComment={handleAddComment}
+                      />
+                    </TabsContent>
 
-            {selectedProposal && (
-              <div className="space-y-4">
-                <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="w-full">
-                  <TabsList className="grid grid-cols-4 mb-4">
-                    <TabsTrigger value="overview">Overview</TabsTrigger>
-                    <TabsTrigger value="events">Event Details</TabsTrigger>
-                    <TabsTrigger value="comments">Comments</TabsTrigger>
-                    <TabsTrigger value="decision">Decision</TabsTrigger>
+                    {/* Decision Tab */}
+                    <TabsContent value="decision" className="space-y-6">
+                      <DecisionPanel
+                        reviewDecision={reviewDecision}
+                        setReviewDecision={setReviewDecision}
+                        reviewComment={reviewComment}
+                        setReviewComment={setReviewComment}
+                      />
+                    </TabsContent>
+
                     {selectedProposal && selectedProposal.status === "approved" && (
-                      <TabsTrigger value="documentation">Documentation</TabsTrigger>
-                    )}
-                  </TabsList>
-
-                  {/* Overview Tab */}
-                  <TabsContent value="overview" className="space-y-4">
-                    <div className="border rounded-md p-4">
-                      <h3 className="text-lg font-semibold mb-3">1. Submission Overview</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Proposal ID</Label>
-                          <p className="font-medium">{selectedProposal.id}</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Submission Date</Label>
-                          <p>{new Date(selectedProposal.date).toLocaleDateString()}</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Purpose of Submission</Label>
-                          <p>{selectedProposal.details.purpose}</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Category</Label>
-                          <p>{selectedProposal.category}</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Priority</Label>
-                          <p className="capitalize">{selectedProposal.priority}</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Status</Label>
-                          <Badge variant="outline" className="mt-1">
-                            {selectedProposal.status.charAt(0).toUpperCase() + selectedProposal.status.slice(1)}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="border rounded-md p-4">
-                      <h3 className="text-lg font-semibold mb-3">2. Organization Information</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="col-span-2">
-                          <Label className="text-xs text-muted-foreground">Organization Description</Label>
-                          <p>{selectedProposal.details.organization.description}</p>
-                        </div>
-                        <div className="col-span-2">
-                          <Label className="text-xs text-muted-foreground">Type of Organization</Label>
-                          <p>{selectedProposal.details.organization.type.join(", ")}</p>
-                        </div>
-                        <div className="col-span-2">
-                          <Label className="text-xs text-muted-foreground">Submitter</Label>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Avatar className="h-6 w-6">
-                              <AvatarImage src={selectedProposal.submitter.avatar || "/placeholder.svg"} />
-                              <AvatarFallback className="text-xs bg-cedo-blue text-white">
-                                {selectedProposal.submitter.initials}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span>{selectedProposal.submitter.name}</span>
+                      <TabsContent value="documentation" className="space-y-6">
+                        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                          <div className="bg-gradient-to-r from-green-50 to-green-100/50 px-6 py-4 border-b border-gray-200">
+                            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                              <div className="w-2 h-2 bg-green-500 rounded-full mr-3"></div>
+                              Documentation & Accomplishment Reports
+                            </h3>
                           </div>
-                        </div>
-                      </div>
-                    </div>
-                  </TabsContent>
-
-                  {/* Event Details Tab */}
-                  <TabsContent value="events" className="space-y-4">
-                    {selectedProposal.details.schoolEvent && (
-                      <div className="border rounded-md p-4">
-                        <div className="flex justify-between items-center mb-3">
-                          <h3 className="text-lg font-semibold">School-Based Event</h3>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="col-span-2">
-                            <Label className="text-xs text-muted-foreground">Event/Activity Name</Label>
-                            <p className="font-medium">{selectedProposal.details.schoolEvent.name}</p>
-                          </div>
-                          {selectedProposal.details.schoolEvent.description && (
-                            <div className="col-span-2">
-                              <Label className="text-xs text-muted-foreground">Description</Label>
-                              <p>{selectedProposal.details.schoolEvent.description}</p>
-                            </div>
-                          )}
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Venue</Label>
-                            <p>{selectedProposal.details.schoolEvent.venue}</p>
-                          </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Mode of Event</Label>
-                            <p>{selectedProposal.details.schoolEvent.mode}</p>
-                          </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Start/End Date</Label>
-                            <p>
-                              {selectedProposal.details.schoolEvent.startDate} -{" "}
-                              {selectedProposal.details.schoolEvent.endDate}
-                            </p>
-                          </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Start/End Time</Label>
-                            <p>
-                              {selectedProposal.details.schoolEvent.startTime} -{" "}
-                              {selectedProposal.details.schoolEvent.endTime}
-                            </p>
-                          </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Type of Event</Label>
-                            <p>{selectedProposal.details.schoolEvent.type}</p>
-                          </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Target Audience</Label>
-                            <p>
-                              {Array.isArray(selectedProposal.details.schoolEvent.audience)
-                                ? selectedProposal.details.schoolEvent.audience.join(", ")
-                                : selectedProposal.details.schoolEvent.audience}
-                            </p>
-                          </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Return Service Credit Amount</Label>
-                            <p>{selectedProposal.details.schoolEvent.credits}</p>
-                          </div>
-                          <div className="col-span-2">
-                            <Label className="text-xs text-muted-foreground">Attachments</Label>
-                            <div className="flex flex-col gap-2 mt-2">
-                              <div className="flex items-center gap-2">
-                                <FileText className="h-4 w-4 text-muted-foreground" />
-                                <span>GPOA: {selectedProposal.details.schoolEvent.attachments.gpoa}</span>
-                                <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto">
-                                  <Download className="h-4 w-4" />
-                                </Button>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <FileText className="h-4 w-4 text-muted-foreground" />
-                                <span>Project Proposal: {selectedProposal.details.schoolEvent.attachments.proposal}</span>
-                                <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto">
-                                  <Download className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedProposal.details.communityEvent && (
-                      <div className="border rounded-md p-4">
-                        <div className="flex justify-between items-center mb-3">
-                          <h3 className="text-lg font-semibold">Community-Based Event</h3>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="col-span-2">
-                            <Label className="text-xs text-muted-foreground">Event/Activity Name</Label>
-                            <p className="font-medium">{selectedProposal.details.communityEvent.name}</p>
-                          </div>
-                          {selectedProposal.details.communityEvent.description && (
-                            <div className="col-span-2">
-                              <Label className="text-xs text-muted-foreground">Description</Label>
-                              <p>{selectedProposal.details.communityEvent.description}</p>
-                            </div>
-                          )}
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Venue</Label>
-                            <p>{selectedProposal.details.communityEvent.venue}</p>
-                          </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Mode of Event</Label>
-                            <p>{selectedProposal.details.communityEvent.mode}</p>
-                          </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Start/End Date</Label>
-                            <p>
-                              {selectedProposal.details.communityEvent.startDate} -{" "}
-                              {selectedProposal.details.communityEvent.endDate}
-                            </p>
-                          </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Type of Event</Label>
-                            <p>
-                              {Array.isArray(selectedProposal.details.communityEvent.type)
-                                ? selectedProposal.details.communityEvent.type.join(", ")
-                                : selectedProposal.details.communityEvent.type}
-                            </p>
-                          </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Target Audience</Label>
-                            <p>
-                              {Array.isArray(selectedProposal.details.communityEvent.audience)
-                                ? selectedProposal.details.communityEvent.audience.join(", ")
-                                : selectedProposal.details.communityEvent.audience}
-                            </p>
-                          </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground">SDP Credits Amount</Label>
-                            <p>{selectedProposal.details.communityEvent.credits}</p>
-                          </div>
-                          <div className="col-span-2">
-                            <Label className="text-xs text-muted-foreground">Attachments</Label>
-                            <div className="flex flex-col gap-2 mt-2">
-                              <div className="flex items-center gap-2">
-                                <FileText className="h-4 w-4 text-muted-foreground" />
-                                <span>GPOA: {selectedProposal.details.communityEvent.attachments.gpoa}</span>
-                                <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto">
-                                  <Download className="h-4 w-4" />
-                                </Button>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <FileText className="h-4 w-4 text-muted-foreground" />
-                                <span>
-                                  Project Proposal: {selectedProposal.details.communityEvent.attachments.proposal}
-                                </span>
-                                <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto">
-                                  <Download className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </TabsContent>
-
-                  {/* Comments Tab */}
-                  <TabsContent value="comments" className="space-y-4">
-                    <div className="border rounded-md p-4">
-                      <h3 className="text-lg font-semibold mb-3">Comment Thread</h3>
-                      <div className="space-y-4 max-h-[300px] overflow-y-auto mb-4">
-                        {selectedProposal.details.comments && selectedProposal.details.comments.length > 0 ? (
-                          selectedProposal.details.comments.map((comment, index) => (
-                            <div
-                              key={index}
-                              className={`p-3 rounded-md ${comment.role === "Admin" ? "bg-gray-100" : "bg-blue-50"}`}
-                            >
-                              <div className="flex justify-between items-center mb-1">
-                                <span className="font-semibold">{comment.role}</span>
-                                <span className="text-xs text-muted-foreground">{comment.date}</span>
-                              </div>
-                              <p>{comment.text}</p>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="text-center py-4 text-muted-foreground">
-                            <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                            <p>No comments yet</p>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="new-comment">Add Comment</Label>
-                        <Textarea
-                          id="new-comment"
-                          placeholder="Type your comment here..."
-                          value={newComment}
-                          onChange={(e) => setNewComment(e.target.value)}
-                          className="min-h-[80px]"
-                        />
-                        <Button onClick={handleAddComment} disabled={!newComment.trim()} className="w-full">
-                          Post Comment
-                        </Button>
-                      </div>
-                    </div>
-                  </TabsContent>
-
-                  {/* Decision Tab */}
-                  <TabsContent value="decision" className="space-y-4">
-                    <div className="border rounded-md p-4">
-                      <h3 className="text-lg font-semibold mb-3">Review Decision</h3>
-
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="decision">Decision</Label>
-                          <Select value={reviewDecision || ""} onValueChange={(value) => setReviewDecision(value)}>
-                            <SelectTrigger id="decision">
-                              <SelectValue placeholder="Select your decision" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="approve">Approve</SelectItem>
-                              <SelectItem value="revision">Request Revision</SelectItem>
-                              <SelectItem value="reject">Reject</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="comment">Decision Comments</Label>
-                          <Textarea
-                            id="comment"
-                            placeholder="Provide feedback or reasons for your decision"
-                            value={reviewComment}
-                            onChange={(e) => setReviewComment(e.target.value)}
-                            className="min-h-[100px]"
-                          />
-                        </div>
-
-                        <div className="pt-4">
-                          <Label className="text-xs text-muted-foreground mb-2 block">Quick Links</Label>
-                          <div className="flex flex-wrap gap-2">
-                            <Button variant="outline" size="sm" className="flex items-center gap-1">
-                              <FileText className="h-4 w-4" />
-                              View GPOA
-                            </Button>
-                            <Button variant="outline" size="sm" className="flex items-center gap-1">
-                              <FileText className="h-4 w-4" />
-                              View Project Proposal
-                            </Button>
-                            <Button variant="outline" size="sm" className="flex items-center gap-1">
-                              <FileText className="h-4 w-4" />
-                              View Budget
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </TabsContent>
-
-                  {selectedProposal && selectedProposal.status === "approved" && (
-                    <TabsContent value="documentation" className="space-y-4">
-                      <div className="border rounded-md p-4">
-                        <h3 className="text-lg font-semibold mb-3">Section 5: Documentation & Accomplishment Reports</h3>
-
-                        {selectedProposal.details.accomplishmentReport ? (
-                          <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="col-span-2">
-                                <Label className="text-xs text-muted-foreground">Description</Label>
-                                <p>{selectedProposal.details.accomplishmentReport.description}</p>
-                              </div>
-                              <div>
-                                <Label className="text-xs text-muted-foreground">Type of Organization</Label>
-                                <p>{selectedProposal.details.accomplishmentReport.organizationType.join(", ")}</p>
-                              </div>
-                              <div>
-                                <Label className="text-xs text-muted-foreground">Name of Organization</Label>
-                                <p>{selectedProposal.details.accomplishmentReport.organizationName}</p>
-                              </div>
-                              <div className="col-span-2">
-                                <Label className="text-xs text-muted-foreground">
-                                  Name of Event/Activity Implemented
-                                </Label>
-                                <p>{selectedProposal.details.accomplishmentReport.eventName}</p>
-                              </div>
-                              <div className="col-span-2">
-                                <Label className="text-xs text-muted-foreground">Attachments</Label>
-                                <div className="flex flex-col gap-2 mt-2">
-                                  <div className="flex items-center gap-2">
-                                    <FileText className="h-4 w-4 text-muted-foreground" />
-                                    <span>
-                                      Accomplishment Report:{" "}
-                                      {selectedProposal.details.accomplishmentReport.attachments.report}
-                                    </span>
-                                    <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto">
+                          <div className="p-6">
+                            {selectedProposal.details.accomplishmentReport ? (
+                              <div className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  <div className="space-y-4">
+                                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                                      <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Description</Label>
+                                      <p className="mt-2 text-base text-gray-900">{selectedProposal.details.accomplishmentReport.description}</p>
+                                    </div>
+                                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                                      <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Organization Type</Label>
+                                      <p className="mt-2 text-base text-gray-900">{selectedProposal.details.accomplishmentReport.organizationType.join(", ")}</p>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-4">
+                                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                                      <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Organization Name</Label>
+                                      <p className="mt-2 text-base text-gray-900">{selectedProposal.details.accomplishmentReport.organizationName}</p>
+                                    </div>
+                                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                                      <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Event Name</Label>
+                                      <p className="mt-2 text-base text-gray-900">{selectedProposal.details.accomplishmentReport.eventName}</p>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                                  <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-3 block">Attachments</Label>
+                                  <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                                    <div className="flex items-center gap-3">
+                                      <FileText className="h-5 w-5 text-gray-500" />
+                                      <span className="text-base text-gray-900 font-medium">
+                                        Accomplishment Report: {selectedProposal.details.accomplishmentReport.attachments.report}
+                                      </span>
+                                    </div>
+                                    <Button variant="outline" size="sm" className="flex items-center gap-2">
                                       <Download className="h-4 w-4" />
+                                      Download
                                     </Button>
                                   </div>
                                 </div>
-                              </div>
-                              <div className="col-span-2">
-                                <Label className="text-xs text-muted-foreground">Submission Status</Label>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <Badge className="bg-green-100 text-green-800">
-                                    Submitted on {selectedProposal.details.accomplishmentReport.submittedDate}
-                                  </Badge>
+                                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                                  <Label className="text-xs font-semibold text-green-700 uppercase tracking-wide">Submission Status</Label>
+                                  <div className="flex items-center gap-2 mt-2">
+                                    <Badge className="bg-green-100 text-green-800 border-green-300">
+                                      ✓ Submitted on {selectedProposal.details.accomplishmentReport.submittedDate}
+                                    </Badge>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
+                            ) : (
+                              <div className="text-center py-12">
+                                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                  <FileText className="h-8 w-8 text-gray-400" />
+                                </div>
+                                <h4 className="text-lg font-medium text-gray-900 mb-2">No documentation submitted yet</h4>
+                                <p className="text-gray-600 mb-4">Documentation will appear here once submitted</p>
+                                <Button className="bg-cedo-blue hover:bg-cedo-blue/90">Request Documentation</Button>
+                              </div>
+                            )}
                           </div>
-                        ) : (
-                          <div className="text-center py-6">
-                            <p className="text-muted-foreground">No documentation submitted yet</p>
-                            <Button className="mt-4">Request Documentation</Button>
-                          </div>
-                        )}
-                      </div>
-                    </TabsContent>
-                  )}
-                </Tabs>
+                        </div>
+                      </TabsContent>
+                    )}
+                  </Tabs>
+                </div>
               </div>
-            )}
+            </div>
+          )}
 
-            <DialogFooter className="flex flex-col sm:flex-row gap-2">
-              <Button variant="outline" onClick={() => setReviewDialogOpen(false)} className="sm:order-1">
+          {/* Enhanced Footer */}
+          <div className="
+            sticky bottom-0 z-20 
+            bg-white/95 backdrop-blur-sm border-t border-gray-200/60
+            px-4 sm:px-6 lg:px-8 py-4 sm:py-5
+            shadow-lg
+          ">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setReviewDialogOpen(false)}
+                className="order-2 sm:order-1 px-6 py-2.5 font-medium"
+              >
                 Cancel
               </Button>
 
-              <div className="flex gap-2 w-full sm:w-auto sm:order-2">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-2 order-1 sm:order-2">
                 <Button
                   onClick={() => {
                     setReviewDecision("approve")
                     setActiveTab("decision")
                   }}
-                  className="flex-1 sm:flex-auto bg-green-600 hover:bg-green-700"
+                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-2.5 font-medium shadow-sm"
                 >
-                  Approve
+                  ✓ Approve Proposal
                 </Button>
                 <Button
                   onClick={() => {
                     setReviewDecision("revision")
                     setActiveTab("decision")
                   }}
-                  className="flex-1 sm:flex-auto bg-amber-600 hover:bg-amber-700"
+                  className="bg-amber-600 hover:bg-amber-700 text-white px-6 py-2.5 font-medium shadow-sm"
                 >
-                  Request Revision
+                  📝 Request Revision
                 </Button>
                 <Button
                   onClick={() => {
                     if (
                       confirm(
-                        "Warning: Rejection will halt the process entirely. Consider requesting revisions instead to keep the proposal active. Are you sure you want to reject?",
+                        "Warning: Rejection will halt the process entirely. Consider requesting revisions instead to keep the proposal active. Are you sure you want to reject?"
                       )
                     ) {
                       setReviewDecision("reject")
                       setActiveTab("decision")
                     }
                   }}
-                  className="flex-1 sm:flex-auto bg-gray-400 hover:bg-gray-500 relative group"
+                  className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2.5 font-medium shadow-sm relative group"
                   title="Avoid rejection - request revisions instead"
                 >
-                  <span className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                    Avoid rejection when possible
+                  <span className="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                    ⚠️ Consider revision instead
                   </span>
-                  Reject
+                  ✗ Reject Proposal
                 </Button>
               </div>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-    </Suspense>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 }

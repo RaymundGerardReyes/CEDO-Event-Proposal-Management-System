@@ -15,10 +15,15 @@ const router = express.Router();
 
 // MongoDB connection
 let db;
+let bucket; // Shared GridFS bucket for storing & retrieving files
 MongoClient.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/cedo-partnership')
     .then(client => {
         db = client.db();
-        console.log('✅ Connected to MongoDB for unified file metadata approach');
+        // Initialise GridFS bucket once the connection is ready
+        bucket = new mongoose.mongo.GridFSBucket(db, {
+            bucketName: 'proposal_files',
+        });
+        console.log('✅ Connected to MongoDB for unified file metadata approach & GridFS initialised');
     })
     .catch(err => console.error('❌ MongoDB connection error:', err));
 
@@ -35,18 +40,9 @@ if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Multer configuration for file uploads
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadsDir);
-    },
-    filename: (req, file, cb) => {
-        // Generate unique filename with UUID
-        const uuid = crypto.randomUUID();
-        const extension = path.extname(file.originalname);
-        cb(null, `${uuid}${extension}`);
-    }
-});
+// Use memory storage so files are never persisted on local disk – they will be
+// streamed directly into GridFS instead.  (Multer still enforces size limits.)
+const storage = multer.memoryStorage();
 
 const upload = multer({
     storage: storage,
@@ -74,19 +70,53 @@ const upload = multer({
 // HELPER FUNCTIONS
 // ===============================================
 
-// Generate file metadata (your requested format)
-const generateFileMetadata = (file, fileType, organizationName) => {
-    const timestamp = new Date();
+// =======================================================================
+// NEW: Upload file buffer straight into GridFS and return rich metadata
+// =======================================================================
+
+const uploadToGridFS = async (file, fileType, organizationName = 'Unknown') => {
+    if (!bucket) {
+        throw new Error('GridFS bucket not initialised yet');
+    }
+
     const extension = path.extname(file.originalname);
+    const prettyFilename = `${organizationName.replace(/\s+/g, '')}_${fileType.toUpperCase()}${extension}`;
+
+    // Stream buffer into GridFS.  Multer with memoryStorage gives us `file.buffer`.
+    const fileDoc = await new Promise((resolve, reject) => {
+        const uploadStream = bucket.openUploadStream(prettyFilename, {
+            contentType: file.mimetype,
+            metadata: {
+                originalName: file.originalname,
+                organizationName,
+                fileType
+            }
+        });
+
+        uploadStream.on('error', (err) => reject(err));
+        uploadStream.on('finish', () => {
+            // The `finish` event does not include a file document in the MongoDB
+            // driver v5+.  We construct the minimal metadata we need using the
+            // stream id and the filename we already know.
+            resolve({
+                _id: uploadStream.id,
+                filename: prettyFilename,
+                uploadDate: new Date()
+            });
+        });
+
+        // Write the buffer and signal end-of-stream
+        uploadStream.end(file.buffer);
+    });
 
     return {
-        filename: `${organizationName.replace(/\s+/g, '')}_${fileType.toUpperCase()}${extension}`,
+        // Use the filename stored in GridFS so download by name works
+        filename: fileDoc.filename,
         originalName: file.originalname,
-        path: `/uploads/files/${file.filename}`, // Path where file is stored
         size: file.size,
         mimeType: file.mimetype,
-        uploadedAt: timestamp,
-        fileHash: null // Can add SHA-256 hash if needed
+        uploadedAt: fileDoc.uploadDate,
+        gridFsId: fileDoc._id.toString()
     };
 };
 
@@ -150,7 +180,7 @@ router.post('/proposals/files',
             const fileMetadata = {};
 
             if (req.files.gpoaFile) {
-                fileMetadata.gpoa = generateFileMetadata(
+                fileMetadata.gpoa = await uploadToGridFS(
                     req.files.gpoaFile[0],
                     'gpoa',
                     organization_name
@@ -159,7 +189,7 @@ router.post('/proposals/files',
             }
 
             if (req.files.proposalFile) {
-                fileMetadata.proposal = generateFileMetadata(
+                fileMetadata.proposal = await uploadToGridFS(
                     req.files.proposalFile[0],
                     'proposal',
                     organization_name
@@ -168,7 +198,7 @@ router.post('/proposals/files',
             }
 
             if (req.files.accomplishmentReport) {
-                fileMetadata.accomplishmentReport = generateFileMetadata(
+                fileMetadata.accomplishmentReport = await uploadToGridFS(
                     req.files.accomplishmentReport[0],
                     'AR',
                     organization_name
@@ -225,7 +255,7 @@ router.post('/proposals/school-events',
             const fileMetadata = {};
 
             if (req.files.gpoaFile) {
-                fileMetadata.gpoa = generateFileMetadata(
+                fileMetadata.gpoa = await uploadToGridFS(
                     req.files.gpoaFile[0],
                     'gpoa',
                     orgName
@@ -233,7 +263,7 @@ router.post('/proposals/school-events',
             }
 
             if (req.files.proposalFile) {
-                fileMetadata.proposal = generateFileMetadata(
+                fileMetadata.proposal = await uploadToGridFS(
                     req.files.proposalFile[0],
                     'proposal',
                     orgName
@@ -304,7 +334,7 @@ router.post('/proposals/community-events',
             const fileMetadata = {};
 
             if (req.files.gpoaFile) {
-                fileMetadata.gpoa = generateFileMetadata(
+                fileMetadata.gpoa = await uploadToGridFS(
                     req.files.gpoaFile[0],
                     'gpoa',
                     orgName
@@ -312,7 +342,7 @@ router.post('/proposals/community-events',
             }
 
             if (req.files.proposalFile) {
-                fileMetadata.proposal = generateFileMetadata(
+                fileMetadata.proposal = await uploadToGridFS(
                     req.files.proposalFile[0],
                     'proposal',
                     orgName
@@ -375,7 +405,7 @@ router.post('/accomplishment-reports',
 
             if (req.file) {
                 const orgName = req.body.organization_name || 'Unknown';
-                fileMetadata.accomplishmentReport = generateFileMetadata(
+                fileMetadata.accomplishmentReport = await uploadToGridFS(
                     req.file,
                     'AR',
                     orgName
@@ -1075,9 +1105,18 @@ router.patch('/admin/proposals/:id/status', async (req, res) => {
         console.log('📊 Proposal ID:', proposalId);
         console.log('📊 Request body:', req.body);
 
-        // Validate the new status
-        const validStatuses = ['pending', 'approved', 'rejected', 'draft'];
-        if (!validStatuses.includes(status)) {
+        // Validate and normalise the new status.
+        //   • Front-end historically sends "denied" while some legacy code uses
+        //     "rejected".  MySQL enum is "denied".  Accept both and map to the
+        //     canonical column value to avoid 500 errors.
+
+        const inputStatus = (status || '').toLowerCase();
+
+        const normalisedStatus = inputStatus === 'rejected' ? 'denied' : inputStatus;
+
+        const validStatuses = ['pending', 'approved', 'denied', 'draft'];
+
+        if (!validStatuses.includes(normalisedStatus)) {
             return res.status(400).json({
                 success: false,
                 error: 'Invalid status',
@@ -1092,7 +1131,7 @@ router.patch('/admin/proposals/:id/status', async (req, res) => {
             WHERE id = ?
         `;
 
-        const [updateResult] = await pool.query(updateQuery, [status, proposalId]);
+        const [updateResult] = await pool.query(updateQuery, [normalisedStatus, proposalId]);
 
         if (updateResult.affectedRows === 0) {
             return res.status(404).json({
@@ -1107,10 +1146,10 @@ router.patch('/admin/proposals/:id/status', async (req, res) => {
         // Return success response
         res.json({
             success: true,
-            message: `Proposal ${status} successfully`,
+            message: `Proposal ${normalisedStatus} successfully`,
             proposal: {
                 id: proposalId,
-                status: status,
+                status: normalisedStatus,
                 adminComments: adminComments || '',
                 updatedAt: new Date().toISOString()
             }
@@ -1160,29 +1199,47 @@ router.get('/proposals/:id/download/:fileType', async (req, res) => {
             });
         }
 
-        // Construct full file path
-        const filePath = path.join(__dirname, '..', fileMetadata.path);
+        // =============================================
+        // NEW – Stream directly from GridFS
+        // =============================================
 
-        console.log('📁 Hybrid Download: File path:', filePath);
+        try {
+            const fileDocArr = await bucket.find({ filename: fileMetadata.filename }).toArray();
+            if (!fileDocArr || fileDocArr.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'File not found in GridFS'
+                });
+            }
 
-        // Check if file exists
-        if (!fs.existsSync(filePath)) {
-            console.log('❌ Hybrid Download: File not found on disk');
-            return res.status(404).json({
-                success: false,
-                error: 'File not found on disk',
-                message: 'File has been moved or deleted'
+            const fileDoc = fileDocArr[0];
+
+            res.set({
+                'Content-Type': fileMetadata.mimeType || 'application/octet-stream',
+                'Content-Length': fileDoc.length,
+                'Content-Disposition': `attachment; filename="${fileMetadata.originalName || fileDoc.filename}"`,
+                'Cache-Control': 'no-cache'
             });
+
+            const downloadStream = bucket.openDownloadStreamByName(fileMetadata.filename);
+
+            downloadStream.on('error', (err) => {
+                console.error('❌ GridFS stream error:', err);
+                if (!res.headersSent) {
+                    res.status(500).json({ success: false, error: 'Error streaming file' });
+                }
+            });
+
+            downloadStream.on('end', () => {
+                console.log('✅ Hybrid Download: File streamed successfully via GridFS');
+            });
+
+            downloadStream.pipe(res);
+
+        } catch (streamErr) {
+            console.error('❌ Hybrid Download: GridFS lookup error:', streamErr);
+            return res.status(500).json({ success: false, error: 'Failed to stream file', details: streamErr.message });
         }
-
-        // Set appropriate headers
-        res.setHeader('Content-Type', fileMetadata.mimeType);
-        res.setHeader('Content-Disposition', `attachment; filename="${fileMetadata.filename}"`);
-
-        // Send file
-        res.sendFile(path.resolve(filePath));
-
-        console.log('✅ Hybrid Download: File sent successfully');
 
     } catch (error) {
         console.error('❌ Hybrid Download: Error downloading file:', error);
@@ -1191,6 +1248,63 @@ router.get('/proposals/:id/download/:fileType', async (req, res) => {
             error: 'Failed to download file',
             message: error.message
         });
+    }
+});
+
+// ===============================================
+// STUDENT ENDPOINT – LIST DRAFT PROPOSALS (MySQL)
+// ===============================================
+
+/**
+ * GET /api/mongodb-proposals/proposals/drafts/:email
+ * Hybrid helper used by the student "Resume Drafts" page.
+ * Returns all proposals that belong to a given contact_email and are still in
+ * `draft` status.  The data is lightweight – just enough for the list view.
+ *
+ * Params
+ *   • email – student's login email (same as proposals.contact_email)
+ */
+router.get('/proposals/drafts/:email', async (req, res) => {
+    try {
+        const contactEmail = req.params.email;
+        if (!contactEmail) {
+            return res.status(400).json({ success: false, error: 'email param is required' });
+        }
+
+        console.log('📋 Student Drafts – fetching drafts for:', contactEmail);
+
+        const query = `
+            SELECT id,
+                   organization_name,
+                   contact_email,
+                   organization_type,
+                   updated_at,
+                   created_at,
+                   proposal_status
+            FROM proposals
+            WHERE contact_email = ? AND proposal_status = 'draft'
+            ORDER BY updated_at DESC
+        `;
+
+        const [rows] = await pool.query(query, [contactEmail]);
+
+        const drafts = rows.map(row => ({
+            id: row.id,
+            name: row.organization_name || 'Untitled Draft',
+            lastEdited: row.updated_at || row.created_at,
+            step: 'orgInfo',          // minimal info; frontend will refine
+            progress: 40,             // rough placeholder – calculate client-side if needed
+            data: {
+                organizationName: row.organization_name,
+                organizationTypes: [row.organization_type || 'school-based'],
+                contactEmail: row.contact_email
+            }
+        }));
+
+        res.json({ success: true, drafts });
+    } catch (err) {
+        console.error('❌ Error fetching draft proposals:', err);
+        res.status(500).json({ success: false, error: 'Failed to fetch drafts', details: err.message });
     }
 });
 

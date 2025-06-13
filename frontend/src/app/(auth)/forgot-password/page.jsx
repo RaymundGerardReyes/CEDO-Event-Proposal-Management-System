@@ -1,5 +1,8 @@
 "use client"
 
+// Force dynamic rendering to prevent SSG issues
+export const dynamic = 'force-dynamic';
+
 import { LogoSimple } from "@/components/logo"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"

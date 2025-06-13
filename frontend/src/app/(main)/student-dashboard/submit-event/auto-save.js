@@ -1,176 +1,363 @@
 "use client"
 
-import { useEffect, useCallback } from "react"
-import { debounce } from "lodash"
 
 /**
- * Custom hook to handle auto-saving form data
- * @param {Object} formData - The current form data
- * @param {string} formStep - The current step in the form
- * @param {string} formId - Unique identifier for the form
- * @returns {Object} - Functions to handle auto-save functionality
+ * Comprehensive form data persistence system
+ * Handles all 5 sections of the event submission form
  */
-export function useAutoSave(formData, formStep, formId = "event-submission") {
-  // Function to save form data to localStorage
-  const saveFormData = useCallback(
-    (data, step) => {
-      if (typeof window === "undefined") return
 
-      try {
-        // Get existing drafts
-        const existingDraftsJSON = localStorage.getItem("eventSubmissionDrafts")
-        const existingDrafts = existingDraftsJSON ? JSON.parse(existingDraftsJSON) : []
+const STORAGE_KEY = 'eventProposalFormData';
+const AUTOSAVE_DEBOUNCE_MS = 1000; // 1 second debounce for auto-save
+const MAX_STORAGE_SIZE = 5 * 1024 * 1024; // 5MB max for localStorage
 
-        // Find if this form already has a draft
-        const draftIndex = existingDrafts.findIndex((draft) => draft.id === formId)
+// Debounce function to prevent excessive saves
+let saveTimeout = null;
 
-        // Create new draft object
-        const newDraft = {
-          id: formId,
-          name: data.eventTitle || "Untitled Draft",
-          lastEdited: new Date().toISOString(),
-          step: step,
-          progress: calculateProgress(data, step),
-          data: data,
-        }
+/**
+ * Save form data to localStorage with error handling
+ * @param {Object} formData - Complete form data object
+ * @param {boolean} immediate - Skip debouncing if true
+ */
+export const saveFormData = (formData, immediate = false) => {
+  const performSave = () => {
+    try {
+      // Clean and prepare data for storage
+      const cleanData = cleanFormDataForStorage(formData);
 
-        // Update or add the draft
-        if (draftIndex >= 0) {
-          existingDrafts[draftIndex] = newDraft
-        } else {
-          existingDrafts.push(newDraft)
-        }
-
-        // Save back to localStorage
-        localStorage.setItem("eventSubmissionDrafts", JSON.stringify(existingDrafts))
-
-        console.log("Form data auto-saved", newDraft)
-        return true
-      } catch (error) {
-        console.error("Error saving form data:", error)
-        return false
+      // Check storage size
+      const dataString = JSON.stringify(cleanData);
+      if (dataString.length > MAX_STORAGE_SIZE) {
+        console.warn('Form data too large for localStorage, truncating...');
+        // Keep only essential fields if data is too large
+        const essentialData = extractEssentialData(cleanData);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(essentialData));
+      } else {
+        localStorage.setItem(STORAGE_KEY, dataString);
       }
-    },
-    [formId],
-  )
 
-  // Debounced version of saveFormData to prevent too many saves
-  const debouncedSave = useCallback(
-    debounce((data, step) => saveFormData(data, step), 500),
-    [saveFormData],
-  )
+      // Update last save timestamp
+      localStorage.setItem(STORAGE_KEY + '_timestamp', Date.now().toString());
 
-  // Auto-save whenever formData or formStep changes
-  useEffect(() => {
+      console.log('✅ Form data auto-saved to localStorage:', {
+        size: dataString.length,
+        sections: Object.keys(cleanData),
+        timestamp: new Date().toISOString()
+      });
+
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to save form data to localStorage:', error);
+
+      // Try to clear old data and save again
+      if (error.name === 'QuotaExceededError') {
+        console.log('localStorage quota exceeded, clearing old data...');
+        clearOldFormData();
+        try {
+          const essentialData = extractEssentialData(cleanFormDataForStorage(formData));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(essentialData));
+          return true;
+        } catch (retryError) {
+          console.error('❌ Failed to save even essential data:', retryError);
+        }
+      }
+      return false;
+    }
+  };
+
+  if (immediate) {
+    // Clear any pending saves and save immediately
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+      saveTimeout = null;
+    }
+    return performSave();
+  } else {
+    // Debounced save
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+    }
+
+    saveTimeout = setTimeout(() => {
+      performSave();
+      saveTimeout = null;
+    }, AUTOSAVE_DEBOUNCE_MS);
+  }
+};
+
+/**
+ * Load form data from localStorage
+ * @returns {Object} Restored form data or empty object
+ */
+export const loadFormData = () => {
+  try {
+    const storedData = localStorage.getItem(STORAGE_KEY);
+    const timestamp = localStorage.getItem(STORAGE_KEY + '_timestamp');
+
+    if (!storedData) {
+      console.log('📄 No saved form data found');
+      return {};
+    }
+
+    const parsedData = JSON.parse(storedData);
+    const saveAge = timestamp ? Date.now() - parseInt(timestamp) : 0;
+    const saveAgeHours = saveAge / (1000 * 60 * 60);
+
+    console.log('✅ Loaded form data from localStorage:', {
+      sections: Object.keys(parsedData),
+      saveAge: `${saveAgeHours.toFixed(1)} hours ago`,
+      dataSize: storedData.length
+    });
+
+    // Restore file references (files themselves can't be stored in localStorage)
+    const restoredData = restoreFileReferences(parsedData);
+
+    return restoredData;
+  } catch (error) {
+    console.error('❌ Failed to load form data from localStorage:', error);
+    // Clear corrupted data
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY + '_timestamp');
+    return {};
+  }
+};
+
+/**
+ * Clean form data for storage (remove non-serializable objects)
+ * @param {Object} formData 
+ * @returns {Object} Cleaned form data
+ */
+const cleanFormDataForStorage = (formData) => {
+  const cleaned = { ...formData };
+
+  // Handle File objects - store metadata only
+  Object.keys(cleaned).forEach(key => {
+    if (cleaned[key] instanceof File) {
+      cleaned[key] = {
+        _isFile: true,
+        name: cleaned[key].name,
+        size: cleaned[key].size,
+        type: cleaned[key].type,
+        lastModified: cleaned[key].lastModified
+      };
+    }
+
+    // Convert Date objects to ISO strings
+    if (cleaned[key] instanceof Date) {
+      cleaned[key] = cleaned[key].toISOString();
+    }
+
+    // Handle nested objects
+    if (cleaned[key] && typeof cleaned[key] === 'object' && !Array.isArray(cleaned[key])) {
+      cleaned[key] = cleanFormDataForStorage(cleaned[key]);
+    }
+  });
+
+  return cleaned;
+};
+
+/**
+ * Restore file references from stored metadata
+ * @param {Object} data 
+ * @returns {Object} Data with file references restored
+ */
+const restoreFileReferences = (data) => {
+  const restored = { ...data };
+
+  Object.keys(restored).forEach(key => {
+    if (restored[key] && typeof restored[key] === 'object' && restored[key]._isFile) {
+      // Create a placeholder for file reference
+      restored[key] = {
+        ...restored[key],
+        _isRestoredFile: true,
+        toString: () => restored[key].name
+      };
+    }
+  });
+
+  return restored;
+};
+
+/**
+ * Extract only essential data when storage is full
+ * @param {Object} formData 
+ * @returns {Object} Essential data only
+ */
+const extractEssentialData = (formData) => {
+  const essential = {
+    // Section 1 - Overview
+    currentSection: formData.currentSection,
+    hasActiveProposal: formData.hasActiveProposal,
+    proposalStatus: formData.proposalStatus,
+
+    // Section 2 - Organization Info (Critical)
+    organizationName: formData.organizationName,
+    organizationDescription: formData.organizationDescription,
+    organizationType: formData.organizationType,
+    organizationTypes: formData.organizationTypes,
+    eventType: formData.eventType,
+    contactName: formData.contactName,
+    contactEmail: formData.contactEmail,
+    contactPhone: formData.contactPhone,
+
+    // Section 3 - School Event (Essential fields only)
+    schoolEventName: formData.schoolEventName,
+    schoolVenue: formData.schoolVenue,
+    schoolStartDate: formData.schoolStartDate,
+    schoolEndDate: formData.schoolEndDate,
+    schoolEventType: formData.schoolEventType,
+    schoolEventMode: formData.schoolEventMode,
+
+    // Section 4 - Community Event (Essential fields only)  
+    communityEventName: formData.communityEventName,
+    communityVenue: formData.communityVenue,
+    communityStartDate: formData.communityStartDate,
+    communityEndDate: formData.communityEndDate,
+    communityEventType: formData.communityEventType,
+    communityEventMode: formData.communityEventMode,
+
+    // Section 5 - Reporting
+    reportStatus: formData.reportStatus,
+    accomplishmentReport: formData.accomplishmentReport
+  };
+
+  // Remove undefined/null values to save space
+  Object.keys(essential).forEach(key => {
+    if (essential[key] === undefined || essential[key] === null) {
+      delete essential[key];
+    }
+  });
+
+  return essential;
+};
+
+/**
+ * Clear old form data from localStorage
+ */
+const clearOldFormData = () => {
+  const keysToRemove = [];
+
+  // Find old form-related keys
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && (key.includes('eventProposal') || key.includes('formData'))) {
+      keysToRemove.push(key);
+    }
+  }
+
+  keysToRemove.forEach(key => localStorage.removeItem(key));
+  console.log('🧹 Cleared old form data keys:', keysToRemove);
+};
+
+/**
+ * Clear all form data from localStorage
+ */
+export const clearFormData = () => {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY + '_timestamp');
+    console.log('🧹 Cleared all form data from localStorage');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to clear form data:', error);
+    return false;
+  }
+};
+
+/**
+ * Get storage usage information
+ * @returns {Object} Storage usage stats
+ */
+export const getStorageInfo = () => {
+  try {
+    const data = localStorage.getItem(STORAGE_KEY);
+    const timestamp = localStorage.getItem(STORAGE_KEY + '_timestamp');
+
+    return {
+      hasData: !!data,
+      dataSize: data ? data.length : 0,
+      dataSizeKB: data ? (data.length / 1024).toFixed(2) : 0,
+      lastSaved: timestamp ? new Date(parseInt(timestamp)) : null,
+      storageUsed: JSON.stringify(localStorage).length,
+      storageAvailable: MAX_STORAGE_SIZE
+    };
+  } catch (error) {
+    return { hasData: false, error: error.message };
+  }
+};
+
+/**
+ * Setup automatic form persistence with page unload warning
+ * @param {Function} getFormData - Function to get current form data
+ * @param {boolean} hasUnsavedChanges - Whether there are unsaved changes
+ */
+export const setupFormPersistence = (getFormData, hasUnsavedChanges = false) => {
+  // Auto-save on page visibility change (when user switches tabs)
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'hidden') {
+      const formData = getFormData();
+      if (formData && Object.keys(formData).length > 0) {
+        saveFormData(formData, true); // Immediate save
+      }
+    }
+  };
+
+  // Warn before page unload if there are unsaved changes
+  const handleBeforeUnload = (e) => {
+    if (hasUnsavedChanges) {
+      // Auto-save before leaving
+      const formData = getFormData();
+      if (formData && Object.keys(formData).length > 0) {
+        saveFormData(formData, true); // Immediate save
+      }
+
+      // Show browser warning
+      e.preventDefault();
+      e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+      return e.returnValue;
+    }
+  };
+
+  // Auto-save periodically
+  const autoSaveInterval = setInterval(() => {
+    const formData = getFormData();
     if (formData && Object.keys(formData).length > 0) {
-      debouncedSave(formData, formStep)
+      saveFormData(formData);
     }
-  }, [formData, formStep, debouncedSave])
+  }, 30000); // Every 30 seconds
 
-  // Function to load saved form data
-  const loadFormData = useCallback(() => {
-    if (typeof window === "undefined") return null
+  // Add event listeners
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  window.addEventListener('beforeunload', handleBeforeUnload);
 
-    try {
-      // Check if there's a current draft being edited
-      const currentDraftJSON = localStorage.getItem("currentDraft")
-      if (currentDraftJSON) {
-        const currentDraft = JSON.parse(currentDraftJSON)
-        // Clear the current draft marker
-        localStorage.removeItem("currentDraft")
-        return currentDraft.data
-      }
+  // Return cleanup function
+  return () => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.removeEventListener('beforeunload', handleBeforeUnload);
+    clearInterval(autoSaveInterval);
 
-      // Otherwise check for existing drafts
-      const existingDraftsJSON = localStorage.getItem("eventSubmissionDrafts")
-      if (!existingDraftsJSON) return null
-
-      const existingDrafts = JSON.parse(existingDraftsJSON)
-      const draft = existingDrafts.find((draft) => draft.id === formId)
-
-      return draft ? draft.data : null
-    } catch (error) {
-      console.error("Error loading form data:", error)
-      return null
+    // Final save on cleanup
+    const formData = getFormData();
+    if (formData && Object.keys(formData).length > 0) {
+      saveFormData(formData, true);
     }
-  }, [formId])
-
-  // Function to check if there are any saved drafts
-  const hasSavedDrafts = useCallback(() => {
-    if (typeof window === "undefined") return false
-
-    try {
-      const existingDraftsJSON = localStorage.getItem("eventSubmissionDrafts")
-      if (!existingDraftsJSON) return false
-
-      const existingDrafts = JSON.parse(existingDraftsJSON)
-      return existingDrafts.length > 0
-    } catch (error) {
-      console.error("Error checking for saved drafts:", error)
-      return false
-    }
-  }, [])
-
-  // Function to delete a draft
-  const deleteDraft = useCallback((draftId) => {
-    if (typeof window === "undefined") return false
-
-    try {
-      const existingDraftsJSON = localStorage.getItem("eventSubmissionDrafts")
-      if (!existingDraftsJSON) return false
-
-      const existingDrafts = JSON.parse(existingDraftsJSON)
-      const updatedDrafts = existingDrafts.filter((draft) => draft.id !== draftId)
-
-      localStorage.setItem("eventSubmissionDrafts", JSON.stringify(updatedDrafts))
-      return true
-    } catch (error) {
-      console.error("Error deleting draft:", error)
-      return false
-    }
-  }, [])
-
-  return {
-    saveFormData,
-    loadFormData,
-    hasSavedDrafts,
-    deleteDraft,
-  }
-}
+  };
+};
 
 /**
- * Calculate the progress percentage based on form data and current step
- * @param {Object} data - The form data
- * @param {string} step - The current form step
- * @returns {number} - Progress percentage (0-100)
+ * Debug function to inspect current storage state
  */
-function calculateProgress(data, step) {
-  // Define the steps and their weights
-  const steps = {
-    overview: 10,
-    orgInfo: 30,
-    schoolEvent: 60,
-    communityEvent: 60,
-    reporting: 90,
+export const debugStorage = () => {
+  console.log('🔍 Form Storage Debug Info:');
+  console.log('Storage Info:', getStorageInfo());
+  console.log('Current Data:', loadFormData());
+
+  // List all localStorage keys related to forms
+  const formKeys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && (key.includes('form') || key.includes('event') || key.includes('proposal'))) {
+      formKeys.push(key);
+    }
   }
-
-  // Base progress on the current step
-  let progress = steps[step] || 0
-
-  // Add additional progress based on filled fields
-  const totalFields = Object.keys(data).length
-  const filledFields = Object.values(data).filter((value) => {
-    if (Array.isArray(value)) return value.length > 0
-    if (typeof value === "object" && value !== null) return Object.keys(value).length > 0
-    return value !== undefined && value !== null && value !== ""
-  }).length
-
-  // Add up to 10% based on field completion
-  if (totalFields > 0) {
-    const fieldProgress = (filledFields / totalFields) * 10
-    progress += fieldProgress
-  }
-
-  // Cap at 95% - only complete when actually submitted
-  return Math.min(95, Math.max(5, progress))
-}
+  console.log('Form-related localStorage keys:', formKeys);
+};

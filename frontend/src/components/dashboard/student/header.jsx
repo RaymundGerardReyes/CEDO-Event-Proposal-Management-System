@@ -146,19 +146,19 @@ const Header = () => {
   const getNotificationIcon = (type) => {
     switch (type) {
       case "info":
-        return <Info className="h-4 w-4" />;
+        return <Info className="h-3 w-3 sm:h-4 sm:w-4" />;
       case "success":
-        return <CheckCircle className="h-4 w-4" />;
+        return <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4" />;
       case "warning":
-        return <AlertTriangle className="h-4 w-4" />;
+        return <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4" />;
       case "error":
-        return <AlertCircleIcon className="h-4 w-4" />;
+        return <AlertCircleIcon className="h-3 w-3 sm:h-4 sm:w-4" />;
       case "calendar":
-        return <Calendar className="h-4 w-4" />;
+        return <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />;
       case "document":
-        return <FileText className="h-4 w-4" />;
+        return <FileText className="h-3 w-3 sm:h-4 sm:w-4" />;
       default:
-        return <Bell className="h-4 w-4" />;
+        return <Bell className="h-3 w-3 sm:h-4 sm:w-4" />;
     }
   };
 
@@ -207,13 +207,14 @@ const Header = () => {
   const displayedNotifications = showAllNotifications ? allNotifications : recentNotifications;
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-4 md:px-6">
+    <header className="sticky top-0 z-30 flex h-14 sm:h-16 items-center justify-between border-b bg-background px-3 sm:px-4 md:px-6">
       <div className="flex-1"></div> {/* Spacer */}
-      <div className="flex items-center gap-3 md:gap-4">
+      <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
+        {/* Enhanced Notification Panel */}
         <div className="relative">
           <button
             id="notification-button"
-            className="inline-flex items-center justify-center rounded-full p-2 text-sm font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary relative"
+            className="inline-flex items-center justify-center rounded-lg sm:rounded-xl p-2 sm:p-2.5 text-sm font-medium transition-all duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary relative min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px]"
             aria-label={`${notificationCount > 0 ? notificationCount : 'No'} unread notifications`}
             aria-haspopup="true"
             aria-expanded={notificationPanelOpen}
@@ -223,10 +224,10 @@ const Header = () => {
               if (!notificationPanelOpen) setShowAllNotifications(false); // Reset to recent view when opening
             }}
           >
-            <Bell className="h-5 w-5" aria-hidden="true" />
+            <Bell className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
             {notificationCount > 0 && (
               <span
-                className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-semibold text-white"
+                className="absolute -right-1 -top-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-red-500 text-xs font-semibold text-white"
                 aria-hidden="true"
               >
                 {notificationCount > 9 ? "9+" : notificationCount}
@@ -237,70 +238,73 @@ const Header = () => {
           {notificationPanelOpen && (
             <div
               id="notification-panel-content"
-              className="absolute right-0 mt-2 w-80 max-h-[70vh] overflow-y-auto rounded-md border bg-background shadow-lg z-50"
+              className="absolute right-0 mt-2 w-[320px] sm:w-80 max-h-[70vh] overflow-y-auto rounded-lg sm:rounded-xl border bg-background shadow-lg z-50"
               role="menu"
               aria-labelledby="notification-button"
             >
-              <div className="flex items-center justify-between p-3 border-b">
-                <h3 className="font-medium">{showAllNotifications ? "All Notifications" : "Recent Notifications"}</h3>
-                <div className="flex gap-2">
+              {/* Enhanced Header */}
+              <div className="flex items-center justify-between p-3 sm:p-4 border-b">
+                <h3 className="font-medium text-sm sm:text-base">{showAllNotifications ? "All Notifications" : "Recent Notifications"}</h3>
+                <div className="flex gap-1 sm:gap-2">
                   {(recentNotifications.some(n => !n.read) || allNotifications.some(n => !n.read)) && notificationCount > 0 && (
-                    <button className="text-xs text-muted-foreground hover:text-foreground" onClick={markAllAsRead}>
+                    <button className="text-xs sm:text-sm text-muted-foreground hover:text-foreground px-2 py-1 rounded transition-colors" onClick={markAllAsRead}>
                       Mark all as read
                     </button>
                   )}
                   <button
-                    className="text-xs text-muted-foreground hover:text-foreground"
+                    className="text-xs sm:text-sm text-muted-foreground hover:text-foreground p-1 rounded transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
                     onClick={() => setNotificationPanelOpen(false)}
                     aria-label="Close notifications"
                   >
-                    <X className="h-4 w-4" />
+                    <X className="h-3 w-3 sm:h-4 sm:w-4" />
                   </button>
                 </div>
               </div>
 
+              {/* Enhanced Notification List */}
               {displayedNotifications.length === 0 ? (
-                <div className="p-4 text-center text-muted-foreground">
-                  <BellOff className="h-5 w-5 mx-auto mb-2" />
-                  <p>No notifications</p>
+                <div className="p-6 sm:p-8 text-center text-muted-foreground">
+                  <BellOff className="h-8 w-8 sm:h-10 sm:w-10 mx-auto mb-2 sm:mb-3" />
+                  <p className="text-sm sm:text-base">No notifications</p>
                 </div>
               ) : (
                 <ul className="py-1" role="none">
                   {displayedNotifications.map((notification) => (
-                    <li key={notification.id} className={`px-4 py-3 hover:bg-muted ${!notification.read ? "bg-muted/40" : ""}`} role="menuitem">
-                      <div className="flex items-start gap-3">
-                        <div className={`rounded-full p-2 ${getNotificationTypeStyles(notification.type)}`}>
+                    <li key={notification.id} className={`px-3 sm:px-4 py-3 hover:bg-muted transition-colors ${!notification.read ? "bg-muted/40" : ""}`} role="menuitem">
+                      <div className="flex items-start gap-2 sm:gap-3">
+                        <div className={`rounded-full p-1.5 sm:p-2 flex-shrink-0 ${getNotificationTypeStyles(notification.type)}`}>
                           {getNotificationIcon(notification.type)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">{notification.title}</p>
-                          <p className="text-xs text-muted-foreground mt-1">{notification.message}</p>
+                          <p className="text-xs sm:text-sm font-medium truncate">{notification.title}</p>
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{notification.message}</p>
                           <p className="text-xs text-muted-foreground mt-1">
                             {formatNotificationTime(notification.time)}
                           </p>
                         </div>
-                        {!notification.read && <div className="h-2 w-2 rounded-full bg-primary shrink-0"></div>}
+                        {!notification.read && <div className="h-2 w-2 rounded-full bg-primary shrink-0 mt-1"></div>}
                       </div>
                     </li>
                   ))}
                 </ul>
               )}
 
+              {/* Enhanced Footer */}
               <div className="p-2 border-t">
                 <button
-                  className="w-full rounded-md p-2 text-center text-sm hover:bg-muted flex items-center justify-center gap-1"
+                  className="w-full rounded-lg p-2 sm:p-3 text-center text-xs sm:text-sm hover:bg-muted flex items-center justify-center gap-1 sm:gap-2 transition-colors min-h-[40px]"
                   onClick={() => setShowAllNotifications(!showAllNotifications)}
                   role="menuitem"
                 >
                   {showAllNotifications ? (
                     <>
                       <span>Show recent notifications</span>
-                      <ChevronDown className="h-4 w-4" />
+                      <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4" />
                     </>
                   ) : (
                     <>
                       <span>View all notifications</span>
-                      <ChevronRight className="h-4 w-4" />
+                      <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
                     </>
                   )}
                 </button>
@@ -309,18 +313,19 @@ const Header = () => {
           )}
         </div>
 
+        {/* Enhanced User Menu */}
         <div className="relative">
           <button
             id="user-menu-button"
-            className="flex items-center gap-2 rounded-full p-1 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-colors"
+            className="flex items-center gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl p-1 sm:p-1.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all duration-200 min-h-[40px] sm:min-h-[44px]"
             aria-label="Open user menu"
             aria-expanded={isUserMenuOpen}
             aria-haspopup="true"
             aria-controls="user-menu-content"
             onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
           >
-            <Avatar className="h-8 w-8 border border-border">
-              <AvatarFallback className="bg-[#0c2d6b] text-white">
+            <Avatar className="h-7 w-7 sm:h-8 sm:w-8 border border-border flex-shrink-0">
+              <AvatarFallback className="bg-[#0c2d6b] text-white text-xs sm:text-sm">
                 {authUser?.name
                   ?.split(" ")
                   .map((n) => n[0])
@@ -328,9 +333,9 @@ const Header = () => {
                   .toUpperCase() || "JD"}
               </AvatarFallback>
             </Avatar>
-            <span className="hidden md:inline font-medium truncate max-w-[120px] text-sm">{authUser?.name || "User"}</span>
+            <span className="hidden sm:inline font-medium truncate max-w-[80px] md:max-w-[120px] text-xs sm:text-sm">{authUser?.name || "User"}</span>
             <ChevronDown
-              className={`h-4 w-4 transition-transform duration-200 ${isUserMenuOpen ? "rotate-180" : ""}`}
+              className={`h-3 w-3 sm:h-4 sm:w-4 transition-transform duration-200 flex-shrink-0 ${isUserMenuOpen ? "rotate-180" : ""}`}
               aria-hidden="true"
             />
           </button>
@@ -338,40 +343,43 @@ const Header = () => {
           {isUserMenuOpen && (
             <div
               id="user-menu-content"
-              className="absolute right-0 mt-2 w-56 rounded-md border bg-background shadow-lg z-50"
+              className="absolute right-0 mt-2 w-48 sm:w-56 rounded-lg sm:rounded-xl border bg-background shadow-lg z-50"
               role="menu"
               aria-labelledby="user-menu-button"
             >
-              <div className="py-2 px-3 border-b">
-                <p className="text-sm font-medium truncate">{authUser?.name || "John Doe"}</p>
+              {/* Enhanced User Info */}
+              <div className="py-2 sm:py-3 px-3 sm:px-4 border-b">
+                <p className="text-xs sm:text-sm font-medium truncate">{authUser?.name || "John Doe"}</p>
                 <p className="text-xs text-muted-foreground truncate">{authUser?.role || "User Role"}</p>
               </div>
 
+              {/* Enhanced Menu Items */}
               <div className="py-1" role="none">
                 <Link
-                  href="/profile"
-                  className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted"
+                  href="/student-dashboard/profile"
+                  className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm hover:bg-muted transition-colors min-h-[40px]"
                   role="menuitem"
                   onClick={() => setIsUserMenuOpen(false)}
                 >
-                  <User className="h-4 w-4" />
+                  <User className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                   <span>Profile</span>
                 </Link>
 
                 <Link
                   href="/settings"
-                  className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted"
+                  className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm hover:bg-muted transition-colors min-h-[40px]"
                   role="menuitem"
                   onClick={() => setIsUserMenuOpen(false)}
                 >
-                  <Settings className="h-4 w-4" />
+                  <Settings className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                   <span>Settings</span>
                 </Link>
               </div>
 
+              {/* Enhanced Logout Button */}
               <div className="border-t py-1" role="none">
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50"
+                  className="flex w-full items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-red-500 hover:bg-red-50 transition-colors min-h-[40px]"
                   role="menuitem"
                   onClick={(event) => {
                     event.preventDefault();
@@ -379,7 +387,7 @@ const Header = () => {
                     handleLogout(); // Call the updated handleLogout function
                   }}
                 >
-                  <LogOut className="h-4 w-4" />
+                  <LogOut className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                   <span>Sign out</span>
                 </button>
               </div>

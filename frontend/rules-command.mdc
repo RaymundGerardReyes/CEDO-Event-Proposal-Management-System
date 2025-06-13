@@ -1,0 +1,68 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description: This rules file enforces best practices for the CEDO Partnership Management System, focusing on clean code, maintainability, and avoiding unnecessary complexity.
+globs: 
+alwaysApply: true
+---
+
+## 1. Project Overview
+Your project, the CEDO Partnership Management System, is a full-stack application designed for educational partnership management, event proposal submissions, and administrative oversight. It utilizes modern technologies and follows best practices for both frontend and backend development.
+
+## 2. Tech Stack Analysis
+### Frontend
+- **Framework**: Next.js (version 15.3.2)
+  - A React-based framework that enables server-side rendering and static site generation, enhancing performance and SEO.
+- **UI Components**: 
+  - React: The core library for building user interfaces.
+  - Tailwind CSS: A utility-first CSS framework for styling, ensuring responsive design and modern aesthetics.
+- **State Management**: 
+  - React Context API: Used for managing global state, particularly for authentication.
+- **Testing Framework**: 
+  - Jest: A JavaScript testing framework used for unit testing components and functionalities.
+  - React Testing Library: Used alongside Jest for testing React components in a user-centric way.
+- **Routing**: 
+  - Next.js Routing: Utilizes Next.js's built-in routing capabilities for navigation between pages.
+
+### Backend
+- **Framework**: Express.js
+  - A minimal and flexible Node.js web application framework that provides a robust set of features for web and mobile applications.
+- **Authentication**: 
+  - Passport.js: Used for implementing OAuth 2.0 authentication, particularly with Google.
+- **Database**: 
+  - MySQL: A relational database management system used for structured data storage.
+  - MongoDB: A NoSQL database used for unstructured data, allowing for flexible data models.
+  - GridFS: Used for storing large files in MongoDB.
+- **API Development**: 
+  - RESTful APIs for communication between the frontend and backend, handling user authentication, data fetching, and updates.
+
+### Security
+- CSRF Protection: Implemented in the backend to secure against cross-site request forgery attacks.
+- JWT (JSON Web Tokens): Used for secure session management and authentication.
+
+## 3. Code Structure
+### Directory Structure:
+- `/frontend`: Contains all frontend-related code, including components, pages, and tests.
+- `/backend`: Contains backend-related code, including API routes and middleware.
+- `/contexts`: Contains context providers for managing global state.
+- `/tests`: Contains unit tests for both frontend and backend components.
+
+## 4. Key Features Implemented
+- User Authentication: Secure login and registration processes using OAuth 2.0.
+- Role-Based Access Control: Different user roles (e.g., student, admin) with specific permissions.
+- Responsive Design: Ensured through Tailwind CSS and mobile-first design principles.
+- Error Handling: Comprehensive error handling in both frontend and backend to enhance user experience.
+
+## 5. Avoiding Complexity
+- **Documentation Generation**: Avoid generating excessive documentation that complicates the code structure. Focus on concise, relevant comments within the code rather than external documentation that may become outdated or convoluted.
+- **Code Clarity**: Strive for clarity and simplicity in code. Avoid overly complex structures that can lead to confusion. Use clear naming conventions and modular components to enhance readability.
+- **Refactoring**: Regularly refactor code to eliminate unnecessary complexity. If a function or component becomes too complex, break it down into smaller, more manageable pieces.
+
+## 6. Potential Improvements
+- Code Organization: Consider organizing components by feature rather than type to improve maintainability.
+- Documentation: Ensure that all components and functions are well-documented to facilitate onboarding new developers.
+
+- Testing Coverage: Aim for higher test coverage, especially for critical components and business logic.

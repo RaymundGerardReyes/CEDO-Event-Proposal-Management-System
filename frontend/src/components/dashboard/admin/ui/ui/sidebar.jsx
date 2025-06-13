@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 
 // Enhanced responsive sidebar dimensions
-const SIDEBAR_WIDTH = "16rem"     // 256px - Full width
+const SIDEBAR_WIDTH = "2rem"     // 256px - Full width
 const SIDEBAR_WIDTH_ICON = "4rem" // 64px - Collapsed width  
 const SIDEBAR_WIDTH_MOBILE = "18rem" // 288px - Slightly wider on mobile for touch
 
@@ -198,7 +198,7 @@ const Sidebar = React.forwardRef(
                                     ? (open ? "translate-x-0" : "translate-x-full")
                                     : "",
                             // Touch-friendly scrolling
-                            "overflow-y-auto scrollbar-thin",
+                            "overflow-y-auto",
                             className,
                         )}
                         data-state={state}
@@ -242,7 +242,6 @@ const Sidebar = React.forwardRef(
                     className={cn(
                         "flex h-full w-full flex-col bg-sidebar",
                         "overflow-hidden", // Prevent content overflow during transitions
-                        "scrollbar-thin" // Custom scrollbar styling
                     )}
                 >
                     {children}
@@ -359,7 +358,7 @@ const SidebarContent = React.forwardRef(({ className, ...props }, ref) => {
             data-sidebar="content"
             className={cn(
                 "flex min-h-0 flex-1 flex-col gap-2",
-                "overflow-y-auto overflow-x-hidden scrollbar-thin",
+                "overflow-y-auto overflow-x-hidden",
                 // Responsive padding
                 "py-2 sm:py-3",
                 // Collapsed state - center items on desktop

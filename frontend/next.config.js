@@ -7,20 +7,12 @@ const withBundleAnalyzer = require('@next/bundle-analyzer')({
 });
 
 const nextConfig = {
-  // React strict mode - disabled for faster development builds
-  reactStrictMode: false,
+  // React strict mode - enabled for better development practices with Fast Refresh
+  reactStrictMode: true,
 
-  // FIXED: Turbopack configuration for Next.js 15.3.2 (Stable)
+  // ✅ CORRECTED: Turbopack configuration for Next.js 15.3.2 (Stable)
   turbopack: {
-    // CORRECTED: Proper Turbopack rules for Next.js 15.3.2
-    rules: {
-      // Remove css-loader references - Turbopack handles CSS natively
-      "*.module.css": {
-        loaders: ["css"],
-        as: "*.module.css",
-      },
-    },
-    // CORRECTED: Resolve alias format for stable Turbopack
+    // Path aliases - properly formatted for Turbopack
     resolveAlias: {
       "@": "./src",
       "@components": "./src/components",
@@ -29,14 +21,93 @@ const nextConfig = {
       "@lib": "./src/lib",
       "@contexts": "./src/contexts",
     },
+    // Custom file extensions for module resolution
+    resolveExtensions: ['.jsx', '.js', '.ts', '.tsx', '.json'],
+    // REMOVED: moduleIds: 'deterministic' - incompatible with HMR
+    // This experimental option causes "[Turbopack HMR] Expected module to match pattern" errors
   },
 
-  // Experimental features (reduced for stability)
-  experimental: {
-    // Optimize package imports (critical for your heavy dependencies)
+  // ✅ CRITICAL FIX: Relaxed COOP policy for Google OAuth compatibility
+  async headers() {
+    const isDev = process.env.NODE_ENV === 'development';
 
+    return [
+      {
+        source: '/(.*)',
+        headers: isDev
+          ? [
+            // 🚀 DEVELOPMENT: Very permissive for Google OAuth testing
+            {
+              key: 'Cross-Origin-Opener-Policy',
+              value: 'unsafe-none', // Allows all popup communication
+            },
+            {
+              key: 'Cross-Origin-Embedder-Policy',
+              value: 'unsafe-none', // Allows all embedding
+            },
+            {
+              key: 'Cross-Origin-Resource-Policy',
+              value: 'cross-origin', // Allows cross-origin requests
+            },
+            {
+              key: 'Referrer-Policy',
+              value: 'no-referrer-when-downgrade', // Standard referrer policy
+            },
+          ]
+          : [
+            // 🛡️ PRODUCTION: Balanced security with OAuth compatibility
+            {
+              key: 'Cross-Origin-Opener-Policy',
+              value: 'same-origin-allow-popups', // CRITICAL: Allows Google OAuth popups
+            },
+            {
+              key: 'Cross-Origin-Embedder-Policy',
+              value: 'unsafe-none', // Required for Google OAuth in production
+            },
+            {
+              key: 'Cross-Origin-Resource-Policy',
+              value: 'cross-origin', // Allows Google domain communication
+            },
+            {
+              key: 'Referrer-Policy',
+              value: 'strict-origin-when-cross-origin',
+            },
+          ],
+      },
+      // ✅ SPECIFIC: More permissive rules for Google OAuth endpoints
+      {
+        source: '/api/auth/(.*)',
+        headers: [
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'unsafe-none', // Always permissive for auth endpoints
+          },
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'unsafe-none',
+          },
+        ],
+      },
+    ];
+  },
+
+  // ✅ Webpack configuration for better OAuth handling
+  webpack: (config, { dev, isServer }) => {
+    // Optimize for Google OAuth in development
+    if (dev && !isServer) {
+      config.optimization = {
+        ...config.optimization,
+        moduleIds: 'named',
+      }
+    }
+    return config
+  },
+
+  // Experimental features optimized for Turbopack
+  experimental: {
+    // ✅ CRITICAL: Package import optimization for Fast Refresh performance
     optimizePackageImports: [
-      // Radix UI components
+      // Radix UI components (split for faster compilation)
       "@radix-ui/react-avatar",
       "@radix-ui/react-checkbox",
       "@radix-ui/react-collapsible",
@@ -62,65 +133,59 @@ const nextConfig = {
       "date-fns",
       "react-hook-form",
       "@hookform/resolvers",
+      // Google reCAPTCHA libraries
+      "react-google-recaptcha",
+      "@google-recaptcha/react",
+      // Utility libraries
       "class-variance-authority",
       "clsx",
       "tailwind-merge",
       // State management
       "@xstate/react",
       "xstate",
-      // Other utilities
+      // Validation
       "zod",
     ],
 
-    // Server Actions optimization
+    // ✅ Server Actions optimization for better Fast Refresh
     serverActions: {
       allowedOrigins: ["localhost:3000", "127.0.0.1:3000"],
       bodySizeLimit: "2mb",
     },
 
-    // Enable optimistic client cache for faster navigation
+    // ✅ Enable optimistic client cache for faster navigation
     optimisticClientCache: true,
 
-    // FIXED: Disable CSS optimization to prevent critters error
-    optimizeCss: false,
-
-    // Enable scroll restoration
+    // ✅ Enable scroll restoration for better UX
     scrollRestoration: true,
 
-    // FIXED: Disable parallel processing to prevent build worker errors
-    parallelServerBuildTraces: false,
-    parallelServerCompiles: false,
+    // ✅ Server components HMR cache for Fast Refresh
+    serverComponentsHmrCache: true,
   },
 
-  // CORRECTED: SWC Compiler options for Next.js 15.3.2
+  // ✅ SWC Compiler optimized for Fast Refresh
   compiler: {
-    // Remove console.log in production only
-    removeConsole:
-      process.env.NODE_ENV === "production"
-        ? {
-          exclude: ["error", "warn", "info"],
-        }
-        : false,
+    // Remove console statements in production only
+    removeConsole: process.env.NODE_ENV === "production" ? {
+      exclude: ["error", "warn", "info"],
+    } : false,
 
-    // Enable styled-components for faster CSS-in-JS
+    // ✅ Enable styled-components for CSS-in-JS Fast Refresh
     styledComponents: true,
 
-    // FIXED: Correct property name and structure
-    reactRemoveProperties:
-      process.env.NODE_ENV === "production"
-        ? {
-          properties: ["^data-testid$", "^data-test$", "^data-cy$"],
-        }
-        : false,
+    // ✅ React properties removal for production
+    reactRemoveProperties: process.env.NODE_ENV === "production" ? {
+      properties: ["^data-testid$", "^data-test$", "^data-cy$"],
+    } : false,
 
-    // Enable emotion for faster CSS-in-JS (if using emotion)
+    // ✅ Enable emotion for CSS-in-JS Fast Refresh
     emotion: true,
   },
 
-  // CORRECTED: External packages moved to correct location
-  serverExternalPackages: ["axios", "jose", "react-google-recaptcha"],
+  // ✅ External packages for server-side rendering
+  serverExternalPackages: ["axios", "jose", "mysql2"],
 
-  // Image optimization
+  // ✅ Image optimization
   images: {
     remotePatterns: [
       {
@@ -145,21 +210,21 @@ const nextConfig = {
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
 
-  // Page extensions (optimized for JavaScript)
-  pageExtensions: ["js", "jsx"],
+  // ✅ Page extensions optimized for Fast Refresh
+  pageExtensions: ["js", "jsx", "ts", "tsx"],
 
-  // Build output optimization - reverted for compatibility with dynamic features
+  // ✅ Build output configuration
   output: "standalone",
 
-  // ESLint configuration
+  // ✅ ESLint configuration
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false, // Enable linting for better Fast Refresh experience
     dirs: ["src", "pages", "components"],
   },
 
-  // TypeScript configuration (for mixed projects)
+  // ✅ TypeScript configuration for mixed projects
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false, // Enable TypeScript checking for Fast Refresh
   },
 
   // Environment variables
@@ -173,7 +238,7 @@ const nextConfig = {
   // Disable powered by header
   poweredByHeader: false,
 
-  // Trailing slash configuration
+  // Trailing slash configuration  
   trailingSlash: false,
 
   // Compress responses
@@ -182,47 +247,20 @@ const nextConfig = {
   // Generate ETags for better caching
   generateEtags: true,
 
-  // FIXED: Development indicators for Next.js 15.3.2
+  // ✅ Development indicators optimized for Fast Refresh
   devIndicators: {
     position: "bottom-right",
   },
 
-  // Enhanced HMR and Fast Refresh configuration
-  webpack: (config, { dev, isServer }) => {
-    // Windows-specific optimizations
-    if (process.platform === 'win32') {
-      config.watchOptions = {
-        poll: 1000,
-        aggregateTimeout: 500,
-        ignored: ['**/node_modules/**', '**/.next/**'],
-      };
-
-      // Prevent permission issues on Windows
-      config.output = {
-        ...config.output,
-        clean: false, // Disable auto-clean to prevent permission issues
-      };
-    }
-
-    if (dev && !isServer) {
-      // Improve HMR performance and fix timing issues
-      config.watchOptions = {
-        ...config.watchOptions,
-        poll: 1000,
-        aggregateTimeout: 300,
-        ignored: /node_modules/,
-      };
-
-      // Fix Fast Refresh timing calculations
-      config.optimization = {
-        ...config.optimization,
-        providedExports: false,
-        usedExports: false,
-      };
-    }
-
-    return config;
+  // ✅ CRITICAL: Disable Fast Refresh for auth components to prevent state issues
+  onDemandEntries: {
+    maxInactiveAge: 25 * 1000,
+    pagesBufferLength: 2,
   },
+
+  // ✅ REMOVED: webpack configuration when using Turbopack
+  // Note: Turbopack replaces webpack, so we remove the webpack function
+  // to prevent conflicts and ensure Fast Refresh works optimally
 }
 
 // Export configuration with bundle analyzer

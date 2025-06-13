@@ -1,14 +1,10 @@
 "use client"
 
-import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { PageHeader } from "@/components/page-header";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -16,106 +12,81 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Textarea } from "@/components/ui/textarea"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Search, Filter, CheckCircle, XCircle } from "lucide-react"
-import { PageHeader } from "@/components/page-header"
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { CheckCircle, Filter, Search, XCircle } from "lucide-react";
+import { Suspense, useState } from "react"; // Import Suspense
 
-// Sample data for proposals
+// Force dynamic rendering to prevent SSG issues
+export const dynamic = 'force-dynamic';
+
+// Sample data for proposals (assuming this is static or fetched separately if dynamic)
 const proposals = [
-  {
-    id: "PROP-1001",
-    title: "Annual Science Fair",
-    submitter: {
-      name: "Alex Johnson",
-      avatar: "/placeholder.svg?height=32&width=32",
-      initials: "AJ",
-    },
-    category: "Academic",
-    status: "pending",
-    date: "2023-03-15",
-    priority: "high",
-  },
-  {
-    id: "PROP-1002",
-    title: "Leadership Workshop Series",
-    submitter: {
-      name: "Maria Garcia",
-      avatar: "/placeholder.svg?height=32&width=32",
-      initials: "MG",
-    },
-    category: "Development",
-    status: "pending",
-    date: "2023-03-14",
-    priority: "medium",
-  },
-  {
-    id: "PROP-1003",
-    title: "Community Service Day",
-    submitter: {
-      name: "David Kim",
-      avatar: "/placeholder.svg?height=32&width=32",
-      initials: "DK",
-    },
-    category: "Community",
-    status: "pending",
-    date: "2023-03-12",
-    priority: "low",
-  },
-  {
-    id: "PROP-1004",
-    title: "Cultural Exchange Program",
-    submitter: {
-      name: "Sarah Patel",
-      avatar: "/placeholder.svg?height=32&width=32",
-      initials: "SP",
-    },
-    category: "Cultural",
-    status: "pending",
-    date: "2023-03-10",
-    priority: "medium",
-  },
-  {
-    id: "PROP-1005",
-    title: "Tech Innovation Showcase",
-    submitter: {
-      name: "James Wilson",
-      avatar: "/placeholder.svg?height=32&width=32",
-      initials: "JW",
-    },
-    category: "Technology",
-    status: "pending",
-    date: "2023-03-08",
-    priority: "high",
-  },
-]
+  { id: "PROP-1001", title: "Annual Science Fair", submitter: { name: "Alex Johnson", avatar: "/placeholder.svg?height=32&width=32", initials: "AJ" }, category: "Academic", status: "pending", date: "2023-03-15", priority: "high" },
+  { id: "PROP-1002", title: "Leadership Workshop Series", submitter: { name: "Maria Garcia", avatar: "/placeholder.svg?height=32&width=32", initials: "MG" }, category: "Development", status: "pending", date: "2023-03-14", priority: "medium" },
+  { id: "PROP-1003", title: "Community Service Day", submitter: { name: "David Kim", avatar: "/placeholder.svg?height=32&width=32", initials: "DK" }, category: "Community", status: "pending", date: "2023-03-12", priority: "low" },
+  { id: "PROP-1004", title: "Cultural Exchange Program", submitter: { name: "Sarah Patel", avatar: "/placeholder.svg?height=32&width=32", initials: "SP" }, category: "Cultural", status: "pending", date: "2023-03-10", priority: "medium" },
+  { id: "PROP-1005", title: "Tech Innovation Showcase", submitter: { name: "James Wilson", avatar: "/placeholder.svg?height=32&width=32", initials: "JW" }, category: "Technology", status: "pending", date: "2023-03-08", priority: "high" },
+];
 
-export default function ReviewPage() {
-  const [selectedProposal, setSelectedProposal] = useState(null)
-  const [reviewDialogOpen, setReviewDialogOpen] = useState(false)
-  const [reviewDecision, setReviewDecision] = useState(null)
-  const [reviewComment, setReviewComment] = useState("")
+// Define a loading component for the Suspense fallback
+function ReviewPageLoading() {
+  return (
+    <div className="flex-1 bg-[#f8f9fa] p-6 md:p-8 animate-pulse">
+      <div className="h-8 w-1/4 bg-gray-300 rounded mb-2"></div> {/* PageHeader title */}
+      <div className="h-4 w-1/2 bg-gray-300 rounded mb-6"></div> {/* PageHeader subtitle */}
+      <div className="bg-white p-6 rounded-lg shadow">
+        <div className="h-6 w-1/3 bg-gray-300 rounded mb-2"></div> {/* CardTitle */}
+        <div className="h-4 w-2/3 bg-gray-300 rounded mb-4"></div> {/* CardDescription */}
+        <div className="flex justify-between mb-4">
+          <div className="flex space-x-2">
+            <div className="h-10 w-24 bg-gray-300 rounded"></div> {/* Tab */}
+            <div className="h-10 w-24 bg-gray-300 rounded"></div> {/* Tab */}
+          </div>
+          <div className="h-10 w-1/4 bg-gray-300 rounded"></div> {/* Search input */}
+        </div>
+        <div className="rounded-md border p-4">
+          <div className="h-8 bg-gray-300 rounded w-full mb-2"></div> {/* Table Header */}
+          <div className="h-12 bg-gray-200 rounded w-full mb-2"></div> {/* Table Row */}
+          <div className="h-12 bg-gray-200 rounded w-full mb-2"></div> {/* Table Row */}
+          <div className="h-12 bg-gray-200 rounded w-full"></div> {/* Table Row */}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// This component now contains the main logic and UI that might depend on useSearchParams (via a child)
+function ReviewPageContent() {
+  const [selectedProposal, setSelectedProposal] = useState(null);
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [reviewDecision, setReviewDecision] = useState(null);
+  const [reviewComment, setReviewComment] = useState("");
 
   const handleReviewClick = (proposal) => {
-    setSelectedProposal(proposal)
-    setReviewDialogOpen(true)
-    setReviewDecision(null)
-    setReviewComment("")
-  }
+    setSelectedProposal(proposal);
+    setReviewDialogOpen(true);
+    setReviewDecision(null);
+    setReviewComment("");
+  };
 
   const handleSubmitReview = () => {
-    // In a real app, this would submit the review to an API
     console.log({
       proposalId: selectedProposal?.id,
       decision: reviewDecision,
       comment: reviewComment,
-    })
-    setReviewDialogOpen(false)
-  }
+    });
+    setReviewDialogOpen(false);
+  };
 
   return (
-    <div className="flex-1 bg-[#f8f9fa] p-6 md:p-8">
+    <> {/* Using a fragment as ReviewPage now provides the main div */}
       <PageHeader title="Review Proposals" subtitle="Review and approve or reject submitted proposals" />
 
       <Card className="cedo-card">
@@ -238,6 +209,7 @@ export default function ReviewPage() {
 
           {selectedProposal && (
             <div className="space-y-4">
+              {/* ... (dialog content remains the same as your original code) ... */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-xs text-muted-foreground">Proposal ID</Label>
@@ -319,6 +291,18 @@ export default function ReviewPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </>
+  );
+}
+
+
+export default function ReviewPage() {
+  return (
+    // The main div that was in the original return is now here
+    <div className="flex-1 bg-[#f8f9fa] p-6 md:p-8">
+      <Suspense fallback={<ReviewPageLoading />}>
+        <ReviewPageContent />
+      </Suspense>
     </div>
-  )
+  );
 }

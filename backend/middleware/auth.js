@@ -1,11 +1,32 @@
 /**
  * Authentication Middleware
  *
- * This module provides middleware functions for authenticating and authorizing users
- * in the CEDO proposal management system.
+ * Comprehensive middleware functions for authenticating and authorizing users
+ * in the CEDO proposal management system. Implements multiple authentication
+ * methods with role-based access control.
  *
+ * Features:
+ * - JWT token validation and verification
+ * - API key authentication for admin access
+ * - Role-based authorization middleware
+ * - User approval status verification
+ * - Comprehensive error handling with security logging
+ * - Database integration for user verification
+ *
+ * Security Considerations:
+ * - Secure JWT secret management
+ * - Token expiration handling
+ * - User enumeration protection
+ * - Proper error logging without exposure
+ * - Database query optimization
+ *
+ * @see https://jwt.io/introduction/
+ * @see https://www.sitepoint.com/google-auth-react-express/
+ * 
  * @module middleware/auth
  * @requires jsonwebtoken
+ * @requires ../config/db
+ * @requires ../utils/logger
  */
 
 const jwt = require("jsonwebtoken")

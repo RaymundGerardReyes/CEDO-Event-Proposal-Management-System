@@ -12,6 +12,19 @@ module.exports = {
       },
     },
     extend: {
+      // Enhanced responsive breakpoints for better zoom and mobile support
+      screens: {
+        'xs': '475px',
+        'sm': '640px',
+        'md': '768px',
+        'lg': '1024px',
+        'xl': '1280px',
+        '2xl': '1536px',
+        // Zoom-specific breakpoints
+        'zoom-110': { 'raw': '(min-resolution: 110dpi)' },
+        'zoom-125': { 'raw': '(min-resolution: 125dpi)' },
+        'zoom-150': { 'raw': '(min-resolution: 150dpi)' },
+      },
       // Add your custom boxShadow definition here
       boxShadow: {
         'card-hover': '0 4px 10px rgba(0, 0, 0, 0.1)', // Example: Adjust the shadow values as needed

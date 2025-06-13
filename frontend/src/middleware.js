@@ -1,191 +1,252 @@
 import { jwtVerify } from "jose";
+import { cookies } from 'next/headers';
 import { NextResponse } from "next/server";
 
-// Define your JWT secret. THIS MUST BE THE SAME SECRET USED TO SIGN THE TOKEN.
-// Resolved to f1ac8f1 version
-const JWT_SECRET = process.env.JWT_SECRET_DEV;
-
-if (!JWT_SECRET) {
-  console.error("CRITICAL: JWT_SECRET_DEV environment variable is not set. Service will not function correctly in production.");
-  // Instead of returning here, you can throw an error or handle it in the response logic
-}
-const secretKey = new TextEncoder().encode(JWT_SECRET)
-
-// Define standardized roles. Ensure these strings EXACTLY match what's in your JWT payload
-// and what your frontend components (like AuthContext) expect.
-// These should align with ROLES in AuthContext.js
-const ROLES = {
-  HEAD_ADMIN: "head_admin",
+// Define user role types matching your database schema
+export const UserRoles = {
   STUDENT: "student",
+  HEAD_ADMIN: "head_admin",
   MANAGER: "manager",
   PARTNER: "partner",
-  REVIEWER: "reviewer",
-}
+  REVIEWER: "reviewer"
+};
 
-// Add a simple cache to prevent repeated redirects
-const redirectCache = new Map()
-const CACHE_TTL = 1000 // 1 second in milliseconds
+// JWT Secret for verification (should match your backend)
+const JWT_SECRET = process.env.JWT_SECRET_DEV || process.env.JWT_SECRET;
 
-// Clear old cache entries periodically
+// Create TextEncoder for JWT verification
+const secretKey = JWT_SECRET ? new TextEncoder().encode(JWT_SECRET) : null;
+
+// Cache for preventing repeated redirects
+const redirectCache = new Map();
+const CACHE_TTL = 1000; // 1 second
+
+// Clean up cache periodically
 setInterval(() => {
-  const now = Date.now()
+  const now = Date.now();
   for (const [key, entry] of redirectCache.entries()) {
     if (now - entry.timestamp > CACHE_TTL) {
-      redirectCache.delete(key)
+      redirectCache.delete(key);
     }
   }
-}, 1000) // Clean up every 5 seconds
+}, 5000);
 
+// Verify JWT token and extract user data
 async function verifyAuthToken(token) {
-  if (!token || !JWT_SECRET) {
-    return null
+  if (!token || !secretKey) {
+    return null;
   }
+
   try {
-    const { payload } = await jwtVerify(token, secretKey, {
-      // Specify expected algorithms if known, e.g., ['HS256']
-      // algorithms: ['HS256'],
-    })
-    return payload.user || payload // Adjust based on your JWT structure
+    const { payload } = await jwtVerify(token, secretKey);
+    return payload.user || payload; // Adjust based on your JWT structure
   } catch (err) {
-    console.error(
-      "Middleware: JWT Verification Error:",
-      err.message,
-      "(Token might be expired, malformed, or secret mismatch)",
-    )
-    return null
+    console.error("JWT Verification Error:", err.message);
+    return null;
   }
 }
 
-export async function middleware(request) {
-  const { pathname, origin } = request.nextUrl;
-  const token = request.cookies.get("cedo_token")?.value;
+// Define route access patterns
+const routeConfig = {
+  // Public routes that don't require authentication
+  publicRoutes: [
+    "/",
+    "/login",
+    "/sign-in",
+    "/signup",
+    "/sign-up",
+    "/forgot-password",
+    "/about",
+    "/contact"
+  ],
 
-  if (!JWT_SECRET) {
-    console.error("Middleware CRITICAL: JWT_SECRET_DEV is not set.");
-    return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
+  // Routes that should redirect authenticated users away
+  authOnlyRoutes: [
+    "/login",
+    "/sign-in",
+    "/signup",
+    "/sign-up"
+  ],
+
+  // Admin-only routes
+  adminRoutes: [
+    "/admin-dashboard"
+  ],
+
+  // Student/Partner routes  
+  studentRoutes: [
+    "/student-dashboard"
+  ],
+
+  // Protected API routes
+  protectedApiRoutes: [
+    "/api/user",
+    "/api/admin",
+    "/api/student"
+  ]
+};
+
+// Get appropriate dashboard based on user role
+function getDashboardForRole(role) {
+  switch (role) {
+    case UserRoles.HEAD_ADMIN:
+    case UserRoles.MANAGER:
+      return "/admin-dashboard";
+    case UserRoles.STUDENT:
+    case UserRoles.PARTNER:
+    case UserRoles.REVIEWER:
+      return "/student-dashboard";
+    default:
+      return "/student-dashboard"; // Default fallback
+  }
+}
+
+// Check if user has access to a specific route
+function hasRouteAccess(pathname, userRole) {
+  // Admin routes
+  if (routeConfig.adminRoutes.some(route => pathname.startsWith(route))) {
+    return userRole === UserRoles.HEAD_ADMIN || userRole === UserRoles.MANAGER;
   }
 
+  // Student routes  
+  if (routeConfig.studentRoutes.some(route => pathname.startsWith(route))) {
+    return [UserRoles.STUDENT, UserRoles.PARTNER, UserRoles.REVIEWER].includes(userRole);
+  }
+
+  return true; // Allow access to other routes
+}
+
+// Build absolute URL for redirects
+function buildUrl(path, origin) {
+  return new URL(path, origin).toString();
+}
+
+export default async function middleware(request) {
+  const { pathname, origin } = request.nextUrl;
+
+  // Skip middleware for static assets and Next.js internals
+  const isPublicAsset = pathname.startsWith("/_next") ||
+    pathname.startsWith("/static") ||
+    pathname.startsWith("/favicon") ||
+    pathname.includes("."); // Files with extensions
+
+  if (isPublicAsset) {
+    return NextResponse.next();
+  }
+
+  // Get token from cookies
+  const cookieStore = await cookies();
+  const token = cookieStore.get("cedo_token")?.value || cookieStore.get("session")?.value;
+
+  // Check cache to prevent repeated redirects
   const cacheKey = `${pathname}-${!!token}`;
   const cachedResult = redirectCache.get(cacheKey);
   if (cachedResult && Date.now() - cachedResult.timestamp < CACHE_TTL) {
     return cachedResult.response;
   }
 
-  const publicPaths = ["/sign-in", "/sign-up", "/forgot-password", "/form-debug"];
-  const isPublicAssetPath = pathname.startsWith("/_next") ||
-    pathname.startsWith("/static") ||
-    pathname.startsWith("/api/") || // Allow ALL API routes to pass through
-    pathname.startsWith("/api/auth/public/") || // Ensure this matches your actual public API paths
-    pathname.includes("."); // Allows .ico, .png etc.
-
-  if (isPublicAssetPath) {
-    return NextResponse.next();
-  }
-
+  // Verify token and get user data
   const userData = await verifyAuthToken(token);
+  const isAuthenticated = !!userData;
+  const userRole = userData?.role || userData?.accountType;
 
-  // Determine the correct dashboard URL based on user data
-  let correctDashboardUrl = "";
-  if (userData) {
-    if (userData.dashboard) {
-      correctDashboardUrl = userData.dashboard;
-    } else {
-      switch (userData.role) {
-        case ROLES.HEAD_ADMIN:
-        case ROLES.MANAGER:
-          correctDashboardUrl = "/admin-dashboard";
-          break;
-        case ROLES.STUDENT:
-        case ROLES.PARTNER:
-          correctDashboardUrl = "/student-dashboard";
-          break;
-        default:
-          correctDashboardUrl = "/sign-in"; // Fallback if role has no specific dashboard
-      }
-    }
-  }
+  console.log(`Middleware: ${pathname} | Auth: ${isAuthenticated} | Role: ${userRole}`);
 
-  // Handling authenticated users
-  if (userData) {
-    // If user is on a public auth page (sign-in, sign-up) but is authenticated, redirect to their dashboard
-    if (publicPaths.includes(pathname) && correctDashboardUrl && correctDashboardUrl !== "/sign-in") {
-      console.log(`Middleware: Authenticated user (Role: ${userData.role}) on auth page "${pathname}". Redirecting to ${correctDashboardUrl}.`);
-      const response = NextResponse.redirect(new URL(correctDashboardUrl, origin));
-      redirectCache.set(cacheKey, { response: NextResponse.redirect(new URL(correctDashboardUrl, origin)), timestamp: Date.now() });
+  // Handle authenticated users
+  if (isAuthenticated && userRole) {
+    const correctDashboard = getDashboardForRole(userRole);
+
+    // Redirect away from auth-only routes when authenticated
+    if (routeConfig.authOnlyRoutes.includes(pathname)) {
+      console.log(`Redirecting authenticated user from ${pathname} to ${correctDashboard}`);
+      const response = NextResponse.redirect(buildUrl(correctDashboard, origin));
+      redirectCache.set(cacheKey, { response, timestamp: Date.now() });
       return response;
     }
 
-    // If user is at root, redirect to their correct dashboard
-    if (pathname === "/" && correctDashboardUrl && correctDashboardUrl !== "/sign-in") {
-      if (pathname !== correctDashboardUrl) { // Prevent redirecting if already at correct dashboard from root somehow
-        console.log(`Middleware: Authenticated user (Role: ${userData.role}) at root. Redirecting to ${correctDashboardUrl}.`);
-        const response = NextResponse.redirect(new URL(correctDashboardUrl, origin));
-        redirectCache.set(cacheKey, { response: NextResponse.redirect(new URL(correctDashboardUrl, origin)), timestamp: Date.now() });
-        return response;
-      }
-    }
-
-    // Role-based access control for dashboards
-    // If trying to access admin dashboard without admin/manager role
-    if (pathname.startsWith("/admin-dashboard") && correctDashboardUrl !== "/admin-dashboard") {
-      console.log(`Middleware: Access Denied to "${pathname}". User role "${userData.role}" not authorized. Redirecting to ${correctDashboardUrl || '/sign-in'}.`);
-      const response = NextResponse.redirect(new URL(correctDashboardUrl || '/sign-in', origin));
-      if (!correctDashboardUrl || correctDashboardUrl === "/sign-in") response.cookies.set("cedo_token", "", { path: "/", expires: new Date(0) });
-      redirectCache.set(cacheKey, { response: NextResponse.redirect(new URL(correctDashboardUrl || '/sign-in', origin)), timestamp: Date.now() });
+    // Redirect from root to appropriate dashboard
+    if (pathname === "/") {
+      console.log(`Redirecting from root to ${correctDashboard} for role ${userRole}`);
+      const response = NextResponse.redirect(buildUrl(correctDashboard, origin));
+      redirectCache.set(cacheKey, { response, timestamp: Date.now() });
       return response;
     }
 
-    // If trying to access student dashboard without student/partner role
-    if (pathname.startsWith("/student-dashboard") && correctDashboardUrl !== "/student-dashboard") {
-      console.log(`Middleware: Access Denied to "${pathname}". User role "${userData.role}" not authorized. Redirecting to ${correctDashboardUrl || '/sign-in'}.`);
-      const response = NextResponse.redirect(new URL(correctDashboardUrl || '/sign-in', origin));
-      if (!correctDashboardUrl || correctDashboardUrl === "/sign-in") response.cookies.set("cedo_token", "", { path: "/", expires: new Date(0) });
-      redirectCache.set(cacheKey, { response: NextResponse.redirect(new URL(correctDashboardUrl || '/sign-in', origin)), timestamp: Date.now() });
+    // Check role-based access control
+    if (!hasRouteAccess(pathname, userRole)) {
+      console.log(`Access denied to ${pathname} for role ${userRole}. Redirecting to ${correctDashboard}`);
+      const response = NextResponse.redirect(buildUrl(correctDashboard, origin));
+      redirectCache.set(cacheKey, { response, timestamp: Date.now() });
       return response;
     }
 
-    // If user is already on their correct dashboard or a permitted sub-path, allow
-    if (pathname === correctDashboardUrl || pathname.startsWith(correctDashboardUrl + "/")) {
-      console.log(`Middleware: Access Granted to "${pathname}" for user role "${userData.role}".`);
-      const response = NextResponse.next();
-      redirectCache.set(cacheKey, { response: NextResponse.next(), timestamp: Date.now() });
+    // Add user context to API requests
+    if (pathname.startsWith("/api/")) {
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set('x-user-id', userData.id || userData.accountid || '');
+      requestHeaders.set('x-user-role', userRole);
+      requestHeaders.set('x-user-data', JSON.stringify(userData));
+
+      const response = NextResponse.next({
+        request: {
+          headers: requestHeaders,
+        },
+      });
+      redirectCache.set(cacheKey, { response, timestamp: Date.now() });
       return response;
     }
 
-    // Fallback for authenticated users accessing a non-dashboard, non-public path they shouldn't be on
-    // This case should ideally be rare if other checks are correct.
-    if (correctDashboardUrl && correctDashboardUrl !== "/sign-in") {
-      console.log(`Middleware: Authenticated user (Role: ${userData.role}) at unexpected path "${pathname}". Redirecting to ${correctDashboardUrl}.`);
-      const response = NextResponse.redirect(new URL(correctDashboardUrl, origin));
-      redirectCache.set(cacheKey, { response: NextResponse.redirect(new URL(correctDashboardUrl, origin)), timestamp: Date.now() });
-      return response;
-    }
-  }
-
-  // Handling unauthenticated users or invalid tokens
-  // If it's not a public path (like /sign-in) and no valid user data, redirect to sign-in
-  if (!publicPaths.includes(pathname)) {
-    console.log(`Middleware: Unauthenticated access to "${pathname}". Redirecting to /sign-in.`);
-    const signInUrl = new URL("/sign-in", origin);
-    signInUrl.searchParams.set("redirect", pathname);
-    const response = NextResponse.redirect(signInUrl);
-    if (token) { // A token was present but was invalid
-      console.log("Middleware: Clearing invalid cedo_token cookie during unauthenticated redirect.");
-      response.cookies.set("cedo_token", "", { path: "/", expires: new Date(0) });
-    }
-    redirectCache.set(cacheKey, { response: NextResponse.redirect(signInUrl), timestamp: Date.now() });
+    // Allow access to permitted routes
+    console.log(`Access granted to ${pathname} for role ${userRole}`);
+    const response = NextResponse.next();
+    redirectCache.set(cacheKey, { response, timestamp: Date.now() });
     return response;
   }
 
-  // Allow access to public paths for unauthenticated users
-  console.log(`Middleware: Allowing unauthenticated access to public path "${pathname}".`);
-  const finalResponse = NextResponse.next();
-  redirectCache.set(cacheKey, { response: NextResponse.next(), timestamp: Date.now() });
-  return finalResponse;
+  // Handle unauthenticated users
+  const isPublicRoute = routeConfig.publicRoutes.some(route =>
+    pathname === route || pathname.startsWith(route + "/")
+  );
+
+  // Allow API routes to pass through (they handle their own auth)
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.next();
+  }
+
+  // Redirect to login if accessing protected routes without authentication
+  if (!isPublicRoute) {
+    console.log(`Unauthenticated access to ${pathname}. Redirecting to /login`);
+    const loginUrl = new URL("/login", origin);
+    loginUrl.searchParams.set("redirect", pathname);
+
+    const response = NextResponse.redirect(loginUrl);
+    // Clear invalid token if present
+    if (token) {
+      response.cookies.set("cedo_token", "", { path: "/", expires: new Date(0) });
+      response.cookies.set("session", "", { path: "/", expires: new Date(0) });
+    }
+    redirectCache.set(cacheKey, { response, timestamp: Date.now() });
+    return response;
+  }
+
+  // Allow access to public routes
+  console.log(`Allowing unauthenticated access to public route: ${pathname}`);
+  const response = NextResponse.next();
+  redirectCache.set(cacheKey, { response, timestamp: Date.now() });
+  return response;
 }
 
+// Configure which routes the middleware should run on
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/).*)",
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public assets (images, etc.)
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.gif$|.*\\.svg$|.*\\.ico$|.*\\.css$|.*\\.js$).*)',
   ],
-};
+}
