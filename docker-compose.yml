@@ -1,24 +1,38 @@
+# ===================================
+# Docker Compose - Enhanced Configuration
+# ===================================
 version: "3.8"
 
 services:
+  # ===================================
+  # MySQL Database Service
+  # ===================================
   mysql:
     image: mysql:8.0
     container_name: mysql_dev_db
     environment:
       MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD_SECRET}"
       MYSQL_DATABASE: "${MYSQL_DATABASE_NAME}"
+      MYSQL_USER: "${MYSQL_USER_NAME}"
+      MYSQL_PASSWORD: "${MYSQL_USER_PASSWORD}"
     ports:
       - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./backend/scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD_SECRET}"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    networks:
+      - cedo-network
 
+  # ===================================
+  # Backend Service
+  # ===================================
   backend:
     build:
       context: ./backend
@@ -27,6 +41,8 @@ services:
     volumes:
       - ./backend:/usr/src/app
       - backend_node_modules:/usr/src/app/node_modules
+      - ./backend/logs:/usr/src/app/logs
+      - ./backend/uploads:/usr/src/app/uploads
     ports:
       - "5000:5000"
     environment:
@@ -47,21 +63,34 @@ services:
       GOOGLE_CLIENT_ID_BACKEND: "${GOOGLE_CLIENT_ID_BACKEND}"
     command: >
       sh -c "
-        /usr/src/app/wait-for-it.sh mysql:3306 &&
-        echo 'MySQL ready – initializing DB…' &&
-        node /usr/src/app/scripts/init-db.js &&
-        echo 'DB init complete – launching app…' &&
+        echo 'Waiting for MySQL to be ready...' &&
+        ./wait-for-it.sh mysql:3306 --timeout=60 --strict &&
+        echo 'MySQL ready – initializing database...' &&
+        npm run init-db &&
+        echo 'Database initialization complete – starting development server...' &&
         npm run dev
       "
     depends_on:
       mysql:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - cedo-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
+  # ===================================
+  # Frontend Service
+  # ===================================
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: deps  # Use deps stage for development
     container_name: frontend_dev_service
     volumes:
       - ./frontend:/usr/src/app
@@ -74,17 +103,43 @@ services:
       NEXT_PUBLIC_API_URL: "http://localhost:5000/api"
       NEXT_PUBLIC_RECAPTCHA_SITE_KEY: "${NEXT_PUBLIC_RECAPTCHA_SITE_KEY}"
       NEXT_PUBLIC_GOOGLE_CLIENT_ID: "${NEXT_PUBLIC_GOOGLE_CLIENT_ID}"
+      HOSTNAME: "0.0.0.0"
+      PORT: "3000"
+      WATCHPACK_POLLING: "true"  # Enable polling for file changes in Docker
     command: npm run dev
     stdin_open: true
     tty: true
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
+    networks:
+      - cedo-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
+# ===================================
+# Networks Configuration
+# ===================================
+networks:
+  cedo-network:
+    driver: bridge
+    name: cedo-network
+
+# ===================================
+# Volumes Configuration
+# ===================================
 volumes:
   mysql_data:
     driver: local
+    name: cedo_mysql_data
   backend_node_modules:
     driver: local
+    name: cedo_backend_node_modules
   frontend_node_modules:
     driver: local
+    name: cedo_frontend_node_modules
