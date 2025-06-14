@@ -26,7 +26,7 @@ import {
   Users
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // Enhanced sample data with more realistic content
 const recentProposals = [
@@ -416,8 +416,120 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [isClient, setIsClient] = useState(false)
   const [networkError, setNetworkError] = useState(false)
+  const [realTimeStats, setRealTimeStats] = useState(null)
+  const [statsLoading, setStatsLoading] = useState(true)
+  const [lastUpdated, setLastUpdated] = useState(null)
+  const [nextRefresh, setNextRefresh] = useState(null)
 
-  // Enhanced initialization
+  // Use ref to track interval to prevent multiple intervals
+  const intervalRef = useRef(null)
+  const countdownRef = useRef(null)
+
+  // Get cached token function (same pattern as other components)
+  const getCachedToken = useCallback(() => {
+    // Try to get token from cookies first
+    const cookieValue = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith("cedo_token="));
+
+    if (cookieValue) {
+      return cookieValue.split("=")[1];
+    }
+
+    // Fallback to localStorage
+    return localStorage.getItem('cedo_token') || localStorage.getItem('token');
+  }, []);
+
+  // Fetch real-time statistics from backend
+  const fetchRealTimeStats = useCallback(async () => {
+    try {
+      console.log('📊 Frontend: Fetching real-time statistics...')
+      setStatsLoading(true)
+
+      // Use the same backend URL pattern as other components
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+      const apiUrl = `${backendUrl}/api/proposals/stats`
+
+      // Alternative: Use Next.js API proxy (if rewrites are configured)
+      // const apiUrl = '/api/proposals/stats'
+
+      console.log('📊 Frontend: Calling API URL:', apiUrl)
+
+      // Get authentication token
+      const token = getCachedToken();
+      console.log('📊 Frontend: Token available:', !!token);
+
+      // Prepare headers with authentication
+      const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+
+      // Add Authorization header if token is available
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: headers,
+        // Add CORS and timeout settings
+        mode: 'cors',
+        credentials: 'include',
+        signal: AbortSignal.timeout(10000), // 10 second timeout
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error')
+        console.error('📊 Frontend: API Response Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          url: apiUrl,
+          errorText: errorText
+        })
+        throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      console.log('📊 Frontend: Raw API response:', data)
+
+      if (data.success) {
+        console.log('📊 Frontend: Real-time stats received:', data.stats)
+        setRealTimeStats(data.stats)
+        setLastUpdated(new Date().toLocaleTimeString())
+        setNetworkError(false)
+      } else {
+        throw new Error(data.message || 'Failed to fetch statistics')
+      }
+    } catch (error) {
+      console.error('❌ Frontend: Error fetching real-time stats:', error)
+
+      // Check if it's an authentication error
+      if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+        console.warn('🔐 Authentication required for dashboard stats')
+        // You might want to redirect to login or show auth error
+      }
+
+      setNetworkError(true)
+      // Set fallback stats only if no stats exist yet
+      setRealTimeStats(prevStats => prevStats || {
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+        total: 0,
+        trends: {
+          pending: { direction: 'up', value: '0' },
+          approved: { direction: 'up', value: '0%' },
+          rejected: { direction: 'down', value: '0' },
+          total: { direction: 'up', value: '0%' }
+        }
+      })
+    } finally {
+      setStatsLoading(false)
+    }
+  }, [getCachedToken]) // Removed realTimeStats dependency to prevent infinite loops
+
+  // Enhanced initialization with real-time data fetching
   useEffect(() => {
     let mounted = true
     let timeoutId
@@ -426,12 +538,44 @@ export default function AdminDashboard() {
       try {
         if (typeof window !== 'undefined') {
           setIsClient(true)
+          console.log('📊 Dashboard: Initializing component...')
+
+          // Fetch initial stats immediately
+          await fetchRealTimeStats()
+
+          // Set up auto-refresh every 30 seconds (only if not already running)
+          if (mounted && !intervalRef.current) {
+            console.log('📊 Dashboard: Setting up 30-second auto-refresh interval')
+
+            // Set initial next refresh time
+            setNextRefresh(new Date(Date.now() + 30000))
+
+            intervalRef.current = setInterval(() => {
+              if (mounted) {
+                console.log('📊 Dashboard: Auto-refresh triggered (30s interval)')
+                fetchRealTimeStats()
+                setNextRefresh(new Date(Date.now() + 30000)) // Update next refresh time
+              }
+            }, 30000) // 30 seconds
+
+            // Optional: Add a countdown timer that updates every second
+            countdownRef.current = setInterval(() => {
+              if (mounted) {
+                setNextRefresh(prev => {
+                  if (prev && Date.now() < prev.getTime()) {
+                    return prev // Keep the same time
+                  }
+                  return new Date(Date.now() + 30000) // Reset if expired
+                })
+              }
+            }, 1000) // Update countdown every second
+          }
+
           timeoutId = setTimeout(() => {
             if (mounted) {
               setIsLoading(false)
-              setNetworkError(false)
             }
-          }, 800)
+          }, 1000) // Reduced timeout since we're fetching real data
         }
       } catch (error) {
         console.error('Dashboard initialization error:', error)
@@ -445,10 +589,70 @@ export default function AdminDashboard() {
     initializeComponent()
 
     return () => {
+      console.log('📊 Dashboard: Cleaning up intervals and timeouts')
       mounted = false
-      if (timeoutId) clearTimeout(timeoutId)
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        console.log('📊 Dashboard: Cleared initialization timeout')
+      }
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+        console.log('📊 Dashboard: Cleared stats refresh interval')
+      }
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current)
+        countdownRef.current = null
+        console.log('📊 Dashboard: Cleared countdown timer')
+      }
     }
-  }, [])
+  }, [fetchRealTimeStats]) // Keep fetchRealTimeStats dependency but it's now stable
+
+  // Manual refresh function
+  const handleRefreshStats = useCallback(() => {
+    fetchRealTimeStats()
+    // Reset the next refresh timer
+    setNextRefresh(new Date(Date.now() + 30000))
+  }, [fetchRealTimeStats])
+
+  // Test backend connection function
+  const testBackendConnection = useCallback(async () => {
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+      console.log('🔍 Testing backend connection to:', backendUrl)
+
+      // Get authentication token for test
+      const token = getCachedToken();
+      console.log('🔍 Test: Token available:', !!token);
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${backendUrl}/api/proposals/stats`, {
+        method: 'GET',
+        headers: headers,
+        mode: 'cors',
+      })
+
+      console.log('🔍 Backend connection test result:', {
+        status: response.status,
+        ok: response.ok,
+        url: response.url
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log('🔍 Backend response data:', data)
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('🔍 Backend connection test failed:', error)
+      return false
+    }
+  }, [getCachedToken])
 
   // Memoized filtered proposals for performance
   const filteredProposals = useMemo(() => {
@@ -465,9 +669,32 @@ export default function AdminDashboard() {
     }
   }, [searchTerm, statusFilter])
 
-  // Memoized stats calculation
+  // Memoized stats calculation using real-time data
   const dashboardStats = useMemo(() => {
     try {
+      // Use real-time stats if available, otherwise fall back to mock data
+      if (realTimeStats) {
+        return {
+          pending: {
+            value: realTimeStats.pending,
+            trend: realTimeStats.trends?.pending || { direction: 'up', value: '0' }
+          },
+          approved: {
+            value: realTimeStats.approved,
+            trend: realTimeStats.trends?.approved || { direction: 'up', value: '0%' }
+          },
+          rejected: {
+            value: realTimeStats.rejected,
+            trend: realTimeStats.trends?.rejected || { direction: 'down', value: '0' }
+          },
+          total: {
+            value: realTimeStats.total,
+            trend: realTimeStats.trends?.total || { direction: 'up', value: '0%' }
+          }
+        }
+      }
+
+      // Fallback to mock data calculation if real-time stats not available
       const total = recentProposals.length
       const pending = recentProposals.filter(p => p.status === 'pending').length
       const approved = recentProposals.filter(p => p.status === 'approved').length
@@ -489,7 +716,7 @@ export default function AdminDashboard() {
         total: { value: 0, trend: { direction: 'up', value: '0%' } }
       }
     }
-  }, [])
+  }, [realTimeStats])
 
   // Callbacks for performance
   const handleSearch = useCallback((value) => {
@@ -551,9 +778,51 @@ export default function AdminDashboard() {
               </h1>
               <p className="text-sm sm:text-base text-slate-600">
                 Overview of proposals, events, and system activity
+                {lastUpdated && (
+                  <span className="ml-2 text-xs text-slate-500">
+                    • Last updated: {lastUpdated}
+                  </span>
+                )}
+                {nextRefresh && !networkError && (
+                  <span className="ml-2 text-xs text-slate-500">
+                    • Next refresh: {Math.max(0, Math.ceil((nextRefresh.getTime() - Date.now()) / 1000))}s
+                  </span>
+                )}
+                {realTimeStats && (
+                  <span className="ml-2 inline-flex items-center gap-1 text-xs text-emerald-600">
+                    <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse block"></span>
+                    Live Data (30s refresh)
+                  </span>
+                )}
+                {networkError && (
+                  <span className="ml-2 inline-flex items-center gap-1 text-xs text-red-600">
+                    <span className="w-2 h-2 bg-red-500 rounded-full block"></span>
+                    {getCachedToken() ? 'Connection Error' : 'Authentication Required'}
+                  </span>
+                )}
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefreshStats}
+                disabled={statsLoading}
+                className="shrink-0 border-slate-300 hover:border-slate-400"
+              >
+                <Activity className={`w-4 h-4 mr-2 ${statsLoading ? 'animate-spin' : ''}`} />
+                {statsLoading ? 'Refreshing...' : 'Refresh Stats'}
+              </Button>
+              {process.env.NODE_ENV === 'development' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={testBackendConnection}
+                  className="shrink-0 border-slate-300 hover:border-slate-400 text-xs"
+                >
+                  Test API
+                </Button>
+              )}
               <Button variant="outline" size="sm" className="shrink-0 border-slate-300 hover:border-slate-400">
                 <Download className="w-4 h-4 mr-2" />
                 Export
@@ -566,7 +835,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Enhanced Stats Grid - Mobile First Responsive */}
+        {/* Enhanced Stats Grid - Mobile First Responsive with Real-Time Data */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6">
           <StatsCard
             title="Pending Review"
@@ -575,7 +844,7 @@ export default function AdminDashboard() {
             trend={dashboardStats.pending.trend}
             icon={<Clock />}
             iconBg="bg-amber-100"
-            isLoading={isLoading}
+            isLoading={statsLoading || isLoading}
           />
           <StatsCard
             title="Approved"
@@ -584,7 +853,7 @@ export default function AdminDashboard() {
             trend={dashboardStats.approved.trend}
             icon={<TrendingUp />}
             iconBg="bg-emerald-100"
-            isLoading={isLoading}
+            isLoading={statsLoading || isLoading}
           />
           <StatsCard
             title="Rejected"
@@ -593,7 +862,7 @@ export default function AdminDashboard() {
             trend={dashboardStats.rejected.trend}
             icon={<Activity />}
             iconBg="bg-red-100"
-            isLoading={isLoading}
+            isLoading={statsLoading || isLoading}
           />
           <StatsCard
             title="Total Proposals"
@@ -602,7 +871,7 @@ export default function AdminDashboard() {
             trend={dashboardStats.total.trend}
             icon={<FileText />}
             iconBg="bg-blue-100"
-            isLoading={isLoading}
+            isLoading={statsLoading || isLoading}
           />
         </div>
 
