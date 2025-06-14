@@ -937,6 +937,228 @@ router.get("/", validateToken, async (req, res) => {
   }
 })
 
+// @route   GET api/proposals/stats
+// @desc    Get real-time dashboard statistics from proposals table
+// @access  Private (Admin/Manager only)
+router.get('/stats', validateToken, async (req, res) => {
+  console.log('📊 Dashboard: Fetching real-time statistics from proposals table');
+
+  try {
+    // Execute optimized query to get all stats in one database call
+    const statsQuery = `
+      SELECT 
+        COUNT(*) as total_count,
+        SUM(CASE WHEN proposal_status = 'pending' THEN 1 ELSE 0 END) as pending_count,
+        SUM(CASE WHEN proposal_status = 'approved' THEN 1 ELSE 0 END) as approved_count,
+        SUM(CASE WHEN proposal_status = 'denied' THEN 1 ELSE 0 END) as rejected_count,
+        SUM(CASE WHEN proposal_status = 'draft' THEN 1 ELSE 0 END) as draft_count,
+        SUM(CASE WHEN proposal_status = 'revision_requested' THEN 1 ELSE 0 END) as revision_count,
+        -- Additional metrics for trends
+        SUM(CASE WHEN proposal_status = 'pending' AND created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY) THEN 1 ELSE 0 END) as pending_today,
+        SUM(CASE WHEN proposal_status = 'approved' AND approved_at >= DATE_SUB(NOW(), INTERVAL 1 MONTH) THEN 1 ELSE 0 END) as approved_this_month,
+        SUM(CASE WHEN proposal_status = 'denied' AND reviewed_at >= DATE_SUB(NOW(), INTERVAL 1 MONTH) THEN 1 ELSE 0 END) as rejected_this_month,
+        SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 1 WEEK) THEN 1 ELSE 0 END) as new_this_week
+      FROM proposals 
+      WHERE is_deleted = 0 OR is_deleted IS NULL
+    `;
+
+    console.log('📊 Executing real-time stats query...');
+    const [statsResult] = await pool.query(statsQuery);
+    const stats = statsResult[0];
+
+    // Calculate approval rate
+    const totalProcessed = parseInt(stats.approved_count) + parseInt(stats.rejected_count);
+    const approvalRate = totalProcessed > 0
+      ? Math.round((parseInt(stats.approved_count) / totalProcessed) * 100)
+      : 0;
+
+    // Calculate growth trends (simplified - you can enhance this)
+    const pendingTrend = stats.pending_today > 0 ? '+' + stats.pending_today : '0';
+    const approvalTrendValue = `${approvalRate}%`;
+    const rejectedTrend = stats.rejected_this_month > 0 ? '-' + stats.rejected_this_month : '0';
+    const totalTrend = stats.new_this_week > 0 ? '+' + Math.round((stats.new_this_week / stats.total_count) * 100) + '%' : '0%';
+
+    // Format response to match frontend expectations
+    const dashboardStats = {
+      pending: parseInt(stats.pending_count) || 0,
+      approved: parseInt(stats.approved_count) || 0,
+      rejected: parseInt(stats.rejected_count) || 0,
+      total: parseInt(stats.total_count) || 0,
+      draft: parseInt(stats.draft_count) || 0,
+      revision: parseInt(stats.revision_count) || 0,
+      // Additional metrics
+      approvalRate: approvalRate,
+      trends: {
+        pending: { direction: 'up', value: pendingTrend },
+        approved: { direction: 'up', value: approvalTrendValue },
+        rejected: { direction: 'down', value: rejectedTrend },
+        total: { direction: 'up', value: totalTrend }
+      },
+      lastUpdated: new Date().toISOString()
+    };
+
+    console.log('📊 Real-time stats calculated:', {
+      total: dashboardStats.total,
+      pending: dashboardStats.pending,
+      approved: dashboardStats.approved,
+      rejected: dashboardStats.rejected,
+      approvalRate: dashboardStats.approvalRate
+    });
+
+    res.json({
+      success: true,
+      stats: dashboardStats,
+      timestamp: new Date().toISOString(),
+      source: 'mysql_realtime'
+    });
+
+  } catch (error) {
+    console.error('❌ Dashboard: Error fetching real-time statistics:', error);
+
+    // Fallback to prevent dashboard from breaking
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch real-time statistics',
+      message: error.message,
+      // Provide fallback stats to prevent UI breaking
+      stats: {
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+        total: 0,
+        draft: 0,
+        revision: 0,
+        approvalRate: 0,
+        trends: {
+          pending: { direction: 'up', value: '0' },
+          approved: { direction: 'up', value: '0%' },
+          rejected: { direction: 'down', value: '0' },
+          total: { direction: 'up', value: '0%' }
+        },
+        lastUpdated: new Date().toISOString()
+      },
+      timestamp: new Date().toISOString(),
+      source: 'fallback'
+    });
+  }
+});
+
+// @route   GET api/proposals/stats/live
+// @desc    Get live statistics with additional real-time metrics
+// @access  Private (Admin/Manager only)
+router.get('/stats/live', validateToken, async (req, res) => {
+  console.log('📊 Dashboard: Fetching enhanced live statistics');
+
+  try {
+    // More detailed query with time-based breakdowns
+    const liveStatsQuery = `
+      SELECT 
+        -- Basic counts
+        COUNT(*) as total_count,
+        SUM(CASE WHEN proposal_status = 'pending' THEN 1 ELSE 0 END) as pending_count,
+        SUM(CASE WHEN proposal_status = 'approved' THEN 1 ELSE 0 END) as approved_count,
+        SUM(CASE WHEN proposal_status = 'denied' THEN 1 ELSE 0 END) as rejected_count,
+        
+        -- Time-based trends
+        SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN 1 ELSE 0 END) as created_last_24h,
+        SUM(CASE WHEN proposal_status = 'pending' AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN 1 ELSE 0 END) as pending_last_24h,
+        SUM(CASE WHEN proposal_status = 'approved' AND approved_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) as approved_last_week,
+        SUM(CASE WHEN proposal_status = 'denied' AND reviewed_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) as rejected_last_week,
+        
+        -- Organization type breakdown
+        SUM(CASE WHEN organization_type = 'school-based' THEN 1 ELSE 0 END) as school_based_count,
+        SUM(CASE WHEN organization_type = 'community-based' THEN 1 ELSE 0 END) as community_based_count,
+        
+        -- Event status breakdown
+        SUM(CASE WHEN event_status = 'completed' THEN 1 ELSE 0 END) as completed_events,
+        SUM(CASE WHEN event_status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_events,
+        
+        -- Average processing time (in days)
+        AVG(CASE 
+          WHEN approved_at IS NOT NULL THEN DATEDIFF(approved_at, created_at)
+          WHEN reviewed_at IS NOT NULL THEN DATEDIFF(reviewed_at, created_at)
+          ELSE NULL 
+        END) as avg_processing_days
+        
+      FROM proposals 
+      WHERE (is_deleted = 0 OR is_deleted IS NULL)
+    `;
+
+    const [liveStatsResult] = await pool.query(liveStatsQuery);
+    const liveStats = liveStatsResult[0];
+
+    // Calculate enhanced metrics
+    const totalProcessed = parseInt(liveStats.approved_count) + parseInt(liveStats.rejected_count);
+    const approvalRate = totalProcessed > 0
+      ? Math.round((parseInt(liveStats.approved_count) / totalProcessed) * 100)
+      : 0;
+
+    const responseData = {
+      success: true,
+      stats: {
+        // Core metrics
+        pending: parseInt(liveStats.pending_count) || 0,
+        approved: parseInt(liveStats.approved_count) || 0,
+        rejected: parseInt(liveStats.rejected_count) || 0,
+        total: parseInt(liveStats.total_count) || 0,
+
+        // Enhanced metrics
+        approvalRate: approvalRate,
+        avgProcessingDays: Math.round(liveStats.avg_processing_days) || 0,
+
+        // Trends with real calculations
+        trends: {
+          pending: {
+            direction: liveStats.pending_last_24h > 0 ? 'up' : 'neutral',
+            value: `+${liveStats.pending_last_24h || 0}`
+          },
+          approved: {
+            direction: 'up',
+            value: `${approvalRate}%`
+          },
+          rejected: {
+            direction: liveStats.rejected_last_week > 0 ? 'up' : 'down',
+            value: liveStats.rejected_last_week > 0 ? `+${liveStats.rejected_last_week}` : '0'
+          },
+          total: {
+            direction: liveStats.created_last_24h > 0 ? 'up' : 'neutral',
+            value: `+${liveStats.created_last_24h || 0}`
+          }
+        },
+
+        // Breakdown data
+        breakdown: {
+          byOrganizationType: {
+            schoolBased: parseInt(liveStats.school_based_count) || 0,
+            communityBased: parseInt(liveStats.community_based_count) || 0
+          },
+          byEventStatus: {
+            completed: parseInt(liveStats.completed_events) || 0,
+            cancelled: parseInt(liveStats.cancelled_events) || 0
+          }
+        },
+
+        lastUpdated: new Date().toISOString()
+      },
+      timestamp: new Date().toISOString(),
+      source: 'mysql_live'
+    };
+
+    console.log('📊 Live stats calculated with enhanced metrics');
+    res.json(responseData);
+
+  } catch (error) {
+    console.error('❌ Dashboard: Error fetching live statistics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch live statistics',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      source: 'error'
+    });
+  }
+});
+
 // @route   GET api/proposals/:id
 // @desc    Get proposal by ID
 // @access  Private (Access control logic within route)

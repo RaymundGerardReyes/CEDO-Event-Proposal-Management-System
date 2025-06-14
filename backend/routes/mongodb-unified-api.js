@@ -792,9 +792,9 @@ router.get('/admin/proposals-hybrid', async (req, res) => {
         const proposalsQuery = `
             SELECT id, organization_name, organization_description, organization_type,
                    contact_name, contact_email, contact_phone,
-                   event_start_date, event_end_date, event_venue, 
+                   event_name, event_start_date, event_end_date, event_start_time, event_end_time, event_venue, event_mode,
                    school_event_type, community_event_type,
-                   proposal_status, created_at, updated_at
+                   proposal_status, created_at, updated_at, submitted_at
             FROM proposals 
             ${whereClause}
             ORDER BY created_at DESC 
@@ -820,16 +820,19 @@ router.get('/admin/proposals-hybrid', async (req, res) => {
                         // MySQL data (primary proposal information) - using correct column names
                         id: proposal.id,
                         organizationName: proposal.organization_name,
-                        eventName: proposal.organization_name, // Use organization_name as event name
+                        eventName: proposal.event_name || proposal.organization_name, // Use actual event_name or fallback to organization_name
                         eventType: proposal.organization_type || 'unknown',
+                        eventMode: proposal.event_mode,
                         status: proposal.proposal_status,
-                        submittedAt: proposal.created_at,
+                        submittedAt: proposal.submitted_at || proposal.created_at,
                         contactPerson: proposal.contact_name,
                         contactEmail: proposal.contact_email,
                         contactPhone: proposal.contact_phone,
                         venue: proposal.event_venue,
                         startDate: proposal.event_start_date,
                         endDate: proposal.event_end_date,
+                        startTime: proposal.event_start_time,
+                        endTime: proposal.event_end_time,
                         description: proposal.organization_description,
                         category: proposal.school_event_type || proposal.community_event_type || 'other',
                         organizationType: proposal.organization_type,
@@ -853,16 +856,19 @@ router.get('/admin/proposals-hybrid', async (req, res) => {
                         // MySQL data with correct column mapping
                         id: proposal.id,
                         organizationName: proposal.organization_name,
-                        eventName: proposal.organization_name,
+                        eventName: proposal.event_name || proposal.organization_name,
                         eventType: proposal.organization_type || 'unknown',
+                        eventMode: proposal.event_mode,
                         status: proposal.proposal_status,
-                        submittedAt: proposal.created_at,
+                        submittedAt: proposal.submitted_at || proposal.created_at,
                         contactPerson: proposal.contact_name,
                         contactEmail: proposal.contact_email,
                         contactPhone: proposal.contact_phone,
                         venue: proposal.event_venue,
                         startDate: proposal.event_start_date,
                         endDate: proposal.event_end_date,
+                        startTime: proposal.event_start_time,
+                        endTime: proposal.event_end_time,
                         description: proposal.organization_description,
                         category: proposal.school_event_type || proposal.community_event_type || 'other',
                         organizationType: proposal.organization_type,
