@@ -3,34 +3,34 @@
 // Force dynamic rendering to prevent SSG issues
 export const dynamic = 'force-dynamic';
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { PageHeader } from "@/components/dashboard/student/ui/page-header"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/dashboard/student/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/dashboard/student/ui/tabs"
-import { Input } from "@/components/dashboard/student/ui/input"
-import { Button } from "@/components/dashboard/student/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/dashboard/student/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/dashboard/student/ui/table"
-import { Badge } from "@/components/dashboard/student/ui/badge"
-import { Separator } from "@/components/dashboard/student/ui/separator"
-import { Avatar, AvatarFallback } from "@/components/dashboard/student/ui/avatar"
-import { motion } from "framer-motion"
+import { Avatar, AvatarFallback } from "@/components/dashboard/student/ui/avatar";
+import { Badge } from "@/components/dashboard/student/ui/badge";
+import { Button } from "@/components/dashboard/student/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/dashboard/student/ui/card";
+import { Input } from "@/components/dashboard/student/ui/input";
+import { PageHeader } from "@/components/dashboard/student/ui/page-header";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/dashboard/student/ui/select";
+import { Separator } from "@/components/dashboard/student/ui/separator";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/dashboard/student/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/dashboard/student/ui/tabs";
+import { motion } from "framer-motion";
 import {
-  Search,
-  Filter,
-  Download,
-  Calendar,
-  Users,
   ArrowUpDown,
   BarChart,
-  PieChart,
+  Calendar,
   CheckCircle,
   Clock,
+  Download,
+  Filter,
+  PieChart,
+  Search,
   UserCheck,
+  Users,
   UserX,
   X,
-} from "lucide-react"
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 // Sample data for organizations
 const organizations = [
@@ -465,8 +465,8 @@ export default function ReportsPage() {
                       </TableHeader>
                       <TableBody>
                         {sortedOrgs.length > 0 ? (
-                          sortedOrgs.map((org) => (
-                            <TableRow key={org.id} className="cedo-table-row">
+                          sortedOrgs.map((org, index) => (
+                            <TableRow key={`${org.id}-${index}`} className="cedo-table-row">
                               <TableCell>
                                 <div className="border border-cedo-blue text-cedo-blue px-3 py-1.5 rounded-md text-sm font-medium">
                                   {org.name}
@@ -506,13 +506,12 @@ export default function ReportsPage() {
                               <TableCell>
                                 <div className="w-full bg-gray-200 rounded-full h-2.5">
                                   <div
-                                    className={`h-2.5 rounded-full ${
-                                      org.completionRate >= 75
-                                        ? "bg-green-500"
-                                        : org.completionRate >= 50
-                                          ? "bg-amber-500"
-                                          : "bg-red-500"
-                                    }`}
+                                    className={`h-2.5 rounded-full ${org.completionRate >= 75
+                                      ? "bg-green-500"
+                                      : org.completionRate >= 50
+                                        ? "bg-amber-500"
+                                        : "bg-red-500"
+                                      }`}
                                     style={{ width: `${org.completionRate}%` }}
                                   ></div>
                                 </div>
@@ -831,8 +830,8 @@ export default function ReportsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filterEvents(getOrgEvents(selectedOrg.id), eventFilter).map((event) => (
-                          <TableRow key={event.id} className="cedo-table-row">
+                        {filterEvents(getOrgEvents(selectedOrg.id), eventFilter).map((event, index) => (
+                          <TableRow key={`${event.id}-${index}`} className="cedo-table-row">
                             <TableCell className="font-medium">{event.id}</TableCell>
                             <TableCell>
                               <div className="border border-cedo-blue text-cedo-blue px-3 py-1.5 rounded-md text-sm font-medium">
@@ -1012,8 +1011,8 @@ export default function ReportsPage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {getEventParticipants(selectedEvent.id).map((participant) => (
-                              <TableRow key={participant.id} className="cedo-table-row">
+                            {getEventParticipants(selectedEvent.id).map((participant, index) => (
+                              <TableRow key={`${participant.id}-${index}`} className="cedo-table-row">
                                 <TableCell className="font-medium">{participant.id}</TableCell>
                                 <TableCell>
                                   <div className="flex items-center gap-2">
@@ -1084,11 +1083,10 @@ export default function ReportsPage() {
                                   </div>
                                   <div className="w-full bg-gray-200 rounded-full h-2.5">
                                     <div
-                                      className={`h-2.5 rounded-full ${
-                                        selectedEvent.actualParticipants >= selectedEvent.expectedParticipants
-                                          ? "bg-green-500"
-                                          : "bg-amber-500"
-                                      }`}
+                                      className={`h-2.5 rounded-full ${selectedEvent.actualParticipants >= selectedEvent.expectedParticipants
+                                        ? "bg-green-500"
+                                        : "bg-amber-500"
+                                        }`}
                                       style={{
                                         width: `${Math.min(
                                           (selectedEvent.actualParticipants / selectedEvent.expectedParticipants) * 100,
