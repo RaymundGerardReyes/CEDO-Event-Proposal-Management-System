@@ -7,37 +7,7 @@ import Progress from '@/components/dashboard/student/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from "@/components/dashboard/student/ui/tabs";
 import { Calendar, ChevronRight, Clock, FileText, PlusCircle } from "lucide-react";
 import Link from "next/link";
-import { memo, useEffect, useMemo, useState } from "react";
-
-// ✅ Memoized StatusPanel for development debugging
-const StatusPanel = memo(() => {
-  const [mounted, setMounted] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const [collapsed] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
-
-  // Only show in development
-  if (process.env.NODE_ENV !== 'development') return null;
-
-  return (
-    <div className="fixed top-2 right-2 z-50 bg-white/95 dark:bg-gray-900/95 border rounded-lg shadow-lg px-3 py-2 text-xs space-y-1 backdrop-blur-sm sm:top-4 sm:right-4 sm:px-4 sm:text-sm">
-      <div>Mounted: <span className={mounted ? "text-green-600" : "text-red-600"}>{mounted ? "✅" : "❌"}</span></div>
-      <div>Mobile: <span className={isMobile ? "text-green-600" : "text-red-600"}>{isMobile ? "✅" : "❌"}</span></div>
-      <div>Collapsed: <span className={collapsed ? "text-green-600" : "text-red-600"}>{collapsed ? "✅" : "❌"}</span></div>
-      <div className="hidden sm:block">Class: <span className="font-mono">md:ml-72</span></div>
-      <div className="hidden sm:block">Style: <span className="font-mono">0rem</span></div>
-    </div>
-  );
-});
-
-StatusPanel.displayName = "StatusPanel";
+import { memo, useMemo, useState } from "react";
 
 // ✅ Enhanced Memoized StatCard component with better responsive design
 const StatCard = memo(({ title, value, icon: Icon, bgColor, textColor }) => (
@@ -178,7 +148,6 @@ export default function DashboardPage() {
 
   return (
     <>
-      <StatusPanel />
       <div className="space-y-6 sm:space-y-8 p-4 sm:p-6 lg:p-8">
         {/* Enhanced Header Section */}
         <div className="flex flex-col space-y-4 sm:flex-row sm:justify-between sm:items-start sm:space-y-0 lg:items-center">
