@@ -8,14 +8,14 @@ The **CEDO Event Proposal Management System** is a comprehensive full-stack appl
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    CEDO Event Proposal SYSTEM                   │
+│                    CEDO Event Proposal SYSTEM               │
 ├─────────────────────────────────────────────────────────────┤
 │  Frontend (Next.js 15.3.2)  │  Backend (Express.js + APIs)  │
 │  ├─ Student Dashboard       │  ├─ Hybrid Database API       │
 │  ├─ Admin Dashboard         │  ├─ Authentication System     │
 │  ├─ Manager Interface       │  ├─ File Upload Management    │
 │  └─ Authentication          │  └─ Admin Panel Interface     │
-├─────────────────────────────┼─────────────────────────────────┤
+├─────────────────────────────┼───────────────────────────────┤
 │        DATABASE LAYER       │     EXTERNAL SERVICES         │
 │  ├─ MySQL (Relational)      │  ├─ Google OAuth              │
 │  ├─ MongoDB (Documents)     │  ├─ reCAPTCHA                 │
