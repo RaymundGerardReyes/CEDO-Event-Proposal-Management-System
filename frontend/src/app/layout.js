@@ -12,6 +12,9 @@ const inter = Inter({
   subsets: ["latin"],
   display: 'swap',
   variable: '--font-inter',
+  preload: true,
+  fallback: ['system-ui', 'arial'],
+  adjustFontFallback: false,
 });
 
 // Force dynamic rendering globally to prevent SSG issues with useSearchParams
@@ -112,6 +115,10 @@ export default function RootLayout({ children }) {
         <link rel="apple-touch-icon" href="/Favicon-CEDO.svg" />
         <meta name="theme-color" content="#001a56" />
         <meta name="msapplication-TileColor" content="#001a56" />
+
+        {/* ✅ FIX: Preconnect to Google Fonts to resolve loading issues */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
 
         {/* ✅ SIMPLIFIED: Global handleCredentialResponse for COOP compatibility */}
         <script
