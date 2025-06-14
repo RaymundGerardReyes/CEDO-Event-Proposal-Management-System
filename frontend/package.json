@@ -5,6 +5,7 @@
     "scripts": {
         "dev": "next dev --turbo",
         "dev:normal": "next dev",
+        "dev:no-turbo": "next dev",
         "dev:turbo": "TURBOPACK=1 next dev --turbo",
         "dev:fast": "next dev --turbo",
         "dev:debug": "cross-env DEBUG=next:* next dev --turbo",
