@@ -125,7 +125,7 @@ export default function SignInPage() {
   }, [isErrorDialogOpen]);
 
   useEffect(() => {
-    if (isInitialized && !user && !isGoogleButtonRendered && typeof window !== 'undefined' && signInWithGoogleAuth) {
+    if (isInitialized && !user && !isGoogleButtonRendered && !isErrorDialogOpen && typeof window !== 'undefined' && signInWithGoogleAuth) {
       const container = document.getElementById(GOOGLE_BUTTON_CONTAINER_ID);
 
       if (container) {
@@ -153,10 +153,10 @@ export default function SignInPage() {
       }
     }
 
-    // CRITICAL CHANGE: Removed `isGoogleAuthProcessing` from the dependency array.
-    // Ensure `openErrorDialog` is stable (e.g., useCallback with empty or truly stable dependencies).
-    // `signInWithGoogleAuth` from `useAuth` should already be stable if defined with `useCallback` in the context.
-  }, [isInitialized, user, isGoogleButtonRendered, signInWithGoogleAuth, openErrorDialog]);
+    // CRITICAL CHANGE: Removed `isGoogleAuthProcessing` and `openErrorDialog` from the dependency array.
+    // `openErrorDialog` is stable (useCallback with empty deps) and doesn't need to be a dependency.
+    // Added `isErrorDialogOpen` to prevent Google Sign-In init during error states.
+  }, [isInitialized, user, isGoogleButtonRendered, isErrorDialogOpen, signInWithGoogleAuth]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
