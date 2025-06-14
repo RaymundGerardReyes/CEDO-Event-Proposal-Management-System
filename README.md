@@ -1,14 +1,14 @@
-# 🎓 CEDO Partnership Management System
+# 🎓 CEDO Event Proposal Management System
 
 ## 🌟 Overview
 
-The **CEDO Partnership Management System** is a comprehensive full-stack application designed for educational partnership management, event proposal submissions, and administrative oversight. Built with modern technologies and featuring a hybrid database architecture for optimal performance and scalability.
+The **CEDO Event Proposal Management System** is a comprehensive full-stack application designed for educational partnership management, event proposal submissions, and administrative oversight. Built with modern technologies and featuring a hybrid database architecture for optimal performance and scalability.
 
 ### 🏗️ **System Architecture**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    CEDO PARTNERSHIP SYSTEM                   │
+│                    CEDO Event Proposal SYSTEM                   │
 ├─────────────────────────────────────────────────────────────┤
 │  Frontend (Next.js 15.3.2)  │  Backend (Express.js + APIs)  │
 │  ├─ Student Dashboard       │  ├─ Hybrid Database API       │
