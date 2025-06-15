@@ -69,7 +69,7 @@ const WhitelistManagementPage = memo(() => {
 
     // Fix: Move authorization check to useEffect to prevent render-time router updates
     useEffect(() => {
-        if (!authLoading && isInitialized && (!authUser || authUser.role !== AuthRoles.head_admin)) {
+        if (!authLoading && isInitialized && (!authUser || authUser.role !== AuthRoles.HEAD_ADMIN)) {
             router.replace("/sign-in");
         }
     }, [authLoading, isInitialized, authUser, AuthRoles, router]);
@@ -167,7 +167,7 @@ const WhitelistManagementPage = memo(() => {
     }
 
     // Show access denied if not authorized
-    if (!authUser || authUser.role !== AuthRoles.head_admin) {
+    if (!authUser || authUser.role !== AuthRoles.HEAD_ADMIN) {
         return (
             <div className="min-h-screen flex items-center justify-center p-4">
                 <div className="w-full max-w-md">
