@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/admin-dashboard/settings/components/ConfirmationDialog.jsx
+
 /**
  * ConfirmationDialog Component - Enhanced Pre-Deletion Confirmation Modal
  * 

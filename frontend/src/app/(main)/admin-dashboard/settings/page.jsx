@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/admin-dashboard/settings/page.jsx
+
 "use client"
 
 // Force dynamic rendering to prevent SSR issues with the whitelist hook

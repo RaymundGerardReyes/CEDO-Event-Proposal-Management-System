@@ -1,3 +1,5 @@
+//DOCUMENTATION
+
 # Whitelist Management System - Refactored Architecture
 
 ## Overview

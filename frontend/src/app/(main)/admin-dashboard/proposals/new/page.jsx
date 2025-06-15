@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/admin-dashboard/proposals/new/page.jsx
+
 "use client"
 
 // Force dynamic rendering to prevent SSG issues

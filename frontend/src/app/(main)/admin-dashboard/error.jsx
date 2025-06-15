@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/admin-dashboard/error.jsx
+
 "use client"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"

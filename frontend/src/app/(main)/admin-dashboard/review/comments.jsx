@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/admin-dashboard/review/comments.jsx
+
 import { Button } from "@/components/dashboard/admin/ui/button"
 import { Label } from "@/components/dashboard/admin/ui/label"
 import { Textarea } from "@/components/dashboard/admin/ui/textarea"

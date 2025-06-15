@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/admin-dashboard/forms/responsive-form-example/page.jsx
+
 "use client"
 
 // Force dynamic rendering to prevent SSG issues

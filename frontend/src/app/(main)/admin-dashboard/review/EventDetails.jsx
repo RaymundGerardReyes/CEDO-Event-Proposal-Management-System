@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/admin-dashboard/review/EventDetails.jsx
+
 import { Label } from "@/components/dashboard/admin/ui/label"
 import { Button } from "@/components/dashboard/admin/ui/button"
 import { FileText, Download } from "lucide-react"

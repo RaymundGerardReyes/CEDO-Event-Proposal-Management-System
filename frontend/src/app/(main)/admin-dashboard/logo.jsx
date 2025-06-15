@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/admin-dashboard/logo.jsx
+
 const Logo = ({ className = "", width = 150, height = 45 }) => {
     return (
         <div className={`flex items-center ${className}`}>

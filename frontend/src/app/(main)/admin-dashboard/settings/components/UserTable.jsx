@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/admin-dashboard/settings/components/UserTable.jsx
+
 /**
  * UserTable Component - Enhanced User Display with Inline Editing
  * 

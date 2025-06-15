@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/admin-dashboard/events/page.jsx
+
 "use client"
 
 import { EventCalendar } from "@/components/dashboard/admin/event-calendar"

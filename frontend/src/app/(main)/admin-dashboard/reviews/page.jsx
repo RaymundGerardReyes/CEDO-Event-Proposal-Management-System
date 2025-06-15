@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/admin-dashboard/reviews/page.jsx
+
 "use client"
 
 // Force dynamic rendering to prevent SSG issues

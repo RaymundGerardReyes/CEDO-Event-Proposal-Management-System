@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/admin-dashboard/settings/hooks/useWhitelist.js
+
 /**
  * useWhitelist Hook - Business Logic for User Whitelist Management
  * 

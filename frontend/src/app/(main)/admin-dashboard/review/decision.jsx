@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/admin-dashboard/review/decision.jsx
+
 import { Button } from "@/components/dashboard/admin/ui/button"
 import { Label } from "@/components/dashboard/admin/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/dashboard/admin/ui/select"

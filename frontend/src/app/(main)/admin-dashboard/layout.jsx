@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/admin-dashboard/layout.jsx
+
 import { AppHeader } from "@/components/dashboard/admin/app-header"
 import { AppSidebar } from "@/components/dashboard/admin/app-sidebar"
 import { ThemeProvider } from "@/components/theme-provider"

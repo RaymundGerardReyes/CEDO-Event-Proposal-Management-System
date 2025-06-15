@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/admin-dashboard/settings/components/EditableCell.jsx
+
 /**
  * EditableCell Component - Inline Editable Table Cell
  * 

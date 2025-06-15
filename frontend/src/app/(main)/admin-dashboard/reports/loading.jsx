@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/admin-dashboard/reports/loading.jsx
+
 export default function Loading() {
   return (
     <div className="flex-1 bg-[#f8f9fa] p-6 md:p-8">

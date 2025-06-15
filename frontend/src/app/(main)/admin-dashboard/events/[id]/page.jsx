@@ -1,3 +1,4 @@
+// frontend/src/app/(main)/admin-dashboard/events/[id]/page.jsx
 "use client"
 
 // Force dynamic rendering to prevent SSG issues

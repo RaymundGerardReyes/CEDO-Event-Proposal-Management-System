@@ -1,3 +1,4 @@
+    
 "use client"
 
 // Force dynamic rendering to prevent SSG issues

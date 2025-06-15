@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/admin-dashboard/forms/search-filter-example/SearchFilterExamplePageContent.jsx
+
 "use client";
 
 import { FilterForm } from "@/components/dashboard/admin/filter-form";

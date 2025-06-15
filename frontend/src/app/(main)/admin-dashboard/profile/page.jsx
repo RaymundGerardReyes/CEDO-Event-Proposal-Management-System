@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/admin-dashboard/profile/page.jsx
+
 "use client" // Keep this if the whole page structure relies on client interactions
 
 // Force dynamic rendering to prevent SSG issues

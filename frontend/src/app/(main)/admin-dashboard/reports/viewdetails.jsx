@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/admin-dashboard/reports/viewdetails.jsx
+
 "use client"
 
 export const dynamic = 'force-dynamic';
