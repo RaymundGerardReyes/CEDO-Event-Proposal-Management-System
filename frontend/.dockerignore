@@ -1,15 +1,127 @@
-# Don’t send node_modules (we install in the Dockerfile)
+# ==========================================
+# CEDO Frontend - Comprehensive .dockerignore
+# ==========================================
+
+# Dependencies
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Don’t send dev build artifacts
-build/
+# Build artifacts and cache
 .next/
+out/
+build/
+dist/
+.swc/
+.turbo/
+coverage/
+*.tsbuildinfo
 
-# Local configs & secrets
-*.env*
+# Environment and secrets
+.env*
+!.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Development tools and configs
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
-# Misc cruft
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Docker
+Dockerfile*
+.dockerignore
+docker-compose*.yml
+
+# Documentation
+README*.md
+CHANGELOG*.md
+CONTRIBUTING*.md
+LICENSE*
+*.md
+
+# Testing
+jest.config.js
+jest.setup.js
+__tests__/
+**/*.test.js
+**/*.test.jsx
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.js
+**/*.spec.jsx
+**/*.spec.ts
+**/*.spec.tsx
+tests/
+cypress/
+cypress.json
+playwright.config.js
+
+# Linting and formatting
+.eslintrc*
+.prettierrc*
+.prettierignore
+.stylelintrc*
+
+# Package manager lock files (copy explicitly in Dockerfile)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Editor configs
+.editorconfig
+
+# Bundle analysis
+.next/analyze/
+bundle-analyzer-report.html
+
+# Storybook
+.storybook/
+storybook-static/
+
+# Next.js specific
+.next/cache/
+.next/standalone/
+.next/static/
+
+# TypeScript
+*.tsbuildinfo
+
+# Local development files
+.local/
+
+# Performance profiling
+.next/trace
+
+# Misc
+*.orig
+.vercel/
+.netlify/

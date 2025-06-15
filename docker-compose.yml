@@ -1,5 +1,6 @@
 # ===================================
-# Docker Compose - Enhanced Configuration
+# CEDO Google Auth - Enhanced Docker Compose
+# Multi-stage Dockerfile Integration
 # ===================================
 version: "3.8"
 
@@ -9,14 +10,14 @@ services:
   # ===================================
   mysql:
     image: mysql:8.0
-    container_name: mysql_dev_db
+    container_name: cedo_mysql_db
     environment:
       MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD_SECRET}"
       MYSQL_DATABASE: "${MYSQL_DATABASE_NAME}"
       MYSQL_USER: "${MYSQL_USER_NAME}"
       MYSQL_PASSWORD: "${MYSQL_USER_PASSWORD}"
     ports:
-      - "3307:3306"
+      - "3306:3306"  # Changed back to standard port 3306
     volumes:
       - mysql_data:/var/lib/mysql
       - ./backend/scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -31,43 +32,63 @@ services:
       - cedo-network
 
   # ===================================
-  # Backend Service
+  # Backend Service - Enhanced Multi-stage
   # ===================================
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: backend_dev_service
+      target: development  # Use development stage for docker-compose
+      args:
+        NODE_ENV: development
+        BUILD_VERSION: "0.4.0"
+        BUILD_DATE: "${BUILD_DATE:-$(date -u +'%Y-%m-%dT%H:%M:%SZ')}"
+        GIT_COMMIT: "${GIT_COMMIT:-unknown}"
+    container_name: cedo_backend_service
     volumes:
       - ./backend:/usr/src/app
       - backend_node_modules:/usr/src/app/node_modules
       - ./backend/logs:/usr/src/app/logs
       - ./backend/uploads:/usr/src/app/uploads
+      - ./backend/scripts:/usr/src/app/scripts
     ports:
       - "5000:5000"
     environment:
+      # Node.js Configuration
       NODE_ENV: "development"
+      PORT: "5000"
+      NODE_OPTIONS: "--max-old-space-size=512"
+      NPM_CONFIG_LOGLEVEL: "info"
+      
+      # Database Configuration
       DB_HOST: "mysql"
       DB_PORT: "3306"
       DB_NAME: "${MYSQL_DATABASE_NAME}"
       DB_USER: "${MYSQL_USER_NAME}"
       DB_PASSWORD: "${MYSQL_USER_PASSWORD}"
+      
+      # Security Secrets
       API_SECRET_DEV: "${API_SECRET_DEV}"
       JWT_SECRET_DEV: "${JWT_SECRET_DEV}"
-      PORT: "5000"
+      
+      # External Services
       FRONTEND_URL: "${FRONTEND_URL}"
       EMAIL_SERVICE: "${EMAIL_SERVICE}"
       EMAIL_USER: "${EMAIL_USER}"
       EMAIL_PASSWORD: "${EMAIL_PASSWORD}"
       RECAPTCHA_SECRET_KEY: "${RECAPTCHA_SECRET_KEY}"
       GOOGLE_CLIENT_ID_BACKEND: "${GOOGLE_CLIENT_ID_BACKEND}"
+      
+      # Development Options
+      DEBUG: "app:*"
+      LOG_LEVEL: "debug"
     command: >
       sh -c "
-        echo 'Waiting for MySQL to be ready...' &&
+        echo '🔄 Waiting for MySQL to be ready...' &&
         ./wait-for-it.sh mysql:3306 --timeout=60 --strict &&
-        echo 'MySQL ready – initializing database...' &&
+        echo '✅ MySQL ready – initializing database...' &&
         npm run init-db &&
-        echo 'Database initialization complete – starting development server...' &&
+        echo '🚀 Database initialization complete – starting development server...' &&
         npm run dev
       "
     depends_on:
@@ -77,35 +98,58 @@ services:
     networks:
       - cedo-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      test: ["CMD", "nc", "-z", "localhost", "5000"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
 
   # ===================================
-  # Frontend Service
+  # Frontend Service - Enhanced Multi-stage
   # ===================================
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      target: deps  # Use deps stage for development
-    container_name: frontend_dev_service
+      target: development  # Use development stage for docker-compose
+      args:
+        NODE_ENV: development
+        TURBOPACK: "1"
+        NEXT_TELEMETRY_DISABLED: "1"
+    container_name: cedo_frontend_service
     volumes:
       - ./frontend:/usr/src/app
       - frontend_node_modules:/usr/src/app/node_modules
-      - /usr/src/app/.next
+      - /usr/src/app/.next  # Exclude .next from volume mount
+      - /usr/src/app/.swc   # Exclude .swc from volume mount
     ports:
       - "3000:3000"
+      - "3001:3001"  # Additional port for development tools
     environment:
+      # Node.js Configuration
       NODE_ENV: "development"
-      NEXT_PUBLIC_API_URL: "http://localhost:5000/api"
-      NEXT_PUBLIC_RECAPTCHA_SITE_KEY: "${NEXT_PUBLIC_RECAPTCHA_SITE_KEY}"
-      NEXT_PUBLIC_GOOGLE_CLIENT_ID: "${NEXT_PUBLIC_GOOGLE_CLIENT_ID}"
-      HOSTNAME: "0.0.0.0"
       PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      
+      # Next.js Configuration
+      NEXT_TELEMETRY_DISABLED: "1"
+      TURBOPACK: "1"
       WATCHPACK_POLLING: "true"  # Enable polling for file changes in Docker
+      NEXT_PUBLIC_APP_ENV: "development"
+      
+      # API Configuration
+      NEXT_PUBLIC_API_URL: "http://localhost:5000/api"
+      
+      # Google Services
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: "${NEXT_PUBLIC_GOOGLE_CLIENT_ID}"
+      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET}"
+      
+      # reCAPTCHA
+      NEXT_PUBLIC_RECAPTCHA_SITE_KEY: "${NEXT_PUBLIC_RECAPTCHA_SITE_KEY}"
+      
+      # Development Debugging
+      DEBUG: "next:*"
+      NEXT_TURBOPACK_TRACING: "1"
     command: npm run dev
     stdin_open: true
     tty: true
@@ -122,6 +166,131 @@ services:
       retries: 3
       start_period: 60s
 
+  # ===================================
+  # Production Services (Alternative)
+  # ===================================
+  backend-prod:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+      args:
+        NODE_ENV: production
+        BUILD_VERSION: "0.4.0"
+    container_name: cedo_backend_prod
+    environment:
+      NODE_ENV: "production"
+      PORT: "5000"
+      DB_HOST: "mysql"
+      DB_PORT: "3306"
+      DB_NAME: "${MYSQL_DATABASE_NAME}"
+      DB_USER: "${MYSQL_USER_NAME}"
+      DB_PASSWORD: "${MYSQL_USER_PASSWORD}"
+      API_SECRET_DEV: "${API_SECRET_DEV}"
+      JWT_SECRET_DEV: "${JWT_SECRET_DEV}"
+      FRONTEND_URL: "${FRONTEND_URL}"
+    ports:
+      - "5001:5000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - cedo-network
+    profiles:
+      - production
+
+  frontend-prod:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+      args:
+        NODE_ENV: production
+        NEXT_TELEMETRY_DISABLED: "1"
+    container_name: cedo_frontend_prod
+    environment:
+      NODE_ENV: "production"
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_API_URL: "http://localhost:5001/api"
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: "${NEXT_PUBLIC_GOOGLE_CLIENT_ID}"
+      NEXT_PUBLIC_RECAPTCHA_SITE_KEY: "${NEXT_PUBLIC_RECAPTCHA_SITE_KEY}"
+    ports:
+      - "3001:3000"
+    depends_on:
+      backend-prod:
+        condition: service_started
+    networks:
+      - cedo-network
+    profiles:
+      - production
+
+  # ===================================
+  # Testing Services (Alternative)
+  # ===================================
+  backend-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: testing
+    container_name: cedo_backend_test
+    volumes:
+      - ./backend:/usr/src/app
+      - backend_node_modules:/usr/src/app/node_modules
+    environment:
+      NODE_ENV: "test"
+      DB_HOST: "mysql"
+      DB_PORT: "3306"
+      DB_NAME: "${MYSQL_DATABASE_NAME}_test"
+      DB_USER: "${MYSQL_USER_NAME}"
+      DB_PASSWORD: "${MYSQL_USER_PASSWORD}"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - cedo-network
+    profiles:
+      - testing
+
+  frontend-test:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: testing
+    container_name: cedo_frontend_test
+    volumes:
+      - ./frontend:/usr/src/app
+      - frontend_node_modules:/usr/src/app/node_modules
+    environment:
+      NODE_ENV: "test"
+      NEXT_PUBLIC_API_URL: "http://backend-test:5000/api"
+    depends_on:
+      backend-test:
+        condition: service_started
+    networks:
+      - cedo-network
+    profiles:
+      - testing
+
+  # ===================================
+  # Bundle Analyzer Service
+  # ===================================
+  frontend-analyzer:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: analyzer
+      args:
+        ANALYZE: "true"
+    container_name: cedo_frontend_analyzer
+    ports:
+      - "8888:8888"
+    networks:
+      - cedo-network
+    profiles:
+      - analyzer
+
 # ===================================
 # Networks Configuration
 # ===================================
@@ -129,6 +298,9 @@ networks:
   cedo-network:
     driver: bridge
     name: cedo-network
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 
 # ===================================
 # Volumes Configuration
