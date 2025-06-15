@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/student-dashboard/events/page.jsx
+
 "use client"
 
 import { PageHeader } from "@/components/dashboard/student/page-header";

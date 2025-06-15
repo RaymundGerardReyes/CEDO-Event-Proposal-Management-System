@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/student-dashboard/manifest.js
+
 export default function manifest() {
   return {
     name: "SDP Event Approval Platform",

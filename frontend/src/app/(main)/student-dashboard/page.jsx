@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/student-dashboard/page.jsx
+
 "use client"
 
 import { Badge } from "@/components/dashboard/student/ui/badge";

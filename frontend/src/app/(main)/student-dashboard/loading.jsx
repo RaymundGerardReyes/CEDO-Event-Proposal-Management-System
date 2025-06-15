@@ -1,4 +1,4 @@
-// ✅ Optimized loading component with skeleton UI
+
 export default function Loading() {
   return (
     <div className="space-y-8 animate-pulse">

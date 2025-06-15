@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/student-dashboard/events/[id]/page.jsx
+
 "use client"
 
 // Force dynamic rendering to prevent SSG issues

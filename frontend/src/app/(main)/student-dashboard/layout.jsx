@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/student-dashboard/layout.jsx
+
 import ClientLayout from "./clientLayout";
 import './globals.css';
 

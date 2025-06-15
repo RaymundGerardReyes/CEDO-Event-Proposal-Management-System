@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/student-dashboard/sdp-credits/loading.jsx
+
 import { Card, CardContent, CardHeader } from "@/components/dashboard/student/ui/card"
 import { Skeleton } from "@/components/dashboard/student/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/dashboard/student/ui/tabs"

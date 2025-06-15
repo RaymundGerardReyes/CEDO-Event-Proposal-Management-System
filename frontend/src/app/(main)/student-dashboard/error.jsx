@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/student-dashboard/error.jsx
+
 'use client'
 
 import { Button } from "@/components/dashboard/student/ui/button"

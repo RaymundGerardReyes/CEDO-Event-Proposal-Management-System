@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/student-dashboard/hooks/use-mobile.jsx
+
 "use client"
 
 import * as React from "react"

@@ -1,3 +1,4 @@
+// frontend/src/app/(main)/student-dashboard/clientLayout.jsx
 "use client"
 
 import { AppSidebar } from "@/components/dashboard/student/app-sidebar"

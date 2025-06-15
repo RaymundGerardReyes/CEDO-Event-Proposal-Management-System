@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/student-dashboard/notifications/NotificationsPageContent.jsx
+
 "use client";
 
 import { PageHeader } from "@/components/page-header";

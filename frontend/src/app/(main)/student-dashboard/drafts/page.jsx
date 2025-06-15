@@ -1,3 +1,5 @@
+// frontend/src/app/(main)/student-dashboard/drafts/page.jsx
+
 "use client"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"

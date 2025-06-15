@@ -1,6 +1,5 @@
 "use client"
 
-// Force dynamic rendering to prevent SSG issues
 export const dynamic = 'force-dynamic';
 
 import { Badge } from "@/components/dashboard/student/ui/badge";
