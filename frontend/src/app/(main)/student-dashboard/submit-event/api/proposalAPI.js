@@ -17,108 +17,38 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:50
  * @returns {Promise<Object>} API response with proposal ID
  */
 export const saveProposal = async (proposalData, files = []) => {
-    console.log('🚀 Saving proposal to MySQL proposals table:', proposalData);
+    console.log('🚀 Saving proposal section 2 data:', proposalData);
 
-    const formData = new FormData();
+    // The API layer now trusts the component to send a valid type,
+    // but the backend will validate it as a safety measure.
+    const payload = {
+        // Core Organization Fields
+        title: proposalData.organizationName || 'Untitled Proposal',
+        description: proposalData.organizationDescription || 'No description provided',
+        organizationType: proposalData.organizationType,
+        contactPerson: proposalData.contactName || '',
+        contactEmail: proposalData.contactEmail || '',
+        contactPhone: proposalData.contactPhone || '',
+        status: 'draft', // Section 2 is always a draft
+        userId: proposalData.userId,
 
-    // ===============================================================
-    // SECTION 2: ORGANIZATION INFO (Primary focus for Section 2)
-    // ===============================================================
-
-    // 🔍 Debug the incoming proposalData
-    console.log('🔍 API: Raw proposalData received:', proposalData);
-    console.log('🔍 API: organizationName value:', `"${proposalData.organizationName}"`);
-    console.log('🔍 API: contactName value:', `"${proposalData.contactName}"`);
-    console.log('🔍 API: contactEmail value:', `"${proposalData.contactEmail}"`);
-
-    // Check if required fields are empty before mapping
-    const requiredFieldsCheck = {
-        organizationName: proposalData.organizationName,
-        contactName: proposalData.contactName,
-        contactEmail: proposalData.contactEmail
+        // Include proposal ID if this is an update
+        proposal_id: proposalData.id || proposalData.proposalId,
     };
 
-    const emptyFields = Object.entries(requiredFieldsCheck)
-        .filter(([key, value]) => !value || (typeof value === 'string' && value.trim().length === 0))
-        .map(([key]) => key);
-
-    if (emptyFields.length > 0) {
-        console.error('🚨 API: Empty fields detected before sending to backend:', emptyFields);
-        console.log('🔍 API: Field values:');
-        Object.entries(requiredFieldsCheck).forEach(([key, value]) => {
-            console.log(`  ${key}: "${value}" (type: ${typeof value}, length: ${value?.length || 0})`);
-        });
-    }
-
-    // Map fields with explicit logging
-    const titleValue = proposalData.organizationName || 'Untitled Proposal';
-    const contactPersonValue = proposalData.contactName || '';
-    const contactEmailValue = proposalData.contactEmail || '';
-
-    console.log('🔄 API: Field mapping:');
-    console.log(`  organizationName → title: "${proposalData.organizationName}" → "${titleValue}"`);
-    console.log(`  contactName → contactPerson: "${proposalData.contactName}" → "${contactPersonValue}"`);
-    console.log(`  contactEmail → contactEmail: "${proposalData.contactEmail}" → "${contactEmailValue}"`);
-
-    formData.append('title', titleValue);
-    formData.append('description', proposalData.organizationDescription || 'No description provided');
-    formData.append('category', 'partnership'); // Default category
-    formData.append('organizationType', proposalData.organizationType || proposalData.organizationTypes?.[0] || '');
-    formData.append('contactPerson', contactPersonValue);
-    formData.append('contactEmail', contactEmailValue);
-    formData.append('contactPhone', proposalData.contactPhone || '');
-
-    // Required fields for backend validation - set defaults for Section 2
-    formData.append('startDate', proposalData.schoolStartDate || proposalData.communityStartDate || new Date().toISOString().split('T')[0]);
-    formData.append('endDate', proposalData.schoolEndDate || proposalData.communityEndDate || new Date().toISOString().split('T')[0]);
-    formData.append('location', proposalData.schoolVenue || proposalData.communityVenue || 'TBD');
-    formData.append('budget', proposalData.budget || '0');
-    formData.append('objectives', proposalData.objectives || 'Objectives to be defined');
-    formData.append('volunteersNeeded', proposalData.volunteersNeeded || '1');
-    formData.append('status', proposalData.status || 'draft');
-
-    // Add proposal ID if updating existing proposal
-    if (proposalData.id) {
-        formData.append('proposal_id', proposalData.id);
-    }
-
-    // Log the form data being sent
-    console.log('📤 FormData being sent to API:');
-    for (let [key, value] of formData.entries()) {
-        console.log(`${key}:`, value instanceof File ? `File: ${value.name}` : value);
-    }
+    console.log('✅ API: Assembled clean payload for backend:', payload);
 
     try {
-        // 🔧 ARCHITECTURAL FIX: Use real MySQL endpoint for Section 2 organization data
         const endpoint = `${API_BASE_URL}/api/proposals/section2-organization`;
-        const method = 'POST'; // Always POST to MySQL endpoint
-
-        console.log(`🌐 Making ${method} request to MySQL Section 2 endpoint:`, endpoint);
-
-        // 🔍 Debug: Convert FormData to object for logging
-        const formDataObj = {};
-        for (let [key, value] of formData.entries()) {
-            formDataObj[key] = value;
-        }
-        console.log('📤 API: FormData being sent:', formDataObj);
-
-        // 🚨 IMPORTANT: Backend expects JSON, not FormData!
-        // Convert FormData to JSON object
-        const jsonData = {};
-        for (let [key, value] of formData.entries()) {
-            jsonData[key] = value;
-        }
-
-        console.log('🔄 API: Converting FormData to JSON:', jsonData);
+        console.log(`🌐 Making POST request to:`, endpoint);
 
         const response = await fetch(endpoint, {
-            method: method,
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                // Add auth header when authentication is re-enabled
-                // 'Authorization': `Bearer ${token}`
+                // 'Authorization': `Bearer ${token}` // Add when auth is ready
             },
-            body: JSON.stringify(jsonData)
+            body: JSON.stringify(payload)
         });
 
         console.log('📨 API Response status:', response.status);
@@ -126,22 +56,16 @@ export const saveProposal = async (proposalData, files = []) => {
         if (!response.ok) {
             const errorText = await response.text();
             console.error('❌ API Error response:', errorText);
-
-            try {
-                const errorData = JSON.parse(errorText);
-                throw new Error(errorData.message || errorData.error || 'Failed to save proposal');
-            } catch (parseError) {
-                throw new Error(`API Error (${response.status}): ${errorText}`);
-            }
+            const errorData = JSON.parse(errorText || '{}');
+            throw new Error(errorData.message || errorData.error || `API Error: ${response.status}`);
         }
 
         const result = await response.json();
         console.log('✅ API Success response:', result);
-
         return result;
 
     } catch (error) {
-        console.error('🚨 Error saving proposal:', error);
+        console.error('🚨 Error saving proposal:', error.message);
         throw error;
     }
 };

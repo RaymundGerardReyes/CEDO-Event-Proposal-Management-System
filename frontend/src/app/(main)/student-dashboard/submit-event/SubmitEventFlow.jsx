@@ -4,7 +4,14 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { useMachine } from "@xstate/react"
 import { Calendar, CheckCircle, ClipboardList, FileText, Users } from "lucide-react"
+import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import Section4_CommunityEvent from "./[draftId]/community-event/Section4_CommunityEvent"
+import EventTypeSelection from "./[draftId]/event-type/EventTypeSelection"
+import Section2_OrgInfo from "./[draftId]/organization/Section2_OrgInfo"
+import Section1_Overview from "./[draftId]/overview/Section1_Overview"
+import Section5_Reporting from "./[draftId]/reporting/Section5_Reporting"
+import Section3_SchoolEvent from "./[draftId]/school-event/Section3_SchoolEvent"
 import { clearFormData, debugStorage, loadFormData, saveFormData, setupFormPersistence } from "./auto-save"
 import { DebugPanel } from "./DebugPanel"
 import { FormPersistenceDialog } from "./dialogs/FormPersistenceDialog"
@@ -12,13 +19,7 @@ import { SubmissionErrorDialog } from "./dialogs/SubmissionErrorDialog"
 import { SubmissionSuccessDialog } from "./dialogs/SubmissionSuccessDialog"
 import { SubmitProposalDialog } from "./dialogs/SubmitProposalDialog"
 import { eventStateMachine, STATUS } from "./eventStateMachine"
-import EventTypeSelection from "./EventTypeSelection"
 import { FormFlowDebugger } from "./FormFlowDebugger"
-import Section1_Overview from "./Section1_Overview"
-import Section2_OrgInfo from "./Section2_OrgInfo"
-import Section3_SchoolEvent from "./Section3_SchoolEvent"
-import Section4_CommunityEvent from "./Section4_CommunityEvent"
-import Section5_Reporting from "./Section5_Reporting"
 import { getDisplayFieldName, validateSection } from "./validation"
 import { ValidationErrorsAlert } from "./ValidationErrorsAlert"
 
@@ -197,6 +198,11 @@ const SubmitEventFlow = () => {
       console.log('🔒 PRESERVING complete data over incomplete update');
       console.log('  Complete data keys:', Object.keys(currentData));
       console.log('  Incomplete data keys:', Object.keys(newData));
+      console.log('  Section 5 fields in newData:', {
+        event_venue: newData.event_venue,
+        event_status: newData.event_status,
+        reportDescription: newData.reportDescription
+      });
 
       // Merge: keep complete organization data, update only safe fields
       const preservedData = {
@@ -222,7 +228,18 @@ const SubmitEventFlow = () => {
         ...(newData.schoolEventName && { schoolEventName: newData.schoolEventName }),
         ...(newData.schoolVenue && { schoolVenue: newData.schoolVenue }),
         ...(newData.schoolStartDate && { schoolStartDate: newData.schoolStartDate }),
-        ...(newData.schoolEndDate && { schoolEndDate: newData.schoolEndDate })
+        ...(newData.schoolEndDate && { schoolEndDate: newData.schoolEndDate }),
+
+        // 🔧 CRITICAL FIX: Preserve Section 5 fields from updates
+        ...(newData.event_venue !== undefined && { event_venue: newData.event_venue }),
+        ...(newData.event_status !== undefined && { event_status: newData.event_status }),
+        ...(newData.reportDescription !== undefined && { reportDescription: newData.reportDescription }),
+        ...(newData.attendanceCount !== undefined && { attendanceCount: newData.attendanceCount }),
+
+        // 🔧 CRITICAL FIX: Preserve any other Section 5 related fields
+        ...(newData.accomplishmentReport !== undefined && { accomplishmentReport: newData.accomplishmentReport }),
+        ...(newData.preRegistrationList !== undefined && { preRegistrationList: newData.preRegistrationList }),
+        ...(newData.finalAttendanceList !== undefined && { finalAttendanceList: newData.finalAttendanceList })
       };
 
       // 🔧 Preserve eventStatus from the incoming update (otherwise Section5 dropdown
@@ -1235,93 +1252,34 @@ const SubmitEventFlow = () => {
   }, [formData, toast]);
 
   // Section 2 handlers
-  const handleSection2Next = useCallback((directOrganizationType = null) => {
+  const handleSection2Next = useCallback((updatedFormData) => {
     console.log('=== SECTION 2 CONDITIONAL ROUTING DEBUG ===');
-    console.log('Direct organizationType passed:', directOrganizationType);
-    console.log('Organization types selected (parent):', formData.organizationTypes);
-    console.log('Organization type (parent):', formData.organizationType);
-    console.log('Event type (parent):', formData.eventType);
-    console.log('Full formData:', formData);
+    console.log('Received updated form data from Section 2:', updatedFormData);
 
-    // 🔧 CRITICAL FIX: Use direct parameter first (from Section2 save), then fallback to parent state
-    const organizationTypes = formData.organizationTypes || [];
-    const selectedType = directOrganizationType ||  // NEW: Use direct parameter first
-      formData.organizationType ||
-      formData.eventType ||
-      organizationTypes[0] ||
-      null;
+    // 1. Update the state machine with the complete data from Section 2
+    send({
+      type: "UPDATE_FORM",
+      data: updatedFormData,
+    });
 
-    console.log('🔧 ROUTING LOGIC - Priority order:');
-    console.log('  1. directOrganizationType (from Section2):', directOrganizationType);
-    console.log('  2. formData.organizationType:', formData.organizationType);
-    console.log('  3. formData.eventType:', formData.eventType);
-    console.log('  4. organizationTypes[0]:', organizationTypes[0]);
-    console.log('🔧 ROUTING - Final selected type:', selectedType);
+    // 2. Determine routing based on the (now updated) form data
+    const organizationType = updatedFormData.organizationType || 'school-based';
 
-    // Normalize the type value (handle both formats)
-    let normalizedType = selectedType;
-    if (selectedType === "school") normalizedType = "school-based";
-    if (selectedType === "community") normalizedType = "community-based";
-
-    console.log('🔧 ROUTING - Normalized type:', normalizedType);
-
-    if (normalizedType === "community-based") {
-      // Community-based: Skip Section 3, go directly to Section 4
+    if (organizationType === "community-based") {
       console.log('✅ Community-based selected - routing to Section 4 (Community Event)');
-      send({ type: "NEXT_TO_COMMUNITY" });
-      toast({
-        title: "Organization information saved",
-        description: "Moving to Community Event details",
-        variant: "default",
-      });
-    } else if (normalizedType === "school-based") {
-      // School-based: Go to Section 3
-      console.log('✅ School-based selected - routing to Section 3 (School Event)');
-
-      try {
-        // 🔧 CRITICAL FIX: Don't clear validation errors - this was wiping out all data!
-        // handleFormUpdate({ validationErrors: {} }); // REMOVED - This was the bug!
-
-        console.log('🔧 CRITICAL: Sending NEXT event without clearing formData');
-        send({ type: "NEXT" });
-
-        // The XState transition from organizationInfo → schoolEvent happens
-        // synchronously, so we no longer need the 1-second safety timer &
-        // page-reload fallback.  Removing it avoids double-navigation in
-        // production and flakiness in the Jest test-suite.
-
-        toast({
-          title: "Organization information saved",
-          description: "Moving to School Event details",
-          variant: "default",
-        });
-      } catch (error) {
-        console.error('❌ XState send failed:', error);
-        console.log('🔧 Using direct navigation fallback');
-        directNavigateToSection3();
-      }
+      send({ type: "NEXT_TO_COMMUNITY", data: updatedFormData });
     } else {
-      // No organization type selected - this should be caught by validation
-      console.log('❌ ROUTING ERROR - No valid organization type found');
-      console.log('❌ Debugging values:');
-      console.log('  - directOrganizationType:', directOrganizationType);
-      console.log('  - formData.organizationType:', formData.organizationType);
-      console.log('  - formData.eventType:', formData.eventType);
-      console.log('  - organizationTypes:', organizationTypes);
-      console.log('  - organizationTypes[0]:', organizationTypes[0]);
-      console.log('  - selectedType (before normalization):', selectedType);
-      console.log('  - normalizedType (after normalization):', normalizedType);
-
-      toast({
-        title: "Routing Error",
-        description: "Unable to determine event type. Please go back and select an event type.",
-        variant: "destructive",
-      });
-
-      // Optionally go back to event type selection
-      send({ type: "PREVIOUS" });
+      console.log('✅ School-based selected - routing to Section 3 (School Event)');
+      send({ type: "NEXT", data: updatedFormData });
     }
-  }, [send, validateAndSetErrors, toast, formData.organizationTypes, formData.organizationType, formData.eventType, directNavigateToSection3, currentSection, state.value])
+
+    toast({
+      title: "Organization Information Saved",
+      description: "Proceeding to the next step.",
+      variant: "default",
+    });
+
+  }, [send, toast]);
 
   const handleSection2Previous = useCallback(() => {
     send({ type: "PREVIOUS" })
@@ -1452,9 +1410,29 @@ const SubmitEventFlow = () => {
     send({ type: "SUBMIT_REPORT" })
   }, [send])
 
+  // Navigation helper – go back to the Overview page for the current draft
+  const router = useRouter();
+  const params = useParams();
+  const draftIdParam = params?.draftId;
+
+  const backToOverview = useCallback(() => {
+    if (draftIdParam) {
+      router.push(`/student-dashboard/submit-event/${draftIdParam}/overview`);
+    } else {
+      // Fallback: just go back one step in browser history
+      router.back();
+    }
+  }, [router, draftIdParam]);
+
   const handleSection5Previous = useCallback(() => {
-    send({ type: "PREVIOUS" })
-  }, [send])
+    // Prefer direct navigation instead of state-machine PREVIOUS which may land on a locked step
+    backToOverview();
+  }, [backToOverview]);
+
+  // Replace all "BACK_TO_OVERVIEW" events with the helper
+  const sendBackToOverview = useCallback(() => {
+    backToOverview();
+  }, [backToOverview]);
 
   // Dialog handlers
   const handleSubmitConfirm = useCallback(async () => {
@@ -1832,6 +1810,7 @@ const SubmitEventFlow = () => {
 
         return (
           <Section3_SchoolEvent
+
             formData={stableFormData}
             handleInputChange={handleFormUpdate}
             handleFileChange={(e) => {
@@ -1851,6 +1830,7 @@ const SubmitEventFlow = () => {
           <>
             {hasValidationErrors && <ValidationErrorsAlert errors={validationErrors} />}
             <Section4_CommunityEvent
+
               formData={formData}
               handleInputChange={(e) => {
                 if (e && e.target) {
@@ -1901,7 +1881,7 @@ const SubmitEventFlow = () => {
             </div>
 
             <Button
-              onClick={() => send({ type: "BACK_TO_OVERVIEW" })}
+              onClick={sendBackToOverview}
               variant="outline"
               className="border-cedo-blue text-cedo-blue hover:bg-cedo-blue/10"
             >
@@ -1927,7 +1907,7 @@ const SubmitEventFlow = () => {
                 Submit Accomplishment Report
               </Button>
               <Button
-                onClick={() => send({ type: "BACK_TO_OVERVIEW" })}
+                onClick={sendBackToOverview}
                 variant="outline"
                 className="border-cedo-blue text-cedo-blue hover:bg-cedo-blue/10"
               >
@@ -1960,7 +1940,7 @@ const SubmitEventFlow = () => {
                 Withdraw Proposal
               </Button>
               <Button
-                onClick={() => send({ type: "BACK_TO_OVERVIEW" })}
+                onClick={sendBackToOverview}
                 variant="outline"
                 className="border-cedo-blue text-cedo-blue hover:bg-cedo-blue/10"
               >
@@ -1974,6 +1954,7 @@ const SubmitEventFlow = () => {
           <>
             {hasValidationErrors && <ValidationErrorsAlert errors={validationErrors} />}
             <Section5_Reporting
+
               formData={formData}
               updateFormData={handleFormUpdate}
               onSubmit={handleSection5Submit}
@@ -2017,7 +1998,7 @@ const SubmitEventFlow = () => {
             </div>
 
             <Button
-              onClick={() => send({ type: "BACK_TO_OVERVIEW" })}
+              onClick={sendBackToOverview}
               variant="outline"
               className="border-cedo-blue text-cedo-blue hover:bg-cedo-blue/10"
             >
@@ -2064,7 +2045,7 @@ const SubmitEventFlow = () => {
                 Edit Report
               </Button>
               <Button
-                onClick={() => send({ type: "BACK_TO_OVERVIEW" })}
+                onClick={sendBackToOverview}
                 variant="outline"
                 className="border-cedo-blue text-cedo-blue hover:bg-cedo-blue/10"
               >

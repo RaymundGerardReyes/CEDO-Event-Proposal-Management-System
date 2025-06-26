@@ -3,513 +3,513 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 221 83% 24%;
-    /* CEDO Navy Blue */
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 45 93% 62%;
-    /* CEDO Gold */
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221 83% 24%;
-
-    --radius: 0.5rem;
-
-    /* Enhanced CEDO Custom Colors */
-    --cedo-blue: 221 83% 24%;
-    --cedo-blue-dark: 221 83% 18%;
-    --cedo-gold: 45 93% 62%;
-    --cedo-gold-dark: 45 93% 52%;
-
-    /* Responsive breakpoints */
-    --breakpoint-xs: 475px;
-    --breakpoint-sm: 640px;
-    --breakpoint-md: 768px;
-    --breakpoint-lg: 1024px;
-    --breakpoint-xl: 1280px;
-    --breakpoint-2xl: 1536px;
-
-    /* Sidebar Colors for light mode */
-    --sidebar-background: 221 83% 24%;
-    --sidebar-foreground: 45 93% 62%;
-    --sidebar-accent: 0 0% 100% / 0.1;
-    --sidebar-accent-foreground: 45 93% 62%;
-    --sidebar-border: 0 0% 100% / 0.1;
-    --sidebar-ring: 45 93% 62%;
-    --sidebar-primary: 45 93% 62%;
-    --sidebar-primary-foreground: 221 83% 24%;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-
-    /* Sidebar Colors for dark mode */
-    --sidebar-background: 221 83% 18%;
-    --sidebar-foreground: 45 93% 62%;
-    --sidebar-accent: 0 0% 100% / 0.1;
-    --sidebar-accent-foreground: 45 93% 62%;
-    --sidebar-border: 0 0% 100% / 0.1;
-    --sidebar-ring: 45 93% 62%;
-    --sidebar-primary: 45 93% 62%;
-    --sidebar-primary-foreground: 221 83% 18%;
-  }
-
-  /* Modern Forced Colors Mode Support (replaces deprecated -ms-high-contrast) */
-  @media (forced-colors: active) {
     :root {
-      --background: Canvas;
-      --foreground: CanvasText;
-      --card: Canvas;
-      --card-foreground: CanvasText;
-      --popover: Canvas;
-      --popover-foreground: CanvasText;
-      --primary: Highlight;
-      --primary-foreground: HighlightText;
-      --secondary: ButtonFace;
-      --secondary-foreground: ButtonText;
-      --muted: Canvas;
-      --muted-foreground: GrayText;
-      --accent: Highlight;
-      --accent-foreground: HighlightText;
-      --destructive: Mark;
-      --destructive-foreground: MarkText;
-      --border: ButtonBorder;
-      --input: Field;
-      --ring: Highlight;
+        --background: 0 0% 100%;
+        --foreground: 222.2 84% 4.9%;
+
+        --card: 0 0% 100%;
+        --card-foreground: 222.2 84% 4.9%;
+
+        --popover: 0 0% 100%;
+        --popover-foreground: 222.2 84% 4.9%;
+
+        --primary: 221 83% 24%;
+        /* CEDO Navy Blue */
+        --primary-foreground: 210 40% 98%;
+
+        --secondary: 45 93% 62%;
+        /* CEDO Gold */
+        --secondary-foreground: 222.2 47.4% 11.2%;
+
+        --muted: 210 40% 96.1%;
+        --muted-foreground: 215.4 16.3% 46.9%;
+
+        --accent: 210 40% 96.1%;
+        --accent-foreground: 222.2 47.4% 11.2%;
+
+        --destructive: 0 84.2% 60.2%;
+        --destructive-foreground: 210 40% 98%;
+
+        --border: 214.3 31.8% 91.4%;
+        --input: 214.3 31.8% 91.4%;
+        --ring: 221 83% 24%;
+
+        --radius: 0.5rem;
+
+        /* Enhanced CEDO Custom Colors */
+        --cedo-blue: 221 83% 24%;
+        --cedo-blue-dark: 221 83% 18%;
+        --cedo-gold: 45 93% 62%;
+        --cedo-gold-dark: 45 93% 52%;
+
+        /* Responsive breakpoints */
+        --breakpoint-xs: 475px;
+        --breakpoint-sm: 640px;
+        --breakpoint-md: 768px;
+        --breakpoint-lg: 1024px;
+        --breakpoint-xl: 1280px;
+        --breakpoint-2xl: 1536px;
+
+        /* Sidebar Colors for light mode */
+        --sidebar-background: 221 83% 24%;
+        --sidebar-foreground: 45 93% 62%;
+        --sidebar-accent: 0 0% 100% / 0.1;
+        --sidebar-accent-foreground: 45 93% 62%;
+        --sidebar-border: 0 0% 100% / 0.1;
+        --sidebar-ring: 45 93% 62%;
+        --sidebar-primary: 45 93% 62%;
+        --sidebar-primary-foreground: 221 83% 24%;
     }
 
-    /* Ensure all interactive elements respect forced colors */
-    button,
-    [role="button"] {
-      forced-color-adjust: none;
-      border: 1px solid ButtonBorder;
+    .dark {
+        --background: 222.2 84% 4.9%;
+        --foreground: 210 40% 98%;
+
+        --card: 222.2 84% 4.9%;
+        --card-foreground: 210 40% 98%;
+
+        --popover: 222.2 84% 4.9%;
+        --popover-foreground: 210 40% 98%;
+
+        --primary: 210 40% 98%;
+        --primary-foreground: 222.2 47.4% 11.2%;
+
+        --secondary: 217.2 32.6% 17.5%;
+        --secondary-foreground: 210 40% 98%;
+
+        --muted: 217.2 32.6% 17.5%;
+        --muted-foreground: 215 20.2% 65.1%;
+
+        --accent: 217.2 32.6% 17.5%;
+        --accent-foreground: 210 40% 98%;
+
+        --destructive: 0 62.8% 30.6%;
+        --destructive-foreground: 210 40% 98%;
+
+        --border: 217.2 32.6% 17.5%;
+        --input: 217.2 32.6% 17.5%;
+        --ring: 212.7 26.8% 83.9%;
+
+        /* Sidebar Colors for dark mode */
+        --sidebar-background: 221 83% 18%;
+        --sidebar-foreground: 45 93% 62%;
+        --sidebar-accent: 0 0% 100% / 0.1;
+        --sidebar-accent-foreground: 45 93% 62%;
+        --sidebar-border: 0 0% 100% / 0.1;
+        --sidebar-ring: 45 93% 62%;
+        --sidebar-primary: 45 93% 62%;
+        --sidebar-primary-foreground: 221 83% 18%;
     }
 
-    /* Fix focus indicators in forced colors mode */
-    *:focus-visible {
-      outline: 2px solid Highlight;
-      outline-offset: 2px;
+    /* Modern Forced Colors Mode Support (replaces deprecated -ms-high-contrast) */
+    @media (forced-colors: active) {
+        :root {
+            --background: Canvas;
+            --foreground: CanvasText;
+            --card: Canvas;
+            --card-foreground: CanvasText;
+            --popover: Canvas;
+            --popover-foreground: CanvasText;
+            --primary: Highlight;
+            --primary-foreground: HighlightText;
+            --secondary: ButtonFace;
+            --secondary-foreground: ButtonText;
+            --muted: Canvas;
+            --muted-foreground: GrayText;
+            --accent: Highlight;
+            --accent-foreground: HighlightText;
+            --destructive: Mark;
+            --destructive-foreground: MarkText;
+            --border: ButtonBorder;
+            --input: Field;
+            --ring: Highlight;
+        }
+
+        /* Ensure all interactive elements respect forced colors */
+        button,
+        [role="button"] {
+            forced-color-adjust: none;
+            border: 1px solid ButtonBorder;
+        }
+
+        /* Fix focus indicators in forced colors mode */
+        *:focus-visible {
+            outline: 2px solid Highlight;
+            outline-offset: 2px;
+        }
+
+        /* Ensure icons and graphics remain visible */
+        svg,
+        img {
+            forced-color-adjust: auto;
+        }
     }
 
-    /* Ensure icons and graphics remain visible */
-    svg,
-    img {
-      forced-color-adjust: auto;
+    * {
+        @apply border-border;
     }
-  }
 
-  * {
-    @apply border-border;
-  }
+    body {
+        @apply bg-background text-foreground;
+        font-feature-settings: "rlig" 1, "calt" 1;
+        /* Fallback font stack for Inter font loading issues */
+        font-family: var(--font-inter), Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
 
-  body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
-    /* Fallback font stack for Inter font loading issues */
-    font-family: var(--font-inter), Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  }
+    /* Prevent layout shifts and overlapping */
+    html {
+        scroll-behavior: smooth;
+    }
 
-  /* Prevent layout shifts and overlapping */
-  html {
-    scroll-behavior: smooth;
-  }
+    body {
+        overflow-x: hidden;
+    }
 
-  body {
-    overflow-x: hidden;
-  }
+    /* Disable browser native password reveal buttons */
+    input[type="password"]::-ms-reveal,
+    input[type="password"]::-ms-clear {
+        display: none;
+    }
 
-  /* Disable browser native password reveal buttons */
-  input[type="password"]::-ms-reveal,
-  input[type="password"]::-ms-clear {
-    display: none;
-  }
+    input[type="password"]::-webkit-credentials-auto-fill-button {
+        display: none !important;
+        visibility: hidden;
+        pointer-events: none;
+        position: absolute;
+        right: 0;
+    }
 
-  input[type="password"]::-webkit-credentials-auto-fill-button {
-    display: none !important;
-    visibility: hidden;
-    pointer-events: none;
-    position: absolute;
-    right: 0;
-  }
-
-  /* Suppress third-party library deprecation warnings */
-  .google-signin-button iframe,
-  [data-google-signin],
-  .g_id_signin {
-    forced-color-adjust: auto;
-  }
+    /* Suppress third-party library deprecation warnings */
+    .google-signin-button iframe,
+    [data-google-signin],
+    .g_id_signin {
+        forced-color-adjust: auto;
+    }
 }
 
 @layer components {
 
-  /* Enhanced CEDO Component Styles with Responsive Design */
-  .cedo-card {
-    @apply border border-gray-100 shadow-sm bg-white rounded-lg;
-    @apply transition-all duration-300 ease-out;
-    @apply hover:shadow-md hover:-translate-y-0.5;
-    @apply p-3 sm:p-4 md:p-6;
-  }
+    /* Enhanced CEDO Component Styles with Responsive Design */
+    .cedo-card {
+        @apply border border-gray-100 shadow-sm bg-white rounded-lg;
+        @apply transition-all duration-300 ease-out;
+        @apply hover:shadow-md hover:-translate-y-0.5;
+        @apply p-3 sm:p-4 md:p-6;
+    }
 
-  .cedo-card-compact {
-    @apply cedo-card p-2 sm:p-3 md:p-4;
-  }
+    .cedo-card-compact {
+        @apply cedo-card p-2 sm:p-3 md:p-4;
+    }
 
-  .cedo-stats-card {
-    @apply flex items-center justify-between;
-    @apply p-3 sm:p-4 md:p-6;
-  }
+    .cedo-stats-card {
+        @apply flex items-center justify-between;
+        @apply p-3 sm:p-4 md:p-6;
+    }
 
-  .cedo-table {
-    @apply w-full border-collapse;
-  }
+    .cedo-table {
+        @apply w-full border-collapse;
+    }
 
-  .cedo-table-header {
-    @apply bg-gray-50;
-  }
+    .cedo-table-header {
+        @apply bg-gray-50;
+    }
 
-  .cedo-table-header th {
-    @apply font-semibold text-cedo-blue;
-    @apply py-2 px-2 sm:py-3 sm:px-4;
-    @apply text-left text-xs sm:text-sm;
-  }
+    .cedo-table-header th {
+        @apply font-semibold text-cedo-blue;
+        @apply py-2 px-2 sm:py-3 sm:px-4;
+        @apply text-left text-xs sm:text-sm;
+    }
 
-  .cedo-table-row {
-    @apply hover:bg-muted/30 transition-colors duration-200;
-  }
+    .cedo-table-row {
+        @apply hover:bg-muted/30 transition-colors duration-200;
+    }
 
-  /* Responsive Typography */
-  .cedo-heading-1 {
-    @apply text-xl font-bold tracking-tight text-cedo-blue;
-    @apply sm:text-2xl md:text-3xl lg:text-4xl;
-  }
+    /* Responsive Typography */
+    .cedo-heading-1 {
+        @apply text-xl font-bold tracking-tight text-cedo-blue;
+        @apply sm:text-2xl md:text-3xl lg:text-4xl;
+    }
 
-  .cedo-heading-2 {
-    @apply text-lg font-semibold text-cedo-blue;
-    @apply sm:text-xl md:text-2xl lg:text-3xl;
-  }
+    .cedo-heading-2 {
+        @apply text-lg font-semibold text-cedo-blue;
+        @apply sm:text-xl md:text-2xl lg:text-3xl;
+    }
 
-  .cedo-heading-3 {
-    @apply text-base font-medium text-cedo-blue;
-    @apply sm:text-lg md:text-xl lg:text-2xl;
-  }
+    .cedo-heading-3 {
+        @apply text-base font-medium text-cedo-blue;
+        @apply sm:text-lg md:text-xl lg:text-2xl;
+    }
 
-  .cedo-header {
-    @apply text-base font-semibold text-cedo-blue;
-    @apply sm:text-lg md:text-xl;
-  }
+    .cedo-header {
+        @apply text-base font-semibold text-cedo-blue;
+        @apply sm:text-lg md:text-xl;
+    }
 
-  .cedo-subheader {
-    @apply text-xs text-muted-foreground;
-    @apply sm:text-sm;
-  }
+    .cedo-subheader {
+        @apply text-xs text-muted-foreground;
+        @apply sm:text-sm;
+    }
 
-  .cedo-badge-primary {
-    @apply border-cedo-blue text-cedo-blue bg-blue-50;
-    @apply text-xs sm:text-sm;
-  }
+    .cedo-badge-primary {
+        @apply border-cedo-blue text-cedo-blue bg-blue-50;
+        @apply text-xs sm:text-sm;
+    }
 
-  /* Enhanced Interactive Elements */
-  .hover-card-effect {
-    @apply transition-all duration-300 ease-out;
-    @apply hover:shadow-lg hover:scale-[1.02] hover:-translate-y-1;
-  }
+    /* Enhanced Interactive Elements */
+    .hover-card-effect {
+        @apply transition-all duration-300 ease-out;
+        @apply hover:shadow-lg hover:scale-[1.02] hover:-translate-y-1;
+    }
 
-  .button-primary {
-    @apply bg-cedo-blue hover:bg-cedo-blue/90 text-white;
-    @apply transition-all duration-300;
-    @apply text-xs px-3 py-2 sm:text-sm sm:px-4 sm:py-2.5;
-  }
+    .button-primary {
+        @apply bg-cedo-blue hover:bg-cedo-blue/90 text-white;
+        @apply transition-all duration-300;
+        @apply text-xs px-3 py-2 sm:text-sm sm:px-4 sm:py-2.5;
+    }
 
-  .button-secondary {
-    @apply bg-cedo-gold hover:bg-cedo-gold/90 text-cedo-blue;
-    @apply transition-all duration-300;
-    @apply text-xs px-3 py-2 sm:text-sm sm:px-4 sm:py-2.5;
-  }
+    .button-secondary {
+        @apply bg-cedo-gold hover:bg-cedo-gold/90 text-cedo-blue;
+        @apply transition-all duration-300;
+        @apply text-xs px-3 py-2 sm:text-sm sm:px-4 sm:py-2.5;
+    }
 
-  /* Responsive Container System */
-  .responsive-container {
-    @apply w-full mx-auto;
-    @apply px-3 sm:px-4 md:px-6 lg:px-8;
-    @apply max-w-7xl;
-  }
+    /* Responsive Container System */
+    .responsive-container {
+        @apply w-full mx-auto;
+        @apply px-3 sm:px-4 md:px-6 lg:px-8;
+        @apply max-w-7xl;
+    }
 
-  .responsive-padding {
-    @apply p-3 sm:p-4 md:p-6;
-  }
+    .responsive-padding {
+        @apply p-3 sm:p-4 md:p-6;
+    }
 
-  .responsive-gap {
-    @apply gap-2 sm:gap-3 md:gap-4;
-  }
+    .responsive-gap {
+        @apply gap-2 sm:gap-3 md:gap-4;
+    }
 
-  /* Layout fix classes to prevent overlapping */
-  .layout-safe {
-    @apply relative z-10;
-  }
+    /* Layout fix classes to prevent overlapping */
+    .layout-safe {
+        @apply relative z-10;
+    }
 
-  .sidebar-safe-margin {
-    @apply ml-0 md:ml-64 lg:ml-72;
-    transition: margin-left 300ms ease-in-out;
-  }
+    .sidebar-safe-margin {
+        @apply ml-0 md:ml-64 lg:ml-72;
+        transition: margin-left 300ms ease-in-out;
+    }
 
-  .sidebar-collapsed-margin {
-    @apply ml-0 md:ml-16 lg:ml-20;
-    transition: margin-left 300ms ease-in-out;
-  }
+    .sidebar-collapsed-margin {
+        @apply ml-0 md:ml-16 lg:ml-20;
+        transition: margin-left 300ms ease-in-out;
+    }
 }
 
 @layer utilities {
 
-  /* Enhanced Color Utilities */
-  .text-cedo-blue {
-    color: hsl(var(--cedo-blue));
-  }
+    /* Enhanced Color Utilities */
+    .text-cedo-blue {
+        color: hsl(var(--cedo-blue));
+    }
 
-  .text-cedo-gold {
-    color: hsl(var(--cedo-gold));
-  }
+    .text-cedo-gold {
+        color: hsl(var(--cedo-gold));
+    }
 
-  .bg-cedo-blue {
-    background-color: hsl(var(--cedo-blue));
-  }
+    .bg-cedo-blue {
+        background-color: hsl(var(--cedo-blue));
+    }
 
-  .bg-cedo-gold {
-    background-color: hsl(var(--cedo-gold));
-  }
+    .bg-cedo-gold {
+        background-color: hsl(var(--cedo-gold));
+    }
 
-  .border-cedo-blue {
-    border-color: hsl(var(--cedo-blue));
-  }
+    .border-cedo-blue {
+        border-color: hsl(var(--cedo-blue));
+    }
 
-  .border-cedo-gold {
-    border-color: hsl(var(--cedo-gold));
-  }
+    .border-cedo-gold {
+        border-color: hsl(var(--cedo-gold));
+    }
 
-  /* Enhanced Animation Classes */
-  .fade-in {
-    animation: fadeIn 0.5s ease-out forwards;
-  }
+    /* Enhanced Animation Classes */
+    .fade-in {
+        animation: fadeIn 0.5s ease-out forwards;
+    }
 
-  .scale-in {
-    animation: scaleIn 0.3s ease-out forwards;
-  }
+    .scale-in {
+        animation: scaleIn 0.3s ease-out forwards;
+    }
 
-  .slide-in {
-    animation: slideIn 0.3s ease-out forwards;
-  }
+    .slide-in {
+        animation: slideIn 0.3s ease-out forwards;
+    }
 
-  .custom-slide-in {
-    animation: slideIn 0.3s ease-out forwards;
-  }
+    .custom-slide-in {
+        animation: slideIn 0.3s ease-out forwards;
+    }
 
-  .animate-slide-in {
-    animation: slideInFromRight 0.5s ease-out forwards;
-  }
+    .animate-slide-in {
+        animation: slideInFromRight 0.5s ease-out forwards;
+    }
 
-  /* Performance optimizations */
-  .gpu-accelerated {
-    transform: translateZ(0);
-    will-change: transform;
-  }
+    /* Performance optimizations */
+    .gpu-accelerated {
+        transform: translateZ(0);
+        will-change: transform;
+    }
 
-  /* Responsive utilities */
-  .hide-mobile {
-    @apply hidden sm:block;
-  }
+    /* Responsive utilities */
+    .hide-mobile {
+        @apply hidden sm:block;
+    }
 
-  .show-mobile {
-    @apply block sm:hidden;
-  }
+    .show-mobile {
+        @apply block sm:hidden;
+    }
 
-  .responsive-flex {
-    @apply flex flex-col sm:flex-row;
-  }
+    .responsive-flex {
+        @apply flex flex-col sm:flex-row;
+    }
 
-  .responsive-text {
-    @apply text-xs sm:text-sm md:text-base;
-  }
+    .responsive-text {
+        @apply text-xs sm:text-sm md:text-base;
+    }
 
-  /* Z-index management to prevent overlapping */
-  .z-sidebar {
-    z-index: 40;
-  }
+    /* Z-index management to prevent overlapping */
+    .z-sidebar {
+        z-index: 40;
+    }
 
-  .z-header {
-    z-index: 30;
-  }
+    .z-header {
+        z-index: 30;
+    }
 
-  .z-content {
-    z-index: 10;
-  }
+    .z-content {
+        z-index: 10;
+    }
 
-  .z-modal {
-    z-index: 50;
-  }
+    .z-modal {
+        z-index: 50;
+    }
 
-  .z-toast {
-    z-index: 60;
-  }
+    .z-toast {
+        z-index: 60;
+    }
 
-  /* Text overflow utilities */
-  .line-clamp-1 {
-    display: -webkit-box;
-    -webkit-line-clamp: 1;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
+    /* Text overflow utilities */
+    .line-clamp-1 {
+        display: -webkit-box;
+        -webkit-line-clamp: 1;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
 
-  .line-clamp-2 {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
+    .line-clamp-2 {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
 }
 
 /* Enhanced Keyframe Animations */
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
 
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 @keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
 
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 
 @keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
 
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 @keyframes slideInFromRight {
-  from {
-    opacity: 0;
-    transform: translateX(100%);
-  }
+    from {
+        opacity: 0;
+        transform: translateX(100%);
+    }
 
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }
 
 /* Enhanced scrollbar styling */
 .scrollbar-thin {
-  scrollbar-width: thin;
-  scrollbar-color: rgb(203 213 225) transparent;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(203 213 225) transparent;
 }
 
 .scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
+    width: 6px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
+    background: transparent;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: rgb(203 213 225);
-  border-radius: 3px;
+    background-color: rgb(203 213 225);
+    border-radius: 3px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background-color: rgb(148 163 184);
+    background-color: rgb(148 163 184);
 }
 
 /* Print Styles */
 @media print {
-  .no-print {
-    display: none !important;
-  }
+    .no-print {
+        display: none !important;
+    }
 }
 
 /* Media queries for responsive behavior */
 @media (max-width: 640px) {
-  .cedo-stats-card {
-    @apply p-3;
-  }
+    .cedo-stats-card {
+        @apply p-3;
+    }
 
-  .cedo-header {
-    @apply text-sm;
-  }
+    .cedo-header {
+        @apply text-sm;
+    }
 }
 
 @media (min-width: 768px) {
-  .sidebar-safe-margin {
-    margin-left: 18rem;
-    /* 288px */
-  }
+    .sidebar-safe-margin {
+        margin-left: 18rem;
+        /* 288px */
+    }
 
-  .sidebar-collapsed-margin {
-    margin-left: 6rem;
-    /* 64px */
-  }
+    .sidebar-collapsed-margin {
+        margin-left: 6rem;
+        /* 64px */
+    }
 }

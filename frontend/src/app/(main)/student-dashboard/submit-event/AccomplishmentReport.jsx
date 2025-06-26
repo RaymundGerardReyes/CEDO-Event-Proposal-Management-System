@@ -4,8 +4,9 @@ import StatusBadge from "@/components/dashboard/student/common/StatusBadge";
 import { Button } from "@/components/dashboard/student/ui/button";
 import { TabsContent } from "@/components/dashboard/student/ui/tabs";
 import { AlertTriangle, FileText, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import Section5_Reporting from "./Section5_Reporting";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Section5_Reporting from "./[draftId]/reporting/page";
 
 export default function AccomplishmentReport({ setActiveTab }) {
     /* ------------------------------------------------------------
@@ -95,9 +96,17 @@ export default function AccomplishmentReport({ setActiveTab }) {
     const [toDate, setToDate] = useState("");
 
     const fetchApprovedEvents = useCallback(async () => {
-        const role = userProfileData?.role || 'student';
-        const email = (role === 'student' || role === 'partner') ?
-            (userProfileData?.contactEmail || (typeof localStorage !== 'undefined' && localStorage.getItem('cedo_user_email'))) : null;
+        const userId = userProfileData?.id;
+        const userRole = userProfileData?.role || 'student';
+
+        // Do not fetch if the user is a student/partner but we don't have their ID yet.
+        // This prevents fetching all events by mistake.
+        if ((userRole === 'student' || userRole === 'partner') && !userId) {
+            console.warn("User ID not found in profile data. Skipping event fetch to prevent loading incorrect data.");
+            setIsLoadingEvents(false);
+            setApprovedEvents([]); // Ensure the list is empty
+            return;
+        }
 
         setIsLoadingEvents(true);
         setEventsError(null);
@@ -107,10 +116,15 @@ export default function AccomplishmentReport({ setActiveTab }) {
                 process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
             const queryParams = new URLSearchParams();
-            if (email) queryParams.append('email', email);
+
+            // Admins see all events. Other roles are filtered by their User ID.
+            if (userRole !== 'admin' && userId) {
+                queryParams.append('userId', userId);
+            }
             queryParams.append('status', 'approved,pending');
 
             const url = `${backend}/api/events/approved?${queryParams.toString()}`;
+            console.log(`✅ Fetching events for user ${userId || '(admin)'} from URL: ${url}`);
 
             const res = await fetch(url, {
                 method: "GET",
@@ -167,13 +181,37 @@ export default function AccomplishmentReport({ setActiveTab }) {
      * ----------------------------------------------------------*/
 
     const [selectedEventForReport, setSelectedEventForReport] = useState(null);
-    const [isLoadingReport, setIsLoadingReport] = useState(false);
-    const [reportData, setReportData] = useState(null);
-    const [reportError, setReportError] = useState(null);
 
     const updateReportData = useCallback((updates) => {
-        setReportData((prev) => ({ ...prev, ...updates }));
+        setSelectedEventForReport((prev) => ({ ...prev, ...updates }));
     }, []);
+
+    // 🔧 DATA MAPPING: Create a correctly structured formData object for the Section5 component.
+    const reportFormData = useMemo(() => {
+        if (!selectedEventForReport) return null;
+
+        // Maps fields from the `event` object to the structure Section5 expects.
+        return {
+            ...selectedEventForReport,
+            id: selectedEventForReport.id,
+            proposalId: selectedEventForReport.id,
+            organizationName: selectedEventForReport.organization_name,
+            contactEmail: selectedEventForReport.contact_email,
+            contactName: selectedEventForReport.contact_name,
+            organizationType: selectedEventForReport.organization_type,
+            organizationTypes: [selectedEventForReport.organization_type],
+            schoolEventName: selectedEventForReport.organization_type === 'school-based' ? selectedEventForReport.event_name : '',
+            communityEventName: selectedEventForReport.organization_type === 'community-based' ? selectedEventForReport.event_name : '',
+            schoolVenue: selectedEventForReport.organization_type === 'school-based' ? selectedEventForReport.event_venue : '',
+            communityVenue: selectedEventForReport.organization_type === 'community-based' ? selectedEventForReport.event_venue : '',
+            schoolStartDate: selectedEventForReport.organization_type === 'school-based' ? selectedEventForReport.event_start_date : '',
+            communityStartDate: selectedEventForReport.organization_type === 'community-based' ? selectedEventForReport.event_start_date : '',
+            schoolEndDate: selectedEventForReport.organization_type === 'school-based' ? selectedEventForReport.event_end_date : '',
+            communityEndDate: selectedEventForReport.organization_type === 'community-based' ? selectedEventForReport.event_end_date : '',
+            event_status: selectedEventForReport.event_status, // Pass through event_status
+            proposalStatus: selectedEventForReport.proposal_status,
+        };
+    }, [selectedEventForReport]);
 
     // 🆕 Helper to reset filters
     const resetFilters = () => {
@@ -197,65 +235,8 @@ export default function AccomplishmentReport({ setActiveTab }) {
         return matchesSearch && fromOk && toOk;
     });
 
-    const fetchReportData = useCallback(
-        async (event) => {
-            if (!event?.id) return;
-            setIsLoadingReport(true);
-            setReportError(null);
-
-            try {
-                const backend =
-                    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-                const resp = await fetch(`${backend}/api/reports/${event.id}`, {
-                    method: "GET",
-                    headers: { "Content-Type": "application/json" },
-                });
-
-                if (resp.ok) {
-                    const data = await resp.json();
-                    setReportData(data);
-                } else if (resp.status === 404) {
-                    // no existing report, create default skeleton
-                    setReportData({ isNewReport: true, ...event });
-                } else {
-                    throw new Error(`Report fetch failed: ${resp.status}`);
-                }
-            } catch (err) {
-                console.error("❌ Error fetching report:", err);
-                setReportError(err.message);
-            } finally {
-                setIsLoadingReport(false);
-            }
-        },
-        []
-    );
-
     const handleSelectEventForReport = (event) => {
         setSelectedEventForReport(event);
-        fetchReportData(event);
-    };
-
-    const handleReportSubmit = async (submissionData) => {
-        if (!selectedEventForReport) return;
-        try {
-            const backend =
-                process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-            const resp = await fetch(`${backend}/api/reports/${selectedEventForReport.id}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(submissionData),
-            });
-            if (resp.ok) {
-                fetchReportData(selectedEventForReport);
-                // Refresh events list to update report_status
-                fetchApprovedEvents();
-            } else {
-                throw new Error(`Report submit failed: ${resp.status}`);
-            }
-        } catch (err) {
-            console.error("❌ Report submission error:", err);
-            throw err;
-        }
     };
 
     /* ------------------------------------------------------------
@@ -413,13 +394,22 @@ export default function AccomplishmentReport({ setActiveTab }) {
                                                 Create Report
                                             </Button>
                                         ) : (
-                                            <Button
-                                                onClick={() => handleSelectEventForReport(event)}
-                                                variant="outline"
-                                                className="w-full sm:w-auto"
-                                            >
-                                                View Report
-                                            </Button>
+                                            <div className="flex flex-col gap-2">
+                                                <Link
+                                                    href={`/student-dashboard/reports/${event.id}`}
+                                                    className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                                >
+                                                    View Report
+                                                </Link>
+                                                <Button
+                                                    onClick={() => handleSelectEventForReport(event)}
+                                                    variant="outline"
+                                                    className="w-full sm:w-auto"
+                                                    size="sm"
+                                                >
+                                                    Edit Report
+                                                </Button>
+                                            </div>
                                         )}
                                         <div className="text-xs text-center text-muted-foreground">
                                             ID: {event.id}
@@ -469,55 +459,17 @@ export default function AccomplishmentReport({ setActiveTab }) {
                         </p>
                     </div>
 
-                    {/* Loading state for specific report */}
-                    {isLoadingReport && (
-                        <div className="bg-white border rounded-lg p-6 text-center">
-                            <div className="mx-auto w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mb-4">
-                                <RefreshCw className="h-6 w-6 text-blue-500 animate-spin" />
-                            </div>
-                            <h3 className="text-lg font-medium mb-2">Loading Report Data</h3>
-                            <p className="text-muted-foreground">
-                                Fetching report details for {selectedEventForReport.event_name}...
-                            </p>
-                        </div>
-                    )}
-
-                    {/* Report interface */}
-                    {!isLoadingReport && reportData && (
+                    {/* Render the form only when we have the mapped data */}
+                    {reportFormData && (
                         <Section5_Reporting
-                            formData={{
-                                ...reportData,
-                                ...selectedEventForReport,
-                                id: selectedEventForReport.id,
-                                proposalId: selectedEventForReport.id,
-                                organizationName: selectedEventForReport.organization_name,
-                                contactEmail: selectedEventForReport.contact_email,
-                                contactName: selectedEventForReport.contact_name,
-                                organizationType: selectedEventForReport.organization_type,
-                                organizationTypes: [selectedEventForReport.organization_type],
-                                // Map event fields to form structure
-                                schoolEventName: selectedEventForReport.organization_type === 'school-based' ? selectedEventForReport.event_name : '',
-                                communityEventName: selectedEventForReport.organization_type === 'community-based' ? selectedEventForReport.event_name : '',
-                                schoolVenue: selectedEventForReport.organization_type === 'school-based' ? selectedEventForReport.event_venue : '',
-                                communityVenue: selectedEventForReport.organization_type === 'community-based' ? selectedEventForReport.event_venue : '',
-                                schoolStartDate: selectedEventForReport.organization_type === 'school-based' ? selectedEventForReport.event_start_date : '',
-                                communityStartDate: selectedEventForReport.organization_type === 'community-based' ? selectedEventForReport.event_start_date : '',
-                                schoolEndDate: selectedEventForReport.organization_type === 'school-based' ? selectedEventForReport.event_end_date : '',
-                                communityEndDate: selectedEventForReport.organization_type === 'community-based' ? selectedEventForReport.event_end_date : '',
-                                eventStatus: selectedEventForReport.event_status,
-                                proposalStatus: selectedEventForReport.proposal_status
-                            }}
+                            formData={reportFormData}
                             updateFormData={updateReportData}
-                            onSubmit={handleReportSubmit}
-                            onPrevious={() => setSelectedEventForReport(null)}
-                            disabled={selectedEventForReport.report_status === "approved"}
-                            sectionsComplete={{
-                                section1: true,
-                                section2: true,
-                                section3: true,
-                                section4: true,
-                                section5: false
+                            onSubmit={() => {
+                                fetchApprovedEvents(); // Refresh list on success
+                                setSelectedEventForReport(null); // Go back to list
                             }}
+                            onPrevious={() => setSelectedEventForReport(null)}
+                            disabled={false} // The Section5 component handles its own disabled logic
                         />
                     )}
                 </div>

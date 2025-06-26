@@ -82,8 +82,6 @@ playwright.config.js
 .prettierignore
 .stylelintrc*
 
-# Package manager lock files (copy explicitly in Dockerfile)
-package-lock.json
 yarn.lock
 pnpm-lock.yaml
 

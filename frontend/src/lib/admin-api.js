@@ -7,7 +7,7 @@ const adminApi = {
       method,
       url,
       headers: {
-        'x-api-key': process.env.NEXT_PUBLIC_ADMIN_API_KEY
+        'x-api-key': process.env.ADMIN_API_KEY
       }
     };
 

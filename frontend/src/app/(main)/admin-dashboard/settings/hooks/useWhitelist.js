@@ -1,3 +1,4 @@
+'use client';
 // frontend/src/app/(main)/admin-dashboard/settings/hooks/useWhitelist.js
 
 /**
@@ -16,9 +17,9 @@
  * - Comprehensive error handling and recovery
  */
 
-import { useToast } from '@/components/ui/use-toast';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { userApi } from '../api/user-api';
+import { useToast } from '@/hooks/use-toast';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import userApi from '../api/user-api';
 
 // User roles configuration
 export const USER_ROLES = ["student", "head_admin", "manager", "partner", "reviewer"];
@@ -75,6 +76,12 @@ export const useWhitelist = (authUser) => {
     });
     const [isSaving, setIsSaving] = useState(false);
 
+    // Create a stable toast reference to prevent infinite re-renders
+    const toastRef = useRef(toast);
+    useEffect(() => {
+        toastRef.current = toast;
+    }, [toast]);
+
     /**
      * Load all users from the API
      */
@@ -105,7 +112,9 @@ export const useWhitelist = (authUser) => {
                 organization: user.organization || '',
                 addedAt: user.created_at || new Date().toISOString(),
                 addedBy: authUser?.email || 'system',
-                is_approved: user.is_approved
+                is_approved: user.is_approved,
+                avatarUrl: user.avatarUrl || user.profile_picture_url,
+                authProvider: user.authProvider
             }));
 
             setUsers(transformedUsers);
@@ -115,7 +124,7 @@ export const useWhitelist = (authUser) => {
             console.error('❌ [useWhitelist] Failed to load users:', error);
             setError(error.message || 'Failed to load users');
 
-            toast({
+            toastRef.current({
                 title: "Error Loading Users",
                 description: error.message || "Failed to load whitelisted users.",
                 variant: "destructive",
@@ -124,7 +133,7 @@ export const useWhitelist = (authUser) => {
             setIsLoading(false);
             setIsRefreshing(false);
         }
-    }, [searchTerm, selectedRole, sortConfig, authUser?.email, toast]);
+    }, [searchTerm, selectedRole, sortConfig, authUser?.email]);
 
     /**
      * Initial load on mount
@@ -236,21 +245,21 @@ export const useWhitelist = (authUser) => {
             try {
                 await navigator.clipboard.writeText(generatedPassword);
                 setPasswordCopied(true);
-                toast({
+                toastRef.current({
                     title: "Password Copied",
                     description: "The generated password has been copied to your clipboard.",
                     variant: "default",
                 });
                 setTimeout(() => setPasswordCopied(false), 3000);
             } catch (error) {
-                toast({
+                toastRef.current({
                     title: "Copy Failed",
                     description: "Failed to copy password to clipboard. Please copy manually.",
                     variant: "destructive",
                 });
             }
         }
-    }, [generatedPassword, toast]);
+    }, [generatedPassword, toastRef]);
 
     /**
      * Handle role change and auto-generate password for managers
@@ -325,7 +334,7 @@ export const useWhitelist = (authUser) => {
             // Clear success state after 3 seconds
             setTimeout(() => setAddUserSuccess(false), 3000);
 
-            toast({
+            toastRef.current({
                 title: "✅ Added Successfully",
                 description: newUser.role === "manager"
                     ? `${newUser.name} (${newUser.email}) has been added with a generated password and successfully added to the whitelist.`
@@ -338,7 +347,7 @@ export const useWhitelist = (authUser) => {
 
         } catch (error) {
             console.error('❌ [useWhitelist] Failed to add user:', error);
-            toast({
+            toastRef.current({
                 title: "Error",
                 description: error.message || "Failed to add user to whitelist.",
                 variant: "destructive",
@@ -346,7 +355,7 @@ export const useWhitelist = (authUser) => {
         } finally {
             setIsAddingUser(false);
         }
-    }, [newUser, validateForm, generatedPassword, authUser, toast]);
+    }, [newUser, validateForm, generatedPassword, authUser, toastRef]);
 
     /**
      * Initiate user deletion with confirmation
@@ -376,7 +385,7 @@ export const useWhitelist = (authUser) => {
             // Remove from local state (optimistic update)
             setUsers(prev => prev.filter(user => user.id !== deleteConfirmation.user.id));
 
-            toast({
+            toastRef.current({
                 title: "User Removed",
                 description: `${deleteConfirmation.user.name} (${deleteConfirmation.user.email}) has been removed from the whitelist.`,
                 variant: "default",
@@ -386,7 +395,7 @@ export const useWhitelist = (authUser) => {
 
         } catch (error) {
             console.error('❌ [useWhitelist] Failed to delete user:', error);
-            toast({
+            toastRef.current({
                 title: "Error",
                 description: error.message || "Failed to remove user from whitelist.",
                 variant: "destructive",
@@ -398,7 +407,7 @@ export const useWhitelist = (authUser) => {
                 isDeleting: false
             });
         }
-    }, [deleteConfirmation.user, toast]);
+    }, [deleteConfirmation.user, toastRef]);
 
     /**
      * Cancel user deletion
@@ -462,7 +471,7 @@ export const useWhitelist = (authUser) => {
                     : user
             ));
 
-            toast({
+            toastRef.current({
                 title: "User Updated",
                 description: `Successfully updated ${field} for user.`,
                 variant: "default",
@@ -472,7 +481,7 @@ export const useWhitelist = (authUser) => {
 
         } catch (error) {
             console.error('❌ [useWhitelist] Failed to save edit:', error);
-            toast({
+            toastRef.current({
                 title: "Update Failed",
                 description: error.message || "Failed to update user information.",
                 variant: "destructive",
@@ -481,7 +490,7 @@ export const useWhitelist = (authUser) => {
             setIsSaving(false);
             cancelEditing();
         }
-    }, [editingCell.originalValue, cancelEditing, toast]);
+    }, [editingCell.originalValue, cancelEditing, toastRef]);
 
     /**
      * Clear all filters and search
@@ -514,12 +523,12 @@ export const useWhitelist = (authUser) => {
         downloadAnchorNode.click();
         downloadAnchorNode.remove();
 
-        toast({
+        toastRef.current({
             title: "Export Complete",
             description: `Exported ${filteredUsers.length} users to whitelist.json`,
             variant: "default",
         });
-    }, [filteredUsers, toast]);
+    }, [filteredUsers, toastRef]);
 
     /**
      * Refresh users data

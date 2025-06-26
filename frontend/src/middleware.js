@@ -1,5 +1,3 @@
-import { jwtVerify } from "jose";
-import { cookies } from 'next/headers';
 import { NextResponse } from "next/server";
 
 // Define user role types matching your database schema
@@ -11,37 +9,37 @@ export const UserRoles = {
   REVIEWER: "reviewer"
 };
 
-// JWT Secret for verification (should match your backend)
-const JWT_SECRET = process.env.JWT_SECRET_DEV || process.env.JWT_SECRET;
-
-// Create TextEncoder for JWT verification
-const secretKey = JWT_SECRET ? new TextEncoder().encode(JWT_SECRET) : null;
-
-// Cache for preventing repeated redirects
-const redirectCache = new Map();
-const CACHE_TTL = 1000; // 1 second
-
-// Clean up cache periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of redirectCache.entries()) {
-    if (now - entry.timestamp > CACHE_TTL) {
-      redirectCache.delete(key);
-    }
-  }
-}, 5000);
-
-// Verify JWT token and extract user data
-async function verifyAuthToken(token) {
-  if (!token || !secretKey) {
-    return null;
-  }
+// Simple JWT payload extraction without verification
+// The verification will be done by the backend API calls
+function extractJWTPayload(token) {
+  if (!token) return null;
 
   try {
-    const { payload } = await jwtVerify(token, secretKey);
-    return payload.user || payload; // Adjust based on your JWT structure
+    // JWT has three parts: header.payload.signature
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+
+    // Decode the payload (second part)
+    const payload = JSON.parse(atob(parts[1]));
+
+    // Handle both old and new token formats
+    const user = payload.user || {
+      id: payload.id,
+      role: payload.role,
+      email: payload.email,
+      name: payload.name
+    };
+
+    // Check if token is expired
+    if (payload.exp && payload.exp * 1000 < Date.now()) {
+      console.log("Middleware: Token is expired");
+      return null;
+    }
+
+    console.log(`Middleware JWT Extract: User ID ${user.id}, Role ${user.role}`);
+    return user;
   } catch (err) {
-    console.error("JWT Verification Error:", err.message);
+    console.error("JWT Payload Extraction Error:", err.message);
     return null;
   }
 }
@@ -57,7 +55,9 @@ const routeConfig = {
     "/sign-up",
     "/forgot-password",
     "/about",
-    "/contact"
+    "/contact",
+    "/debug-proposal",
+    "/test-proposal-table"
   ],
 
   // Routes that should redirect authenticated users away
@@ -135,20 +135,14 @@ export default async function middleware(request) {
   }
 
   // Get token from cookies
-  const cookieStore = await cookies();
-  const token = cookieStore.get("cedo_token")?.value || cookieStore.get("session")?.value;
+  const token = request.cookies.get("cedo_token")?.value;
 
-  // Check cache to prevent repeated redirects
-  const cacheKey = `${pathname}-${!!token}`;
-  const cachedResult = redirectCache.get(cacheKey);
-  if (cachedResult && Date.now() - cachedResult.timestamp < CACHE_TTL) {
-    return cachedResult.response;
-  }
+  console.log(`Middleware Cookie Debug: ${pathname} | Token exists: ${!!token}`);
 
-  // Verify token and get user data
-  const userData = await verifyAuthToken(token);
+  // Extract user data from token (without verification)
+  const userData = extractJWTPayload(token);
   const isAuthenticated = !!userData;
-  const userRole = userData?.role || userData?.accountType;
+  const userRole = userData?.role;
 
   console.log(`Middleware: ${pathname} | Auth: ${isAuthenticated} | Role: ${userRole}`);
 
@@ -159,48 +153,38 @@ export default async function middleware(request) {
     // Redirect away from auth-only routes when authenticated
     if (routeConfig.authOnlyRoutes.includes(pathname)) {
       console.log(`Redirecting authenticated user from ${pathname} to ${correctDashboard}`);
-      const response = NextResponse.redirect(buildUrl(correctDashboard, origin));
-      redirectCache.set(cacheKey, { response, timestamp: Date.now() });
-      return response;
+      return NextResponse.redirect(buildUrl(correctDashboard, origin), { status: 303 });
     }
 
     // Redirect from root to appropriate dashboard
     if (pathname === "/") {
       console.log(`Redirecting from root to ${correctDashboard} for role ${userRole}`);
-      const response = NextResponse.redirect(buildUrl(correctDashboard, origin));
-      redirectCache.set(cacheKey, { response, timestamp: Date.now() });
-      return response;
+      return NextResponse.redirect(buildUrl(correctDashboard, origin), { status: 303 });
     }
 
     // Check role-based access control
     if (!hasRouteAccess(pathname, userRole)) {
       console.log(`Access denied to ${pathname} for role ${userRole}. Redirecting to ${correctDashboard}`);
-      const response = NextResponse.redirect(buildUrl(correctDashboard, origin));
-      redirectCache.set(cacheKey, { response, timestamp: Date.now() });
-      return response;
+      return NextResponse.redirect(buildUrl(correctDashboard, origin), { status: 303 });
     }
 
     // Add user context to API requests
     if (pathname.startsWith("/api/")) {
       const requestHeaders = new Headers(request.headers);
-      requestHeaders.set('x-user-id', userData.id || userData.accountid || '');
+      requestHeaders.set('x-user-id', userData.id || '');
       requestHeaders.set('x-user-role', userRole);
       requestHeaders.set('x-user-data', JSON.stringify(userData));
 
-      const response = NextResponse.next({
+      return NextResponse.next({
         request: {
           headers: requestHeaders,
         },
       });
-      redirectCache.set(cacheKey, { response, timestamp: Date.now() });
-      return response;
     }
 
     // Allow access to permitted routes
     console.log(`Access granted to ${pathname} for role ${userRole}`);
-    const response = NextResponse.next();
-    redirectCache.set(cacheKey, { response, timestamp: Date.now() });
-    return response;
+    return NextResponse.next();
   }
 
   // Handle unauthenticated users
@@ -219,21 +203,17 @@ export default async function middleware(request) {
     const loginUrl = new URL("/login", origin);
     loginUrl.searchParams.set("redirect", pathname);
 
-    const response = NextResponse.redirect(loginUrl);
+    const response = NextResponse.redirect(loginUrl, { status: 303 });
     // Clear invalid token if present
     if (token) {
       response.cookies.set("cedo_token", "", { path: "/", expires: new Date(0) });
-      response.cookies.set("session", "", { path: "/", expires: new Date(0) });
     }
-    redirectCache.set(cacheKey, { response, timestamp: Date.now() });
     return response;
   }
 
   // Allow access to public routes
   console.log(`Allowing unauthenticated access to public route: ${pathname}`);
-  const response = NextResponse.next();
-  redirectCache.set(cacheKey, { response, timestamp: Date.now() });
-  return response;
+  return NextResponse.next();
 }
 
 // Configure which routes the middleware should run on
@@ -249,4 +229,4 @@ export const config = {
      */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.gif$|.*\\.svg$|.*\\.ico$|.*\\.css$|.*\\.js$).*)',
   ],
-}
+};

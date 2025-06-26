@@ -1,43 +1,17 @@
-/**
- * Authentication Context Provider - Simplified for COOP Compatibility
- * 
- * Implements Google OAuth 2.0 and traditional email/password authentication
- * with simplified state management and COOP-compatible Google Sign-In.
- * 
- * Features:
- * - Google Sign-In with simplified Identity Services integration
- * - Email/password authentication with reCAPTCHA
- * - Automatic token refresh and session management
- * - Role-based access control and redirects
- * - Simplified error handling and user feedback
- * 
- * @see https://developers.google.com/identity/gsi/web
- * @see https://medium.com/@aswathyraj/google-oauth-in-node-js-express-and-react-js-6cb2e23e82e5
- * 
- * @module contexts/auth-context
- */
-
 // src/contexts/auth-context.js
 "use client";
 
 import { useToast } from "@/components/ui/use-toast";
-import { cleanupGoogleAuth, renderGoogleSignInButton } from "@/lib/google-auth";
 import axios from "axios";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
-// API Configuration
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5050/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
-/**
- * Session Management Configuration
- */
-const SESSION_TIMEOUT_MINUTES = parseInt(process.env.NEXT_PUBLIC_SESSION_TIMEOUT_MINUTES) || 30;
-const SESSION_TIMEOUT_DURATION = SESSION_TIMEOUT_MINUTES * 60 * 1000;
+// Session timeout: NEXT_PUBLIC_SESSION_TIMEOUT_MINUTES guaranteed > 0 by next.config.js
+// Read from .env as SESSION_TIMEOUT_MINUTES=30, mapped via next.config.js
+const SESSION_TIMEOUT_DURATION = process.env.NEXT_PUBLIC_SESSION_TIMEOUT_MINUTES * 60 * 1000;
 
-/**
- * Axios instance for API communication
- */
 const internalApi = axios.create({
   baseURL: API_URL,
   headers: {
@@ -46,56 +20,33 @@ const internalApi = axios.create({
   },
 });
 
-/**
- * User Role Constants
- */
 export const ROLES = {
   HEAD_ADMIN: 'head_admin',
-  STUDENT: 'student',
   MANAGER: 'manager',
+  STUDENT: 'student',
   PARTNER: 'partner',
   REVIEWER: 'reviewer',
 };
 
-/**
- * Authentication Context
- */
-const AuthContext = createContext(undefined);
+const AuthContext = createContext(null);
 
-/**
- * Global state variables for session management
- */
 let sessionTimeoutId;
+let gsiClientInitialized = false;
 
-/**
- * Authentication Provider Component
- */
 export function AuthProvider({ children }) {
-  // Next.js hooks for navigation and routing
   const router = useRouter();
   const pathname = usePathname();
   const currentSearchParamsHook = useSearchParams();
   const { toast } = useToast();
 
-  // Authentication state management
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Google Sign-In specific state (simplified)
-  const [isGoogleAuthProcessing, setIsGoogleAuthProcessing] = useState(false);
+  // For Google Sign-In promise management
+  const currentGoogleSignInPromiseActions = useRef(null);
 
-  // Reference for stable callback access
-  const authStateRef = useRef({ user: null, isLoading: true });
-
-  // Update ref when state changes
-  useEffect(() => {
-    authStateRef.current = { user, isLoading };
-  }, [user, isLoading]);
-
-  /**
-   * Display error messages to user
-   */
+  // Helper function to show user-friendly error messages
   const showErrorToast = useCallback((title, description, variant = "destructive") => {
     toast({
       title,
@@ -105,9 +56,7 @@ export function AuthProvider({ children }) {
     });
   }, [toast]);
 
-  /**
-   * Display success messages to user
-   */
+  // Helper function to show success messages
   const showSuccessToast = useCallback((title, description) => {
     toast({
       title,
@@ -117,9 +66,7 @@ export function AuthProvider({ children }) {
     });
   }, [toast]);
 
-  /**
-   * Handle authentication errors with user-friendly messages
-   */
+  // Helper function to handle different error types
   const handleAuthError = useCallback((error, context = "Authentication") => {
     let title = `${context} Error`;
     let description = "An unexpected error occurred. Please try again.";
@@ -134,11 +81,11 @@ export function AuthProvider({ children }) {
           if (reason === "USER_NOT_APPROVED" || (message && message.toLowerCase().includes("pending approval"))) {
             title = "Account Pending Approval";
             description = "Your account is currently pending approval. Please contact an administrator to activate your account.";
+            // Don't show toast for pending approval - let the calling component handle it
             return { title, description, skipToast: true };
-          } else if (reason === "USER_NOT_FOUND") {
-            title = "Account Not Found";
-            description = "Account not found. Please contact an administrator to create your account first.";
-            return { title, description, skipToast: true };
+          } else if (message && message.toLowerCase().includes("not approved")) {
+            title = "Account Not Approved";
+            description = "Your account has not been approved yet. Please contact an administrator for assistance.";
           } else {
             title = "Access Denied";
             description = message || "You don't have permission to access this resource.";
@@ -165,6 +112,7 @@ export function AuthProvider({ children }) {
       description = error.message;
     }
 
+    // Only show toast if not explicitly skipped
     const errorInfo = { title, description };
     if (!errorInfo.skipToast) {
       showErrorToast(title, description);
@@ -173,138 +121,203 @@ export function AuthProvider({ children }) {
     return errorInfo;
   }, [showErrorToast]);
 
-  /**
-   * Perform redirect based on user role and context
-   */
   const performRedirect = useCallback(
     (loggedInUser) => {
+      console.log("🔄 performRedirect called with user:", JSON.stringify(loggedInUser, null, 2));
+      console.log("🔄 Current pathname:", pathname);
+
       const currentRedirectParam = currentSearchParamsHook.get("redirect");
+      console.log("🔄 Redirect param from URL:", currentRedirectParam);
+
       if (!loggedInUser || !loggedInUser.role) {
+        console.log("❌ No user or role found, redirecting to sign-in");
         if (pathname !== "/sign-in") router.replace("/sign-in");
         return;
       }
 
+      console.log("✅ User role detected:", loggedInUser.role);
+      console.log("✅ User dashboard from JWT:", loggedInUser.dashboard);
+
       let targetPath;
       if (currentRedirectParam && currentRedirectParam !== pathname) {
         targetPath = currentRedirectParam;
+        console.log("🎯 Using redirect param:", targetPath);
       } else {
         if (loggedInUser.dashboard) {
           targetPath = loggedInUser.dashboard;
+          console.log("🎯 Using user dashboard:", targetPath);
         } else {
+          console.log("🔍 Determining path by role...");
           switch (loggedInUser.role) {
             case ROLES.HEAD_ADMIN:
+              console.log("👑 HEAD_ADMIN detected, routing to /admin-dashboard");
+              targetPath = "/admin-dashboard";
+              break;
             case ROLES.MANAGER:
+              console.log("👤 MANAGER detected, routing to /admin-dashboard");
               targetPath = "/admin-dashboard";
               break;
             case ROLES.STUDENT:
+              console.log("🎓 STUDENT detected, routing to /student-dashboard");
+              targetPath = "/student-dashboard";
+              break;
             case ROLES.PARTNER:
+              console.log("🤝 PARTNER detected, routing to /student-dashboard");
               targetPath = "/student-dashboard";
               break;
             default:
+              console.log("❓ Unknown role, routing to /");
               targetPath = "/";
               break;
           }
         }
       }
 
+      console.log("🎯 Final target path:", targetPath);
+      console.log("🎯 Current pathname:", pathname);
+
       if (pathname !== targetPath) {
+        console.log("🚀 Redirecting from", pathname, "to", targetPath);
         router.replace(targetPath);
+      } else {
+        console.log("✅ Already on correct path:", pathname);
       }
     },
     [router, currentSearchParamsHook, pathname],
   );
 
-  /**
-   * Reset session timeout
-   */
+  let commonSignOutLogicWithDependencies;
+
   const resetSessionTimeout = useCallback(() => {
     if (typeof window === "undefined") return;
     clearTimeout(sessionTimeoutId);
-    if (authStateRef.current.user) {
+    if (user) {
       sessionTimeoutId = setTimeout(() => {
-        console.log(`Session timed out due to inactivity (${SESSION_TIMEOUT_MINUTES} minutes).`);
-        signOut(true, `/sign-in?reason=session_timeout_activity&redirect=${encodeURIComponent(pathname)}`);
+        console.log(`Session timed out due to inactivity (${SESSION_TIMEOUT_DURATION / 1000} seconds).`);
+        if (commonSignOutLogicWithDependencies) {
+          commonSignOutLogicWithDependencies(true, `/sign-in?reason=session_timeout_activity&redirect=${encodeURIComponent(pathname)}`);
+        }
       }, SESSION_TIMEOUT_DURATION);
     }
-  }, [pathname]);
+  }, [user, pathname]);
 
-  /**
-   * Common sign-out logic
-   */
-  const signOut = useCallback(
+
+  commonSignOutLogicWithDependencies = useCallback(
     async (redirect = true, redirectPath = "/sign-in") => {
-      console.log("AuthContext: Signing out. Redirect:", redirect, "Path:", redirectPath);
+      console.log("🚪 AuthContext: Starting sign-out process. Redirect:", redirect, "Path:", redirectPath);
       setIsLoading(true);
       clearTimeout(sessionTimeoutId);
 
       try {
-        // Optional: await internalApi.post("/auth/logout");
+        // Call backend logout to clear server-side cookie
+        await internalApi.post("/auth/logout");
+        console.log("✅ AuthContext: Backend logout successful");
       } catch (error) {
-        // Ignore logout errors
+        console.error("❌ AuthProvider [signOut]: Error during backend logout:", error);
       } finally {
         if (typeof window !== "undefined") {
+          // Clear localStorage and cookies
           localStorage.removeItem("cedo_user");
           document.cookie = "cedo_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
+          console.log("🧹 AuthContext: Cleared localStorage and cookies");
 
-          // Enhanced Google Sign-In cleanup - Force clear all states
-          try {
-            cleanupGoogleAuth();
-
-            // Additional cleanup for persistent Google Sign-In state
-            if (window.__currentGoogleSignInActions) {
-              window.__currentGoogleSignInActions = null;
+          // Cancel Google Sign-In and clean up Google state
+          if (window.google && window.google.accounts && window.google.accounts.id) {
+            try {
+              window.google.accounts.id.cancel();
+              console.log("✅ AuthContext (SignOut): Called google.accounts.id.cancel()");
+            } catch (googleCancelError) {
+              console.warn("⚠️ AuthContext (SignOut): Error canceling Google Sign-In:", googleCancelError);
             }
+          }
 
-            // Clear any pending Google Identity Services operations
-            if (window.google?.accounts?.id) {
-              try {
-                window.google.accounts.id.cancel();
-                // Force disable auto-select to prevent automatic re-signin
-                window.google.accounts.id.disableAutoSelect();
-              } catch (e) {
-                console.warn('Warning: Error during Google Sign-In cleanup:', e);
+          // Clear any outstanding Google Sign-In promises
+          console.log("🔍 AuthContext (SignOut): currentGoogleSignInPromiseActions.current BEFORE clear:", currentGoogleSignInPromiseActions.current);
+          if (currentGoogleSignInPromiseActions.current) {
+            console.warn("🧹 AuthContext (SignOut): Clearing an outstanding Google Sign-In promise reference.");
+            try {
+              // If there's an active promise, reject it cleanly
+              if (currentGoogleSignInPromiseActions.current.reject) {
+                currentGoogleSignInPromiseActions.current.reject(new Error("Sign-out interrupted Google Sign-In operation"));
               }
+            } catch (promiseError) {
+              console.warn("⚠️ AuthContext (SignOut): Error rejecting Google promise:", promiseError);
             }
+            currentGoogleSignInPromiseActions.current = null;
+          }
+          console.log("✅ AuthContext (SignOut): currentGoogleSignInPromiseActions.current AFTER clear:", currentGoogleSignInPromiseActions.current);
 
-            console.log("✅ Google Sign-In state cleaned successfully");
-          } catch (error) {
-            console.warn('Warning: Error during enhanced Google cleanup:', error);
+          // Reset GSI client initialization flag to force re-initialization
+          gsiClientInitialized = false;
+          console.log("🔄 AuthContext (SignOut): Reset gsiClientInitialized flag");
+
+          // Add a delay flag to prevent immediate re-initialization
+          window.__cedoGoogleSignOutTimestamp = Date.now();
+          console.log("⏰ AuthContext (SignOut): Set sign-out timestamp for delay mechanism");
+
+          // Clean up any remaining Google button containers
+          try {
+            const googleContainers = document.querySelectorAll('[id*="google"], [data-google-signin-container="true"]');
+            googleContainers.forEach(container => {
+              if (container && container.parentNode && document.body.contains(container)) {
+                const googleButtons = container.querySelectorAll('.g_id_signin, .g-signin2, [data-client_id]');
+                googleButtons.forEach(button => {
+                  if (button.parentNode === container) {
+                    container.removeChild(button);
+                  }
+                });
+              }
+            });
+            console.log("🧹 AuthContext (SignOut): Cleaned up Google button containers");
+          } catch (cleanupError) {
+            console.warn("⚠️ AuthContext (SignOut): Error during Google button cleanup:", cleanupError);
           }
         }
 
-        // Clear API headers
-        if (internalApi && internalApi.defaults && internalApi.defaults.headers && internalApi.defaults.headers.common) {
-          delete internalApi.defaults.headers.common["Authorization"];
-        }
+        // Clear API authorization header
+        delete internalApi.defaults.headers.common["Authorization"];
+        console.log("🧹 AuthContext: Cleared API authorization header");
 
-        // Reset Google auth processing state
-        setIsGoogleAuthProcessing(false);
-
+        // Set user to null
         setUser(null);
-        console.log("AuthContext (SignOut): User set to null.");
+        console.log("✅ AuthContext (SignOut): User set to null.");
 
+        // Handle redirect
         if (redirect) {
-          let effectiveRedirectPath = redirectPath;
-          if (redirectPath === "/sign-in" && pathname !== "/sign-in" && pathname !== "/") {
-            effectiveRedirectPath = `/sign-in?redirect=${encodeURIComponent(pathname)}`;
-          }
-
-          if (pathname !== effectiveRedirectPath) {
-            router.replace(effectiveRedirectPath);
+          if (pathname !== redirectPath) {
+            console.log(`🚀 AuthContext: Redirecting from ${pathname} to ${redirectPath}`);
+            router.replace(redirectPath);
+          } else if (redirectPath === "/sign-in" && pathname === "/sign-in") {
+            console.log("✅ AuthContext: Already on sign-in page, no redirect needed");
+            // Avoid loop if already on sign-in
+          } else {
+            console.log(`🚀 AuthContext: Force redirecting to ${redirectPath}`);
+            router.replace(redirectPath);
           }
         }
+
         setIsLoading(false);
+        console.log("✅ AuthContext: Sign-out process completed");
       }
     },
     [router, pathname],
   );
 
-  /**
-   * Session timeout event listeners
-   */
+
+  const signOut = useCallback(
+    async (redirect = true, redirectPath = "/sign-in") => {
+      let effectiveRedirectPath = redirectPath;
+      if (redirectPath === "/sign-in" && pathname !== "/sign-in" && pathname !== "/") {
+        effectiveRedirectPath = `/sign-in?redirect=${encodeURIComponent(pathname)}`;
+      }
+      await commonSignOutLogicWithDependencies(redirect, effectiveRedirectPath);
+    },
+    [commonSignOutLogicWithDependencies, pathname]
+  );
+
   useEffect(() => {
     if (typeof window === "undefined" || !user) {
-      if (typeof window !== "undefined") {
+      if (typeof window !== "undefined") { // Ensure window exists before removing listeners
         window.removeEventListener("mousemove", resetSessionTimeout);
         window.removeEventListener("keypress", resetSessionTimeout);
       }
@@ -324,9 +337,6 @@ export function AuthProvider({ children }) {
     };
   }, [user, resetSessionTimeout]);
 
-  /**
-   * Common sign-in success handler
-   */
   const commonSignInSuccess = useCallback(
     (token, userData, rememberMe = false) => {
       if (typeof document !== "undefined") {
@@ -339,11 +349,7 @@ export function AuthProvider({ children }) {
         document.cookie = `cedo_token=${token}; ${cookieOptions}`;
         localStorage.setItem("cedo_user", JSON.stringify(userData));
       }
-
-      if (internalApi && internalApi.defaults && internalApi.defaults.headers) {
-        internalApi.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      }
-
+      internalApi.defaults.headers.common["Authorization"] = `Bearer ${token}`;
       setUser(userData);
       setIsLoading(false);
       performRedirect(userData);
@@ -352,10 +358,8 @@ export function AuthProvider({ children }) {
     [performRedirect],
   );
 
-  /**
-   * Verify current user from stored credentials
-   */
   const verifyCurrentUser = useCallback(async () => {
+    console.log("🔍 verifyCurrentUser: Starting user verification...");
     setIsLoading(true);
     try {
       let token = null;
@@ -364,42 +368,56 @@ export function AuthProvider({ children }) {
         if (cookieValue) token = cookieValue.split("=")[1];
       }
 
+      console.log("🔍 verifyCurrentUser: Token found:", token ? "Yes" : "No");
+
       if (token) {
-        if (internalApi && internalApi.defaults && internalApi.defaults.headers) {
-          internalApi.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-        }
-
+        internalApi.defaults.headers.common["Authorization"] = `Bearer ${token}`;
         const storedUser = localStorage.getItem("cedo_user");
-        let currentUserData = null;
+        console.log("🔍 verifyCurrentUser: Stored user in localStorage:", storedUser ? "Yes" : "No");
 
+        let currentUserData = null;
         if (storedUser) {
           currentUserData = JSON.parse(storedUser);
+          console.log("🔍 verifyCurrentUser: Using cached user data:", JSON.stringify(currentUserData, null, 2));
         } else {
-          const { data: meData } = await internalApi.get("/users/me");
+          console.log("🔍 verifyCurrentUser: Fetching user data from /auth/me...");
+          const { data: meData } = await internalApi.get("/auth/me");
           if (meData && meData.user) {
             currentUserData = meData.user;
             localStorage.setItem("cedo_user", JSON.stringify(meData.user));
+            console.log("🔍 verifyCurrentUser: Fresh user data from API:", JSON.stringify(currentUserData, null, 2));
           } else {
-            throw new Error("No user data from /users/me despite having a token.");
+            throw new Error("No user data from /auth/me despite having a token.");
           }
         }
+
+        console.log("✅ verifyCurrentUser: Setting user data with role:", currentUserData?.role);
         setUser(currentUserData);
+
+        // CRITICAL FIX: Call performRedirect for existing authenticated users
+        console.log("🚀 verifyCurrentUser: Calling performRedirect for authenticated user");
+        performRedirect(currentUserData);
       } else {
+        console.log("❌ verifyCurrentUser: No token found, setting user to null");
         setUser(null);
       }
     } catch (error) {
+      // Only show error toasts for non-authentication related errors
+      // Token expiration and invalid tokens are normal and shouldn't show error messages
+      console.error("🔍 verifyCurrentUser: Error during verification:", error.message);
       if (process.env.NODE_ENV === 'development') {
         console.warn("AuthContext [verifyCurrentUser]: Error verifying current user or token invalid.", error.message);
       }
 
+      // Don't show error toast for normal token expiration/invalid token scenarios
+      // These are expected behaviors when tokens expire or are invalid
+
+      console.log("🧹 verifyCurrentUser: Cleaning up localStorage and cookies due to error");
       if (typeof window !== "undefined") {
         localStorage.removeItem("cedo_user");
         document.cookie = "cedo_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
       }
-
-      if (internalApi && internalApi.defaults && internalApi.defaults.headers && internalApi.defaults.headers.common) {
-        delete internalApi.defaults.headers.common["Authorization"];
-      }
+      delete internalApi.defaults.headers.common["Authorization"];
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -407,21 +425,102 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  /**
-   * Initialize authentication state
-   */
   useEffect(() => {
     if (!isInitialized) {
       verifyCurrentUser();
     }
   }, [isInitialized, verifyCurrentUser]);
 
-  /**
-   * Handle Google credential response
-   */
+
+  const signIn = useCallback(
+    async (email, password, rememberMe = false, captchaToken = null) => {
+      setIsLoading(true);
+      try {
+        const payload = { email, password };
+        if (captchaToken) payload.captchaToken = captchaToken;
+        const response = await internalApi.post("/auth/login", payload);
+        const { token, user: userData } = response.data;
+        if (token && userData) {
+          showSuccessToast("Sign-In Successful", `Welcome back, ${userData.name}!`);
+          return commonSignInSuccess(token, userData, rememberMe);
+        }
+        throw new Error("Login failed: No token or user data received from server.");
+      } catch (error) {
+        // Use the new error handling system
+        const errorInfo = handleAuthError(error, "Sign-In");
+
+        await commonSignOutLogicWithDependencies(false);
+        setIsLoading(false);
+        throw new Error(errorInfo.description);
+      }
+    },
+    [commonSignInSuccess, commonSignOutLogicWithDependencies, handleAuthError, showSuccessToast],
+  );
+
+  const loadGoogleScript = useCallback(() => {
+    return new Promise((resolve, reject) => {
+      if (typeof window !== "undefined" && window.google?.accounts?.id) {
+        resolve(); return;
+      }
+      if (typeof document === "undefined") {
+        reject(new Error("Cannot load Google script in a non-browser environment.")); return;
+      }
+      const scriptId = "google-identity-services-script";
+      let script = document.getElementById(scriptId);
+
+      if (script && script.getAttribute('data-loaded') === 'true') {
+        if (window.google?.accounts?.id) resolve();
+        else reject(new Error("Google script tag present and marked loaded, but API not available."));
+        return;
+      }
+
+      if (script && !script.getAttribute('data-loaded')) {
+        const onExistingScriptLoad = () => {
+          script.setAttribute('data-loaded', 'true');
+          if (window.google?.accounts?.id) resolve();
+          else reject(new Error("Existing Google script loaded but API (window.google.accounts.id) not available."));
+          script.removeEventListener("load", onExistingScriptLoad);
+          script.removeEventListener("error", onExistingScriptError);
+        };
+        const onExistingScriptError = (e) => {
+          script.setAttribute('data-loaded', 'failed');
+          reject(new Error("Failed to load existing Google script: " + e.message));
+          script.removeEventListener("load", onExistingScriptLoad);
+          script.removeEventListener("error", onExistingScriptError);
+        };
+        script.addEventListener("load", onExistingScriptLoad);
+        script.addEventListener("error", onExistingScriptError);
+        return;
+      }
+
+      if (!script) {
+        script = document.createElement("script");
+        script.id = scriptId;
+        script.src = "https://accounts.google.com/gsi/client";
+        script.async = true;
+        script.defer = true;
+        script.onload = () => {
+          script.setAttribute('data-loaded', 'true');
+          if (window.google?.accounts?.id) resolve();
+          else reject(new Error("Google script loaded but google.accounts.id not available."));
+        };
+        script.onerror = (e) => {
+          script.setAttribute('data-loaded', 'failed');
+          reject(new Error("Failed to load Google Identity Services script: " + e.message));
+        };
+        document.head.appendChild(script);
+      }
+    });
+  }, []);
+
+  // Corrected handleGoogleCredentialResponse (similar to your original full version)
   const handleGoogleCredentialResponse = useCallback(
     async (googleResponse) => {
-      console.log('🔧 AuthContext: Processing Google credential response:', googleResponse);
+      const promiseActions = currentGoogleSignInPromiseActions.current;
+      if (!promiseActions) {
+        console.warn("AuthContext: Google credential response received, but no active promise was waiting for it.");
+        return;
+      }
 
       try {
         if (googleResponse.error || !googleResponse?.credential) {
@@ -440,141 +539,176 @@ export function AuthProvider({ children }) {
         if (token && userDataFromBackend) {
           commonSignInSuccess(token, userDataFromBackend, false);
           showSuccessToast("Sign-In Successful", `Welcome back, ${userDataFromBackend.name}!`);
-          return userDataFromBackend;
+          promiseActions.resolve(userDataFromBackend);
         } else {
           throw new Error("Google Sign-In failed: No valid token or user data received from backend server.");
         }
       } catch (error) {
-        // Special handling for 403 errors
+        // Special handling for 403 pending approval errors
         if (axios.isAxiosError(error) && error.response?.status === 403) {
           const message = error.response?.data?.message;
           const reason = error.response?.data?.reason;
 
-          if (reason === "USER_NOT_FOUND") {
-            const notFoundError = new Error("Account not found. Please contact an administrator to create your account first.");
-            notFoundError.isUserNotFound = true;
-            throw notFoundError;
-          }
-
+          // More robust detection of pending approval errors
           if (reason === "USER_NOT_APPROVED" ||
             (message && (
               message.toLowerCase().includes("pending approval") ||
               message.toLowerCase().includes("account pending") ||
               message.toLowerCase().includes("not approved")
             ))) {
+            // For pending approval, don't show toast - let the sign-in page handle it with the error dialog
             const pendingApprovalError = new Error("Your account is currently pending approval. Please contact an administrator to activate your account.");
             pendingApprovalError.isPendingApproval = true;
-            throw pendingApprovalError;
+            pendingApprovalError.allowRetry = true; // Allow button to be re-rendered
+            promiseActions.reject(pendingApprovalError);
+            return;
           }
+        }
+
+        // Check for account not found errors (404 or specific messages)
+        if (axios.isAxiosError(error) &&
+          (error.response?.status === 404 ||
+            (error.response?.data?.message &&
+              error.response.data.message.toLowerCase().includes("account not found")))) {
+          const accountNotFoundError = new Error("Account not found. Please contact an administrator to create your account first.");
+          accountNotFoundError.isAccountNotFound = true;
+          accountNotFoundError.allowRetry = true; // Allow button to be re-rendered
+          promiseActions.reject(accountNotFoundError);
+          return;
         }
 
         // For all other errors, use the existing error handling system
         const errorInfo = handleAuthError(error, "Google Sign-In");
-        throw new Error(errorInfo.description);
+        const generalError = new Error(errorInfo.description);
+        generalError.allowRetry = true; // Allow button to be re-rendered for most errors
+
+        promiseActions.reject(generalError);
+      } finally {
+        console.log("AuthContext (handleGoogleCredentialResponse): Clearing currentGoogleSignInPromiseActions.current. Old value:", currentGoogleSignInPromiseActions.current);
+        currentGoogleSignInPromiseActions.current = null;
+        console.log("AuthContext (handleGoogleCredentialResponse): currentGoogleSignInPromiseActions.current is now null.");
       }
     },
     [commonSignInSuccess, handleAuthError, showSuccessToast]
   );
 
-  /**
-   * Listen for global Google Sign-In events
-   */
-  useEffect(() => {
-    const handleGlobalGoogleSignIn = async (event) => {
-      console.log('🔧 Global Google Sign-In event received:', event.detail);
-      setIsGoogleAuthProcessing(true);
-
-      try {
-        await handleGoogleCredentialResponse(event.detail);
-      } catch (error) {
-        console.error('❌ Google Sign-In error:', error);
-        // Error toast already shown by handleAuthError or specific handling
-      } finally {
-        setIsGoogleAuthProcessing(false);
-      }
-    };
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('google-signin-response', handleGlobalGoogleSignIn);
-      console.log('✅ Global Google Sign-In event listener registered');
-    }
-
-    return () => {
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('google-signin-response', handleGlobalGoogleSignIn);
-        console.log('🔄 Global Google Sign-In event listener cleaned up');
-      }
-    };
-  }, [handleGoogleCredentialResponse]);
-
-  /**
-   * Email/password sign-in
-   */
-  const signIn = useCallback(
-    async (email, password, rememberMe = false, captchaToken = null) => {
-      setIsLoading(true);
-      try {
-        const payload = { email, password };
-        if (captchaToken) payload.captchaToken = captchaToken;
-
-        const response = await internalApi.post("/auth/login", payload);
-        const { token, user: userData } = response.data;
-
-        if (token && userData) {
-          showSuccessToast("Sign-In Successful", `Welcome back, ${userData.name}!`);
-          return commonSignInSuccess(token, userData, rememberMe);
-        }
-        throw new Error("Login failed: No token or user data received from server.");
-      } catch (error) {
-        const errorInfo = handleAuthError(error, "Sign-In");
-        await signOut(false);
-        setIsLoading(false);
-        throw new Error(errorInfo.description);
-      }
-    },
-    [commonSignInSuccess, signOut, handleAuthError, showSuccessToast],
-  );
-
-  /**
-   * Google Sign-In with simplified integration
-   */
   const signInWithGoogleAuth = useCallback(async (buttonContainerElement, buttonOptions = {}) => {
-    console.log("AuthContext: signInWithGoogleAuth CALLED");
+    console.log("🚀 AuthContext: signInWithGoogleAuth CALLED. Attempting to acquire lock...");
+    return new Promise(async (resolveOuter, rejectOuter) => {
+      // Check if we recently signed out and should wait
+      if (typeof window !== 'undefined' && window.__cedoGoogleSignOutTimestamp) {
+        const timeSinceSignOut = Date.now() - window.__cedoGoogleSignOutTimestamp;
+        if (timeSinceSignOut < 3000) { // Wait 3 seconds after sign-out
+          const remainingDelay = 3000 - timeSinceSignOut;
+          console.log(`⏳ AuthContext: Recent sign-out detected, waiting ${remainingDelay}ms before Google Sign-In initialization`);
+          const delayError = new Error("Google Sign-In is initializing. Please wait a moment and try again.");
+          delayError.isDelay = true;
+          delayError.allowRetry = true;
+          rejectOuter(delayError);
+          return;
+        } else {
+          // Clear the timestamp if enough time has passed
+          delete window.__cedoGoogleSignOutTimestamp;
+          console.log("✅ AuthContext: Sign-out delay period completed, proceeding with Google Sign-In");
+        }
+      }
 
-    try {
-      setIsGoogleAuthProcessing(true);
+      if (currentGoogleSignInPromiseActions.current) {
+        const errMessage = "AuthContext: Another Google Sign-In operation is already in progress. Please wait.";
+        console.warn("⚠️", errMessage);
+        rejectOuter(new Error(errMessage)); // Ensure this outer promise is rejected
+        return;
+      }
 
-      const defaultOptions = {
-        theme: "outline",
-        size: "large",
-        type: "standard",
-        text: "signin_with",
-      };
+      console.log("AuthContext: Lock acquired. Setting currentGoogleSignInPromiseActions.current.");
+      currentGoogleSignInPromiseActions.current = { resolve: resolveOuter, reject: rejectOuter, initiatedAt: new Date().toISOString() };
 
-      const mergedOptions = { ...defaultOptions, ...buttonOptions };
+      try {
+        console.log("AuthContext: signInWithGoogleAuth - Attempting to load Google script...");
+        await loadGoogleScript();
+        console.log("AuthContext: signInWithGoogleAuth - Google script loaded. Checking Client ID...");
+        const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+        if (!clientId) {
+          console.error("AuthContext: signInWithGoogleAuth - Google Client ID is not configured.");
+          throw new Error("Google Client ID (NEXT_PUBLIC_GOOGLE_CLIENT_ID) is not configured in environment variables.");
+        }
+        console.log("AuthContext: signInWithGoogleAuth - Client ID found. Initializing GSI if needed...");
 
-      // Use simplified Google Auth library
-      await renderGoogleSignInButton(buttonContainerElement, mergedOptions);
+        if (!gsiClientInitialized) {
+          if (window.google && window.google.accounts && window.google.accounts.id) {
+            console.log("AuthContext: signInWithGoogleAuth - Initializing google.accounts.id...");
+            window.google.accounts.id.initialize({
+              client_id: clientId,
+              callback: handleGoogleCredentialResponse, // This callback will use the resolveOuter/rejectOuter from currentGoogleSignInPromiseActions
+              auto_select: false,
+            });
+            gsiClientInitialized = true;
+            console.log("AuthContext: signInWithGoogleAuth - GSI initialized.");
+          } else {
+            console.error("AuthContext: signInWithGoogleAuth - Google GSI script not fully available for initialization after loading.");
+            throw new Error("Google GSI script not fully available for initialization after loading.");
+          }
+        } else {
+          console.log("AuthContext: signInWithGoogleAuth - GSI already initialized.");
+        }
 
-      console.log("AuthContext: Google button rendered successfully");
+        console.log("AuthContext: signInWithGoogleAuth - Attempting to render button in element: ", buttonContainerElement);
+        const buttonDiv = buttonContainerElement;
 
-    } catch (error) {
-      console.error("AuthContext: Google Sign-In error:", error);
-      setIsGoogleAuthProcessing(false);
-      throw error;
-    }
-  }, []);
+        // CRITICAL CHECK: Ensure the buttonDiv is a valid, attached DOM element before calling renderButton
+        if (buttonDiv && typeof buttonDiv.appendChild === 'function' && document.body.contains(buttonDiv)) {
+          const defaultRenderOptions = {
+            theme: "outline", size: "large", type: "standard", text: "signin_with",
+          };
+          const mergedOptions = { ...defaultRenderOptions, ...buttonOptions };
 
-  /**
-   * Force cleanup Google Sign-In state
-   */
-  const forceCleanupGoogleSignIn = useCallback(() => {
-    console.log("🚨 FORCE CLEANUP: Cleaning up Google Sign-In state");
-    cleanupGoogleAuth();
-    setIsGoogleAuthProcessing(false);
-  }, []);
+          try {
+            // Clear any existing Google button content first to ensure clean render
+            const existingGoogleButtons = buttonDiv.querySelectorAll('.g_id_signin, .g-signin2, [data-client_id]');
+            existingGoogleButtons.forEach(button => {
+              if (button.parentNode === buttonDiv) {
+                buttonDiv.removeChild(button);
+              }
+            });
 
-  // User management functions (keeping existing implementation)
+            await new Promise(resolve => setTimeout(resolve, 200)); // Delay for DOM stability
+            console.log("AuthContext: Pre-renderButton check. buttonDiv:", buttonDiv, "Parent:", buttonDiv.parentNode);
+            window.google.accounts.id.renderButton(buttonDiv, mergedOptions);
+            console.log(`AuthContext: signInWithGoogleAuth - Google button render initiated in ${buttonContainerElement}. Waiting for GSI callback...`);
+          } catch (renderError) {
+            console.error("AuthContext: Error during window.google.accounts.id.renderButton:", renderError.message, renderError);
+            currentGoogleSignInPromiseActions.current = null; // Release lock
+            const buttonRenderError = new Error(`Failed to render Google Sign-In button: ${renderError.message}`);
+            buttonRenderError.allowRetry = true; // Allow retry for render errors
+            rejectOuter(buttonRenderError);
+          }
+        } else {
+          let errorMsg = "Google Sign-In Button Error: The provided button container element is invalid, not a function, or not attached to the DOM right before rendering.";
+          if (!buttonDiv) {
+            errorMsg = "Google Sign-In Button Error: The 'buttonContainerElement' was null or undefined when attempting to render.";
+          } else if (typeof buttonDiv.appendChild !== 'function') {
+            errorMsg = `Google Sign-In Button Error: The provided button container element is not a valid DOM element (appendChild not a function). Type: ${typeof buttonDiv}`;
+          } else if (!document.body.contains(buttonDiv)) {
+            errorMsg = "Google Sign-In Button Error: The provided button container element is not attached to the document body.";
+          }
+          console.error(`AuthContext: signInWithGoogleAuth - ${errorMsg}`, buttonDiv);
+          currentGoogleSignInPromiseActions.current = null; // Release lock
+          const containerError = new Error(errorMsg);
+          containerError.allowRetry = true; // Allow retry for container errors
+          rejectOuter(containerError);
+        }
+      } catch (error) { // Catches errors from loadGoogleScript, GSI init, client ID checks, etc.
+        console.error("AuthContext: ERROR in signInWithGoogleAuth setup phase (before renderButton call). Error message:", error.message, "Stack:", error.stack);
+        currentGoogleSignInPromiseActions.current = null; // Release lock
+        error.allowRetry = true; // Allow retry for most setup errors
+        rejectOuter(error); // Reject the promise for this specific call
+      }
+      // If try block completes successfully (renderButton called), lock remains.
+      // It's released by handleGoogleCredentialResponse or if renderButton itself fails.
+    });
+  }, [loadGoogleScript, handleGoogleCredentialResponse]);
+
+  // --- New functions for User Management API calls ---
   const fetchAllUsers = useCallback(async () => {
     if (!user || user.role !== ROLES.HEAD_ADMIN) {
       const errorMsg = "Unauthorized to fetch users.";
@@ -586,10 +720,14 @@ export function AuthProvider({ children }) {
       const response = await internalApi.get("/users");
       return response.data;
     } catch (error) {
+      // Use the new error handling system
       const errorInfo = handleAuthError(error, "User Data Fetch");
+
+      // Only log to console in development for debugging
       if (process.env.NODE_ENV === 'development') {
         console.error("AuthContext: Error in fetchAllUsers:", error);
       }
+
       throw error;
     }
   }, [user, handleAuthError, showErrorToast]);
@@ -602,22 +740,63 @@ export function AuthProvider({ children }) {
     }
     try {
       console.log(`AuthContext: Updating approval for user ${userIdToUpdate} to ${newApprovalStatus}`);
+
+      // Ensure the payload is correct
       const response = await internalApi.put(`/users/${userIdToUpdate}/approval`, { is_approved: newApprovalStatus });
+
+      // Show success message
       const statusText = newApprovalStatus ? "approved" : "revoked";
       showSuccessToast("User Updated", `User approval status has been ${statusText} successfully.`);
+
       return response.data;
     } catch (error) {
+      // Use the new error handling system
       const errorInfo = handleAuthError(error, "User Approval Update");
+
+      // Only log to console in development for debugging
       if (process.env.NODE_ENV === 'development') {
         console.error("AuthContext: Error in updateUserApproval:", error);
       }
+
       throw error;
     }
   }, [user, handleAuthError, showErrorToast, showSuccessToast]);
+  // --- End of new functions ---
 
-  /**
-   * Context value
-   */
+  const clearAuthCache = useCallback(async () => {
+    console.log("🧹 clearAuthCache: Clearing all authentication cache...");
+    setIsLoading(true);
+
+    try {
+      // Clear localStorage
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("cedo_user");
+        console.log("🧹 clearAuthCache: Removed cedo_user from localStorage");
+
+        // Clear cookies
+        document.cookie = "cedo_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
+        console.log("🧹 clearAuthCache: Cleared cedo_token cookie");
+      }
+
+      // Clear API header
+      delete internalApi.defaults.headers.common["Authorization"];
+      console.log("🧹 clearAuthCache: Cleared Authorization header");
+
+      // Reset user state
+      setUser(null);
+      console.log("🧹 clearAuthCache: Reset user state to null");
+
+      // Force re-verification
+      await verifyCurrentUser();
+      console.log("🧹 clearAuthCache: Re-verification completed");
+
+    } catch (error) {
+      console.error("🧹 clearAuthCache: Error during cache clear:", error);
+      setUser(null);
+      setIsLoading(false);
+    }
+  }, [verifyCurrentUser]);
+
   const contextValue = {
     user,
     isLoading,
@@ -625,15 +804,12 @@ export function AuthProvider({ children }) {
     signIn,
     signOut,
     signInWithGoogleAuth,
-    forceCleanupGoogleSignIn,
-    // Additional state for UI components
-    isGoogleAuthProcessing,
-    // User management functions
     ROLES,
     redirect: currentSearchParamsHook.get("redirect") || "/",
     searchParams: currentSearchParamsHook,
     fetchAllUsers,
     updateUserApproval,
+    clearAuthCache,
   };
 
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;

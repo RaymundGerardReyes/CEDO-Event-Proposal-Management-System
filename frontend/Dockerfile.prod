@@ -1,0 +1,95 @@
+# ===============================================
+# PRODUCTION-OPTIMIZED DOCKERFILE FOR CEDO FRONTEND
+# ===============================================
+
+FROM node:18-alpine AS base
+
+# Install system dependencies
+RUN apk update && apk upgrade && \
+    apk add --no-cache \
+    curl \
+    dumb-init \
+    ca-certificates && \
+    rm -rf /var/cache/apk/*
+
+# Set working directory
+WORKDIR /usr/src/app
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nextjs && \
+    adduser --system --uid 1001 nextjs
+
+# Set timezone
+ENV TZ=UTC
+
+# ===============================================
+# DEPENDENCIES STAGE - Smart Dependency Resolution
+# ===============================================
+FROM base AS deps
+
+# Copy package files
+COPY package.json ./
+
+# Generate clean package-lock.json and install dependencies
+RUN npm install --legacy-peer-deps --production && \
+    npm cache clean --force --silent
+
+# ===============================================
+# BUILD STAGE - Application Build
+# ===============================================
+FROM base AS builder
+
+# Copy package files
+COPY package.json ./
+
+# Install all dependencies for building
+RUN npm install --legacy-peer-deps && \
+    npm cache clean --force --silent
+
+# Copy source code
+COPY --chown=nextjs:nextjs . .
+
+# Set build environment
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_PRIVATE_STANDALONE=true
+
+# Build the application
+RUN npm run build
+
+# ===============================================
+# PRODUCTION STAGE - Final Production Image
+# ===============================================
+FROM base AS production
+
+# Copy production dependencies
+COPY --from=deps /usr/src/app/node_modules ./node_modules
+
+# Copy built application
+COPY --from=builder --chown=nextjs:nextjs /usr/src/app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nextjs /usr/src/app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nextjs /usr/src/app/public ./public
+
+# Set production environment
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Create necessary directories and set permissions
+RUN mkdir -p .next/cache && \
+    chown -R nextjs:nextjs .next && \
+    chmod -R 755 .next
+
+# Expose port
+EXPOSE 3000
+
+# Switch to non-root user
+USER nextjs
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:3000/api/health || exit 1
+
+# Production command
+CMD ["dumb-init", "node", "server.js"] 

@@ -23,14 +23,15 @@ import { GoogleReCaptchaProvider } from "@google-recaptcha/react";
 
 export default function SignUpPage() {
   const { signUp, signInWithGoogleAuth } = useAuth();
-  const { toast } = useToast();
-  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const router = useRouter();
   // const [captchaToken, setCaptchaToken] = useState(null); // Temporarily remove state for the component
 
-  const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+  const recaptchaSiteKey = process.env.RECAPTCHA_SITE_KEY;
 
   const [formData, setFormData] = useState({
     name: "",
@@ -41,6 +42,16 @@ export default function SignUpPage() {
     organizationType: "",
     agreeTerms: false,
   });
+
+  // ✅ FIXED: Add defensive programming for toast hook
+  let toast;
+  try {
+    const toastHook = useToast();
+    toast = toastHook?.toast || (() => console.warn('Toast not available in SignUp'));
+  } catch (toastError) {
+    console.warn('useToast hook failed in SignUp:', toastError);
+    toast = () => console.warn('Toast not available in SignUp');
+  }
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;

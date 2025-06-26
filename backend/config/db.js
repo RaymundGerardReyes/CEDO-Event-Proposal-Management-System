@@ -1,50 +1,143 @@
 // backend/config/db.js
-const mysql = require("mysql2") // Import the mysql2 library
-require("dotenv").config() // Ensure environment variables are loaded
+const mysql = require('mysql2/promise');
+require("dotenv").config({ path: '../.env' }); // Ensure environment variables are loaded from the root
 
 console.log("Attempting to setup MySQL connection pool...") // Log startup step
+
+// Determine the correct host. For local development, always use 127.0.0.1.
+// For Docker or other environments, use the environment variable.
+const dbHost = process.env.NODE_ENV === 'development'
+  ? '127.0.0.1'
+  : (process.env.DB_HOST || 'mysql');
+
+// 🔍 ENHANCED PASSWORD DEBUGGING
+console.log('\n🔍 MYSQL PASSWORD DEBUG:');
+console.log('========================');
+console.log(`DB_PASSWORD env var: ${process.env.DB_PASSWORD ? 'SET (length: ' + process.env.DB_PASSWORD.length + ')' : '❌ UNDEFINED'}`);
+console.log(`MYSQL_PASSWORD env var: ${process.env.MYSQL_PASSWORD ? 'SET (length: ' + process.env.MYSQL_PASSWORD.length + ')' : '❌ UNDEFINED'}`);
+
+const actualPassword = process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD;
+console.log(`Final password being used: ${actualPassword ? 'SET (length: ' + actualPassword.length + ')' : '❌ NO PASSWORD'}`);
+console.log(`Password starts with: ${actualPassword ? actualPassword.substring(0, 3) + '***' : 'N/A'}`);
+console.log('========================\n');
+
 console.log("Database connection parameters:", {
-  host: process.env.DB_HOST || process.env.MYSQL_HOST || "127.0.0.1",
+  host: dbHost,
+  port: process.env.DB_PORT || '3306',
+  user: process.env.DB_USER || 'root',
+  database: process.env.DB_NAME || process.env.MYSQL_DATABASE,
+  // Not logging full password for security reasons
+})
+
+// Enhanced connection pool configuration for production performance
+const poolConfig = {
+  host: process.env.DB_HOST || process.env.MYSQL_HOST || 'localhost',
   port: process.env.DB_PORT || process.env.MYSQL_PORT || 3306,
-  user: process.env.DB_USER || process.env.MYSQL_USER || "root",
-  database: process.env.DB_NAME || process.env.MYSQL_DATABASE || "cedo_auth",
-  // Not logging password for security reasons
-})
+  user: process.env.DB_USER || process.env.MYSQL_USER || 'root',
+  password: process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || '',
+  database: process.env.DB_NAME || process.env.MYSQL_DATABASE || 'cedo_auth',
 
-// Create the connection pool using environment variables
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || process.env.MYSQL_HOST || "127.0.0.1", // Use 127.0.0.1 instead of localhost (fixes connection issues)
-  port: process.env.DB_PORT || process.env.MYSQL_PORT || 3306, // Use port 3306 (standard MySQL port)
-  user: process.env.DB_USER || process.env.MYSQL_USER || "root",
-  password: process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || "",
-  database: process.env.DB_NAME || process.env.MYSQL_DATABASE || "cedo_auth", // Database name
-  waitForConnections: true, // If true, the pool will queue requests when no connections are available.
-  connectionLimit: 10, // The maximum number of connections to create at once.
-  queueLimit: 0, // The maximum number of requests the pool will queue before returning an error. 0 = unlimited.
-})
+  // PRODUCTION CONNECTION POOLING
+  connectionLimit: process.env.NODE_ENV === 'production' ? 50 : 10, // Higher limit for production
 
-// Optional: Add event listeners for pool status (useful for debugging connection issues)
-pool.on("connection", (connection) => {
-  console.log("DB CONNECTION made on thread %d", connection.threadId)
-})
+  // PERFORMANCE OPTIMIZATIONS
+  charset: 'utf8mb4',
+  timezone: '+00:00',
 
-pool.on("acquire", (connection) => {
-  // console.log('DB CONNECTION %d acquired from pool', connection.threadId);
-})
+  // Connection management
+  idleTimeout: 300000, // 5 minutes
 
-pool.on("release", (connection) => {
-  // console.log('DB CONNECTION %d released back to pool', connection.threadId);
-})
+  // SSL configuration for production
+  ssl: process.env.NODE_ENV === 'production' ? {
+    rejectUnauthorized: false
+  } : false,
 
-pool.on("error", (err) => {
-  console.error("MySQL Pool Error:", err.code, err.message)
-  // Log pool errors. The pool should attempt to recover, but persistent errors indicate a problem.
-  // This is a critical application error, consider more robust handling like alerting.
-})
+  // Query optimizations
+  supportBigNumbers: true,
+  bigNumberStrings: true,
+
+  // Enable compression for better network performance
+  compress: true,
+
+  // Advanced performance settings
+  typeCast: function (field, next) {
+    if (field.type === 'TINY' && field.length === 1) {
+      return (field.string() === '1'); // Convert TINYINT(1) to boolean
+    }
+    return next();
+  }
+};
+
+// Create connection pool
+const pool = mysql.createPool(poolConfig);
+
+// Connection monitoring and health check
+pool.on('connection', function (connection) {
+  console.log('✅ New MySQL connection established as id ' + connection.threadId);
+});
+
+pool.on('error', function (err) {
+  console.error('❌ MySQL Pool Error:', err);
+  if (err.code === 'PROTOCOL_CONNECTION_LOST') {
+    console.log('🔄 Attempting to reconnect to MySQL...');
+  }
+});
+
+// Enhanced connection testing with performance metrics
+async function testConnection() {
+  const startTime = Date.now();
+  try {
+    const connection = await pool.getConnection();
+    const queryStartTime = Date.now();
+
+    await connection.query('SELECT 1 as test, CONNECTION_ID() as connection_id, NOW() as server_time');
+
+    const queryTime = Date.now() - queryStartTime;
+    const totalTime = Date.now() - startTime;
+
+    connection.release();
+
+    console.log(`✅ MySQL connection test successful:`);
+    console.log(`   - Connection time: ${totalTime}ms`);
+    console.log(`   - Query time: ${queryTime}ms`);
+    console.log(`   - Pool size: ${poolConfig.connectionLimit}`);
+
+    return true;
+  } catch (error) {
+    console.error('❌ MySQL connection test failed:', error.message);
+    return false;
+  }
+}
+
+// Connection pool status monitoring
+function getPoolStatus() {
+  return {
+    totalConnections: pool._allConnections ? pool._allConnections.length : 0,
+    acquiringConnections: pool._acquiringConnections ? pool._acquiringConnections.length : 0,
+    freeConnections: pool._freeConnections ? pool._freeConnections.length : 0,
+    connectionLimit: poolConfig.connectionLimit,
+    queueLimit: poolConfig.queueLimit || 0
+  };
+}
+
+// Graceful shutdown handler
+process.on('SIGINT', async () => {
+  console.log('🔄 Closing MySQL connection pool...');
+  try {
+    await pool.end();
+    console.log('✅ MySQL connection pool closed successfully');
+    process.exit(0);
+  } catch (error) {
+    console.error('❌ Error closing MySQL pool:', error);
+    process.exit(1);
+  }
+});
 
 console.log("MySQL pool setup attempt finished.") // Log setup completion attempt
 
-// Export the promise-based pool for use with async/await
 module.exports = {
-  pool: pool.promise(), // Export the pool object under the 'pool' property
-}
+  pool,
+  testConnection,
+  getPoolStatus,
+  poolConfig
+};

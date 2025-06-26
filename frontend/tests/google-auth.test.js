@@ -62,7 +62,7 @@ describe('Google Auth Library (google-auth.js)', () => {
 
         process.env = {
             ...originalEnv,
-            NEXT_PUBLIC_GOOGLE_CLIENT_ID: MOCK_CLIENT_ID,
+            GOOGLE_CLIENT_ID: MOCK_CLIENT_ID,
         };
 
         mockGoogleAccountsId = {

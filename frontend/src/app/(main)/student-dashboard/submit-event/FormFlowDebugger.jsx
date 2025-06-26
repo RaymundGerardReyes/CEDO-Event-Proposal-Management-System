@@ -11,33 +11,40 @@ export const FormFlowDebugger = ({ formData, currentState, isVisible = true, sta
     const consoleOverrideSetup = useRef(false)
     const logQueueRef = useRef([])
     const processingRef = useRef(false)
+    const isLoggingRef = useRef(false) // 🔧 CRITICAL FIX: Prevent infinite loops
+    const idCounterRef = useRef(0) // �� ENSURE UNIQUE IDS
 
     // 🔧 CRITICAL FIX: Debounced log processing to prevent infinite loops
     const processLogQueue = useCallback(() => {
-        if (processingRef.current || logQueueRef.current.length === 0) return
+        if (processingRef.current || logQueueRef.current.length === 0 || isLoggingRef.current) return
 
         processingRef.current = true
         const logsToProcess = [...logQueueRef.current]
         logQueueRef.current = []
 
         setTimeout(() => {
-            setLogs(prev => {
-                const newLogs = [...prev, ...logsToProcess].slice(-50) // Keep last 50 logs
+            try {
+                setLogs(prev => {
+                    const newLogs = [...prev, ...logsToProcess].slice(-50) // Keep last 50 logs
+                    return newLogs
+                })
+            } catch (error) {
+                // Silently handle any errors in log processing to prevent cascading failures
+                console.warn('FormFlowDebugger: Error processing logs:', error.message)
+            } finally {
                 processingRef.current = false
 
                 // Process any queued logs that accumulated during this update
                 setTimeout(() => {
-                    if (logQueueRef.current.length > 0) {
+                    if (logQueueRef.current.length > 0 && !isLoggingRef.current) {
                         processLogQueue()
                     }
                 }, 10)
-
-                return newLogs
-            })
+            }
         }, 0)
     }, [])
 
-    // 🔧 CRITICAL FIX: Only set up console overrides once to prevent infinite loops
+    // 🔧 CRITICAL FIX: Only set up console overrides once with proper error handling
     useEffect(() => {
         if (typeof window === "undefined" || consoleOverrideSetup.current) return
 
@@ -47,78 +54,149 @@ export const FormFlowDebugger = ({ formData, currentState, isVisible = true, sta
         const originalWarn = console.warn
 
         const captureLog = (level, args) => {
-            const message = args.join(' ')
+            // 🔧 CRITICAL FIX: Prevent infinite loops from self-referential logging
+            if (isLoggingRef.current) return
 
-            // Only capture logs related to form flow and avoid self-referential logs
-            if (!message.includes('FormFlowDebugger') &&
-                (message.includes('ROUTING') ||
-                    message.includes('Section') ||
-                    message.includes('organizationType') ||
-                    message.includes('CONDITIONAL') ||
-                    message.includes('handleSection2Next'))) {
+            try {
+                const message = args.join(' ')
 
-                const timestamp = new Date().toLocaleTimeString()
-                const logEntry = {
-                    id: Date.now() + Math.random(),
-                    timestamp,
-                    level,
-                    message
+                // Only capture logs related to form flow and avoid self-referential logs
+                if (!message.includes('FormFlowDebugger') &&
+                    !message.includes('Error processing logs') &&
+                    (message.includes('ROUTING') ||
+                        message.includes('Section') ||
+                        message.includes('organizationType') ||
+                        message.includes('CONDITIONAL') ||
+                        message.includes('handleSection2Next') ||
+                        message.includes('Database save') ||
+                        message.includes('❌') ||
+                        message.includes('✅'))) {
+
+                    const timestamp = new Date().toLocaleTimeString()
+                    // 🔧 USE MONOTONIC COUNTER TO GUARANTEE UNIQUE KEYS
+                    const logEntry = {
+                        id: `${Date.now()}-${idCounterRef.current++}`,
+                        timestamp,
+                        level,
+                        message
+                    }
+
+                    // 🔧 CRITICAL FIX: Queue logs instead of immediate state update
+                    logQueueRef.current.push(logEntry)
+
+                    // Process queue with debouncing
+                    if (!processingRef.current && !isLoggingRef.current) {
+                        processLogQueue()
+                    }
                 }
-
-                // 🔧 CRITICAL FIX: Queue logs instead of immediate state update
-                logQueueRef.current.push(logEntry)
-
-                // Process queue with debouncing
-                if (!processingRef.current) {
-                    processLogQueue()
-                }
+            } catch (error) {
+                // Silently handle any errors in log capture to prevent cascading failures
+                // Don't log this error to prevent infinite loops
             }
         }
 
+        // 🔧 CRITICAL FIX: Wrap console overrides with error handling
         console.log = (...args) => {
-            captureLog('log', args)
-            originalLog.apply(console, args)
+            try {
+                captureLog('log', args)
+            } catch (error) {
+                // Silently handle capture errors
+            }
+
+            // Always call original to maintain console functionality
+            try {
+                originalLog.apply(console, args)
+            } catch (error) {
+                // If original console fails, don't cascade the error
+            }
         }
 
         console.error = (...args) => {
-            captureLog('error', args)
-            originalError.apply(console, args)
+            // 🔧 CRITICAL FIX: Prevent infinite error loops
+            if (isLoggingRef.current) {
+                originalError.apply(console, args)
+                return
+            }
+
+            isLoggingRef.current = true
+
+            try {
+                captureLog('error', args)
+            } catch (error) {
+                // Silently handle capture errors
+            }
+
+            try {
+                originalError.apply(console, args)
+            } catch (error) {
+                // If original console fails, don't cascade the error
+            } finally {
+                // Reset the logging flag after a short delay
+                setTimeout(() => {
+                    isLoggingRef.current = false
+                }, 100)
+            }
         }
 
         console.warn = (...args) => {
-            captureLog('warn', args)
-            originalWarn.apply(console, args)
+            try {
+                captureLog('warn', args)
+            } catch (error) {
+                // Silently handle capture errors
+            }
+
+            try {
+                originalWarn.apply(console, args)
+            } catch (error) {
+                // If original console fails, don't cascade the error
+            }
         }
 
         return () => {
-            console.log = originalLog
-            console.error = originalError
-            console.warn = originalWarn
-            consoleOverrideSetup.current = false
+            try {
+                console.log = originalLog
+                console.error = originalError
+                console.warn = originalWarn
+                consoleOverrideSetup.current = false
+                isLoggingRef.current = false
+            } catch (error) {
+                // Silently handle cleanup errors
+            }
         }
     }, [processLogQueue])
 
     if (!isVisible) return null
 
     const getRoutePreview = () => {
-        const orgType = formData?.organizationType || formData?.eventType || formData?.organizationTypes?.[0]
+        try {
+            const orgType = formData?.organizationType || formData?.eventType || formData?.organizationTypes?.[0]
 
-        if (!orgType) {
-            return { route: "❌ No Route", color: "bg-red-100 text-red-800" }
+            if (!orgType) {
+                return { route: "❌ No Route", color: "bg-red-100 text-red-800" }
+            }
+
+            if (orgType === 'school-based' || orgType === 'school') {
+                return { route: "✅ → Section 3 (School Event)", color: "bg-green-100 text-green-800" }
+            }
+
+            if (orgType === 'community-based' || orgType === 'community') {
+                return { route: "✅ → Section 4 (Community Event)", color: "bg-blue-100 text-blue-800" }
+            }
+
+            return { route: "⚠️ Unknown Route", color: "bg-yellow-100 text-yellow-800" }
+        } catch (error) {
+            return { route: "❌ Error", color: "bg-red-100 text-red-800" }
         }
-
-        if (orgType === 'school-based' || orgType === 'school') {
-            return { route: "✅ → Section 3 (School Event)", color: "bg-green-100 text-green-800" }
-        }
-
-        if (orgType === 'community-based' || orgType === 'community') {
-            return { route: "✅ → Section 4 (Community Event)", color: "bg-blue-100 text-blue-800" }
-        }
-
-        return { route: "⚠️ Unknown Route", color: "bg-yellow-100 text-yellow-800" }
     }
 
-    const clearLogs = () => setLogs([])
+    const clearLogs = () => {
+        try {
+            setLogs([])
+            logQueueRef.current = []
+        } catch (error) {
+            console.warn('Error clearing logs:', error.message)
+        }
+    }
 
     const routePreview = getRoutePreview()
 
@@ -219,11 +297,15 @@ export const FormFlowDebugger = ({ formData, currentState, isVisible = true, sta
                             variant="outline"
                             size="sm"
                             onClick={() => {
-                                console.log('🧪 MANUAL TEST: Current Form Data')
-                                console.log('organizationType:', formData?.organizationType)
-                                console.log('eventType:', formData?.eventType)
-                                console.log('organizationTypes:', formData?.organizationTypes)
-                                console.log('Full formData:', formData)
+                                try {
+                                    console.log('🧪 MANUAL TEST: Current Form Data')
+                                    console.log('organizationType:', formData?.organizationType)
+                                    console.log('eventType:', formData?.eventType)
+                                    console.log('organizationTypes:', formData?.organizationTypes)
+                                    console.log('Full formData:', formData)
+                                } catch (error) {
+                                    console.warn('Error in manual test:', error.message)
+                                }
                             }}
                         >
                             Log Form Data
@@ -233,13 +315,17 @@ export const FormFlowDebugger = ({ formData, currentState, isVisible = true, sta
                             variant="outline"
                             size="sm"
                             onClick={() => {
-                                console.log('🧪 MANUAL TEST: Local Storage Check')
-                                const keys = Object.keys(localStorage).filter(key =>
-                                    key.includes('cedo') || key.includes('form') || key.includes('event')
-                                )
-                                keys.forEach(key => {
-                                    console.log(`${key}:`, localStorage.getItem(key))
-                                })
+                                try {
+                                    console.log('🧪 MANUAL TEST: Local Storage Check')
+                                    const keys = Object.keys(localStorage).filter(key =>
+                                        key.includes('cedo') || key.includes('form') || key.includes('event')
+                                    )
+                                    keys.forEach(key => {
+                                        console.log(`${key}:`, localStorage.getItem(key))
+                                    })
+                                } catch (error) {
+                                    console.warn('Error checking storage:', error.message)
+                                }
                             }}
                         >
                             Check Storage
@@ -249,9 +335,13 @@ export const FormFlowDebugger = ({ formData, currentState, isVisible = true, sta
                             variant="outline"
                             size="sm"
                             onClick={() => {
-                                console.log('🧪 MANUAL TEST: Simulating Section2 -> Section3 Navigation')
-                                console.log('Would route to:', routePreview.route)
-                                console.log('Organization type used:', formData?.organizationType || formData?.eventType)
+                                try {
+                                    console.log('🧪 MANUAL TEST: Simulating Section2 -> Section3 Navigation')
+                                    console.log('Would route to:', routePreview.route)
+                                    console.log('Organization type used:', formData?.organizationType || formData?.eventType)
+                                } catch (error) {
+                                    console.warn('Error in navigation test:', error.message)
+                                }
                             }}
                         >
                             Test Navigation

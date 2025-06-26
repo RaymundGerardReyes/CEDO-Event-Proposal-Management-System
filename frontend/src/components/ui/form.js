@@ -34,8 +34,53 @@ const useFormField = () => {
   }
 }
 
+/**
+ * Form wrapper component that filters out react-hook-form props
+ * to prevent React warnings about unrecognized DOM props.
+ * 
+ * This component accepts all react-hook-form props but only passes
+ * valid DOM props to the underlying div element.
+ */
 const Form = ({ children, ...props }) => {
-  return <div {...props}>{children}</div>
+  // Filter out react-hook-form specific props to prevent React warnings
+  // about unrecognized props on DOM elements
+  const {
+    handleSubmit,
+    control,
+    formState,
+    register,
+    watch,
+    setValue,
+    getValues,
+    reset,
+    clearErrors,
+    setError,
+    trigger,
+    getFieldState,
+    resetField,
+    unregister,
+    setFocus,
+    getFieldsValue,
+    subscribe,
+    _reset,
+    _getWatch,
+    _getDirty,
+    _getFieldArray,
+    _subjects,
+    _proxyFormState,
+    _updateFormState,
+    _options,
+    _formControl,
+    _stateRef,
+    _removeUnmounted,
+    _names,
+    _state,
+    _defaultValues,
+    _getIsDirty,
+    ...domProps
+  } = props;
+
+  return <div {...domProps}>{children}</div>
 }
 
 const FormField = ({ control, name, render, ...props }) => {

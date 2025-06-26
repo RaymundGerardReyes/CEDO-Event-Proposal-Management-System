@@ -3,9 +3,7 @@
 
 import { AppSidebar } from "@/components/dashboard/student/app-sidebar"
 import Header from "@/components/dashboard/student/header"
-import { ThemeProvider } from "@/components/dashboard/student/theme-provider"
 import { SidebarProvider, useSidebar } from "@/components/dashboard/student/ui/sidebar"
-import { Toaster } from "@/components/dashboard/student/ui/toaster"
 import { Inter } from "next/font/google"
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
 
@@ -110,20 +108,17 @@ export default function ClientLayout({ children }) {
 
   return (
     <div className={bodyClasses}>
-      <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-        <SidebarProvider>
-          <SidebarLayout>
-            <AppSidebar />
-            <SidebarAwareContent>
-              <Header />
-              <MainContent>
-                {children}
-              </MainContent>
-            </SidebarAwareContent>
-          </SidebarLayout>
-          <Toaster />
-        </SidebarProvider>
-      </ThemeProvider>
+      <SidebarProvider>
+        <SidebarLayout>
+          <AppSidebar />
+          <SidebarAwareContent>
+            <Header />
+            <MainContent>
+              {children}
+            </MainContent>
+          </SidebarAwareContent>
+        </SidebarLayout>
+      </SidebarProvider>
     </div>
   )
 }

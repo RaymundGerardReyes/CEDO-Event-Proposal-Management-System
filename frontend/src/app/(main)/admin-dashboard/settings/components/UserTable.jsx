@@ -1,3 +1,4 @@
+'use client';
 // frontend/src/app/(main)/admin-dashboard/settings/components/UserTable.jsx
 
 /**
@@ -18,12 +19,12 @@
  * - Optimized with React.memo for performance
  */
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Edit, Trash2, UserX } from 'lucide-react';
 import { memo } from 'react';
+import UserAvatar from './UserAvatar';
 
 const UserTable = memo(({
     users,
@@ -143,12 +144,7 @@ const UserTable = memo(({
                                     {/* User Column with Avatar and Name */}
                                     <TableCell>
                                         <div className="flex items-center gap-3">
-                                            <Avatar className="h-8 w-8 sm:h-10 sm:w-10 bg-cedo-blue text-white flex-shrink-0">
-                                                <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
-                                                <AvatarFallback className="bg-cedo-blue text-white text-xs sm:text-sm">
-                                                    {getUserInitials(user.name)}
-                                                </AvatarFallback>
-                                            </Avatar>
+                                            <UserAvatar user={user} size="md" />
                                             <div className="min-w-0 flex-1">
                                                 <div className="font-medium text-foreground truncate">
                                                     {user.name}

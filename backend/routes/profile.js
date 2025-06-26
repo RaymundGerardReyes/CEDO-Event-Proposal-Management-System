@@ -30,10 +30,10 @@ const authenticateToken = (req, res, next) => {
         return res.status(401).json({ error: 'Malformed or missing JWT token' });
     }
 
-    // Use JWT_SECRET (primary) or fallback to JWT_SECRET_DEV for dev
-    const jwtSecret = process.env.JWT_SECRET || process.env.JWT_SECRET_DEV;
+    // Use JWT_SECRET_DEV (primary during local dev) or fall back to JWT_SECRET
+    const jwtSecret = process.env.JWT_SECRET_DEV || process.env.JWT_SECRET;
 
-    jwt.verify(token, jwtSecret, (err, user) => {
+    jwt.verify(token, jwtSecret, (err, decoded) => {
         if (err) {
             console.error('JWT verification error:', err.message);
             return res.status(403).json({
@@ -41,7 +41,8 @@ const authenticateToken = (req, res, next) => {
                 details: process.env.NODE_ENV === 'development' ? err.message : undefined
             });
         }
-        req.user = user;
+        // Support both flat and nested payloads
+        req.user = decoded.user ? decoded.user : decoded;
         next();
     });
 };

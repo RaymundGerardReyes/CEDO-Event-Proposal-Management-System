@@ -16,7 +16,8 @@
 const express = require("express")
 const router = express.Router()
 const { pool } = require("../config/db")
-const { mongoose } = require("../config/mongodb")
+const mongoose = require("mongoose")
+const { getDatabase, connectToMongo } = require("../config/mongodb")
 const { ObjectId } = mongoose.Types
 const multer = require("multer")
 const path = require("path")
@@ -1489,54 +1490,108 @@ router.delete("/proposals/:id/files/:fileType", async (req, res, next) => {
  */
 router.get("/dashboard/stats", async (req, res, next) => {
     try {
-        // Get proposal statistics
+        console.log('🔍 [Dashboard Stats] Fetching proposal statistics...');
+
+        // Get proposal statistics using correct column names
         const [proposalStats] = await pool.query(`
-        SELECT
-        COUNT(*) as total,
-            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-            SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
-            SUM(CASE WHEN status = 'denied' THEN 1 ELSE 0 END) as denied,
-            SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected
-      FROM proposals
-            `)
+            SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN proposal_status = 'pending' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN proposal_status = 'approved' THEN 1 ELSE 0 END) as approved,
+                SUM(CASE WHEN proposal_status = 'rejected' OR proposal_status = 'denied' THEN 1 ELSE 0 END) as rejected
+            FROM proposals
+        `);
 
-        // Get user statistics
+        // Get yesterday's total for growth calculation (using DATE_SUB for better compatibility)
+        const [yesterdayStats] = await pool.query(`
+            SELECT COUNT(*) as yesterdayTotal
+            FROM proposals 
+            WHERE created_at < DATE_SUB(CURDATE(), INTERVAL 0 DAY)
+        `);
+
+        // Get new proposals since yesterday
+        const [newTodayStats] = await pool.query(`
+            SELECT COUNT(*) as newSinceYesterday
+            FROM proposals 
+            WHERE created_at >= CURDATE()
+        `);
+
+        // Get user statistics (check if columns exist first)
         const [userStats] = await pool.query(`
-        SELECT
-        COUNT(*) as total,
-            SUM(CASE WHEN role = 'student' THEN 1 ELSE 0 END) as students,
-            SUM(CASE WHEN role = 'admin' THEN 1 ELSE 0 END) as admins,
-            SUM(CASE WHEN role = 'faculty' THEN 1 ELSE 0 END) as faculty
-      FROM users
-            `)
+            SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN role = 'student' THEN 1 ELSE 0 END) as students,
+                SUM(CASE WHEN role = 'admin' THEN 1 ELSE 0 END) as admins,
+                SUM(CASE WHEN role = 'faculty' THEN 1 ELSE 0 END) as faculty
+            FROM users
+        `);
 
-        // Get recent proposals
+        // Get recent proposals with correct column names
         const [recentProposals] = await pool.query(`
-      SELECT id, eventName, status, submittedAt, contactPerson
-      FROM proposals
-      ORDER BY submittedAt DESC
-      LIMIT 5
-            `)
+            SELECT 
+                id, 
+                event_name as eventName, 
+                proposal_status as status, 
+                COALESCE(submitted_at, created_at) as submittedAt, 
+                contact_name as contactPerson
+            FROM proposals
+            WHERE event_name IS NOT NULL
+            ORDER BY COALESCE(submitted_at, created_at) DESC
+            LIMIT 5
+        `);
 
         // Get event type distribution
         const [eventTypes] = await pool.query(`
-      SELECT eventType, COUNT(*) as count
-      FROM proposals
-      GROUP BY eventType
-      ORDER BY count DESC
-    `)
+            SELECT 
+                COALESCE(school_event_type, community_event_type, 'other') as eventType, 
+                COUNT(*) as count
+            FROM proposals
+            WHERE COALESCE(school_event_type, community_event_type) IS NOT NULL
+            GROUP BY COALESCE(school_event_type, community_event_type)
+            ORDER BY count DESC
+        `);
+
+        // Calculate metrics safely
+        const currentTotal = proposalStats[0]?.total || 0;
+        const yesterdayTotal = yesterdayStats[0]?.yesterdayTotal || 0;
+        const newSinceYesterday = newTodayStats[0]?.newSinceYesterday || 0;
+
+        const dayOverDayChange = yesterdayTotal > 0
+            ? ((currentTotal - yesterdayTotal) / yesterdayTotal * 100).toFixed(1)
+            : 0;
+
+        const approved = proposalStats[0]?.approved || 0;
+        const approvalRate = currentTotal > 0
+            ? ((approved / currentTotal) * 100).toFixed(0)
+            : 0;
+
+        console.log('✅ [Dashboard Stats] Statistics calculated:', {
+            total: currentTotal,
+            pending: proposalStats[0]?.pending || 0,
+            approved: approved,
+            rejected: proposalStats[0]?.rejected || 0,
+            newSinceYesterday,
+            approvalRate
+        });
 
         res.json({
             success: true,
             stats: {
-                proposals: proposalStats[0],
-                users: userStats[0],
-                recentProposals,
-                eventTypes,
+                proposals: {
+                    ...proposalStats[0],
+                    newSinceYesterday,
+                    dayOverDayChange: parseFloat(dayOverDayChange),
+                    approvalRate: parseInt(approvalRate),
+                    yesterdayTotal
+                },
+                users: userStats[0] || { total: 0, students: 0, admins: 0, faculty: 0 },
+                recentProposals: recentProposals || [],
+                eventTypes: eventTypes || [],
             },
-        })
+        });
     } catch (error) {
-        next(error)
+        console.error('❌ [Dashboard Stats] Error:', error.message);
+        next(error);
     }
 })
 
@@ -1609,6 +1664,82 @@ router.get("/reports/proposals", async (req, res, next) => {
         next(error)
     }
 })
+
+/**
+ * GET /api/admin/stats
+ * Admin dashboard statistics endpoint
+ */
+router.get('/stats', validateToken, validateAdmin, async (req, res) => {
+    try {
+        console.log('Admin stats endpoint hit by user:', req.user?.id);
+
+        // Get various statistics from the database
+        const [userStats] = await pool.query('SELECT COUNT(*) as total FROM users');
+        const [proposalStats] = await pool.query('SELECT COUNT(*) as total FROM proposals');
+        const [pendingApprovals] = await pool.query('SELECT COUNT(*) as total FROM users WHERE is_approved = 0');
+
+        // Get recent activity (last 30 days)
+        const [recentUsers] = await pool.query(
+            'SELECT COUNT(*) as total FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)'
+        );
+
+        // Get approved vs pending users
+        const [approvedUsers] = await pool.query('SELECT COUNT(*) as total FROM users WHERE is_approved = 1');
+
+        const stats = {
+            totalUsers: userStats[0].total,
+            totalProposals: proposalStats[0].total,
+            pendingApprovals: pendingApprovals[0].total,
+            approvedUsers: approvedUsers[0].total,
+            recentUsers: recentUsers[0].total,
+            timestamp: new Date().toISOString()
+        };
+
+        console.log('Admin stats retrieved successfully:', stats);
+
+        res.json({
+            success: true,
+            data: stats
+        });
+
+    } catch (error) {
+        console.error('Admin stats error:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to retrieve admin statistics',
+            message: error.message
+        });
+    }
+});
+
+/**
+ * GET /api/admin/users
+ * Get all users for admin management
+ */
+router.get('/users', validateToken, validateAdmin, async (req, res) => {
+    try {
+        const [users] = await pool.query(`
+      SELECT 
+        id, name, email, role, organization, organization_type, 
+        is_approved, created_at, last_login 
+      FROM users 
+      ORDER BY created_at DESC
+    `);
+
+        res.json({
+            success: true,
+            data: users
+        });
+
+    } catch (error) {
+        console.error('Admin users error:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to retrieve users',
+            message: error.message
+        });
+    }
+});
 
 // Apply error handler to all routes
 router.use(handleErrors)

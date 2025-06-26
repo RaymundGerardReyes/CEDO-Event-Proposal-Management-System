@@ -80,15 +80,18 @@ function NavItem({ href, isActive, icon, children, collapsed, onClick, badge = n
   )
 }
 
+
 export function AppSidebar() {
   const pathname = usePathname()
   const { isMobile, isOpen, onOpen, onClose } = useSidebar()
   const [collapsed, setCollapsed] = useState(false)
+  const [showToggle, setShowToggle] = useState(false)
+  const [hideTimeout, setHideTimeout] = useState(null)
 
   // Debug logging for state changes
   useEffect(() => {
-    console.log("AppSidebar: State changed", { collapsed, isMobile, isOpen })
-  }, [collapsed, isMobile, isOpen])
+    console.log("AppSidebar: State changed", { collapsed, isMobile, isOpen, showToggle })
+  }, [collapsed, isMobile, isOpen, showToggle])
 
   // Dispatch sidebar state changes for layout components
   useEffect(() => {
@@ -107,6 +110,15 @@ export function AppSidebar() {
     }
   }, [collapsed, isMobile])
 
+  // Clean up timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hideTimeout) {
+        clearTimeout(hideTimeout)
+      }
+    }
+  }, [hideTimeout])
+
   const toggleDesktopCollapse = () => {
     const newCollapsedState = !collapsed
     console.log("AppSidebar: Toggle button clicked, changing from", collapsed, "to", newCollapsedState)
@@ -117,6 +129,43 @@ export function AppSidebar() {
     if (isMobile) {
       onClose()
     }
+  }
+
+  // Handle hover/touch detection for toggle button with delay
+  const handleShowToggle = () => {
+    // Clear any existing hide timeout
+    if (hideTimeout) {
+      clearTimeout(hideTimeout)
+      setHideTimeout(null)
+    }
+    setShowToggle(true)
+  }
+
+  const handleHideToggle = () => {
+    // Add a delay before hiding to allow user to move cursor to button
+    const timeout = setTimeout(() => {
+      setShowToggle(false)
+      setHideTimeout(null)
+    }, 300) // 300ms delay - enough time to move cursor but not too long
+    setHideTimeout(timeout)
+  }
+
+  // Handle touch events for mobile-like interactions
+  const handleTouchStart = () => {
+    if (hideTimeout) {
+      clearTimeout(hideTimeout)
+      setHideTimeout(null)
+    }
+    setShowToggle(true)
+  }
+
+  const handleTouchEnd = () => {
+    // Delay hiding to allow for button interaction
+    const timeout = setTimeout(() => {
+      setShowToggle(false)
+      setHideTimeout(null)
+    }, 2000)
+    setHideTimeout(timeout)
   }
 
   const navItems = [
@@ -233,23 +282,50 @@ export function AppSidebar() {
   // Enhanced Desktop sidebar with better responsive design
   return (
     <>
-      {/* Enhanced Collapsible button - positioned OUTSIDE the sidebar */}
-      <button
-        onClick={toggleDesktopCollapse}
-        className={`fixed z-50 p-2 sm:p-3 rounded-lg sm:rounded-xl bg-gradient-to-r from-cedo-blue to-cedo-blue/90 text-cedo-gold shadow-2xl hover:shadow-cedo-gold/25 hover:scale-110 transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-cedo-gold border border-cedo-gold/20 min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center`}
+      {/* Hover/Touch Detection Zone - positioned at sidebar edge */}
+      <div
+        className="fixed top-0 left-0 h-full w-6 z-30 bg-transparent"
         style={{
-          top: '0.75rem',
-          left: collapsed ? 'calc(4rem + 0.5rem)' : 'calc(16rem + 0.5rem)', // Adjusted for smaller collapsed width
-          transition: 'left 500ms ease-out, transform 300ms ease-out',
+          left: collapsed ? '0' : '0',
+          width: collapsed ? '6rem' : '17rem', // Slightly wider than sidebar for better detection
+          transition: 'width 500ms ease-out',
         }}
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-      >
-        {collapsed ? <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" /> : <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />}
-      </button>
+        onMouseEnter={handleShowToggle}
+        onMouseLeave={handleHideToggle}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        aria-hidden="true"
+      />
+
+      {/* Enhanced Collapsible button - appears on hover/touch */}
+      {showToggle && (
+        <button
+          onClick={toggleDesktopCollapse}
+          className={`fixed z-50 p-2 sm:p-3 rounded-lg sm:rounded-xl bg-gradient-to-r from-cedo-blue to-cedo-blue/90 text-cedo-gold shadow-2xl hover:shadow-cedo-gold/25 hover:scale-110 transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-cedo-gold border border-cedo-gold/20 min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center animate-in fade-in slide-in-from-left-2 duration-300`}
+          style={{
+            top: '0.75rem',
+            left: collapsed ? 'calc(4rem + 0.5rem)' : 'calc(16rem + 0.5rem)',
+            transition: 'left 500ms ease-out, transform 300ms ease-out, opacity 300ms ease-out',
+            opacity: 1, // Override the opacity-0 class
+          }}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          onMouseEnter={handleShowToggle}
+          onMouseLeave={handleHideToggle}
+        >
+          {collapsed ? <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" /> : <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />}
+        </button>
+      )}
 
       {/* Enhanced Sidebar container */}
-      <div className="relative" style={{ width: collapsed ? '4rem' : '16rem' }}>
+      <div
+        className="relative"
+        style={{ width: collapsed ? '4rem' : '16rem' }}
+        onMouseEnter={handleShowToggle}
+        onMouseLeave={handleHideToggle}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
 
         <Sidebar
           className={`fixed top-0 left-0 h-screen !bg-gradient-to-b from-cedo-blue via-cedo-blue to-cedo-blue/95 text-white transition-all duration-500 ease-out shadow-2xl border-r border-cedo-gold/20 z-40 ${collapsed ? "w-16" : "w-64"
@@ -260,14 +336,9 @@ export function AppSidebar() {
             backgroundColor: 'transparent' // Ensure no white background bleeds through
           }}
         >
+
           {/* Enhanced Header */}
           <SidebarHeader className="py-4 sm:py-6 px-3 sm:px-4 border-b border-cedo-gold/20 bg-gradient-to-r from-cedo-blue to-cedo-blue/80" style={{ backgroundColor: 'transparent' }}>
-            {/* Debug indicator */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded z-50">
-                {collapsed ? 'COLLAPSED' : 'EXPANDED'}
-              </div>
-            )}
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 <div className="relative h-10 w-10 sm:h-12 sm:w-12 overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-br from-cedo-gold to-cedo-gold-dark flex items-center justify-center shadow-lg flex-shrink-0">

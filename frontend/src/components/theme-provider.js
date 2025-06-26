@@ -1,40 +1,21 @@
 "use client"
-import { createContext, useContext, useEffect, useState } from "react"
 
-const ThemeContext = createContext({ theme: "light", setTheme: () => {} })
+import { ThemeProvider as NextThemesProvider } from "next-themes"
 
-export function ThemeProvider({ children, defaultTheme = "light", ...props }) {
-  const [theme, setTheme] = useState(defaultTheme)
-
-  useEffect(() => {
-    // Apply theme to document element
-    const root = window.document.documentElement
-    root.classList.remove("light", "dark")
-    root.classList.add(theme)
-  }, [theme])
-
-  const value = {
-    theme,
-    setTheme: (newTheme) => {
-      setTheme(newTheme)
-      // Save theme preference to localStorage
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("theme", newTheme)
-      }
-    },
-  }
-
+export function ThemeProvider({ children, ...props }) {
   return (
-    <ThemeContext.Provider value={value} {...props}>
+    <NextThemesProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+      {...props}
+    >
       {children}
-    </ThemeContext.Provider>
+    </NextThemesProvider>
   )
 }
 
-export const useTheme = () => {
-  const context = useContext(ThemeContext)
-  if (context === undefined) {
-    throw new Error("useTheme must be used within a ThemeProvider")
-  }
-  return context
-}
+// Re-export useTheme from next-themes for consistency
+export { useTheme } from "next-themes"
+

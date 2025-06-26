@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/db');
-const { mongoose } = require('../config/mongodb');
+const mongoose = require('mongoose');
+const { getDatabase, connectToMongo } = require('../config/mongodb');
 
 // ===============================================
 // UNIFIED DATABASE API ENDPOINTS

@@ -41,9 +41,17 @@ router.get("/approved", async (req, res) => {
                    event_status,
                    created_at,
                    updated_at,
+                   -- Section-5 columns
+                   accomplishment_report_file_name,
+                   accomplishment_report_file_path,
+                   pre_registration_file_name,
+                   pre_registration_file_path,
+                   final_attendance_file_name,
+                   final_attendance_file_path,
+                   attendance_count,
+                   report_description,
                    0  AS form_completion_percentage,
-                   NULL AS report_status,
-                   NULL AS accomplishment_report_file_name
+                   'applicable' AS report_status
             FROM   proposals
             WHERE  proposal_status IN (${placeholders})`;
 
@@ -70,6 +78,13 @@ router.get("/approved", async (req, res) => {
             proposal_status: row.proposal_status,
             report_status: row.report_status || "not_applicable",
             accomplishment_report_file_name: row.accomplishment_report_file_name || null,
+            accomplishment_report_file_path: row.accomplishment_report_file_path || null,
+            pre_registration_file_name: row.pre_registration_file_name || null,
+            pre_registration_file_path: row.pre_registration_file_path || null,
+            final_attendance_file_name: row.final_attendance_file_name || null,
+            final_attendance_file_path: row.final_attendance_file_path || null,
+            attendance_count: row.attendance_count,
+            report_description: row.report_description,
             contact_email: row.contact_email,
             contact_name: row.contact_name,
             created_at: row.created_at,

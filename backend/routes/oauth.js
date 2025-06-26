@@ -4,6 +4,7 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const { passport, generateSecureState } = require('../config/oauth');
 const sessionManager = require('../middleware/session');
+const { verifyGoogleToken } = require('../utils/googleAuth');
 
 // Check if OAuth is configured
 const isOAuthConfigured = () => {
@@ -381,6 +382,23 @@ router.post('/logout', (req, res) => {
             error: 'Logout failed',
             message: 'Unable to complete logout'
         });
+    }
+});
+
+router.post('/auth/google', async (req, res) => {
+    try {
+        const { token } = req.body;
+        const payload = await verifyGoogleToken(token);
+
+        // Check if user exists in your database or create a new one
+        const user = await findOrCreateUser(payload);
+
+        // Generate a JWT token for session management
+        const authToken = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+        res.json({ authToken, user });
+    } catch (error) {
+        res.status(401).json({ error: error.message });
     }
 });
 

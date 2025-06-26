@@ -5,7 +5,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { format } from 'date-fns';
 import React from 'react';
 // Adjust the import path according to your project structure
-import Section4_CommunityEvent from '../../src/app/(main)/student-dashboard/submit-event/Section4_CommunityEvent';
+import Section4_CommunityEvent from '../../src/app/(main)/student-dashboard/submit-event/[draftId]/community-event/Section4_CommunityEvent';
 
 // Mock UI components and hooks
 jest.mock('@/components/ui/button', () => ({ Button: (props) => <button {...props}>{props.children}</button> }));
@@ -208,7 +208,7 @@ describe('Section4_CommunityEvent', () => {
         fireEvent.change(input, { target: { name: 'communityEventName', value: 'New Name' } });
         expect(mockHandleInputChange).toHaveBeenCalledWith(expect.objectContaining({ target: { name: 'communityEventName', value: 'New Name' } }));
     });
-    
+
     test('7. Handles communityVenue input change', () => {
         renderComponent();
         const input = screen.getByLabelText(/Venue \(Platform or Address\)/i);
@@ -247,7 +247,7 @@ describe('Section4_CommunityEvent', () => {
         fireEvent.change(input, { target: { name: 'communityTimeEnd', value: '18:00' } });
         expect(mockHandleInputChange).toHaveBeenCalledWith(expect.objectContaining({ target: { name: 'communityTimeEnd', value: '18:00' } }));
     });
-    
+
     test('12. Handles communityEventType radio group change', () => {
         renderComponent();
         const radioItem = screen.getByLabelText('Leadership Training');
@@ -312,7 +312,7 @@ describe('Section4_CommunityEvent', () => {
             expect(mockHandleFileChange).not.toHaveBeenCalled();
         });
     });
-    
+
     test('19. Shows error for incorrect communityGPOAFile naming (missing "gpoa")', async () => {
         renderComponent();
         const fileInput = screen.getByLabelText(gpoaFileLabelText).querySelector('input[type="file"]');
@@ -332,7 +332,7 @@ describe('Section4_CommunityEvent', () => {
             expect(mockHandleFileChange).not.toHaveBeenCalled();
         });
     });
-    
+
     test('21. Clears communityGPOAFile error on subsequent valid upload', async () => {
         renderComponent();
         const fileInput = screen.getByLabelText(gpoaFileLabelText).querySelector('input[type="file"]');
@@ -361,7 +361,7 @@ describe('Section4_CommunityEvent', () => {
             expect(mockHandleFileChange).toHaveBeenCalledWith(expect.objectContaining({ target: expect.objectContaining({ name: 'communityProposalFile', files: [validProposalFile] }) }));
         });
     });
-    
+
     test('23. Shows error for incorrect communityProposalFile naming (missing "pp")', async () => {
         renderComponent();
         const fileInput = screen.getByLabelText(proposalFileLabelText).querySelector('input[type="file"]');
@@ -405,7 +405,7 @@ describe('Section4_CommunityEvent', () => {
         expect(screen.queryByRole('button', { name: /Withdraw/i })).not.toBeInTheDocument(); // Withdraw button is not rendered when disabled
         expect(screen.getByRole('button', { name: /Submit Proposal for Approval/i })).toBeDisabled();
     });
-    
+
     test('28. File inputs are not interactive when disabled', () => {
         renderComponent({ disabled: true });
         const gpoaInput = screen.getByLabelText(gpoaFileLabelText).querySelector('input[type="file"]');
@@ -429,7 +429,7 @@ describe('Section4_CommunityEvent', () => {
         fireEvent.click(radioItem);
         expect(mockHandleInputChange).not.toHaveBeenCalled();
     });
-    
+
     test('31. Checkbox changes do not trigger when disabled', () => {
         renderComponent({ disabled: true });
         const checkbox = screen.getByLabelText('Leaders'); // For Target Audience

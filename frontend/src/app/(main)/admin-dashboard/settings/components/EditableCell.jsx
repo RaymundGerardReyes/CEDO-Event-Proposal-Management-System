@@ -1,3 +1,4 @@
+'use client';
 // frontend/src/app/(main)/admin-dashboard/settings/components/EditableCell.jsx
 
 /**

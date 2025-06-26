@@ -1,50 +1,20 @@
-/**
- * Authentication Routes
- * 
- * Provides secure authentication endpoints for the CEDO application.
- * Implements both traditional email/password authentication and modern
- * Google OAuth 2.0 authentication using Google Identity Services.
- * 
- * Features:
- * - Email/password authentication with bcrypt hashing
- * - Google OAuth 2.0 with ID token verification
- * - reCAPTCHA v3 integration for bot protection
- * - Role-based access control and dashboard routing
- * - Comprehensive error handling and security measures
- * - Session management and token generation
- * 
- * Security Measures:
- * - Password hashing with bcrypt (cost factor 12)
- * - JWT token generation with secure secrets
- * - Google ID token verification on server-side
- * - reCAPTCHA validation for form submissions
- * - User approval system for access control
- * - Comprehensive input validation and sanitization
- * 
- * @see https://developers.google.com/identity/gsi/web/guides/verify-google-id-token
- * @see https://www.sitepoint.com/google-auth-react-express/
- * 
- * @module routes/auth
- */
-
 // backend/routes/auth.js
 
 const express = require("express")
 const router = express.Router()
 const bcrypt = require("bcryptjs")
+// const jwt = require("jsonwebtoken") // Not directly used here for /google route
 const { pool } = require("../config/db")
 const authMiddleware = require("../middleware/auth")
+// const checkRole = require("../middleware/roles") // Not directly used here for /google route
+// const axios = require("axios") // Not directly used here for /google route
+// const validate = require("../middleware/validation") // Not directly used here for /google route
 const sessionManager = require("../middleware/session")
+// const { OAuth2Client } = require("google-auth-library") // Client is initialized in verifyGoogleToken
 const { verifyGoogleToken } = require("../utils/googleAuth")
 const { createAssessment } = require('../utils/recaptchaAssessment');
 const { verifyRecaptchaToken } = require('../utils/recaptcha');
 
-/**
- * User Role Constants
- * 
- * Defines all available user roles in the system for consistent
- * role-based access control across the application.
- */
 const ROLES = {
   STUDENT: "student",
   HEAD_ADMIN: "head_admin",
@@ -53,22 +23,6 @@ const ROLES = {
   REVIEWER: "reviewer",
 }
 
-/**
- * Role-Based Access Control Configuration
- * 
- * Maps each user role to their default dashboard and available permissions.
- * This configuration ensures proper authorization and user experience
- * based on the user's role within the system.
- * 
- * Dashboard Routing:
- * - Students and Partners → Student Dashboard
- * - Admins, Managers, Reviewers → Admin Dashboard
- * 
- * Permission System:
- * - Granular permissions for fine-grained access control
- * - Hierarchical permission inheritance
- * - Future-proof extensibility for new features
- */
 const roleAccess = {
   [ROLES.STUDENT]: {
     dashboard: "/student-dashboard",
@@ -126,34 +80,7 @@ if (!process.env.JWT_SECRET_DEV) {
 // The change is focused on the /google route below.
 
 
-/**
- * Email/Password Authentication Endpoint
- * 
- * Handles traditional email and password authentication with enhanced security features.
- * Implements bcrypt password verification and reCAPTCHA bot protection.
- * 
- * Process Flow:
- * 1. Validates email and password presence
- * 2. Verifies reCAPTCHA token for bot protection
- * 3. Looks up user in database by email
- * 4. Compares password using bcrypt
- * 5. Checks user approval status
- * 6. Generates JWT token for session
- * 7. Returns authentication response
- * 
- * Security Features:
- * - bcrypt password hashing verification
- * - reCAPTCHA v3 bot protection
- * - User approval system
- * - Comprehensive input validation
- * - Secure error messages (no user enumeration)
- * 
- * @route POST /auth/login
- * @param {string} req.body.email - User's email address
- * @param {string} req.body.password - User's password
- * @param {string} req.body.captchaToken - reCAPTCHA verification token
- * @returns {Object} Authentication response with JWT and user data
- */
+// --- Standard Email/Password Login Route ---
 router.post('/login', async (req, res, next) => {
   console.log('\n--- Backend /auth/login Endpoint Hit ---');
   console.log('Timestamp:', new Date().toISOString());
@@ -246,35 +173,7 @@ router.post('/login', async (req, res, next) => {
 });
 
 
-/**
- * Google OAuth 2.0 Authentication Endpoint
- * 
- * Handles Google Sign-In authentication using ID tokens from Google Identity Services.
- * This endpoint follows Google's recommended server-side verification process
- * for secure authentication.
- * 
- * Process Flow:
- * 1. Receives ID token from frontend (Google Identity Services)
- * 2. Verifies token authenticity with Google's servers
- * 3. Extracts user information from verified token
- * 4. Checks/creates user account in database
- * 5. Validates user approval status
- * 6. Generates application JWT token
- * 7. Returns user data and authentication token
- * 
- * Security Features:
- * - Server-side ID token verification
- * - User approval system
- * - Automatic profile updates
- * - Email verification checks
- * - Database transaction safety
- * 
- * @route POST /auth/google
- * @param {string} req.body.token - Google ID token from frontend
- * @returns {Object} Authentication response with JWT and user data
- * 
- * @see https://developers.google.com/identity/gsi/web/guides/verify-google-id-token
- */
+// --- Google Sign-In Route ---
 router.post("/google", async (req, res, next) => {
   const idTokenFromFrontend = req.body.token
 
@@ -468,6 +367,98 @@ router.post("/google", async (req, res, next) => {
     next(error); // Pass to the main error handler
   } finally {
     console.log('--- Backend /auth/google Endpoint Finished ---\n');
+  }
+});
+
+/**
+ * Logout Endpoint
+ * @route POST /auth/logout
+ */
+router.post('/logout', async (req, res, next) => {
+  console.log('\n--- Backend /auth/logout Endpoint Hit ---');
+  console.log('Timestamp:', new Date().toISOString());
+
+  try {
+    // Optional: Log logout activity if user ID is available
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      try {
+        const decoded = sessionManager.verifyToken(token);
+        if (decoded && decoded.user && decoded.user.id) {
+          await sessionManager.logAccess(decoded.user.id, decoded.user.role, "logout");
+          console.log(`Backend [/logout]: Logged logout for user ID: ${decoded.user.id}`);
+        }
+      } catch (tokenError) {
+        console.log('Backend [/logout]: Could not decode token for logging, but logout proceeding');
+      }
+    }
+
+    console.log('Backend [/logout]: Logout successful');
+    res.json({ message: 'Logout successful' });
+  } catch (error) {
+    console.error('Backend [/logout] Error:', error);
+    next(error);
+  } finally {
+    console.log('--- Backend /auth/logout Endpoint Finished ---\n');
+  }
+});
+
+/**
+ * Get current user endpoint
+ * @route GET /auth/me
+ */
+router.get('/me', async (req, res, next) => {
+  console.log('\n--- Backend /auth/me Endpoint Hit ---');
+
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'No authorization token provided' });
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = sessionManager.verifyToken(token);
+
+    if (!decoded || !decoded.user) {
+      return res.status(401).json({ message: 'Invalid token' });
+    }
+
+    // Get fresh user data from database
+    const [users] = await pool.query('SELECT * FROM users WHERE id = ?', [decoded.user.id]);
+    const user = users[0];
+
+    if (!user) {
+      return res.status(401).json({ message: 'User not found' });
+    }
+
+    if (!user.is_approved) {
+      return res.status(403).json({
+        message: 'Account pending approval',
+        reason: 'USER_NOT_APPROVED'
+      });
+    }
+
+    res.json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        organization: user.organization,
+        organization_type: user.organization_type,
+        avatar: user.avatar,
+        is_approved: Boolean(user.is_approved),
+        google_id: user.google_id,
+        dashboard: roleAccess[user.role]?.dashboard,
+        permissions: roleAccess[user.role]?.permissions,
+      },
+    });
+  } catch (error) {
+    console.error('Backend [/me] Error:', error);
+    res.status(401).json({ message: 'Invalid token' });
+  } finally {
+    console.log('--- Backend /auth/me Endpoint Finished ---\n');
   }
 });
 

@@ -131,27 +131,41 @@ export const eventStateMachine = createMachine({
   on: {
     UPDATE_FORM: {
       actions: assign({
-        formData: ({ context, event }) => {
-          try {
-            const currentFormData = context?.formData || {};
-            const eventData = event?.data || {};
-            const merged = { ...currentFormData, ...eventData };
-            // Persist defensively – ignore quota errors to avoid interpreter crashes
-            try {
-              if (typeof window !== 'undefined') {
-                localStorage.setItem('eventProposalFormData', JSON.stringify(merged));
-              }
-            } catch (e) {
-              console.warn('⚠️ Persist failed (ignored):', e?.message || e);
+        formData: (ctx, evt) => {
+          const currentFormData = ctx?.formData || {};
+          const eventData = evt?.data || {};
+          // Merge new data, ensuring that existing fields are not overwritten with null/undefined
+          const merged = { ...currentFormData };
+          for (const key in eventData) {
+            if (eventData[key] !== null && eventData[key] !== undefined) {
+              merged[key] = eventData[key];
             }
-            return merged;
-          } catch (err) {
-            console.error('❌ Global UPDATE_FORM handler error:', err);
-            return context.formData;
           }
+
+          // Persist the robustly merged data to localStorage
+          persistFormData(merged);
+          return merged;
         },
       }),
     },
+    // Add a dedicated event to reset the form state
+    RESET_FORM: {
+      target: `.${STATUS.OVERVIEW}`,
+      actions: assign({
+        formData: (context) => {
+          clearPersistedFormData();
+          return {
+            currentSection: STATUS.OVERVIEW,
+            organizationName: "",
+            organizationTypes: [],
+            hasActiveProposal: false,
+            proposalStatus: "draft",
+            reportStatus: "draft",
+            validationErrors: {},
+          };
+        }
+      })
+    }
   },
   states: {
     [STATUS.OVERVIEW]: {
@@ -255,28 +269,28 @@ export const eventStateMachine = createMachine({
         NEXT: {
           target: STATUS.SCHOOL_EVENT,
           actions: assign({
-            formData: (context) => {
+            formData: (context, event) => {
               const updatedFormData = {
                 ...context.formData,
+                ...(event?.data ?? {}), // Merge data from the event payload
                 currentSection: STATUS.SCHOOL_EVENT,
-                validationErrors: {},
-              }
-              persistFormData(updatedFormData)
-              return updatedFormData
+              };
+              persistFormData(updatedFormData);
+              return updatedFormData;
             },
           }),
         },
         NEXT_TO_COMMUNITY: {
           target: STATUS.COMMUNITY_EVENT,
           actions: assign({
-            formData: (context) => {
+            formData: (context, event) => {
               const updatedFormData = {
                 ...context.formData,
+                ...(event?.data ?? {}), // Merge data from the event payload
                 currentSection: STATUS.COMMUNITY_EVENT,
-                validationErrors: {},
-              }
-              persistFormData(updatedFormData)
-              return updatedFormData
+              };
+              persistFormData(updatedFormData);
+              return updatedFormData;
             },
           }),
         },

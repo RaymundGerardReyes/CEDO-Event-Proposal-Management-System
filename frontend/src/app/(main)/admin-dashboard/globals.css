@@ -1,4 +1,4 @@
-/* frontend/src/app/(main)/admin-dashboard/globals.css */
+/* frontend/src/app/(main)/student-dashboard/globals.css */
 
 @tailwind base;
 @tailwind components;
@@ -8,112 +8,87 @@
   :root {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
-
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
-
-    /* Sidebar width variables - flexible instead of hardcoded */
-    --sidebar-width-expanded: 18rem;
-    /* Updated to 18rem for proper responsive behavior */
-    --sidebar-width-collapsed: 6rem;
-
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-
     --primary: 221 83% 24%;
-    /* Navy blue from CEDO logo */
+    /* Navy blue #0c2d6b */
     --primary-foreground: 210 40% 98%;
-
     --secondary: 45 93% 62%;
-    /* Gold from CEDO logo */
+    /* Gold #f0c14b */
     --secondary-foreground: 222.2 47.4% 11.2%;
-
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
-
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 221 83% 24%;
-
     --radius: 0.5rem;
 
+    /* Origin UI Avatar variables */
+    --avatar-radius: var(--radius);
+    --avatar-background: var(--background);
+    --avatar-foreground: var(--foreground);
+
     /* Sidebar variables */
-    --sidebar-background: 221 83% 24%;
-    /* Navy blue */
-    --sidebar-foreground: 45 93% 62%;
-    /* Gold */
+    --sidebar-background: 217 76% 24%;
+    /* Navy blue #0A2B70 */
+    --sidebar-foreground: 0 0% 100%;
+    /* White */
     --sidebar-primary: 45 93% 62%;
-    /* Gold */
-    --sidebar-primary-foreground: 221 83% 24%;
+    /* Gold #f0c14b */
+    --sidebar-primary-foreground: 217 76% 24%;
     /* Navy blue */
-    --sidebar-accent: 221 83% 30%;
-    /* Slightly lighter navy */
-    --sidebar-accent-foreground: 45 93% 62%;
-    /* Gold */
-    --sidebar-border: 221 83% 30%;
+    --sidebar-accent: 217 76% 29%;
+    /* Slightly lighter navy #0c3285 */
+    --sidebar-accent-foreground: 0 0% 100%;
+    /* White */
+    --sidebar-border: 217 76% 29%;
     /* Slightly lighter navy */
     --sidebar-ring: 45 93% 62%;
     /* Gold */
-
-    /* Enhanced responsive breakpoints */
-    --breakpoint-xs: 475px;
-    --breakpoint-sm: 640px;
-    --breakpoint-md: 768px;
-    --breakpoint-lg: 1024px;
-    --breakpoint-xl: 1280px;
-    --breakpoint-2xl: 1536px;
   }
 
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
-
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
-
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-
     --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
-
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
-
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
-
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
-
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
 
     /* Sidebar variables for dark mode */
-    --sidebar-background: 221 83% 18%;
-    /* Darker navy */
-    --sidebar-foreground: 45 93% 62%;
-    /* Gold */
+    --sidebar-background: 217 76% 24%;
+    /* Navy blue #0A2B70 */
+    --sidebar-foreground: 0 0% 100%;
+    /* White */
     --sidebar-primary: 45 93% 62%;
-    /* Gold */
-    --sidebar-primary-foreground: 221 83% 18%;
-    /* Darker navy */
-    --sidebar-accent: 221 83% 24%;
+    /* Gold #f0c14b */
+    --sidebar-primary-foreground: 217 76% 24%;
     /* Navy blue */
-    --sidebar-accent-foreground: 45 93% 62%;
-    /* Gold */
-    --sidebar-border: 221 83% 24%;
-    /* Navy blue */
+    --sidebar-accent: 217 76% 29%;
+    /* Slightly lighter navy #0c3285 */
+    --sidebar-accent-foreground: 0 0% 100%;
+    /* White */
+    --sidebar-border: 217 76% 29%;
+    /* Slightly lighter navy */
     --sidebar-ring: 45 93% 62%;
     /* Gold */
   }
@@ -130,1106 +105,153 @@
   }
 }
 
-/* Custom styles for the proposal table */
-.proposal-table-cell {
-  @apply px-3 py-1.5 border border-cedo-blue text-cedo-blue rounded-md text-sm;
+/* Custom spacing variables for consistent layout */
+:root {
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  --container-padding-x: 1rem;
+  --container-padding-y: 1.5rem;
 }
 
-.proposal-status-badge {
-  @apply px-2 py-1 rounded text-white text-xs font-medium;
-}
-
-.proposal-status-pending {
-  @apply bg-amber-500;
-}
-
-.proposal-status-approved {
-  @apply bg-green-500;
-}
-
-.proposal-status-rejected {
-  @apply bg-red-500;
-}
-
-/* Custom component styles */
-.cedo-card {
-  @apply border border-gray-100 shadow-sm rounded-lg bg-white transition-all duration-200 hover:shadow-md;
-}
-
-.cedo-header {
-  @apply text-xl font-medium text-cedo-blue mb-2;
-}
-
-.cedo-subheader {
-  @apply text-sm text-muted-foreground;
-}
-
-.cedo-button-primary {
-  @apply bg-cedo-blue hover:bg-cedo-blue/90 text-white;
-}
-
-.cedo-button-secondary {
-  @apply bg-cedo-gold hover:bg-cedo-gold/90 text-cedo-blue;
-}
-
-.cedo-stats-card {
-  @apply p-6 flex justify-between items-start;
-}
-
-.cedo-section {
-  @apply mb-6;
-}
-
-.cedo-table-header {
-  @apply bg-gray-50 font-semibold text-cedo-blue;
-}
-
-.cedo-table-row {
-  @apply hover:bg-muted/30;
-}
-
-.cedo-badge-primary {
-  @apply bg-cedo-blue/10 text-cedo-blue border border-cedo-blue/20;
-}
-
-.cedo-badge-secondary {
-  @apply bg-cedo-gold/10 text-cedo-blue border border-cedo-gold/20;
-}
-
-/* Enhanced UI/UX Styles */
-.cedo-card {
-  @apply transition-all duration-300 hover:shadow-card-hover;
-}
-
-.cedo-button-primary {
-  @apply transition-all duration-300 transform hover:scale-105;
-}
-
-.cedo-button-secondary {
-  @apply transition-all duration-300 transform hover:scale-105;
-}
-
-.cedo-table-row {
-  @apply transition-colors duration-200;
-}
-
-/* Responsive improvements */
-@media (max-width: 640px) {
-  .cedo-stats-card {
-    @apply p-4;
-  }
-
-  .cedo-header {
-    @apply text-lg;
-  }
-}
-
-/* Animation classes - FIXED to remove circular dependencies */
-.custom-fade-in {
-  animation: fadeIn 0.5s ease-out;
-}
-
-.custom-slide-in {
-  animation: slideInFromRight 0.3s ease-out;
-}
-
-/* Improved focus states for accessibility */
-button:focus-visible,
-a:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  @apply outline-none ring-2 ring-cedo-blue ring-offset-2;
-}
-
-/* Loading states */
-.loading-skeleton {
-  @apply bg-gray-200 animate-pulse rounded;
-}
-
-/* Improved card hover effects */
-.hover-card-effect {
-  @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
-}
-
-/* Improved table styles */
-.cedo-table {
-  @apply w-full border-collapse;
-}
-
-.cedo-table th {
-  @apply p-3 bg-gray-50 text-left font-semibold text-cedo-blue;
-}
-
-.cedo-table td {
-  @apply p-3 border-b border-gray-100;
-}
-
-.cedo-table tr:hover {
-  @apply bg-gray-50;
-}
-
-/* Responsive utilities */
-.custom-fade-in {
-  animation: fadeIn 0.5s ease-out;
-}
-
-.custom-slide-in {
-  animation: slideInFromRight 0.3s ease-out;
-}
-
-/* Hide on mobile */
-.hide-on-mobile {
-  @apply hidden sm:block;
-}
-
-/* Hide on desktop */
-.hide-on-desktop {
-  @apply block sm:hidden;
-}
-
-/* Responsive padding */
-.responsive-padding {
-  @apply p-4 sm:p-6 md:p-8;
-}
-
-/* Responsive container */
-.responsive-container {
-  @apply w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
-}
-
-/* Responsive text */
-.responsive-text-lg {
-  @apply text-base sm:text-lg md:text-xl;
-}
-
-.responsive-text-md {
-  @apply text-sm sm:text-base md:text-lg;
-}
-
-.responsive-text-sm {
-  @apply text-xs sm:text-sm md:text-base;
-}
-
-/* Responsive card */
-.responsive-card {
-  @apply p-3 sm:p-4 md:p-6;
-}
-
-/* Responsive flex direction */
-.responsive-flex {
-  @apply flex flex-col sm:flex-row;
-}
-
-/* Responsive gap */
-.responsive-gap {
-  @apply gap-2 sm:gap-4 md:gap-6;
-}
-
-/* Responsive width */
-.responsive-width {
-  @apply w-full sm:w-auto;
-}
-
-/* Responsive margin */
-.responsive-margin {
-  @apply my-2 sm:my-4 md:my-6;
-}
-
-/* Responsive grid */
-.responsive-grid-2 {
-  @apply grid grid-cols-1 sm:grid-cols-2 gap-4;
-}
-
-.responsive-grid-3 {
-  @apply grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4;
-}
-
-.responsive-grid-4 {
-  @apply grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4;
-}
-
-/* Responsive table */
-.responsive-table {
-  @apply w-full overflow-x-auto;
-}
-
-/* Responsive image */
-.responsive-image {
-  @apply w-full h-auto;
-}
-
-/* Responsive button group */
-.responsive-button-group {
-  @apply flex flex-wrap gap-2;
-}
-
-/* Responsive form */
-.responsive-form {
-  @apply space-y-4 sm:space-y-6;
-}
-
-/* Responsive input group */
-.responsive-input-group {
-  @apply flex flex-col sm:flex-row gap-2 sm:gap-4;
-}
-
-/* Enhanced CEDO Component System - Mobile First Approach */
-@layer components {
-
-  /* Responsive Typography System */
-  .cedo-heading-1 {
-    @apply text-2xl font-bold tracking-tight text-cedo-blue;
-    @apply sm:text-3xl md:text-4xl lg:text-5xl;
-  }
-
-  .cedo-heading-2 {
-    @apply text-xl font-semibold text-cedo-blue;
-    @apply sm:text-2xl md:text-3xl lg:text-4xl;
-  }
-
-  .cedo-heading-3 {
-    @apply text-lg font-medium text-cedo-blue;
-    @apply sm:text-xl md:text-2xl lg:text-3xl;
-  }
-
-  .cedo-heading-4 {
-    @apply text-base font-medium text-cedo-blue;
-    @apply sm:text-lg md:text-xl lg:text-2xl;
-  }
-
-  .cedo-body-lg {
-    @apply text-sm leading-relaxed;
-    @apply sm:text-base md:text-lg;
-  }
-
-  .cedo-body {
-    @apply text-xs leading-relaxed;
-    @apply sm:text-sm md:text-base;
-  }
-
-  .cedo-body-sm {
-    @apply text-xs leading-normal;
-    @apply sm:text-sm;
-  }
-
-  /* Enhanced Card System */
-  .cedo-card {
-    @apply border border-gray-100 shadow-sm rounded-lg bg-white;
-    @apply transition-all duration-300 ease-out;
-    @apply hover:shadow-md hover:-translate-y-0.5;
-    @apply p-4 sm:p-6 md:p-8;
-  }
-
-  .cedo-card-compact {
-    @apply cedo-card p-3 sm:p-4 md:p-6;
-  }
-
-  .cedo-card-spacious {
-    @apply cedo-card p-6 sm:p-8 md:p-10 lg:p-12;
-  }
-
-  /* Enhanced Button System */
-  .cedo-button-primary {
-    @apply bg-cedo-blue hover:bg-cedo-blue/90 text-white;
-    @apply transition-all duration-300 transform hover:scale-105;
-    @apply text-xs px-3 py-2 sm:text-sm sm:px-4 sm:py-2.5 md:text-base md:px-6 md:py-3;
-  }
-
-  .cedo-button-secondary {
-    @apply bg-cedo-gold hover:bg-cedo-gold/90 text-cedo-blue;
-    @apply transition-all duration-300 transform hover:scale-105;
-    @apply text-xs px-3 py-2 sm:text-sm sm:px-4 sm:py-2.5 md:text-base md:px-6 md:py-3;
-  }
-
-  /* Responsive Grid System */
-  .cedo-grid-responsive {
-    @apply grid gap-4 sm:gap-6 md:gap-8;
-    @apply grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4;
-  }
-
-  .cedo-grid-2 {
-    @apply grid gap-3 sm:gap-4 md:gap-6;
-    @apply grid-cols-1 sm:grid-cols-2;
-  }
-
-  .cedo-grid-3 {
-    @apply grid gap-3 sm:gap-4 md:gap-6;
-    @apply grid-cols-1 sm:grid-cols-2 lg:grid-cols-3;
-  }
-
-  .cedo-grid-4 {
-    @apply grid gap-3 sm:gap-4 md:gap-6;
-    @apply grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4;
-  }
-
-  /* Enhanced Table System */
-  .cedo-table {
-    @apply w-full border-collapse;
-  }
-
-  .cedo-table th {
-    @apply p-2 sm:p-3 md:p-4 bg-gray-50 text-left font-semibold text-cedo-blue;
-    @apply text-xs sm:text-sm md:text-base;
-  }
-
-  .cedo-table td {
-    @apply p-2 sm:p-3 md:p-4 border-b border-gray-100;
-    @apply text-xs sm:text-sm md:text-base;
-  }
-
-  .cedo-table tr:hover {
-    @apply bg-gray-50 transition-colors duration-200;
-  }
-
-  /* Responsive Badge System */
-  .cedo-badge {
-    @apply px-2 py-1 rounded-full font-medium;
-    @apply text-xs sm:text-sm;
-  }
-
-  .cedo-badge-primary {
-    @apply cedo-badge bg-cedo-blue/10 text-cedo-blue border border-cedo-blue/20;
-  }
-
-  .cedo-badge-secondary {
-    @apply cedo-badge bg-cedo-gold/10 text-cedo-blue border border-cedo-gold/20;
-  }
-
-  /* Enhanced Form System */
-  .cedo-form {
-    @apply space-y-3 sm:space-y-4 md:space-y-6;
-  }
-
-  .cedo-form-grid {
-    @apply grid gap-3 sm:gap-4 md:gap-6;
-    @apply grid-cols-1 md:grid-cols-2;
-  }
-
-  .cedo-form-input {
-    @apply w-full rounded-md border border-input bg-background;
-    @apply px-3 py-2 text-sm sm:text-base;
-    @apply ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
-  }
-
-  /* Enhanced Section System */
-  .cedo-section {
-    @apply mb-4 sm:mb-6 md:mb-8 lg:mb-12;
-  }
-
-  .cedo-section-header {
-    @apply mb-3 sm:mb-4 md:mb-6;
-  }
-
-  /* Loading States */
-  .cedo-skeleton {
-    @apply bg-gray-200 animate-pulse rounded;
-  }
-
-  /* Enhanced Hover Effects */
-  .cedo-hover-lift {
-    @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
-  }
-
-  .cedo-hover-scale {
-    @apply transition-transform duration-300 hover:scale-105;
-  }
-
-  .cedo-hover-glow {
-    @apply transition-all duration-300 hover:shadow-cedo-blue/25 hover:shadow-lg;
-  }
-}
-
-/* Enhanced Responsive Utilities - Mobile First */
-@layer utilities {
-
-  /* Enhanced Responsive Container System */
-  .responsive-container {
-    @apply w-full mx-auto;
-    @apply px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16;
-    @apply max-w-7xl;
-  }
-
-  .responsive-container-sm {
-    @apply responsive-container max-w-3xl;
-  }
-
-  .responsive-container-lg {
-    @apply responsive-container max-w-full;
-  }
-
-  .responsive-container-full {
-    @apply w-full max-w-full;
-  }
-
-  /* Enhanced Responsive Padding */
-  .responsive-padding {
-    @apply p-3 sm:p-4 md:p-6 lg:p-8 xl:p-10;
-  }
-
-  .responsive-padding-main {
-    @apply p-4 sm:p-6 md:p-8;
-  }
-
-  .responsive-padding-x {
-    @apply px-3 sm:px-4 md:px-6 lg:px-8 xl:px-10;
-  }
-
-  .responsive-padding-y {
-    @apply py-3 sm:py-4 md:py-6 lg:py-8 xl:py-10;
-  }
-
-  /* Enhanced Responsive Margin */
-  .responsive-margin {
-    @apply m-3 sm:m-4 md:m-6 lg:m-8 xl:m-10;
-  }
-
-  .responsive-margin-bottom {
-    @apply mb-3 sm:mb-4 md:mb-6 lg:mb-8 xl:mb-10;
-  }
-
-  .responsive-margin-top {
-    @apply mt-3 sm:mt-4 md:mt-6 lg:mb-8 xl:mt-10;
-  }
-
-  /* Enhanced Responsive Gap */
-  .responsive-gap {
-    @apply gap-2 sm:gap-3 md:gap-4 lg:gap-6 xl:gap-8;
-  }
-
-  .responsive-gap-sm {
-    @apply gap-1 sm:gap-2 md:gap-3 lg:gap-4;
-  }
-
-  .responsive-gap-lg {
-    @apply gap-3 sm:gap-4 md:gap-6 lg:gap-8 xl:gap-12;
-  }
-
-  /* Enhanced Responsive Text */
-  .responsive-text-xs {
-    @apply text-xs sm:text-sm;
-  }
-
-  .responsive-text-sm {
-    @apply text-xs sm:text-sm md:text-base;
-  }
-
-  .responsive-text-base {
-    @apply text-sm sm:text-base md:text-lg;
-  }
-
-  .responsive-text-lg {
-    @apply text-base sm:text-lg md:text-xl lg:text-2xl;
-  }
-
-  .responsive-text-xl {
-    @apply text-lg sm:text-xl md:text-2xl lg:text-3xl;
-  }
-
-  /* Enhanced Responsive Width/Height */
-  .responsive-width-full {
-    @apply w-full;
-  }
-
-  .responsive-width-auto {
-    @apply w-full sm:w-auto;
-  }
-
-  .responsive-height-auto {
-    @apply h-auto min-h-[200px] sm:min-h-[250px] md:min-h-[300px];
-  }
-
-  .responsive-height-header {
-    @apply h-12 sm:h-14 md:h-16;
-  }
-
-  /* Enhanced Responsive Flex */
-  .responsive-flex {
-    @apply flex flex-col sm:flex-row;
-  }
-
-  .responsive-flex-reverse {
-    @apply flex flex-col-reverse sm:flex-row;
-  }
-
-  .responsive-flex-center {
-    @apply flex flex-col sm:flex-row items-center justify-center;
-  }
-
-  .responsive-flex-between {
-    @apply flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4;
-  }
-
-  /* Enhanced Responsive Visibility */
-  .show-mobile {
-    @apply block sm:hidden;
-  }
-
-  .show-tablet {
-    @apply hidden sm:block md:hidden;
-  }
-
-  .show-desktop {
-    @apply hidden md:block;
-  }
-
-  .hide-mobile {
-    @apply hidden sm:block;
-  }
-
-  .hide-tablet {
-    @apply block sm:hidden md:block;
-  }
-
-  .hide-desktop {
-    @apply block md:hidden;
-  }
-
-  /* Enhanced Responsive Border Radius */
-  .responsive-rounded {
-    @apply rounded-md sm:rounded-lg md:rounded-xl;
-  }
-
-  /* Enhanced Responsive Shadows */
-  .responsive-shadow {
-    @apply shadow-sm sm:shadow md:shadow-lg lg:shadow-xl;
-  }
-
-  /* Enhanced Responsive Positioning */
-  .responsive-toast-position {
-    @apply bottom-4 right-4 sm:bottom-6 sm:right-6;
-  }
-
-  /* CSS Grid Enhanced Responsive Layouts */
-  .grid-responsive-auto {
-    @apply grid gap-4 sm:gap-6;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  }
-
-  .grid-responsive-cards {
-    @apply grid gap-3 sm:gap-4 md:gap-6;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  }
-
-  .grid-responsive-sidebar {
-    @apply grid gap-4 sm:gap-6;
-    grid-template-columns: 1fr;
-  }
-
-  /* Responsive focus states for accessibility */
-  .focus-responsive {
-    @apply focus:outline-none focus:ring-2 focus:ring-cedo-blue focus:ring-offset-2;
-    @apply focus:ring-offset-1 sm:focus:ring-offset-2;
-  }
-
-  /* Text overflow utilities */
-  .line-clamp-1 {
-    display: -webkit-box;
-    -webkit-line-clamp: 1;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  .line-clamp-2 {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  .line-clamp-3 {
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  /* Enhanced responsive utilities for sidebar layout management */
-  .sidebar-safe-margin {
-    margin-left: 0;
-    transition: margin-left 300ms ease-in-out;
-    width: 100%;
-    max-width: none;
-  }
-
-  .sidebar-collapsed-margin {
-    margin-left: 0;
-    transition: margin-left 300ms ease-in-out;
-    width: 100%;
-    max-width: none;
-  }
-
-  /* CSS custom property for dynamic sidebar width */
+@media (min-width: 640px) {
   :root {
-    --sidebar-width: var(--sidebar-width-expanded);
-    /* Use the flexible expanded width */
-    --sidebar-width-icon: var(--sidebar-width-collapsed);
-    /* Use the flexible collapsed width */
-    --sidebar-width-mobile: 18rem;
-    /* Mobile width */
-  }
-
-  /* Enhanced responsive sidebar margin management */
-  @media (min-width: 768px) {
-
-    /* Desktop: Main content offset by sidebar width */
-    .sidebar-main-content {
-      margin-left: var(--sidebar-width-expanded);
-      /* Flexible expanded width */
-    }
-
-    /* Sidebar state-based margin adjustments using body classes */
-    body.sidebar-collapsed .sidebar-main-content {
-      margin-left: var(--sidebar-width-collapsed) !important;
-      /* Collapsed width - force override */
-    }
-
-    body.sidebar-expanded .sidebar-main-content {
-      margin-left: var(--sidebar-width-expanded) !important;
-      /* Expanded width - force override */
-    }
-
-    /* Alternative approach using CSS variables for responsive margin */
-    .sidebar-responsive-margin {
-      margin-left: var(--current-sidebar-width, var(--sidebar-width-expanded));
-      transition: margin-left 300ms ease-out;
-    }
-
-    /* Force collapsed state when body has collapsed class */
-    body.sidebar-collapsed .sidebar-responsive-margin {
-      margin-left: var(--sidebar-width-collapsed) !important;
-    }
-
-    body.sidebar-expanded .sidebar-responsive-margin {
-      margin-left: var(--sidebar-width-expanded) !important;
-    }
-
-    /* Alternative margin classes for different sidebar states */
-    .sidebar-expanded-margin {
-      margin-left: var(--sidebar-width, var(--sidebar-width-expanded));
-      width: calc(100% - var(--sidebar-width, var(--sidebar-width-expanded)));
-    }
-
-    .sidebar-collapsed-margin {
-      margin-left: var(--sidebar-width-icon, var(--sidebar-width-collapsed));
-      width: calc(100% - var(--sidebar-width-icon, var(--sidebar-width-collapsed)));
-    }
-
-    /* Ensure no margin conflicts with other classes */
-    .sidebar-main-content.sidebar-main-content {
-      margin-left: var(--sidebar-width-expanded);
-      /* Default state - double specificity */
-    }
-
-    body.sidebar-collapsed .sidebar-main-content.sidebar-main-content {
-      margin-left: var(--sidebar-width-collapsed) !important;
-      /* Collapsed state - force override */
-    }
-  }
-
-  /* Mobile: No margin needed (sidebar is overlay) */
-  @media (max-width: 767px) {
-
-    .sidebar-main-content,
-    .sidebar-responsive-margin {
-      margin-left: 0 !important;
-    }
-
-    /* Ensure mobile always has no margin regardless of body class */
-    body.sidebar-collapsed .sidebar-main-content,
-    body.sidebar-expanded .sidebar-main-content,
-    body.sidebar-collapsed .sidebar-responsive-margin,
-    body.sidebar-expanded .sidebar-responsive-margin {
-      margin-left: 0 !important;
-    }
-  }
-
-  /* Tablet optimizations */
-  @media (min-width: 768px) and (max-width: 1023px) {
-    .sidebar-main-content {
-      margin-left: var(--sidebar-width-collapsed);
-      /* Start collapsed on tablets */
-    }
-
-    /* Tablet specific sidebar states */
-    body.sidebar-expanded .sidebar-main-content {
-      margin-left: var(--sidebar-width-expanded) !important;
-    }
-
-    body.sidebar-collapsed .sidebar-main-content {
-      margin-left: var(--sidebar-width-collapsed) !important;
-    }
-  }
-
-  /* Large screen optimizations */
-  @media (min-width: 1024px) {
-    .sidebar-main-content {
-      margin-left: var(--sidebar-width-expanded);
-      /* Full width on large screens */
-    }
-
-    body.sidebar-collapsed .sidebar-main-content {
-      margin-left: var(--sidebar-width-collapsed) !important;
-    }
-
-    body.sidebar-expanded .sidebar-main-content {
-      margin-left: var(--sidebar-width-expanded) !important;
-    }
-  }
-
-  /* Enhanced scrollbar for sidebar */
-  .scrollbar-thin {
-    scrollbar-width: thin;
-    scrollbar-color: hsl(var(--sidebar-border)) transparent;
-  }
-
-  .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .scrollbar-thin::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--sidebar-border));
-    border-radius: 3px;
-  }
-
-  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--sidebar-accent));
-  }
-
-  /* Prevent layout shift during sidebar transitions */
-  .sidebar-transition {
-    transition: margin-left 300ms ease-out, width 300ms ease-out;
-  }
-
-  /* Focus management for accessibility */
-  .sidebar-focus-visible {
-    outline: 2px solid hsl(var(--sidebar-ring));
-    outline-offset: 2px;
-  }
-
-  /* Touch target optimization for mobile */
-  @media (max-width: 767px) {
-    [data-sidebar="menu-button"] {
-      min-height: 44px;
-      /* Apple's recommended touch target */
-      min-width: 44px;
-    }
-  }
-
-  /* Enhanced animation classes */
-  .animate-fade-in {
-    animation: fadeIn 0.5s ease-out;
-  }
-
-  .animate-slide-in {
-    animation: slideIn 0.3s ease-out;
-  }
-
-  .animate-scale-in {
-    animation: scaleIn 0.2s ease-out;
-  }
-
-  /* Z-index management - Update existing classes */
-  .z-sidebar {
-    z-index: 40;
-  }
-
-  .z-header {
-    z-index: 30;
-  }
-
-  .z-content {
-    z-index: 10;
-  }
-
-  .z-modal {
-    z-index: 50;
-  }
-
-  .z-toast {
-    z-index: 60;
-  }
-
-  /* Additional layout safety utilities */
-  .layout-safe {
-    position: relative;
-    z-index: 10;
-  }
-
-  .prevent-overflow {
-    overflow-x: hidden;
-    max-width: 100vw;
-  }
-
-  /* Debug utility - can be temporarily added to diagnose spacing issues */
-  .debug-spacing {
-    outline: 2px solid red !important;
-    background: rgba(255, 0, 0, 0.1) !important;
-  }
-
-  .debug-spacing * {
-    outline: 1px solid blue !important;
-  }
-
-  /* Additional debugging for sidebar layout issues */
-  .debug-sidebar {
-    position: relative;
-  }
-
-  .debug-sidebar::before {
-    content: 'SIDEBAR: ' attr(data-state);
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    background: red;
-    color: white;
-    padding: 5px;
-    font-size: 12px;
-    z-index: 9999;
-  }
-
-  .debug-main-content {
-    position: relative;
-  }
-
-  .debug-main-content::before {
-    content: 'MARGIN: ' attr(data-margin);
-    position: fixed;
-    top: 40px;
-    right: 10px;
-    background: blue;
-    color: white;
-    padding: 5px;
-    font-size: 12px;
-    z-index: 9999;
-  }
-
-  /* Force override any conflicting margins */
-  @media (min-width: 768px) {
-
-    /* Ensure main content respects sidebar state with highest specificity */
-    body.sidebar-collapsed .sidebar-main-content,
-    body.sidebar-collapsed .sidebar-main-content.sidebar-main-content,
-    .sidebar-main-content[data-sidebar-collapsed="true"] {
-      margin-left: var(--sidebar-width-collapsed) !important;
-      transition: margin-left 300ms ease-out !important;
-    }
-
-    body.sidebar-expanded .sidebar-main-content,
-    body.sidebar-expanded .sidebar-main-content.sidebar-main-content,
-    .sidebar-main-content[data-sidebar-expanded="true"] {
-      margin-left: var(--sidebar-width-expanded) !important;
-      transition: margin-left 300ms ease-out !important;
-    }
-
-    /* Prevent any background bleeding */
-    .sidebar-main-content {
-      position: relative;
-      background: transparent;
-      min-height: 100vh;
-    }
-
-    /* Ensure no orange/background color conflicts */
-    .sidebar-main-content,
-    .sidebar-main-content>*,
-    .sidebar-main-content main,
-    .sidebar-main-content main>* {
-      background-color: inherit;
-    }
-  }
-
-  /* Mobile safety - ensure no margins */
-  @media (max-width: 767px) {
-
-    .sidebar-main-content,
-    .sidebar-main-content.sidebar-main-content,
-    body.sidebar-collapsed .sidebar-main-content,
-    body.sidebar-expanded .sidebar-main-content {
-      margin-left: 0 !important;
-      width: 100% !important;
-    }
-  }
-
-  /* Enhanced Mobile and Responsive Layout Safety */
-  /* Ensure layouts never exceed viewport */
-  .layout-container {
-    max-height: 100vh;
-    max-width: 100vw;
-    overflow: hidden;
-  }
-
-  /* Main content area responsive behavior */
-  .main-content-responsive {
-    height: 100vh;
-    max-height: 100vh;
-    overflow-y: auto;
-    overflow-x: hidden;
-  }
-
-  /* Prevent excessive spacing from nested containers */
-  .container-reset {
-    min-height: unset !important;
-    height: auto !important;
-  }
-
-  /* Mobile-first responsive sidebar margins */
-  @media (max-width: 767px) {
-    .sidebar-main-content {
-      margin-left: 0 !important;
-      width: 100vw !important;
-      max-width: 100vw !important;
-    }
-  }
-
-  @media (min-width: 768px) {
-    .sidebar-main-content {
-      transition: margin-left 300ms ease-out;
-    }
-
-    body.sidebar-expanded .sidebar-main-content {
-      margin-left: var(--sidebar-width-expanded) !important;
-      /* Flexible expanded width */
-    }
-
-    body.sidebar-collapsed .sidebar-main-content {
-      margin-left: var(--sidebar-width-collapsed) !important;
-      /* Flexible collapsed width */
-    }
+    --container-padding-x: 1.5rem;
+    --container-padding-y: 2rem;
   }
 }
 
-/* Additional responsive classes for better mobile experience */
+@media (min-width: 1024px) {
+  :root {
+    --container-padding-x: 2rem;
+    --container-padding-y: 2.5rem;
+  }
+}
+
+/* Focus styles for better accessibility */
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Custom utility classes */
+.text-balance {
+  text-wrap: balance;
+}
+
+/* Improved table styles for better readability */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* Custom scrollbar for better UX */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: var(--radius);
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: var(--radius);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Custom styles for the SDP platform */
 @layer components {
-  .responsive-flex-between {
-    @apply flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4;
+  .sdp-card {
+    @apply border border-gray-100 shadow-sm rounded-lg bg-white transition-all duration-200 hover:shadow-md;
   }
 
-  .responsive-rounded {
-    @apply rounded-md sm:rounded-lg md:rounded-xl;
+  /* Fix for the problematic class - using a different approach */
+  .sdp-header {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+    font-weight: 500;
+    color: #0c2d6b;
+    margin-bottom: 0.5rem;
   }
 
-  .responsive-padding {
-    @apply p-3 sm:p-4 md:p-6;
+  .sdp-subheader {
+    @apply text-sm text-muted-foreground;
   }
 
-  .responsive-gap {
-    @apply gap-2 sm:gap-3 md:gap-4;
+  .sdp-button-primary {
+    @apply bg-[#0c2d6b] hover:bg-[#0c2d6b]/90 text-white;
   }
 
-  /* Enhanced grid utilities */
-  .grid-responsive-sidebar {
-    @apply grid gap-4 sm:gap-6;
-    grid-template-columns: 1fr;
+  .sdp-button-secondary {
+    @apply bg-[#f0c14b] hover:bg-[#f0c14b]/90 text-[#0c2d6b];
   }
 
-  @media (min-width: 1024px) {
-    .grid-responsive-sidebar {
-      grid-template-columns: 2fr 350px;
-    }
+  .sdp-stats-card {
+    @apply p-6 flex justify-between items-start;
   }
 
-  .grid-responsive-auto {
-    @apply grid gap-4 sm:gap-6;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  .sdp-section {
+    @apply mb-6;
   }
 
-  .grid-responsive-cards {
-    @apply grid gap-3 sm:gap-4 md:gap-6;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  }
-}
-
-/* Enhanced Media Queries for Complex Responsive Behavior */
-@media (max-width: 640px) {
-  .grid-responsive-sidebar {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (min-width: 641px) and (max-width: 1024px) {
-  .grid-responsive-sidebar {
-    grid-template-columns: 1fr 300px;
-  }
-}
-
-@media (min-width: 1025px) {
-  .grid-responsive-sidebar {
-    grid-template-columns: 1fr 350px;
-  }
-}
-
-/* Enhanced Animation System */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
+  .sdp-table-header {
+    @apply bg-gray-50 font-semibold text-[#0c2d6b];
   }
 
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes slideInFromRight {
-  from {
-    opacity: 0;
-    transform: translateX(30px);
+  .sdp-table-row {
+    @apply hover:bg-muted/30;
   }
 
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
+  .sdp-badge-primary {
+    @apply bg-[#0c2d6b]/10 text-[#0c2d6b] border border-[#0c2d6b]/20;
   }
 
-  to {
-    opacity: 1;
-    transform: scale(1);
+  .sdp-badge-secondary {
+    @apply bg-[#f0c14b]/10 text-[#0c2d6b] border border-[#f0c14b]/20;
   }
-}
 
-.animate-fade-in {
-  animation: fadeIn 0.5s ease-out;
-}
+  .sdp-progress-step {
+    @apply flex items-center justify-center w-8 h-8 rounded-full border-2 border-[#0c2d6b] text-[#0c2d6b] font-medium;
+  }
 
-.animate-slide-in {
-  animation: slideInFromRight 0.3s ease-out;
-}
+  .sdp-progress-step.active {
+    @apply bg-[#0c2d6b] text-white;
+  }
 
-.animate-scale-in {
-  animation: scaleIn 0.2s ease-out;
-}
+  .sdp-progress-step.completed {
+    @apply bg-[#f0c14b] border-[#f0c14b] text-[#0c2d6b];
+  }
 
-/* Enhanced scrollbar styling for better mobile experience */
-.scrollbar-thin {
-  scrollbar-width: thin;
-  scrollbar-color: rgb(203 213 225) transparent;
-}
+  .sdp-progress-line {
+    @apply flex-1 h-0.5 bg-gray-200;
+  }
 
-.scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
-}
+  .sdp-progress-line.active {
+    @apply bg-[#0c2d6b];
+  }
 
-.scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
+  .sdp-form-section {
+    @apply p-6 border border-gray-200 rounded-lg mb-6;
+  }
 
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: rgb(203 213 225);
-  border-radius: 3px;
-}
+  .sdp-form-section-title {
+    @apply text-lg font-medium text-[#0c2d6b] mb-4;
+  }
 
-.scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background-color: rgb(148 163 184);
+  .sdp-form-section-subtitle {
+    @apply text-sm text-muted-foreground mb-6;
+  }
 }

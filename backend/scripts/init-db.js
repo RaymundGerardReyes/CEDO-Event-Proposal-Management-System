@@ -7,17 +7,17 @@ const path = require("path") // For resolving file paths
 // At the beginning of the file, add:
 console.log("Database initialization script starting...")
 console.log("Environment variables loaded:", {
-  MYSQL_HOST: process.env.MYSQL_HOST || process.env.DB_HOST || "localhost",
-  MYSQL_DATABASE: process.env.MYSQL_DATABASE || process.env.DB_NAME || "cedo_auth",
-  MYSQL_USER: process.env.MYSQL_USER || process.env.DB_USER || "root",
+  MYSQL_HOST: process.env.DB_HOST || process.env.MYSQL_HOST || "localhost",
+  MYSQL_DATABASE: process.env.DB_NAME || process.env.MYSQL_DATABASE || "cedo_auth",
+  MYSQL_USER: process.env.DB_USER || process.env.MYSQL_USER || "root",
   // Don't log passwords
 })
 
 // Database configuration object using environment variables
 const dbConfig = {
-  host: process.env.MYSQL_HOST || process.env.DB_HOST || "localhost", // Try both env var names
-  user: process.env.MYSQL_USER || process.env.DB_USER || "root", // Try both env var names
-  password: process.env.MYSQL_PASSWORD || process.env.DB_PASSWORD || "", // Try both env var names
+  host: process.env.DB_HOST || process.env.MYSQL_HOST || "localhost", // Prioritize DB_HOST for Docker
+  user: process.env.DB_USER || process.env.MYSQL_USER || "root", // Prioritize DB_USER for Docker
+  password: process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || "", // Prioritize DB_PASSWORD for Docker
   waitForConnections: true, // Wait for connections when the limit is reached
   connectionLimit: 10, // Maximum number of connections in the pool
   queueLimit: 0, // Unlimited queueing when connectionLimit is reached
@@ -41,9 +41,9 @@ async function main() {
 
     // --- Connect to MySQL Server (without specifying database initially) ---
     // This allows us to create the database if it doesn't exist
-    const host = process.env.MYSQL_HOST || process.env.DB_HOST || "localhost"
-    const user = process.env.MYSQL_USER || process.env.DB_USER || "root"
-    const password = process.env.MYSQL_PASSWORD || process.env.DB_PASSWORD || ""
+    const host = process.env.DB_HOST || process.env.MYSQL_HOST || "localhost"
+    const user = process.env.DB_USER || process.env.MYSQL_USER || "root"
+    const password = process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || ""
 
     console.log(`Connecting to MySQL at ${host} with user ${user}`)
     connection = await mysql.createConnection({
@@ -55,7 +55,7 @@ async function main() {
     console.log("Connected to MySQL server")
 
     // --- Create Database if it Doesn't Exist ---
-    const dbName = process.env.MYSQL_DATABASE || process.env.DB_NAME || "cedo_auth" // Get database name from .env or use default
+    const dbName = process.env.DB_NAME || process.env.MYSQL_DATABASE || "cedo_auth" // Get database name from .env or use default
     await connection.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``) // Use backticks around dbName to handle potential special characters
     console.log(`Database '${dbName}' created or already exists`)
 
@@ -78,6 +78,8 @@ async function main() {
           role ENUM('student', 'head_admin', 'manager', 'partner', 'reviewer') NOT NULL DEFAULT 'student', -- Added 'partner', 'reviewer' based on other code
           organization VARCHAR(255),
           organization_type ENUM('internal', 'external'),
+          organization_description TEXT,
+          phone_number VARCHAR(255),
           google_id VARCHAR(255),
           avatar VARCHAR(255),
           reset_token VARCHAR(255),
@@ -89,7 +91,7 @@ async function main() {
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
           password_reset_required BOOLEAN DEFAULT FALSE, -- Force password change on first login
-          last_login TIMESTAMP NULL,
+          last_login TIMESTAMP NULL
         )
       `)
       console.log("Users table created")
@@ -104,6 +106,20 @@ async function main() {
           `ALTER TABLE users ADD COLUMN organization_type ENUM('internal', 'external') AFTER organization`,
         )
         console.log("Added organization_type column to users table")
+      }
+
+      // Check if organization_description column exists
+      const [orgDescColumns] = await connection.query(`SHOW COLUMNS FROM users LIKE 'organization_description'`)
+      if (orgDescColumns.length === 0) {
+        await connection.query(`ALTER TABLE users ADD COLUMN organization_description TEXT AFTER organization_type`)
+        console.log("Added organization_description column to users table")
+      }
+
+      // Check if phone_number column exists
+      const [phoneColumns] = await connection.query(`SHOW COLUMNS FROM users LIKE 'phone_number'`)
+      if (phoneColumns.length === 0) {
+        await connection.query(`ALTER TABLE users ADD COLUMN phone_number VARCHAR(255) AFTER organization_description`)
+        console.log("Added phone_number column to users table")
       }
 
       // Check if google_id column exists
@@ -224,71 +240,109 @@ async function main() {
       console.log("Creating proposals table...")
       await connection.query(`
             CREATE TABLE proposals (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                title VARCHAR(255) NOT NULL,
-                description TEXT,
-                userId INT, -- Foreign key to the users table (the submitter)
-                category VARCHAR(255), -- Added based on proposals.js
-                startDate DATE, -- Added based on proposals.js
-                endDate DATE, -- Added based on proposals.js
-                location VARCHAR(255), -- Added based on proposals.js
-                budget DECIMAL(10, 2), -- Added based on proposals.js (assuming currency)
-                objectives TEXT, -- Added based on proposals.js
-                volunteersNeeded INT, -- Added based on proposals.js
-                organizationType ENUM('internal', 'external'), -- Added based on proposals.js
-                contactPerson VARCHAR(255), -- Added based on proposals.js
-                contactEmail VARCHAR(255), -- Added based on proposals.js
-                contactPhone VARCHAR(255), -- Added based on proposals.js
-                status ENUM('draft', 'pending', 'under_review', 'approved', 'rejected') DEFAULT 'pending', -- Added more statuses based on developed proposals.js
-                createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                uuid VARCHAR(36),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                current_section ENUM('overview','orgInfo','schoolEvent','communityEvent','reporting'),
+                has_active_proposal TINYINT(1),
+                proposal_status ENUM('draft','pending','approved','denied','revision_requested') DEFAULT 'draft',
+                report_status ENUM('draft','pending','approved','denied','not_applicable') DEFAULT 'draft',
+                organization_name VARCHAR(255),
+                organization_type ENUM('school-based','community-based'),
+                organization_description TEXT,
+                contact_name VARCHAR(255),
+                contact_email VARCHAR(255),
+                contact_phone VARCHAR(20),
+                event_name VARCHAR(255),
+                event_venue VARCHAR(500),
+                event_start_date DATE,
+                event_end_date DATE,
+                event_start_time TIME,
+                event_end_time TIME,
+                event_mode ENUM('online','offline','hybrid'),
+                school_event_type ENUM('academic-enhancement','workshop-seminar-webinar','conference','competition','cultural-show','sports-fest','other'),
+                school_return_service_credit ENUM('1','2','3','Not Applicable'),
+                school_target_audience JSON,
+                school_gpoa_file_name VARCHAR(255),
+                school_gpoa_file_path VARCHAR(500),
+                school_proposal_file_name VARCHAR(255),
+                school_proposal_file_path VARCHAR(500),
+                community_event_type ENUM('academic-enhancement','seminar-webinar','general-assembly','leadership-training','others'),
+                community_sdp_credits ENUM('1','2'),
+                community_target_audience JSON,
+                community_gpoa_file_name VARCHAR(255),
+                community_gpoa_file_path VARCHAR(500),
+                community_proposal_file_name VARCHAR(255),
+                community_proposal_file_path VARCHAR(500),
+                accomplishment_report_file_name VARCHAR(255),
+                accomplishment_report_file_path VARCHAR(500),
+                digital_signature LONGTEXT,
+                attendance_count INT,
+                event_status ENUM('completed','cancelled','postponed'),
+                report_description TEXT,
+                admin_comments TEXT,
+                reviewed_by_admin_id BIGINT,
+                reviewed_at TIMESTAMP NULL,
+                submitted_at TIMESTAMP NULL,
+                approved_at TIMESTAMP NULL,
+                validation_errors JSON,
+                form_completion_percentage DECIMAL(5,2),
+                is_deleted TINYINT(1) DEFAULT 0,
+
+                -- Legacy / compatibility columns needed by older backend code
+                title VARCHAR(255),
+                category VARCHAR(255),
+                location VARCHAR(255),
+                budget DECIMAL(10, 2),
+                objectives TEXT,
+                volunteersNeeded INT,
+
+                -- Relationships
+                userId INT,
                 FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL
             )
          `)
       console.log("Proposals table created")
     } else {
       console.log("Proposals table already exists. Checking for updates...")
-      // --- Alter Proposals Table if Needed (Adding/Modifying columns based on proposals.js) ---
-      // Check if columns from proposals.js are missing and add them
-      const [proposalColumns] = await connection.query(`SHOW COLUMNS FROM proposals`)
-      const columnNames = proposalColumns.map((col) => col.Field)
 
-      const columnsToAdd = {
-        category: `VARCHAR(255) AFTER userId`,
-        startDate: `DATE AFTER category`,
-        endDate: `DATE AFTER startDate`,
-        location: `VARCHAR(255) AFTER endDate`,
-        budget: `DECIMAL(10, 2) AFTER location`,
-        objectives: `TEXT AFTER budget`,
-        volunteersNeeded: `INT AFTER objectives`,
-        organizationType: `ENUM('internal', 'external') AFTER volunteersNeeded`,
-        contactPerson: `VARCHAR(255) AFTER organizationType`,
-        contactEmail: `VARCHAR(255) AFTER contactPerson`,
-        contactPhone: `VARCHAR(255) AFTER contactEmail`,
-      }
+      const [proposalsColumns] = await connection.query(`SHOW COLUMNS FROM proposals`);
+      const existingColumns = proposalsColumns.map(c => c.Field);
 
-      for (const colName in columnsToAdd) {
-        if (!columnNames.includes(colName)) {
-          console.log(`Adding column '${colName}' to proposals table...`)
-          await connection.query(`ALTER TABLE proposals ADD COLUMN ${colName} ${columnsToAdd[colName]}`)
-          console.log(`Column '${colName}' added.`)
+      const columns_to_check = {
+        'pre_registration_file_name': 'VARCHAR(255) AFTER accomplishment_report_file_path',
+        'pre_registration_file_path': 'VARCHAR(500) AFTER pre_registration_file_name',
+        'final_attendance_file_name': 'VARCHAR(255) AFTER pre_registration_file_path',
+        'final_attendance_file_path': 'VARCHAR(500) AFTER final_attendance_file_name'
+      };
+
+      for (const [colName, colDefinition] of Object.entries(columns_to_check)) {
+        if (!existingColumns.includes(colName)) {
+          console.log(`Adding column '${colName}' to proposals table...`);
+          await connection.query(`ALTER TABLE proposals ADD COLUMN \`${colName}\` ${colDefinition}`);
+          console.log(`Column '${colName}' added.`);
         }
       }
 
-      // Check/Update status ENUM if needed
-      const [statusEnum] = await connection.query(`SHOW COLUMNS FROM proposals LIKE 'status'`)
-      const currentStatusEnum = statusEnum[0].Type // e.g., "enum('pending','approved','rejected')"
-      const requiredStatusEnum = "enum('draft', 'pending', 'under_review', 'approved', 'rejected')"
-      if (!currentStatusEnum.includes("'draft'") || !currentStatusEnum.includes("'under_review'")) {
-        console.log("Updating 'status' ENUM to include 'draft' and 'under_review'...")
-        try {
-          await connection.query(`ALTER TABLE proposals MODIFY COLUMN status ${requiredStatusEnum} DEFAULT 'pending'`)
-          console.log("'status' ENUM updated.")
-        } catch (enumErr) {
-          console.error("Failed to update 'status' ENUM. This might require manual migration.", enumErr.message)
+      // Check for foreign key
+      if (existingColumns.includes('userId')) {
+        const [fkExists] = await connection.query(
+          `SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+           WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'proposals' AND COLUMN_NAME = 'userId'
+           AND REFERENCED_TABLE_NAME IS NOT NULL`,
+          [dbName]
+        );
+
+        if (fkExists.length === 0) {
+          console.log("Adding foreign key for userId on proposals table...");
+          await connection.query(
+            `ALTER TABLE proposals ADD CONSTRAINT fk_proposals_userId 
+             FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL`
+          );
+          console.log("Foreign key for userId added.");
         }
       }
-      // Note: Handling changes like converting TEXT to JSON for 'documents' would be more complex ALTER TABLE or migration scripts
     }
 
     // 4. Create reviews table
@@ -299,7 +353,7 @@ async function main() {
       await connection.query(`
             CREATE TABLE reviews (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                proposalId INT, -- Foreign key to the proposals table
+                proposalId BIGINT, -- Foreign key to the proposals table (BIGINT to match proposals.id)
                 reviewerId INT, -- Foreign key to the users table (the reviewer)
                 comments TEXT,
                 rating INT, -- Assuming rating is an integer
@@ -334,17 +388,17 @@ async function main() {
     if (organizationsTables.length === 0) {
       console.log("Creating organizations table...")
       await connection.query(`
-        CREATE TABLE organizations (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          name VARCHAR(255) NOT NULL,
-          description TEXT,
-          contact_name VARCHAR(255) NOT NULL,
-          contact_email VARCHAR(255) NOT NULL,
-          contact_phone VARCHAR(32),
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        )
-      `)
+          CREATE TABLE organizations (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            description TEXT,
+            contact_name VARCHAR(255) NOT NULL,
+            contact_email VARCHAR(255) NOT NULL,
+            contact_phone VARCHAR(32),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          )
+        `)
       console.log("Organizations table created")
     } else {
       console.log("Organizations table already exists.")
@@ -355,11 +409,11 @@ async function main() {
     if (orgTypesTables.length === 0) {
       console.log("Creating organization_types table...")
       await connection.query(`
-        CREATE TABLE organization_types (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          name VARCHAR(64) NOT NULL UNIQUE
-        )
-      `)
+          CREATE TABLE organization_types (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(64) NOT NULL UNIQUE
+          )
+        `)
       console.log("Organization_types table created")
       // Insert default types
       await connection.query(`INSERT INTO organization_types (name) VALUES ('school-based'), ('community-based')`)
@@ -376,14 +430,14 @@ async function main() {
     if (orgTypeLinksTables.length === 0) {
       console.log("Creating organization_type_links table...")
       await connection.query(`
-        CREATE TABLE organization_type_links (
-          organization_id INT NOT NULL,
-          type_id INT NOT NULL,
-          PRIMARY KEY (organization_id, type_id),
-          FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
-          FOREIGN KEY (type_id) REFERENCES organization_types(id) ON DELETE CASCADE
-        )
-      `)
+          CREATE TABLE organization_type_links (
+            organization_id INT NOT NULL,
+            type_id INT NOT NULL,
+            PRIMARY KEY (organization_id, type_id),
+            FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+            FOREIGN KEY (type_id) REFERENCES organization_types(id) ON DELETE CASCADE
+          )
+        `)
       console.log("Organization_type_links table created")
     } else {
       console.log("Organization_type_links table already exists.")
@@ -395,22 +449,22 @@ async function main() {
     if (eventProposalsTables.length === 0) {
       console.log("Creating event_proposals table...")
       await connection.query(`
-        CREATE TABLE event_proposals (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT NOT NULL,
-            organization_name VARCHAR(255) NOT NULL,
-            organization_types SET('school-based', 'community-based') NOT NULL,
-            school_event_name VARCHAR(255),
-            community_event_name VARCHAR(255),
-            proposal_status ENUM('draft', 'pending', 'approved', 'denied') DEFAULT 'draft',
-            report_status ENUM('draft', 'pending', 'approved', 'denied') DEFAULT 'draft',
-            has_active_proposal BOOLEAN DEFAULT FALSE,
-            admin_comments TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
-        )
-      `)
+          CREATE TABLE event_proposals (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              user_id INT NOT NULL,
+              organization_name VARCHAR(255) NOT NULL,
+              organization_types SET('school-based', 'community-based') NOT NULL,
+              school_event_name VARCHAR(255),
+              community_event_name VARCHAR(255),
+              proposal_status ENUM('draft', 'pending', 'approved', 'denied') DEFAULT 'draft',
+              report_status ENUM('draft', 'pending', 'approved', 'denied') DEFAULT 'draft',
+              has_active_proposal BOOLEAN DEFAULT FALSE,
+              admin_comments TEXT,
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              FOREIGN KEY (user_id) REFERENCES users(id)
+          )
+        `)
       console.log("event_proposals table created")
     } else {
       console.log("event_proposals table already exists.")
@@ -421,16 +475,16 @@ async function main() {
     if (accomplishmentReportsTables.length === 0) {
       console.log("Creating accomplishment_reports table...")
       await connection.query(`
-        CREATE TABLE accomplishment_reports (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            proposal_id INT NOT NULL,
-            status ENUM('draft', 'pending', 'approved', 'denied') DEFAULT 'draft',
-            submitted_at DATETIME,
-            reviewed_at DATETIME,
-            admin_comments TEXT,
-            FOREIGN KEY (proposal_id) REFERENCES event_proposals(id)
-        )
-      `)
+          CREATE TABLE accomplishment_reports (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              proposal_id INT NOT NULL,
+              status ENUM('draft', 'pending', 'approved', 'denied') DEFAULT 'draft',
+              submitted_at DATETIME,
+              reviewed_at DATETIME,
+              admin_comments TEXT,
+              FOREIGN KEY (proposal_id) REFERENCES event_proposals(id)
+          )
+        `)
       console.log("accomplishment_reports table created")
     } else {
       console.log("accomplishment_reports table already exists.")
@@ -441,26 +495,26 @@ async function main() {
     if (schoolEventsTable.length === 0) {
       console.log("Creating school_events table...")
       await connection.query(`
-        CREATE TABLE school_events (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            organization_id INT,
-            name VARCHAR(255) NOT NULL,
-            venue VARCHAR(255) NOT NULL,
-            start_date DATE NOT NULL,
-            end_date DATE NOT NULL,
-            time_start TIME NOT NULL,
-            time_end TIME NOT NULL,
-            event_type ENUM('academic','workshop') NOT NULL,
-            event_mode ENUM('offline','online','hybrid') NOT NULL,
-            return_service_credit TINYINT NOT NULL,
-            gpoa_file_path VARCHAR(255),
-            proposal_file_path VARCHAR(255),
-            proposal_status ENUM('pending','approved','denied','revision_requested') DEFAULT 'pending',
-            admin_comments TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        )
-      `)
+          CREATE TABLE school_events (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              organization_id INT,
+              name VARCHAR(255) NOT NULL,
+              venue VARCHAR(255) NOT NULL,
+              start_date DATE NOT NULL,
+              end_date DATE NOT NULL,
+              time_start TIME NOT NULL,
+              time_end TIME NOT NULL,
+              event_type ENUM('academic','workshop') NOT NULL,
+              event_mode ENUM('offline','online','hybrid') NOT NULL,
+              return_service_credit TINYINT NOT NULL,
+              gpoa_file_path VARCHAR(255),
+              proposal_file_path VARCHAR(255),
+              proposal_status ENUM('pending','approved','denied','revision_requested') DEFAULT 'pending',
+              admin_comments TEXT,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          )
+        `)
       console.log("school_events table created")
     } else {
       console.log("school_events table already exists.")

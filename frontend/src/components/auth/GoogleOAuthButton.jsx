@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '@/contexts/auth-context';
 
 /**
  * Google OAuth Button Component
@@ -19,6 +20,7 @@ export default function GoogleOAuthButton({
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
     const router = useRouter();
+    const { handleGoogleLogin } = useAuth();
 
     // Clear any existing error when component mounts or props change
     useEffect(() => {
@@ -130,10 +132,41 @@ export default function GoogleOAuthButton({
         }
     }, [handleOAuthCallback]);
 
+    const handleGoogleResponse = async (response) => {
+        try {
+            console.log('Raw Google response:', response);
+
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/google`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: response.credential || response.access_token })
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.message || 'Authentication failed');
+            }
+
+            const data = await res.json();
+            console.log('Auth response:', data);
+
+            if (!data.token) {
+                throw new Error('No token received from server');
+            }
+
+            // Store token and user data
+            localStorage.setItem('authToken', data.token);
+            // Update application state
+        } catch (error) {
+            console.error('Authentication error:', error);
+            // Show user-friendly error message
+        }
+    };
+
     return (
         <div className="google-oauth-container">
             <button
-                onClick={handleOAuthLogin}
+                onClick={handleGoogleResponse}
                 disabled={disabled || isLoading}
                 className={`
           google-oauth-button

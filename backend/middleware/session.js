@@ -2,39 +2,41 @@
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/db');
 
+// Use the same JWT secret that the frontend expects
+const JWT_SECRET = process.env.JWT_SECRET_DEV || process.env.JWT_SECRET;
+
 const sessionManager = {
     // Generate new token
     generateToken: (user) => {
-        if (!process.env.JWT_SECRET) {
-            throw new Error("JWT_SECRET is not defined in environment variables.");
+        if (!JWT_SECRET) {
+            throw new Error("JWT_SECRET_DEV or JWT_SECRET is not defined in environment variables.");
         }
-        return jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, {
-            expiresIn: "1h", // Set your desired expiration time
-        });
+        return jwt.sign(
+            {
+                user: {
+                    id: user.id,
+                    role: user.role,
+                    email: user.email,
+                    name: user.name
+                }
+            },
+            JWT_SECRET,
+            {
+                expiresIn: "7d", // Match the frontend cookie expiration
+            }
+        );
     },
 
     // Verify token
-    verifyToken: async (token) => {
+    verifyToken: (token) => {
         try {
-            const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-            // Check if user still exists and is approved
-            const [users] = await pool.query(
-                'SELECT id, email, role, is_approved FROM users WHERE id = ? AND is_approved = TRUE', // Select only necessary fields
-                [decoded.id]
-            );
-
-            if (users.length === 0) {
-                // This error message will be caught by the error-handler
-                throw new Error('User not found or not approved');
+            if (!JWT_SECRET) {
+                throw new Error("JWT_SECRET_DEV or JWT_SECRET is not defined in environment variables.");
             }
-            // Return the necessary user details from the database, not just the decoded token,
-            // to ensure the data is current (e.g., role or approval status might have changed).
-            // The decoded token primarily confirms identity and token validity.
-            return { ...decoded, is_approved: users[0].is_approved }; // Or return users[0] if you want the fresh DB record as the source of truth for req.user
+            const decoded = jwt.verify(token, JWT_SECRET);
+            return decoded;
         } catch (error) {
-            // Re-throw JWT errors (like TokenExpiredError, JsonWebTokenError) to be handled by error-handler
-            // Also re-throw the custom 'User not found or not approved' error
+            // Re-throw JWT errors (like TokenExpiredError, JsonWebTokenError)
             throw error;
         }
     },
@@ -42,15 +44,13 @@ const sessionManager = {
     // Refresh token
     refreshToken: async (oldToken) => {
         try {
-            // verifyToken will check if the user in the old token is still valid and approved
-            const decodedOldToken = await sessionManager.verifyToken(oldToken);
+            // verifyToken will check if the token is valid
+            const decodedOldToken = sessionManager.verifyToken(oldToken);
 
             // Fetch the full user object to ensure we have the latest details for the new token
-            // (though verifyToken already checks existence and approval)
-            const [users] = await pool.query('SELECT id, email, role, is_approved FROM users WHERE id = ?', [decodedOldToken.id]);
+            const [users] = await pool.query('SELECT * FROM users WHERE id = ?', [decodedOldToken.user.id]);
 
             if (users.length === 0) {
-                // This case should ideally be caught by verifyToken, but as a safeguard:
                 throw new Error('User not found for refresh token');
             }
 
@@ -59,7 +59,7 @@ const sessionManager = {
                 throw new Error('User not approved for refresh token');
             }
 
-            // Pass the user object (users[0]) from the DB to generateToken
+            // Pass the user object from the DB to generateToken
             return sessionManager.generateToken(users[0]);
         } catch (error) {
             // Re-throw errors to be handled by the calling route and then the main error handler

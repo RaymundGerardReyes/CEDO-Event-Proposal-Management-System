@@ -50,7 +50,7 @@ const getGoogleClientId = () => {
   if (typeof window !== 'undefined' && window.__TEST_GOOGLE_CLIENT_ID__) {
     return window.__TEST_GOOGLE_CLIENT_ID__;
   }
-  return process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  return process.env.GOOGLE_CLIENT_ID;
 };
 
 const extractErrorMessage = (response) => {
@@ -122,6 +122,7 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
   Calendar,
@@ -137,7 +138,7 @@ import {
   Search,
   XCircle
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const statusColors = {
   pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
@@ -162,7 +163,19 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
   const [selectedProposal, setSelectedProposal] = useState(null)
   const [showDetails, setShowDetails] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
+
+  // ✅ New state for comment dialog
+  const [showCommentDialog, setShowCommentDialog] = useState(false)
+  const [rejectionComment, setRejectionComment] = useState('')
+  const [commentLoading, setCommentLoading] = useState(false)
+
   const { toast } = useToast()
+
+  // Create a stable toast reference to prevent infinite re-renders
+  const toastRef = useRef(toast)
+  useEffect(() => {
+    toastRef.current = toast
+  }, [toast])
 
   // Memoized filtered proposals for performance
   const filteredProposals = useMemo(() => {
@@ -175,28 +188,23 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
     );
   }, [proposals, searchTerm]);
 
-  // Optimized fetch proposals with performance enhancements
+  // Fetch proposals from the backend API
   const fetchProposals = useCallback(async () => {
     setLoading(true)
     try {
+      // Build query parameters
       const queryParams = new URLSearchParams({
         page: currentPage.toString(),
         limit: '10',
-        ...(statusFilter !== 'all' && { status: statusFilter }),
-        ...(searchTerm && { search: searchTerm })
-      })
+        ...(statusFilter && statusFilter !== 'all' && { status: statusFilter }),
+        ...(searchTerm && { search: searchTerm }),
+      }).toString()
 
-      // Use backend hybrid endpoint that merges MySQL + MongoDB.  Map the
-      // UI "rejected" filter → backend enum "denied".
+      // ✅ Use hybrid API endpoint that combines MySQL + MongoDB
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
-      const mappedStatus = statusFilter === 'rejected' ? 'denied' : statusFilter
-
-      if (mappedStatus !== statusFilter) {
-        queryParams.set('status', mappedStatus)
-      }
-
-      const apiUrl = `${backendUrl}/api/mongodb-proposals/admin/proposals-hybrid?${queryParams}`
-      console.log('�� Fetching proposals from frontend API:', apiUrl)
+      const apiUrl = `${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?${queryParams}`
+      console.log('📊 Fetching proposals from hybrid API:', apiUrl)
+      console.log('📊 Query params:', { currentPage, statusFilter, searchTerm })
 
       const response = await fetch(apiUrl, {
         method: 'GET',
@@ -214,14 +222,19 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
       }
 
       const data = await response.json()
+      console.log('📊 Raw API response data:', data)
 
       if (data.success) {
-        setProposals(data.proposals || [])
-        setPagination(data.pagination || {})
-        console.log('✅ Proposals fetched successfully:', data.proposals.length)
+        const proposals = data.proposals || []
+        const pagination = data.pagination || {}
+        setProposals(proposals)
+        setPagination(pagination)
+        console.log('✅ Proposals fetched successfully:', proposals.length)
+        console.log('📊 Sample proposal data:', proposals[0])
+        console.log('📊 Pagination data:', pagination)
       } else {
         console.error('❌ Error fetching proposals:', data.error)
-        toast({
+        toastRef.current({
           title: "Error",
           description: data.error || "Failed to fetch proposals",
           variant: "destructive"
@@ -229,27 +242,27 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
       }
     } catch (error) {
       console.error('❌ Fetch error:', error)
-      toast({
+      toastRef.current({
         title: "Error",
-        description: "Failed to connect to server",
+        description: "Failed to connect to server. Please check if the backend is running.",
         variant: "destructive"
       })
     } finally {
       setLoading(false)
     }
-  }, [currentPage, statusFilter, searchTerm, toast])
+  }, [currentPage, statusFilter, searchTerm])
 
   // Fetch proposals on component mount and when dependencies change
   useEffect(() => {
     fetchProposals()
   }, [fetchProposals])
 
-  // Update proposal status using hybrid API for MySQL proposals
+  // ✅ Enhanced proposal status update with comment support
   const updateProposalStatus = async (proposalId, newStatus, adminComments = '') => {
     setActionLoading(true)
     try {
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
-      const response = await fetch(`${backendUrl}/api/mongodb-proposals/admin/proposals/${proposalId}/status`, {
+      const response = await fetch(`${backendUrl}/api/mongodb-unified/admin/proposals/${proposalId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -268,9 +281,26 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
           description: data.message,
           variant: "default"
         })
+
+        // ✅ Immediately update selectedProposal with the new status and comments
+        if (selectedProposal && adminComments) {
+          setSelectedProposal(prev => ({
+            ...prev,
+            status: newStatus,
+            adminComments: adminComments,
+            updatedAt: new Date().toISOString()
+          }))
+        }
+
+        // ✅ Fetch updated proposal data to show comments from server
+        await fetchUpdatedProposalDetails(proposalId)
+
         // Refresh the proposals list
         fetchProposals()
-        setShowDetails(false)
+
+        // ✅ Close comment dialog and reset state (but keep details dialog open to show comments)
+        setShowCommentDialog(false)
+        setRejectionComment('')
       } else {
         throw new Error(data.error || 'Failed to update proposal')
       }
@@ -283,38 +313,112 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
       })
     } finally {
       setActionLoading(false)
+      setCommentLoading(false)
     }
   }
 
-  // Download file from proposal using hybrid API for MySQL proposals
+  // ✅ Fetch updated proposal details after status change
+  const fetchUpdatedProposalDetails = async (proposalId) => {
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
+
+      // Try to fetch individual proposal details first
+      let response = await fetch(`${backendUrl}/api/mongodb-unified/admin/proposals/${proposalId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success && data.proposal) {
+          // ✅ Update the selectedProposal with fresh data including adminComments
+          setSelectedProposal(data.proposal)
+          console.log('✅ Updated proposal details with comments:', data.proposal.adminComments)
+          return
+        }
+      }
+
+      // ✅ Fallback: Re-fetch all proposals and find the updated one
+      console.log('🔄 Fallback: Re-fetching all proposals to get updated data')
+      const allProposalsResponse = await fetch(`${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?limit=100`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (allProposalsResponse.ok) {
+        const allData = await allProposalsResponse.json()
+        if (allData.success && allData.proposals) {
+          const updatedProposal = allData.proposals.find(p => p.id === proposalId)
+          if (updatedProposal) {
+            setSelectedProposal(updatedProposal)
+            console.log('✅ Updated proposal via fallback method:', updatedProposal.adminComments)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error fetching updated proposal details:', error)
+    }
+  }
+
+  // ✅ Handle rejection with comment
+  const handleRejectionWithComment = () => {
+    if (!rejectionComment.trim()) {
+      toast({
+        title: "Comment Required",
+        description: "Please provide a reason for rejecting this proposal.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setCommentLoading(true)
+    updateProposalStatus(selectedProposal.id, "rejected", rejectionComment.trim())
+  }
+
+  // ✅ Simple MongoDB GridFS file download
   const downloadFile = async (proposalId, fileType) => {
     try {
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
-      const response = await fetch(`${backendUrl}/api/mongodb-proposals/proposals/${proposalId}/download/${fileType}`)
+      console.log(`🔍 Downloading ${fileType} for proposal ${proposalId}`)
+
+      toast({
+        title: "Downloading...",
+        description: `Preparing ${fileType} file`,
+        variant: "default"
+      })
+
+      const response = await fetch(`${backendUrl}/api/mongodb-unified/admin/proposals/download/${proposalId}/${fileType}`)
 
       if (response.ok) {
         const blob = await response.blob()
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
-        a.style.display = 'none'
         a.href = url
-        a.download = `${fileType}_${proposalId}`
-        document.body.appendChild(a)
+        a.download = `${fileType}_proposal_${proposalId}.pdf`
         a.click()
         window.URL.revokeObjectURL(url)
 
         toast({
-          title: "Success",
-          description: `${fileType} file downloaded successfully`,
+          title: "Download Successful",
+          description: `${fileType} file downloaded`,
           variant: "default"
         })
       } else {
-        throw new Error('Failed to download file')
+        const errorData = await response.json().catch(() => ({}))
+        toast({
+          title: "Download Failed",
+          description: errorData.error || "File not found",
+          variant: "destructive"
+        })
       }
     } catch (error) {
       console.error('❌ Download error:', error)
       toast({
-        title: "Error",
+        title: "Download Error",
         description: "Failed to download file",
         variant: "destructive"
       })
@@ -343,26 +447,26 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
 
   if (loading) {
     return (
-      <div className="@container space-y-4 sm:space-y-6">
-        {/* Enhanced Loading State with Skeleton */}
-        <Card className="border-l-4 border-l-blue-500 shadow-lg">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row items-center justify-center space-y-3 sm:space-y-0 sm:space-x-3">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-              <span className="text-sm sm:text-base text-gray-600">Loading proposals...</span>
+      <div className="@container space-y-3 sm:space-y-4">
+        {/* Optimized Loading State with Container Queries */}
+        <Card className="border-l-4 border-l-blue-500 shadow-sm">
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3">
+              <div className="animate-spin rounded-full h-5 w-5 sm:h-6 sm:w-6 border-b-2 border-blue-600"></div>
+              <span className="text-sm text-gray-600">Loading proposals...</span>
             </div>
-            {/* Skeleton cards for better UX */}
-            <div className="mt-6 space-y-3">
+            {/* Container-aware skeleton cards */}
+            <div className="mt-4 space-y-2">
               {[...Array(3)].map((_, index) => (
                 <div
                   key={index}
-                  className="animate-pulse p-4 border rounded-lg bg-gray-50"
+                  className="animate-pulse p-3 border rounded-lg bg-gray-50"
                   style={{ animationDelay: `${index * 150}ms` }}
                 >
-                  <div className="flex flex-col @md:flex-row @md:space-x-4 space-y-3 @md:space-y-0">
-                    <div className="h-4 bg-gray-200 rounded flex-1"></div>
-                    <div className="h-4 bg-gray-200 rounded w-24"></div>
-                    <div className="h-4 bg-gray-200 rounded w-16"></div>
+                  <div className="flex flex-col @sm:flex-row @sm:gap-3 gap-2">
+                    <div className="h-3 bg-gray-200 rounded flex-1"></div>
+                    <div className="h-3 bg-gray-200 rounded w-20"></div>
+                    <div className="h-3 bg-gray-200 rounded w-12"></div>
                   </div>
                 </div>
               ))}
@@ -374,19 +478,19 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
   }
 
   return (
-    <div className="@container w-full max-w-full overflow-hidden">
-      {/* Enhanced Search and Filters - Mobile-First Responsive Design */}
-      <div className="space-y-4 sm:space-y-6">
-        <Card className="border-l-4 border-l-green-500 shadow-lg">
-          <CardContent className="p-3 sm:p-4 lg:p-6">
-            <div className="flex flex-col space-y-3 @sm:flex-row @sm:items-center @sm:space-y-0 @sm:space-x-4">
+    <div className="@container w-full max-w-full">
+      {/* Optimized Search and Filters with Container Queries */}
+      <div className="space-y-3 sm:space-y-4">
+        <Card className="border-l-4 border-l-green-500 shadow-sm">
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex flex-col @sm:flex-row @sm:items-center gap-3">
               <div className="relative flex-1 min-w-0">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
                 <Input
                   placeholder="Search by event, contact, email..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-2.5 w-full text-sm @sm:text-base border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 rounded-lg"
+                  className="pl-10 pr-4 py-2 w-full text-sm border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 rounded-lg"
                   aria-label="Search proposals"
                 />
               </div>
@@ -394,7 +498,7 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
                 onClick={fetchProposals}
                 variant="outline"
                 disabled={loading}
-                className="w-full @sm:w-auto @sm:min-w-[120px] px-4 py-2.5 border-gray-300 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 rounded-lg flex items-center justify-center"
+                className="w-full @sm:w-auto @sm:min-w-[100px] px-3 py-2 border-gray-300 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 rounded-lg flex items-center justify-center"
                 aria-label="Refresh proposals list"
               >
                 <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -404,7 +508,7 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
               </Button>
             </div>
             {searchTerm && (
-              <div className="mt-3 text-sm text-gray-600 break-words">
+              <div className="mt-3 text-sm text-gray-600">
                 <span className="inline-flex items-center flex-wrap gap-1">
                   <span>Searching:</span>
                   <span className="font-medium text-blue-600 break-all">"{searchTerm}"</span>
@@ -417,43 +521,44 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
           </CardContent>
         </Card>
 
-        {/* Enhanced Responsive Proposals Table */}
-        <Card className="border-l-4 border-l-purple-500 shadow-lg">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex flex-col space-y-2 @sm:flex-row @sm:items-center @sm:justify-between @sm:space-y-0">
-              <span className="text-base @sm:text-lg @lg:text-xl font-bold text-gray-800">
+        {/* Container Query Optimized Proposals Table */}
+        <Card className="border-l-4 border-l-purple-500 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex flex-col @sm:flex-row @sm:items-center @sm:justify-between gap-2">
+              <span className="text-base @sm:text-lg font-bold text-gray-800">
                 Proposals ({pagination.total || 0})
               </span>
-              <Badge variant="outline" className="w-fit px-2 @sm:px-3 py-1 text-xs @sm:text-sm">
+              <Badge variant="outline" className="w-fit px-2 py-1 text-xs">
                 Page {pagination.page || 1} of {pagination.pages || 1}
               </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-0 @sm:p-4 @lg:p-6">
+          <CardContent className="p-0 @sm:p-3">
             {filteredProposals.length === 0 ? (
-              <div className="text-center py-8 @sm:py-12 px-4">
-                <div className="mx-auto w-16 h-16 @sm:w-24 @sm:h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                  <FileText className="w-6 h-6 @sm:w-8 @sm:h-8 text-gray-400" />
+              <div className="text-center py-6 @sm:py-8 px-4">
+                <div className="mx-auto w-12 h-12 @sm:w-16 @sm:h-16 bg-gray-100 rounded-full flex items-center justify-center mb-3">
+                  <FileText className="w-5 h-5 @sm:w-6 @sm:h-6 text-gray-400" />
                 </div>
                 <h3 className="text-base @sm:text-lg font-medium text-gray-700 mb-2">No proposals found</h3>
-                <p className="text-sm @sm:text-base text-gray-500 max-w-sm mx-auto">
+                <p className="text-sm text-gray-500 max-w-sm mx-auto">
                   {searchTerm ? `No proposals match "${searchTerm}"` : "There are no proposals to display"}
                 </p>
               </div>
             ) : (
               <>
-                {/* Desktop Table View - Hidden on mobile and small tablets */}
-                <div className="hidden @lg:block overflow-x-auto">
+                {/* Desktop Table View - Hidden on mobile */}
+                <div className="hidden @2xl:block overflow-x-auto">
                   <Table className="min-w-full">
                     <TableHeader>
                       <TableRow className="bg-gray-50/80">
-                        <TableHead className="font-semibold text-gray-700 text-sm px-4 py-3">Event Name</TableHead>
-                        <TableHead className="font-semibold text-gray-700 text-sm px-4 py-3">Organization</TableHead>
-                        <TableHead className="font-semibold text-gray-700 text-sm px-4 py-3">Contact</TableHead>
-                        <TableHead className="font-semibold text-gray-700 text-sm px-4 py-3">Status</TableHead>
-                        <TableHead className="font-semibold text-gray-700 text-sm px-4 py-3">Date</TableHead>
-                        <TableHead className="font-semibold text-gray-700 text-sm px-4 py-3">Type</TableHead>
-                        <TableHead className="text-right font-semibold text-gray-700 text-sm px-4 py-3">Actions</TableHead>
+                        <TableHead className="font-semibold text-gray-700 text-sm px-3 py-3">Event Name</TableHead>
+                        <TableHead className="font-semibold text-gray-700 text-sm px-3 py-3">Organization</TableHead>
+                        <TableHead className="font-semibold text-gray-700 text-sm px-3 py-3">Contact</TableHead>
+                        <TableHead className="font-semibold text-gray-700 text-sm px-3 py-3">Status</TableHead>
+                        <TableHead className="font-semibold text-gray-700 text-sm px-3 py-3">Date</TableHead>
+                        <TableHead className="font-semibold text-gray-700 text-sm px-3 py-3">Type</TableHead>
+                        <TableHead className="font-semibold text-gray-700 text-sm px-3 py-3">Files</TableHead>
+                        <TableHead className="text-right font-semibold text-gray-700 text-sm px-3 py-3">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -462,26 +567,26 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
 
                         return (
                           <TableRow key={proposal.id} className="hover:bg-gray-50/80 transition-colors duration-150 border-b border-gray-100">
-                            <TableCell className="font-medium px-4 py-3">
+                            <TableCell className="font-medium px-3 py-3">
                               <div className="min-w-0">
-                                <div className="font-semibold text-gray-900 truncate max-w-[200px]">{proposal.eventName}</div>
+                                <div className="font-semibold text-gray-900 truncate max-w-[180px]">{proposal.eventName}</div>
                                 <div className="text-xs text-gray-500 flex items-center mt-1">
                                   <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
                                   <span className="truncate">{proposal.venue}</span>
                                 </div>
                               </div>
                             </TableCell>
-                            <TableCell className="px-4 py-3">
+                            <TableCell className="px-3 py-3">
                               <div className="min-w-0">
-                                <div className="font-medium text-gray-900 truncate max-w-[150px]">{proposal.contactPerson}</div>
-                                <div className="text-xs text-gray-500 truncate max-w-[150px]">{proposal.organizationType}</div>
+                                <div className="font-medium text-gray-900 truncate max-w-[120px]">{proposal.contactPerson}</div>
+                                <div className="text-xs text-gray-500 truncate max-w-[120px]">{proposal.organizationType}</div>
                               </div>
                             </TableCell>
-                            <TableCell className="px-4 py-3">
+                            <TableCell className="px-3 py-3">
                               <div className="space-y-1 min-w-0">
                                 <div className="flex items-center text-xs">
                                   <Mail className="h-3 w-3 mr-1 text-gray-400 flex-shrink-0" />
-                                  <span className="truncate max-w-[180px] text-blue-600">{proposal.contactEmail}</span>
+                                  <span className="truncate max-w-[150px] text-blue-600">{proposal.contactEmail}</span>
                                 </div>
                                 {proposal.contactPhone && (
                                   <div className="flex items-center text-xs text-gray-600">
@@ -491,13 +596,13 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
                                 )}
                               </div>
                             </TableCell>
-                            <TableCell className="px-4 py-3">
+                            <TableCell className="px-3 py-3">
                               <Badge className={`${statusColors[proposal.status] || statusColors.pending} text-xs`}>
                                 <StatusIcon className="h-3 w-3 mr-1" />
                                 {proposal.status.charAt(0).toUpperCase() + proposal.status.slice(1)}
                               </Badge>
                             </TableCell>
-                            <TableCell className="px-4 py-3">
+                            <TableCell className="px-3 py-3">
                               <div className="space-y-1 min-w-0">
                                 <div className="flex items-center text-xs">
                                   <Calendar className="h-3 w-3 mr-1 text-gray-400 flex-shrink-0" />
@@ -508,12 +613,35 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
                                 </div>
                               </div>
                             </TableCell>
-                            <TableCell className="px-4 py-3">
+                            <TableCell className="px-3 py-3">
                               <Badge variant="outline" className="text-xs whitespace-nowrap">
                                 {proposal.eventType}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-right px-4 py-3">
+                            <TableCell className="px-3 py-3">
+                              <div className="flex items-center space-x-1">
+                                {proposal.hasFiles ? (
+                                  <div className="flex items-center space-x-1">
+                                    <div className="p-1 bg-green-100 rounded-full">
+                                      <FileText className="h-3 w-3 text-green-600" />
+                                    </div>
+                                    <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                      {Object.keys(proposal.files || {}).length} files
+                                    </Badge>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center space-x-1">
+                                    <div className="p-1 bg-gray-100 rounded-full">
+                                      <FileText className="h-3 w-3 text-gray-400" />
+                                    </div>
+                                    <Badge variant="outline" className="text-xs bg-gray-50 text-gray-500 border-gray-200">
+                                      No files
+                                    </Badge>
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right px-3 py-3">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-gray-100 rounded-full">
@@ -539,7 +667,10 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
                                         Approve
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
-                                        onClick={() => updateProposalStatus(proposal.id, 'denied')}
+                                        onClick={() => {
+                                          setSelectedProposal(proposal)
+                                          setShowCommentDialog(true)
+                                        }}
                                         className="text-red-600 hover:text-red-700 hover:bg-red-50 cursor-pointer"
                                       >
                                         <XCircle className="mr-2 h-4 w-4" />
@@ -557,20 +688,20 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
                   </Table>
                 </div>
 
-                {/* Mobile Card View - Visible on mobile and small tablets */}
-                <div className="@lg:hidden space-y-3 p-3 @sm:p-4">
+                {/* Mobile/Tablet Card View - Container Query Optimized */}
+                <div className="@2xl:hidden space-y-3 p-3">
                   {filteredProposals.map((proposal) => {
                     const StatusIcon = statusIcons[proposal.status] || Clock
 
                     return (
-                      <Card key={proposal.id} className="border border-gray-200 hover:shadow-md transition-all duration-200 bg-white">
-                        <CardContent className="p-4">
+                      <Card key={proposal.id} className="border border-gray-200 hover:shadow-md transition-all duration-200 bg-white @container">
+                        <CardContent className="p-3 @sm:p-4">
                           <div className="space-y-3">
                             {/* Header with event name and status */}
-                            <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
                                 <h3 className="font-semibold text-gray-900 text-sm @sm:text-base leading-tight mb-1 break-words">{proposal.eventName}</h3>
-                                <div className="flex items-center text-xs @sm:text-sm text-gray-500">
+                                <div className="flex items-center text-xs text-gray-500">
                                   <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
                                   <span className="truncate">{proposal.venue}</span>
                                 </div>
@@ -581,32 +712,32 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
                               </Badge>
                             </div>
 
-                            {/* Organization info */}
+                            {/* Organization info - Container responsive grid */}
                             <div className="border-t pt-3">
-                              <div className="grid grid-cols-1 gap-2">
+                              <div className="grid grid-cols-1 @sm:grid-cols-2 gap-2">
                                 <div>
                                   <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Contact Person</span>
-                                  <p className="text-sm @sm:text-base font-medium text-gray-900 mt-0.5 break-words">{proposal.contactPerson}</p>
+                                  <p className="text-sm font-medium text-gray-900 mt-0.5 break-words">{proposal.contactPerson}</p>
                                   <p className="text-xs text-gray-500 break-words">{proposal.organizationType}</p>
                                 </div>
                               </div>
                             </div>
 
-                            {/* Contact details */}
+                            {/* Contact details - Flexbox layout */}
                             <div className="space-y-2">
-                              <div className="flex items-start text-xs @sm:text-sm min-w-0">
+                              <div className="flex items-start text-sm min-w-0">
                                 <Mail className="h-3 w-3 mr-2 text-gray-400 flex-shrink-0 mt-0.5" />
-                                <span className="truncate text-blue-600 break-all">{proposal.contactEmail}</span>
+                                <span className="truncate text-blue-600 break-all text-xs">{proposal.contactEmail}</span>
                               </div>
                               {proposal.contactPhone && (
-                                <div className="flex items-center text-xs @sm:text-sm text-gray-600">
+                                <div className="flex items-center text-sm text-gray-600">
                                   <Phone className="h-3 w-3 mr-2 text-gray-400 flex-shrink-0" />
-                                  <span className="break-all">{proposal.contactPhone}</span>
+                                  <span className="break-all text-xs">{proposal.contactPhone}</span>
                                 </div>
                               )}
                             </div>
 
-                            {/* Date and type info */}
+                            {/* Date, type, and file info - Container responsive */}
                             <div className="flex flex-wrap items-center gap-2 text-xs">
                               <div className="flex items-center text-gray-600">
                                 <Calendar className="h-3 w-3 mr-1" />
@@ -615,12 +746,23 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
                               <Badge variant="outline" className="text-xs">
                                 {proposal.eventType}
                               </Badge>
-                              <span className="text-gray-500">
+                              {proposal.hasFiles ? (
+                                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                  <FileText className="h-3 w-3 mr-1" />
+                                  {Object.keys(proposal.files || {}).length} files
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-xs bg-gray-50 text-gray-500 border-gray-200">
+                                  <FileText className="h-3 w-3 mr-1" />
+                                  No files
+                                </Badge>
+                              )}
+                              <span className="text-gray-500 @sm:block hidden">
                                 Submitted: {formatDate(proposal.submittedAt)}
                               </span>
                             </div>
 
-                            {/* Actions */}
+                            {/* Actions - Responsive button layout */}
                             <div className="border-t pt-3 flex flex-wrap gap-2">
                               <Button
                                 variant="outline"
@@ -629,7 +771,7 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
                                   setSelectedProposal(proposal)
                                   setShowDetails(true)
                                 }}
-                                className="flex-1 min-w-fit text-xs @sm:text-sm px-3 py-2"
+                                className="flex-1 @sm:flex-none min-w-fit text-xs px-3 py-2"
                               >
                                 <Eye className="h-3 w-3 mr-1" />
                                 View Details
@@ -648,7 +790,10 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => updateProposalStatus(proposal.id, 'denied')}
+                                    onClick={() => {
+                                      setSelectedProposal(proposal)
+                                      setShowCommentDialog(true)
+                                    }}
                                     className="text-red-600 border-red-200 hover:bg-red-50 text-xs px-3 py-2"
                                   >
                                     <XCircle className="h-3 w-3 mr-1" />
@@ -668,11 +813,11 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
           </CardContent>
         </Card>
 
-        {/* Enhanced Responsive Pagination */}
+        {/* Optimized Responsive Pagination */}
         {pagination.pages > 1 && (
-          <Card className="border-l-4 border-l-orange-500 shadow-lg">
-            <CardContent className="p-3 @sm:p-4 @lg:p-6">
-              <div className="flex flex-col space-y-4 @sm:flex-row @sm:items-center @sm:justify-between @sm:space-y-0">
+          <Card className="border-l-4 border-l-orange-500 shadow-sm">
+            <CardContent className="p-3 @sm:p-4">
+              <div className="flex flex-col @sm:flex-row @sm:items-center @sm:justify-between gap-3">
                 <div className="text-sm text-gray-600 text-center @sm:text-left">
                   <span className="font-medium">
                     Showing {filteredProposals.length} of {pagination.total} proposals
@@ -683,13 +828,13 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
                     </span>
                   )}
                 </div>
-                <div className="flex items-center justify-center space-x-2 @sm:justify-end">
+                <div className="flex items-center justify-center gap-2 @sm:justify-end">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={!pagination.hasPrev || loading}
-                    className="px-3 py-2 text-xs @sm:text-sm border-gray-300 hover:border-blue-500 hover:bg-blue-50 disabled:opacity-50 transition-all duration-200"
+                    className="px-3 py-2 text-xs border-gray-300 hover:border-blue-500 hover:bg-blue-50 disabled:opacity-50 transition-all duration-200"
                     aria-label="Go to previous page"
                   >
                     <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -697,19 +842,19 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
                     </svg>
                     <span className="hidden @sm:inline">Previous</span>
                   </Button>
-                  <div className="flex items-center space-x-1">
-                    <span className="text-xs @sm:text-sm font-medium px-2 @sm:px-3 py-1 @sm:py-2 bg-blue-50 text-blue-700 rounded border">
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-medium px-2 py-1 bg-blue-50 text-blue-700 rounded border">
                       {pagination.page}
                     </span>
-                    <span className="text-xs @sm:text-sm text-gray-500">of</span>
-                    <span className="text-xs @sm:text-sm font-medium">{pagination.pages}</span>
+                    <span className="text-xs text-gray-500">of</span>
+                    <span className="text-xs font-medium">{pagination.pages}</span>
                   </div>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setCurrentPage(prev => prev + 1)}
                     disabled={!pagination.hasNext || loading}
-                    className="px-3 py-2 text-xs @sm:text-sm border-gray-300 hover:border-blue-500 hover:bg-blue-50 disabled:opacity-50 transition-all duration-200"
+                    className="px-3 py-2 text-xs border-gray-300 hover:border-blue-500 hover:bg-blue-50 disabled:opacity-50 transition-all duration-200"
                     aria-label="Go to next page"
                   >
                     <span className="hidden @sm:inline">Next</span>
@@ -719,12 +864,12 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
                   </Button>
                 </div>
               </div>
-              {/* Page jump for larger pagination */}
+              {/* Simplified page jump for larger pagination */}
               {pagination.pages > 5 && (
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <div className="flex flex-col @sm:flex-row items-center space-y-2 @sm:space-y-0 @sm:space-x-4">
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <div className="flex flex-col @sm:flex-row items-center gap-2">
                     <label className="text-sm font-medium text-gray-700">Jump to page:</label>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center gap-2">
                       <input
                         type="number"
                         min="1"
@@ -755,15 +900,15 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
       <Dialog open={showDetails} onOpenChange={setShowDetails}>
         <DialogContent className="
           fixed left-[50%] top-[50%] z-50 
-          grid w-[100vw] h-[100vh] 
-          sm:w-[90vw] sm:h-[85vh] sm:max-w-[800px] sm:max-h-[600px]
-          md:w-[80vw] md:h-[80vh] md:max-w-[900px] md:max-h-[700px]
-          lg:w-[70vw] lg:h-[75vh] lg:max-w-[1000px] lg:max-h-[750px]
-          xl:w-[60vw] xl:h-[70vh] xl:max-w-[1200px] xl:max-h-[800px]
+          grid w-[95vw] h-[90vh] 
+          sm:w-[85vw] sm:h-[80vh] sm:max-w-[700px] sm:max-h-[600px]
+          md:w-[75vw] md:h-[75vh] md:max-w-[800px] md:max-h-[650px]
+          lg:w-[65vw] lg:h-[70vh] lg:max-w-[900px] lg:max-h-[700px]
+          xl:w-[55vw] xl:h-[65vh] xl:max-w-[1000px] xl:max-h-[750px]
           translate-x-[-50%] translate-y-[-50%]
           border-0 sm:border
-          bg-white shadow-none sm:shadow-2xl
-          rounded-none sm:rounded-xl
+          bg-white shadow-none sm:shadow-xl
+          rounded-none sm:rounded-lg
           overflow-hidden
           duration-300 ease-out
           data-[state=open]:animate-in data-[state=closed]:animate-out
@@ -940,38 +1085,57 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
                   </CardContent>
                 </Card>
 
-                {/* Attached Files Card - Enhanced Responsive Design */}
-                {selectedProposal.files && Object.keys(selectedProposal.files).length > 0 && (
-                  <Card className="shadow-sm border-l-4 border-l-purple-500">
-                    <CardHeader className="bg-gradient-to-r from-purple-50 to-purple-100/50 rounded-t-lg p-4 @sm:p-6">
-                      <CardTitle className="text-lg @sm:text-xl font-semibold text-purple-900 flex items-center">
+                {/* Files & Documents Card - Always Visible with Enhanced UX */}
+                <Card className="shadow-sm border-l-4 border-l-purple-500">
+                  <CardHeader className="bg-gradient-to-r from-purple-50 to-purple-100/50 rounded-t-lg p-4 @sm:p-6">
+                    <CardTitle className="text-lg @sm:text-xl font-semibold text-purple-900 flex items-center justify-between">
+                      <div className="flex items-center">
                         <FileText className="h-4 w-4 @sm:h-5 @sm:w-5 mr-2" />
-                        Attached Files
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 @sm:p-6">
+                        Files & Documents
+                      </div>
+                      <Badge
+                        variant={selectedProposal.hasFiles ? "default" : "secondary"}
+                        className="text-xs"
+                      >
+                        {selectedProposal.hasFiles ? `${Object.keys(selectedProposal.files || {}).length} files` : 'No files'}
+                      </Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 @sm:p-6">
+                    {selectedProposal.hasFiles && selectedProposal.files && Object.keys(selectedProposal.files).length > 0 ? (
+                      // Show actual files when they exist
                       <div className="grid grid-cols-1 @md:grid-cols-2 gap-3 @sm:gap-4">
                         {Object.entries(selectedProposal.files).map(([fileType, fileInfo]) => (
                           <div
                             key={fileType}
-                            className="flex items-center justify-between p-3 @sm:p-4 border-2 border-dashed border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50/30 transition-all duration-200"
+                            className="flex items-center justify-between p-3 @sm:p-4 border-2 border-dashed border-green-200 bg-green-50/30 rounded-lg hover:border-green-300 hover:bg-green-50/50 transition-all duration-200"
                           >
                             <div className="flex items-center space-x-3 min-w-0 flex-1">
-                              <div className="p-2 bg-purple-100 rounded-lg flex-shrink-0">
-                                <FileText className="h-4 w-4 @sm:h-6 @sm:w-6 text-purple-600" />
+                              <div className="p-2 bg-green-100 rounded-lg flex-shrink-0">
+                                <FileText className="h-4 w-4 @sm:h-6 @sm:w-6 text-green-600" />
                               </div>
                               <div className="min-w-0">
                                 <p className="font-semibold text-gray-900 text-sm @sm:text-base break-words">
-                                  {fileType === "gpoa" ? "General Plan of Action" : "Project Proposal"}
+                                  {fileType === "gpoa" ? "General Plan of Action" :
+                                    fileType === "proposal" ? "Project Proposal" :
+                                      fileType === "accomplishmentReport" ? "Accomplishment Report" :
+                                        fileType.charAt(0).toUpperCase() + fileType.slice(1)}
                                 </p>
-                                <p className="text-xs @sm:text-sm text-gray-500">PDF Document</p>
+                                <p className="text-xs @sm:text-sm text-gray-500">
+                                  {fileInfo.name || 'PDF Document'}
+                                  {fileInfo.source && (
+                                    <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
+                                      {fileInfo.source}
+                                    </span>
+                                  )}
+                                </p>
                               </div>
                             </div>
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => downloadFile(selectedProposal.id, fileType)}
-                              className="hover:bg-purple-50 hover:border-purple-300 hover:text-purple-700 transition-colors flex-shrink-0 ml-2"
+                              className="hover:bg-green-50 hover:border-green-300 hover:text-green-700 transition-colors flex-shrink-0 ml-2"
                             >
                               <Download className="h-3 w-3 @sm:h-4 @sm:w-4 mr-1 @sm:mr-2" />
                               <span className="hidden @sm:inline">Download</span>
@@ -979,9 +1143,66 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
                           </div>
                         ))}
                       </div>
-                    </CardContent>
-                  </Card>
-                )}
+                    ) : (
+                      // Show empty state when no files exist
+                      <div className="text-center py-6 @sm:py-8">
+                        <div className="mx-auto w-16 h-16 @sm:w-20 @sm:h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                          <FileText className="w-6 h-6 @sm:w-8 @sm:h-8 text-gray-400" />
+                        </div>
+                        <h3 className="text-base @sm:text-lg font-medium text-gray-700 mb-2">No Files Attached</h3>
+                        <p className="text-sm text-gray-500 max-w-sm mx-auto mb-4">
+                          This proposal doesn't have any documents attached yet. Required documents typically include:
+                        </p>
+                        <div className="grid grid-cols-1 @sm:grid-cols-2 gap-3 max-w-md mx-auto text-left">
+                          <div className="flex items-center p-3 bg-gray-50 rounded-lg border">
+                            <div className="p-1.5 bg-gray-200 rounded flex-shrink-0 mr-3">
+                              <FileText className="h-3 w-3 text-gray-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-700">General Plan of Action</p>
+                              <p className="text-xs text-gray-500">GPOA Document</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center p-3 bg-gray-50 rounded-lg border">
+                            <div className="p-1.5 bg-gray-200 rounded flex-shrink-0 mr-3">
+                              <FileText className="h-3 w-3 text-gray-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-700">Project Proposal</p>
+                              <p className="text-xs text-gray-500">Detailed proposal</p>
+                            </div>
+                          </div>
+                        </div>
+                        {selectedProposal.status === 'pending' && (
+                          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <p className="text-sm text-yellow-800">
+                              <strong>Note:</strong> This proposal is pending review. Documents may be uploaded later or might be stored in a different system.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* File Upload Information */}
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex items-start space-x-3">
+                        <div className="p-1.5 bg-blue-100 rounded-full flex-shrink-0">
+                          <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs @sm:text-sm font-medium text-gray-700 mb-1">File Upload Information</p>
+                          <p className="text-xs text-gray-500 leading-relaxed">
+                            Files can be uploaded during the proposal submission process.
+                            Supported formats: PDF, DOC, DOCX. Maximum size: 10MB per file.
+                            {selectedProposal.hasFiles ? ' Files are stored securely and can be downloaded by authorized users.' : ' No files have been uploaded for this proposal yet.'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
                 {/* Admin Actions Card - Enhanced Responsive Design */}
                 {selectedProposal.status === "pending" && (
@@ -1004,7 +1225,7 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
                           {actionLoading ? "Processing..." : "Approve Proposal"}
                         </Button>
                         <Button
-                          onClick={() => updateProposalStatus(selectedProposal.id, "rejected")}
+                          onClick={() => setShowCommentDialog(true)}
                           disabled={actionLoading}
                           variant="destructive"
                           className="flex-1 py-2.5 @sm:py-3 text-sm @sm:text-base font-medium"
@@ -1043,6 +1264,111 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ✅ Rejection Comment Dialog - Enhanced UX */}
+      <Dialog open={showCommentDialog} onOpenChange={setShowCommentDialog}>
+        <DialogContent className="
+           w-full max-w-md sm:max-w-lg md:max-w-xl 
+           mx-auto mt-20 sm:mt-24
+           bg-white rounded-lg shadow-xl
+           border border-gray-200
+           p-0 overflow-hidden
+           max-h-[80vh] sm:max-h-[70vh]
+         ">
+          <DialogHeader className="
+             bg-gradient-to-r from-red-50 to-red-100/50 
+             p-4 sm:p-6 border-b border-red-200
+           ">
+            <DialogTitle className="
+               text-lg sm:text-xl font-bold text-red-900 
+               flex items-center
+             ">
+              <XCircle className="h-5 w-5 mr-3 text-red-600" />
+              Reject Proposal
+            </DialogTitle>
+            <DialogDescription className="text-sm text-red-700 mt-2">
+              Provide a reason for rejecting: <strong>{selectedProposal?.eventName}</strong>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-4 sm:p-6 space-y-4">
+            {/* Proposal Summary */}
+            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+              <div className="text-sm text-gray-600 space-y-1">
+                <p><strong>Event:</strong> {selectedProposal?.eventName}</p>
+                <p><strong>Contact:</strong> {selectedProposal?.contactPerson}</p>
+                <p><strong>Organization:</strong> {selectedProposal?.organizationType}</p>
+                <p><strong>Date:</strong> {formatDate(selectedProposal?.startDate)}</p>
+              </div>
+            </div>
+
+            {/* Comment Input */}
+            <div className="space-y-2">
+              <Label htmlFor="rejection-comment" className="text-sm font-semibold text-gray-700">
+                Rejection Reason <span className="text-red-500">*</span>
+              </Label>
+              <Textarea
+                id="rejection-comment"
+                value={rejectionComment}
+                onChange={(e) => setRejectionComment(e.target.value)}
+                placeholder="Please provide a detailed reason for rejecting this proposal. This comment will be stored in both MySQL and MongoDB databases and linked to the proposal ID."
+                className="min-h-[120px] resize-none border-gray-300 focus:border-red-500 focus:ring-red-200"
+                maxLength={500}
+              />
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Required field</span>
+                <span>{rejectionComment.length}/500</span>
+              </div>
+            </div>
+
+            {/* Warning Notice */}
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <div className="flex items-start space-x-2">
+                <svg className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <div className="text-xs text-yellow-800">
+                  <p className="font-semibold">Important:</p>
+                  <p>This rejection will be saved instantly to both MySQL and MongoDB databases. The decision cannot be easily reversed.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowCommentDialog(false)
+                  setRejectionComment('')
+                }}
+                disabled={commentLoading}
+                className="flex-1 border-gray-300 hover:bg-gray-50"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleRejectionWithComment}
+                disabled={commentLoading || !rejectionComment.trim()}
+                variant="destructive"
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium"
+              >
+                {commentLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Submit Rejection
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

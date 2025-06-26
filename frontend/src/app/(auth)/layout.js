@@ -1,8 +1,7 @@
 // frontend/src/app/(auth)/layout.js
-import { ThemeProvider } from "@/components/theme-provider"; // Assuming you have a theme provider
-import { Toaster } from "@/components/ui/toaster"; // Assuming you use ShadCN toaster
+import DOMErrorBoundary from "@/components/dom-error-boundary";
 import { Inter } from "next/font/google";
-import "../globals.css"; // Your global styles
+// import "../globals.css"; // Temporarily disabled due to Turbopack CSS processing issue
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -19,9 +18,8 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+    <DOMErrorBoundary>
       {children}
-      <Toaster />
-    </ThemeProvider>
+    </DOMErrorBoundary>
   );
 }

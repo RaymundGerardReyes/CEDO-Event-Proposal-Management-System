@@ -5,7 +5,7 @@ import { useAuth } from "../contexts/auth-context"
 import DashboardLayout from "./layouts/DashboardLayout"
 
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
-    const { user, isLoading } = useAuth()
+    const { user, isLoading, ROLES } = useAuth()
 
     // Show loading state
     if (isLoading) {
@@ -24,7 +24,6 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     // If roles are specified and user doesn't have permission
     if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
         // Redirect to appropriate dashboard based on role
-        const { ROLES } = useAuth(); // Get ROLES from the correct context
         switch (user.role) {
             case ROLES.head_admin:
             case ROLES.manager:

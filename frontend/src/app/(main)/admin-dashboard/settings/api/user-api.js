@@ -1,3 +1,4 @@
+'use client';
 // frontend/src/app/(main)/admin-dashboard/settings/api/user-api.js
 
 /**
@@ -17,7 +18,7 @@
 import axios from 'axios';
 
 // Use the same API configuration as auth-context.js
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5050/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
 // Create axios instance with same configuration as auth-context
 const api = axios.create({

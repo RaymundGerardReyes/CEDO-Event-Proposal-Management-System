@@ -1,6 +1,6 @@
 const express = require("express")
 const router = express.Router()
-const { Parser } = require("json2csv")
+const { Parser } = require("json-2-csv")
 const Proposal = require("../models/Proposal")
 const User = require("../models/User")
 const { validateToken, validateAdmin, validateFaculty } = require("../middleware/auth")

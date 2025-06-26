@@ -74,7 +74,7 @@ function AvatarImage({ src, alt }) {
 
 function AvatarFallback({ className = "", children }) {
   return (
-    <div className={`flex h-full w-full items-center justify-center rounded-full bg-gray-100 ${className}`}>
+    <div className={`flex h-full w-full items-center justify-center rounded-full bg-[#0c2d6b] text-white text-xs sm:text-sm font-medium ${className}`}>
       {children}
     </div>
   )

@@ -298,7 +298,7 @@ export const DebugPanel = ({ state, formData, disabled, clearStorageAndReload, d
                     </div>
                 </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 text-sm">
+            <CardContent>
                 {/* Authentication Info */}
                 <div className="bg-white p-3 rounded border">
                     <h4 className="font-semibold text-red-700 mb-2">🔐 Authentication Status</h4>
@@ -311,74 +311,18 @@ export const DebugPanel = ({ state, formData, disabled, clearStorageAndReload, d
                     )}
                 </div>
 
-                {/* State Machine Info */}
-                <div className="bg-white p-3 rounded border">
-                    <h4 className="font-semibold text-blue-700 mb-2">⚙️ State Machine</h4>
+                {/* STATE MACHINE INFO */}
+                <div className="p-4 bg-gray-800 text-white rounded-lg font-mono text-xs overflow-x-auto">
+                    <h4 className="font-bold text-gray-300 mb-2">Internal State Snapshot</h4>
                     <div className="space-y-1 text-xs">
                         <div><strong>Current State:</strong> {state.value}</div>
-                        <div><strong>Proposal Status:</strong> {formData.proposalStatus}</div>
+                        <div><strong>Proposal Status:</strong> {formData?.proposalStatus}</div>
                         <div><strong>Form Disabled:</strong> {disabled ? '❌ Yes' : '✅ No'}</div>
-                        <div><strong>Has Active Proposal:</strong> {formData.hasActiveProposal ? 'Yes' : 'No'}</div>
+                        <div><strong>Has Active Proposal:</strong> {formData?.hasActiveProposal ? 'Yes' : 'No'}</div>
                     </div>
-                </div>
 
-                {/* Form Data */}
-                <div className="bg-white p-3 rounded border">
-                    <h4 className="font-semibold text-green-700 mb-2">📝 Form Data</h4>
-                    <div className="space-y-1 text-xs">
-                        <div><strong>Organization Name:</strong> '{formData.organizationName || 'Empty'}'</div>
-                        <div><strong>Organization Types:</strong> {JSON.stringify(formData.organizationTypes || [])}</div>
-                        <div><strong>Contact Name:</strong> '{formData.contactName || 'Empty'}'</div>
-                        <div><strong>Contact Email:</strong> '{formData.contactEmail || 'Empty'}'</div>
-                        <div><strong>Validation Errors:</strong> {Object.keys(formData.validationErrors || {}).length} errors</div>
-                    </div>
-                </div>
-
-                {/* LocalStorage Info */}
-                <div className="bg-white p-3 rounded border">
-                    <h4 className="font-semibold text-purple-700 mb-2">💾 LocalStorage</h4>
-                    {localStorageData && (
-                        <div className="space-y-1 text-xs">
-                            <div><strong>Has Data:</strong> {localStorageData.raw ? '✅ Yes' : '❌ No'}</div>
-                            <div><strong>Data Size:</strong> {localStorageData.size} characters</div>
-                            <div><strong>Parsed Status:</strong> {localStorageData.parsed ? '✅ Valid' : '❌ Invalid'}</div>
-                            {localStorageData.error && (
-                                <div className="text-red-600"><strong>Error:</strong> {localStorageData.error}</div>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                {/* DOM Info */}
-                <div className="bg-white p-3 rounded border">
-                    <h4 className="font-semibold text-orange-700 mb-2">🌐 DOM Elements</h4>
-                    {domInfo && (
-                        <div className="space-y-1 text-xs">
-                            <div><strong>Form Exists:</strong> {domInfo.formExists ? '✅ Yes' : '❌ No'}</div>
-                            <div><strong>Org Name Input Exists:</strong> {domInfo.organizationNameExists ? '✅ Yes' : '❌ No'}</div>
-                            <div><strong>Org Name Input Disabled:</strong> {domInfo.organizationNameDisabled ? '❌ Yes' : '✅ No'}</div>
-                            <div><strong>Org Name Value:</strong> '{domInfo.organizationNameValue}'</div>
-                            <div><strong>Radio Buttons Count:</strong> {domInfo.radioButtonsCount}</div>
-                            <div><strong>Radio Buttons Disabled:</strong> {JSON.stringify(domInfo.radioButtonsDisabled)}</div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Console Instructions */}
-                <div className="bg-gray-100 p-3 rounded border">
-                    <h4 className="font-semibold text-gray-700 mb-2">🖥️ Console Debugging</h4>
-                    <div className="text-xs space-y-1">
-                        <div>Open browser console (F12) and run these commands:</div>
-                        <div className="bg-gray-200 p-1 rounded font-mono">
-                            document.querySelector('#organizationName')?.focus()
-                        </div>
-                        <div className="bg-gray-200 p-1 rounded font-mono">
-                            document.querySelector('#school-based')?.click()
-                        </div>
-                        <div className="bg-gray-200 p-1 rounded font-mono">
-                            localStorage.getItem('eventProposalFormData')
-                        </div>
-                    </div>
+                    <h4 className="font-bold text-gray-300 mt-4 mb-2">Form Data (XState Context)</h4>
+                    <pre>{JSON.stringify(formData, null, 2)}</pre>
                 </div>
             </CardContent>
         </Card>

@@ -11,7 +11,7 @@ const { RecaptchaEnterpriseServiceClient } = require('@google-cloud/recaptcha-en
  */
 async function createAssessment({
     projectID = "modern-vortex-455007-r2",
-    recaptchaKey = "6LcTTzUrAAAAAHd6nbv15aXhrdoZgkywzPwyrQch",
+    recaptchaKey = process.env.RECAPTCHA_SITE_KEY,
     token,
     recaptchaAction,
 }) {

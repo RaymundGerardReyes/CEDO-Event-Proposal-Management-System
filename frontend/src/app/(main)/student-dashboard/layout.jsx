@@ -1,7 +1,8 @@
 // frontend/src/app/(main)/student-dashboard/layout.jsx
 
-import ClientLayout from "./clientLayout";
-import './globals.css';
+import RouterStabilizer from "@/components/RouterStabilizer";
+import { AuthProvider } from "@/contexts/auth-context";
+import ClientLayout from './clientLayout';
 
 // ✅ Enable ISR for better performance - Server Component can export revalidate
 export const revalidate = 300; // Revalidate every 5 minutes
@@ -47,5 +48,13 @@ export const viewport = {
  * @returns {JSX.Element} The student dashboard layout
  */
 export default function StudentDashboardLayout({ children }) {
-  return <ClientLayout>{children}</ClientLayout>
+  return (
+    <RouterStabilizer>
+      <AuthProvider>
+        <ClientLayout>
+          {children}
+        </ClientLayout>
+      </AuthProvider>
+    </RouterStabilizer>
+  );
 }

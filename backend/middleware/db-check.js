@@ -126,7 +126,39 @@ async function createProposalsTable() {
       `)
             console.log("Proposals table created successfully")
         } else {
-            console.log("Proposals table already exists")
+            console.log("Proposals table already exists – verifying Section-5 columns…")
+            try {
+                const [cols] = await pool.query('SHOW COLUMNS FROM proposals');
+                const existing = cols.map(c => c.Field);
+
+                const needed = {
+                    digital_signature: 'LONGTEXT',
+                    accomplishment_report_file_name: 'VARCHAR(255)',
+                    accomplishment_report_file_path: 'VARCHAR(500)',
+                    pre_registration_file_name: 'VARCHAR(255)',
+                    pre_registration_file_path: 'VARCHAR(500)',
+                    final_attendance_file_name: 'VARCHAR(255)',
+                    final_attendance_file_path: 'VARCHAR(500)',
+                    attendance_count: 'INT',
+                    event_status: "ENUM('completed','cancelled','postponed')",
+                    report_description: 'TEXT'
+                };
+
+                const alterClauses = Object.entries(needed)
+                    .filter(([name]) => !existing.includes(name))
+                    .map(([name, type]) => `ADD COLUMN \`${name}\` ${type}`);
+
+                if (alterClauses.length) {
+                    const alterSQL = `ALTER TABLE proposals ${alterClauses.join(', ')}`;
+                    console.log('🛠️  Updating proposals table:', alterSQL);
+                    await pool.query(alterSQL);
+                    console.log('✅  Proposals table updated with missing Section-5 columns');
+                } else {
+                    console.log('✅  All Section-5 columns present.');
+                }
+            } catch (colErr) {
+                console.error('❌  Failed to verify/add Section-5 columns:', colErr.message);
+            }
         }
     } catch (error) {
         console.error("Error creating proposals table:", error.message)

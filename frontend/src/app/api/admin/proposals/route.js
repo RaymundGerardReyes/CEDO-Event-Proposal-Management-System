@@ -1,4 +1,7 @@
-import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server';
+
+// Force dynamic rendering for this API route
+export const dynamic = 'force-dynamic';
 
 // API route to fetch all proposals for admin dashboard
 export async function GET(request) {
@@ -65,11 +68,11 @@ export async function GET(request) {
 
         // Transform hybrid backend data to match frontend component expectations
         const transformedProposals = (data.proposals || []).map(proposal => ({
-            id: proposal.id || proposal.mysqlId,
-            eventName: proposal.eventName || proposal.organizationName || 'Unnamed Event',
-            venue: proposal.venue || proposal.location || 'N/A',
+            id: proposal.id,
+            eventName: proposal.eventName || proposal.title || 'Unnamed Event',
+            venue: proposal.venue || 'N/A',
             startDate: proposal.startDate || proposal.submittedAt,
-            submittedAt: proposal.submittedAt,
+            submittedAt: proposal.submittedAt || proposal.createdAt,
             status: proposal.status,
             contactPerson: proposal.contactPerson,
             contactEmail: proposal.contactEmail,
@@ -77,8 +80,8 @@ export async function GET(request) {
             organizationType: proposal.organizationType || 'Unknown',
             eventType: proposal.eventType || proposal.category || 'General',
             description: proposal.description,
-            organization: proposal.organizationName,
-            // Additional hybrid fields
+            organization: proposal.organizationName || proposal.organization,
+            // Files from MySQL
             files: proposal.files || {},
             dataSource: proposal.dataSource,
             budget: proposal.budget,

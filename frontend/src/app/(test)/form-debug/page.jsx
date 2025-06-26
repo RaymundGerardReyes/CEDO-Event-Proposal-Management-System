@@ -11,7 +11,7 @@ export default function FormDebugPage() {
                 <div className="mt-4 p-4 bg-yellow-100 border border-yellow-400 rounded-lg">
                     <p className="text-yellow-800 text-sm">
                         <strong>Note:</strong> This route should only be used for development debugging.
-                        Access: <code>http://localhost:3001/form-debug</code>
+                        Access: <code>http://localhost:3000/form-debug</code>
                     </p>
                 </div>
             </div>

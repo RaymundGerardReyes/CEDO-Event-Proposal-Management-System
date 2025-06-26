@@ -174,7 +174,7 @@ const mockLocalStorage = {
 Object.defineProperty(window, 'localStorage', { value: mockLocalStorage });
 
 // Import the mocked component
-const { Section5_Reporting } = require('@/app/(main)/student-dashboard/submit-event/Section5_Reporting');
+const { Section5_Reporting } = require('@/app/(main)/student-dashboard/submit-event/[draftId]/reporting/Section5_Reporting');
 
 describe('Section5_Reporting Component', () => {
     let defaultProps;

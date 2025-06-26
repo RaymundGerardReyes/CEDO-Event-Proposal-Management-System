@@ -124,10 +124,16 @@ const validateToken = async (req, res, next) => {
       throw error
     }
 
-    // Check if user exists in database - adjusted to match your schema
+    // Support multiple payload shapes: {id:1}, {userId:1}, {user:{id:1}}
+    const userIdFromToken = decoded.userId || decoded.id || (decoded.user && decoded.user.id)
+
+    if (!userIdFromToken) {
+      throw new Error("Invalid token payload – no user id")
+    }
+
     const [users] = await pool.query(
       "SELECT id, email, role, name, organization, organization_type, avatar, is_approved FROM users WHERE id = ?",
-      [decoded.userId || decoded.id],
+      [userIdFromToken],
     )
 
     if (users.length === 0) {

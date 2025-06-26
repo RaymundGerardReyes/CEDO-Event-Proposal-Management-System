@@ -1,3 +1,4 @@
+'use client';
 // frontend/src/app/(main)/admin-dashboard/settings/components/EditUserModal.jsx
 
 /**
@@ -16,7 +17,6 @@
  * - Loading states and optimistic updates
  */
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,6 +40,7 @@ import {
     X
 } from 'lucide-react';
 import { memo, useCallback, useEffect, useState } from 'react';
+import UserAvatar from './UserAvatar';
 
 // Available user roles
 const USER_ROLES = ["head_admin", "manager", "student", "reviewer", "partner"];
@@ -255,12 +256,12 @@ const EditUserModal = memo(({
                 {/* Current User Info Display */}
                 <div className="my-4 p-4 bg-muted/30 rounded-lg border border-border">
                     <div className="flex items-center gap-4">
-                        <Avatar className="h-12 w-12 bg-cedo-blue text-white flex-shrink-0">
-                            <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
-                            <AvatarFallback className="bg-cedo-blue text-white text-sm font-semibold">
-                                {getUserInitials(user.name)}
-                            </AvatarFallback>
-                        </Avatar>
+                        <UserAvatar
+                            user={user}
+                            size="lg"
+                            className="flex-shrink-0"
+                            showIndicator={true}
+                        />
 
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">

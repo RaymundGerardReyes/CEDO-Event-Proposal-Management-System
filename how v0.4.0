@@ -1,0 +1,789 @@
+[33mtag v0.4.0[m
+Tagger: RaymundGerardEstaca <2022025162@my.xu.edu.ph>
+Date:   Mon Jun 16 04:31:01 2025 +0800
+
+v0.4.0 – Complete Admin Dashboard (17 dirs, 41 files)
+
+[33mcommit 8dbacef2aa42a89356e69f11e17ee2eaec8aa310[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mDevelopment[m[33m, [m[1;33mtag: [m[1;33mv0.4.0[m[33m)[m
+Author: RaymundGerardEstaca <2022025162@my.xu.edu.ph>
+Date:   Sun Jun 15 21:42:09 2025 +0800
+
+    feat: Complete Admin Dashboard v0.4.0 - Comprehensive admin interface with proposal management, user approval system, reports & analytics, settings, event management, review system, notifications, forms, and profile management (44KB page.jsx, 28KB globals.css)
+
+[1mdiff --git a/frontend/src/app/(main)/admin-dashboard/reports/viewdetails.jsx b/frontend/src/app/(main)/admin-dashboard/reports/viewdetails.jsx[m
+[1mnew file mode 100644[m
+[1mindex 0000000..e243854[m
+[1m--- /dev/null[m
+[1m+++ b/frontend/src/app/(main)/admin-dashboard/reports/viewdetails.jsx[m
+[36m@@ -0,0 +1,749 @@[m
+[32m+[m[32m"use client"[m
+[32m+[m
+[32m+[m[32mexport const dynamic = 'force-dynamic';[m
+[32m+[m
+[32m+[m[32mimport { PageHeader } from "@/components/dashboard/admin/page-header";[m
+[32m+[m[32mimport { Badge } from "@/components/dashboard/admin/ui/badge";[m
+[32m+[m[32mimport { Button } from "@/components/dashboard/admin/ui/button";[m
+[32m+[m[32mimport { Card, CardContent, CardHeader, CardTitle } from "@/components/dashboard/admin/ui/card";[m
+[32m+[m[32mimport { Input } from "@/components/dashboard/admin/ui/input";[m
+[32m+[m[32mimport { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/dashboard/admin/ui/select";[m
+[32m+[m[32mimport { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/dashboard/admin/ui/table";[m
+[32m+[m[32mimport { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/dashboard/admin/ui/tabs";[m
+[32m+[m[32mimport {[m
+[32m+[m[32m    ArrowUpDown,[m
+[32m+[m[32m    BarChart,[m
+[32m+[m[32m    Calendar,[m
+[32m+[m[32m    CheckCircle,[m
+[32m+[m[32m    Clock,[m
+[32m+[m[32m    Download,[m
+[32m+[m[32m    Filter,[m
+[32m+[m[32m    PieChart,[m
+[32m+[m[32m    Search,[m
+[32m+[m[32m    Users,[m
+[32m+[m[32m    X,[m
+[32m+[m[32m} from "lucide-react";[m
+[32m+[m[32mimport { Suspense, useCallback, useEffect, useState } from "react";[m
+[32m+[m
+[32m+[m[32mconst API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';[m
+[32m+[m
+[32m+[m[32mfunction ReportsContent() {[m
+[32m+[m[32m    const [mounted, setMounted] = useState(false)[m
+[32m+[m[32m    const [searchTerm, setSearchTerm] = useState("")[m
+[32m+[m[32m    const [categoryFilter, setCategoryFilter] = useState("all")[m
+[32m+[m[32m    const [regionFilter, setRegionFilter] = useState("all")[m
+[32m+[m[32m    const [sortBy, setSortBy] = useState("name")[m
+[32m+[m[32m    const [sortOrder, setSortOrder] = useState("asc")[m
+[32m+[m[32m    const [eventFilter, setEventFilter] = useState("all")[m
+[32m+[m
+[32m+[m[32m    // State for modals and analytics[m
+[32m+[m[32m    const [selectedOrg, setSelectedOrg] = useState(null)[m
+[32m+[m[32m    const [showOrgModal, setShowOrgModal] = useState(false)[m
+[32m+[m[32m    const [orgAnalytics, setOrgAnalytics] = useState(null)[m
+[32m+[m[32m    const [analyticsLoading, setAnalyticsLoading] = useState(false)[m
+[32m+[m
+[32m+[m[32m    // State for real data from API[m
+[32m+[m[32m    const [organizations, setOrganizations] = useState([])[m
+[32m+[m[32m    const [orgEvents, setOrgEvents] = useState([])[m
+[32m+[m[32m    const [analytics, setAnalytics] = useState(null)[m
+[32m+[m[32m    const [loading, setLoading] = useState(true)[m
+[32m+[m[32m    const [error, setError] = useState(null)[m
+[32m+[m
+[32m+[m[32m    useEffect(() => {[m
+[32m+[m[32m        setMounted(true)[m
+[32m+[m[32m    }, [])[m
+[32m+[m
+[32m+[m[32m    // Fetch organizations with real data from MySQL database[m
+[32m+[m[32m    const fetchOrganizations = async (filters = {}) => {[m
+[32m+[m[32m        try {[m
+[32m+[m[32m            console.log('📊 Frontend: Fetching organizations from API...');[m
+[32m+[m
+[32m+[m[32m            const queryParams = new URLSearchParams();[m
+[32m+[m[32m            if (filters.category && filters.category !== 'all') queryParams.append('category', filters.category);[m
+[32m+[m[32m            if (filters.region && filters.region !== 'all') queryParams.append('region', filters.region);[m
+[32m+[m[32m            if (filters.search) queryParams.append('search', filters.search);[m
+[32m+[m[32m            if (filters.sort) queryParams.append('sort', filters.sort);[m
+[32m+[m[32m            if (filters.order) queryParams.append('order', filters.order);[m
+[32m+[m
+[32m+[m[32m            const response = await fetch(`${API_BASE_URL}/proposals/reports/organizations?${queryParams.toString()}`);[m
+[32m+[m
+[32m+[m[32m            if (!response.ok) {[m
+[32m+[m[32m                throw new Error(`HTTP error! status: ${response.status}`);[m
+[32m+[m[32m            }[m
+[32m+[m
+[32m+[m[32m            const data = await response.json();[m
+[32m+[m[32m            console.log('📊 Frontend: Organizations fetched successfully:', data);[m
+[32m+[m
+[32m+[m[32m            return data;[m
+[32m+[m[32m        } catch (error) {[m
+[32m+[m[32m            console.error('❌ Frontend: Error fetching organizations:', error);[m
+[32m+[m[32m            throw error;[m
+[32m+[m[32m        }[m
+[32m+[m[32m    };[m
+[32m+[m
+[32m+[m[32m    // Fetch comprehensive analytics for selected organization[m
+[32m+[m[32m    const loadOrgAnalytics = useCallback(async (organizationName) => {[m
+[32m+[m[32m        try {[m
+[32m+[m[32m            console.log('📊 Frontend: Fetching comprehensive analytics for:', organizationName);[m
+[32m+[m
+[32m+[m[32m            const encodedOrgName = encodeURIComponent(organizationName);[m
+[32m+[m[32m            const response = await fetch(`${API_BASE_URL}/proposals/reports/organizations/${encodedOrgName}/analytics`);[m
+[32m+[m
+[32m+[m[32m            if (!response.ok) {[m
+[32m+[m[32m                throw new Error(`HTTP error! status: ${response.status}`);[m
+[32m+[m[32m            }[m
+[32m+[m
+[32m+[m[32m            const data = await response.json();[m
+[32m+[m[32m            console.log('📊 Frontend: Comprehensive analytics fetched:', data);[m
+[32m+[m
+[32m+[m[32m            return data;[m
+[32m+[m[32m        } catch (error) {[m
+[32m+[m[32m            console.error('❌ Frontend: Error fetching organization analytics:', error);[m
+[32m+[m[32m            throw error;[m
+[32m+[m[32m        }[m
+[32m+[m[32m    }, []);[m
+[32m+[m
+[32m+[m[32m    // Load organizations with debounced filtering[m
+[32m+[m[32m    const loadOrganizations = useCallback(async () => {[m
+[32m+[m[32m        try {[m
+[32m+[m[32m            setLoading(true)[m
+[32m+[m[32m            setError(null)[m
+[32m+[m
+[32m+[m[32m            const filters = {[m
+[32m+[m[32m                category: categoryFilter,[m
+[32m+[m[32m                region: regionFilter,[m
+[32m+[m[32m                search: searchTerm,[m
+[32m+[m[32m                sort: sortBy,[m
+[32m+[m[32m                order: sortOrder[m
+[32m+[m[32m            }[m
+[32m+[m
+[32m+[m[32m            console.log('📊 Frontend: Attempting to fetch organizations with filters:', filters)[m
+[32m+[m[32m            const response = await fetchOrganizations(filters)[m
+[32m+[m
+[32m+[m[32m            if (response.success) {[m
+[32m+[m[32m                setOrganizations(response.organizations || [])[m
+[32m+[m[32m                console.log('📊 Frontend: Organizations loaded successfully:', response.organizations?.length)[m
+[32m+[m[32m            } else {[m
+[32m+[m[32m                throw new Error(response.error || 'Failed to fetch organizations')[m
+[32m+[m[32m            }[m
+[32m+[m[32m        } catch (err) {[m
+[32m+[m[32m            console.error('❌ Frontend: Error loading organizations:', err)[m
+[32m+[m
+[32m+[m[32m            let errorMessage = 'Failed to load organizations'[m
+[32m+[m[32m            if (err.message.includes('500')) {[m
+[32m+[m[32m                errorMessage = 'Server error - please check if the database is running and properly configured'[m
+[32m+[m[32m            } else if (err.message.includes('404')) {[m
+[32m+[m[32m                errorMessage = 'Reports API endpoint not found - please check backend configuration'[m
+[32m+[m[32m            } else if (err.message.includes('Failed to fetch')) {[m
+[32m+[m[32m                errorMessage = 'Cannot connect to server - please check if the backend is running'[m
+[32m+[m[32m            } else {[m
+[32m+[m[32m                errorMessage = err.message[m
+[32m+[m[32m            }[m
+[32m+[m
+[32m+[m[32m            setError(errorMessage)[m
+[32m+[m[32m            setOrganizations([])[m
+[32m+[m[32m        } finally {[m
+[32m+[m[32m            setLoading(false)[m
+[32m+[m[32m        }[m
+[32m+[m[32m    }, [categoryFilter, regionFilter, searchTerm, sortBy, sortOrder])[m
+[32m+[m
+[32m+[m[32m    // Enhanced organization click handler with comprehensive analytics[m
+[32m+[m[32m    const handleOrgClick = useCallback(async (org) => {[m
+[32m+[m[32m        console.log('📊 Frontend: Organization clicked:', org.name);[m
+[32m+[m
+[32m+[m[32m        try {[m
+[32m+[m[32m            setSelectedOrg(org);[m
+[32m+[m[32m            setShowOrgModal(true);[m
+[32m+[m[32m            setOrgAnalytics(null);[m
+[32m+[m[32m            setAnalyticsLoading(true);[m
+[32m+[m
+[32m+[m[32m            const analyticsData = await loadOrgAnalytics(org.name);[m
+[32m+[m
+[32m+[m[32m            if (analyticsData && analyticsData.success) {[m
+[32m+[m[32m                console.log('📊 Frontend: Analytics loaded successfully:', analyticsData.source);[m
+[32m+[m[32m                setOrgAnalytics(analyticsData.analytics);[m
+[32m+[m
+[32m+[m[32m                if (analyticsData.source !== 'database') {[m
+[32m+[m[32m                    console.warn('📊 Frontend: Using fallback data source:', analyticsData.source);[m
+[32m+[m[32m                }[m
+[32m+[m[32m            } else {[m
+[32m+[m[32m                console.warn('📊 Frontend: Analytics request failed, using fallback');[m
+[32m+[m[32m                setOrgAnalytics(generateFallbackAnalytics(org));[m
+[32m+[m[32m            }[m
+[32m+[m[32m        } catch (error) {[m
+[32m+[m[32m            console.error('❌ Frontend: Error in handleOrgClick:', error);[m
+[32m+[m[32m            setOrgAnalytics(generateFallbackAnalytics(org));[m
+[32m+[m[32m        } finally {[m
+[32m+[m[32m            setAnalyticsLoading(false);[m
+[32m+[m[32m        }[m
+[32m+[m[32m    }, [loadOrgAnalytics]);[m
+[32m+[m
+[32m+[m[32m    // Generate fallback analytics data for frontend[m
+[32m+[m[32m    const generateFallbackAnalytics = useCallback((org) => {[m
+[32m+[m[32m        return {[m
+[32m+[m[32m            organization: {[m
+[32m+[m[32m                name: org.name,[m
+[32m+[m[32m                type: org.category,[m
+[32m+[m[32m                description: `Analytics for ${org.name}`,[m
+[32m+[m[32m                contact: {[m
+[32m+[m[32m                    name: org.contactPerson || 'N/A',[m
+[32m+[m[32m                    email: org.contactEmail || 'N/A',[m
+[32m+[m[32m                    phone: org.contactPhone || 'N/A'[m
+[32m+[m[32m                },[m
+[32m+[m[32m                firstEventDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),[m
+[32m+[m[32m                lastActivity: org.lastActivity || new Date().toISOString()[m
+[32m+[m[32m            },[m
+[32m+[m[32m            summary: {[m
+[32m+[m[32m                totalEvents: org.totalEvents || 0,[m
+[32m+[m[32m                approvedEvents: org.approvedEvents || org.completedEvents || 0,[m
+[32m+[m[32m                pendingEvents: org.pendingEvents || 0,[m
+[32m+[m[32m                rejectedEvents: org.rejectedEvents || 0,[m
+[32m+[m[32m                completedEvents: org.completedEvents || org.approvedEvents || 0,[m
+[32m+[m[32m                cancelledEvents: org.cancelledEvents || 0,[m
+[32m+[m[32m                approvalRate: org.approvalRate || org.completionRate || 0,[m
+[32m+[m[32m                totalAttendance: org.totalAttendance || 0,[m
+[32m+[m[32m                averageAttendance: org.avgAttendance || 0[m
+[32m+[m[32m            },[m
+[32m+[m[32m            performance: {[m
+[32m+[m[32m                score: org.performanceScore || 75,[m
+[32m+[m[32m                activityLevel: org.activityLevel || 'Medium',[m
+[32m+[m[32m                successTrend: org.successTrend || { direction: 'up', label: 'Good', color: 'blue' },[m
+[32m+[m[32m                avgCompletionDays: 15,[m
+[32m+[m[32m                highAttendanceEvents: Math.floor((org.completedEvents || 0) * 0.3)[m
+[32m+[m[32m            }[m
+[32m+[m[32m        };[m
+[32m+[m[32m    }, []);[m
+[32m+[m
+[32m+[m[32m    // Toggle sort order[m
+[32m+[m[32m    const toggleSort = useCallback((column) => {[m
+[32m+[m[32m        if (sortBy === column) {[m
+[32m+[m[32m            setSortOrder(sortOrder === "asc" ? "desc" : "asc")[m
+[32m+[m[32m        } else {[m
+[32m+[m[32m            setSortBy(column)[m
+[32m+[m[32m            setSortOrder("asc")[m
+[32m+[m[32m        }[m
+[32m+[m[32m    }, [sortBy, sortOrder])[m
+[32m+[m
+[32m+[m[32m    // Initial data load[m
+[32m+[m[32m    useEffect(() => {[m
+[32m+[m[32m        if (mounted) {[m
+[32m+[m[32m            console.log('📊 Frontend: Initial data load')[m
+[32m+[m[32m            loadOrganizations()[m
+[32m+[m[32m        }[m
+[32m+[m[32m    }, [mounted, loadOrganizations])[m
+[32m+[m
+[32m+[m[32m    if (!mounted) {[m
+[32m+[m[32m        return ([m
+[32m+[m[32m            <div className="flex-1 bg-[#f8f9fa] p-6 md:p-8">[m
+[32m+[m[32m                <div className="flex items-center justify-center min-h-[400px]">[m
+[32m+[m[32m                    <div className="flex flex-col items-center justify-center">[m
+[32m+[m[32m                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cedo-blue mb-4"></div>[m
+[32m+[m[32m                        <p className="text-lg text-cedo-blue">Loading Reports...</p>[m
+[32m+[m[32m                    </div>[m
+[32m+[m[32m                </div>[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m        )[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    return ([m
+[32m+[m[32m        <div className="flex-1 bg-[#f8f9fa] p-6 md:p-8">[m
+[32m+[m[32m            <PageHeader title="Reports" subtitle="Track and manage organization activities and events" />[m
+[32m+[m
+[32m+[m[32m            <Card className="cedo-card mb-6">[m
+[32m+[m[32m                <CardContent className="p-6">[m
+[32m+[m[32m                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">[m
+[32m+[m[32m                        <div>[m
+[32m+[m[32m                            <h2 className="cedo-header">Organization Reports</h2>[m
+[32m+[m[32m                            <p className="cedo-subheader">Track volunteer activities and events across all organizations</p>[m
+[32m+[m[32m                        </div>[m
+[32m+[m[32m                        <div className="flex gap-2">[m
+[32m+[m[32m                            <Button variant="outline" className="bg-white">[m
+[32m+[m[32m                                <Download className="h-4 w-4 mr-2" />[m
+[32m+[m[32m                                Export All Organizations[m
+[32m+[m[32m                            </Button>[m
+[32m+[m[32m                            <Button className="bg-cedo-blue hover:bg-cedo-blue/90">[m
+[32m+[m[32m                                <Calendar className="h-4 w-4 mr-2" />[m
+[32m+[m[32m                                Generate Monthly Report[m
+[32m+[m[32m                            </Button>[m
+[32m+[m[32m                        </div>[m
+[32m+[m[32m                    </div>[m
+[32m+[m[32m                </CardContent>[m
+[32m+[m[32m            </Card>[m
+[32m+[m
+[32m+[m[32m            <div className="grid grid-cols-1 gap-6">[m
+[32m+[m[32m                <Card className="cedo-card">[m
+[32m+[m[32m                    <CardHeader>[m
+[32m+[m[32m                        <CardTitle>Organization Activity Reports</CardTitle>[m
+[32m+[m[32m                    </CardHeader>[m
+[32m+[m[32m                    <CardContent>[m
+[32m+[m[32m                        <Tabs defaultValue="organizations" className="space-y-4">[m
+[32m+[m[32m                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">[m
+[32m+[m[32m                                <TabsList>[m
+[32m+[m[32m                                    <TabsTrigger value="organizations">Organizations</TabsTrigger>[m
+[32m+[m[32m                                    <TabsTrigger value="analytics">Analytics</TabsTrigger>[m
+[32m+[m[32m                                </TabsList>[m
+[32m+[m
+[32m+[m[32m                                <div className="flex w-full sm:w-auto gap-2 flex-wrap sm:flex-nowrap">[m
+[32m+[m[32m                                    <div className="relative w-full sm:w-auto">[m
+[32m+[m[32m                                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />[m
+[32m+[m[32m                                        <Input[m
+[32m+[m[32m                                            type="search"[m
+[32m+[m[32m                                            placeholder="Search organizations..."[m
+[32m+[m[32m                                            className="pl-8 w-full sm:w-[250px]"[m
+[32m+[m[32m                                            value={searchTerm}[m
+[32m+[m[32m                                            onChange={(e) => setSearchTerm(e.target.value)}[m
+[32m+[m[32m                                        />[m
+[32m+[m[32m                                    </div>[m
+[32m+[m[32m                                    <Select value={categoryFilter} onValueChange={setCategoryFilter}>[m
+[32m+[m[32m                                        <SelectTrigger className="w-[180px]">[m
+[32m+[m[32m                                            <SelectValue placeholder="Category" />[m
+[32m+[m[32m                                        </SelectTrigger>[m
+[32m+[m[32m                                        <SelectContent>[m
+[32m+[m[32m                                            <SelectItem value="all">All Categories</SelectItem>[m
+[32m+[m[32m                                            <SelectItem value="community">Community-Based</SelectItem>[m
+[32m+[m[32m                                            <SelectItem value="institutionalized">Institutionalized</SelectItem>[m
+[32m+[m[32m                                        </SelectContent>[m
+[32m+[m[32m                                    </Select>[m
+[32m+[m[32m                                    <Button variant="outline" size="icon">[m
+[32m+[m[32m                                        <Filter className="h-4 w-4" />[m
+[32m+[m[32m                                    </Button>[m
+[32m+[m[32m                                </div>[m
+[32m+[m[32m                            </div>[m
+[32m+[m
+[32m+[m[32m                            <TabsContent value="organizations" className="space-y-4 mt-0">[m
+[32m+[m[32m                                <div className="rounded-md border overflow-hidden">[m
+[32m+[m[32m                                    <div className="overflow-x-auto">[m
+[32m+[m[32m                                        <Table>[m
+[32m+[m[32m                                            <TableHeader className="cedo-table-header">[m
+[32m+[m[32m                                                <TableRow>[m
+[32m+[m[32m                                                    <TableHead className="font-semibold text-cedo-blue">[m
+[32m+[m[32m                                                        <div className="flex items-center cursor-pointer" onClick={() => toggleSort("name")}>[m
+[32m+[m[32m                                                            Organization[m
+[32m+[m[32m                                                            <ArrowUpDown className="ml-2 h-4 w-4" />[m
+[32m+[m[32m                                                        </div>[m
+[32m+[m[32m                                                    </TableHead>[m
+[32m+[m[32m                                                    <TableHead className="font-semibold text-cedo-blue">Category</TableHead>[m
+[32m+[m[32m                                                    <TableHead className="font-semibold text-cedo-blue">Total Events</TableHead>[m
+[32m+[m[32m                                                    <TableHead className="font-semibold text-cedo-blue">Completed</TableHead>[m
+[32m+[m[32m                                                    <TableHead className="font-semibold text-cedo-blue">Pending</TableHead>[m
+[32m+[m[32m                                                    <TableHead className="font-semibold text-cedo-blue">Completion Rate</TableHead>[m
+[32m+[m[32m                                                    <TableHead className="font-semibold text-cedo-blue">Last Activity</TableHead>[m
+[32m+[m[32m                                                    <TableHead className="text-right font-semibold text-cedo-blue">Actions</TableHead>[m
+[32m+[m[32m                                                </TableRow>[m
+[32m+[m[32m                                            </TableHeader>[m
+[32m+[m[32m                                            <TableBody>[m
+[32m+[m[32m                                                {loading ? ([m
+[32m+[m[32m                                                    <TableRow>[m
+[32m+[m[32m                                                        <TableCell colSpan={8} className="text-center py-6">[m
+[32m+[m[32m                                                            <div className="flex flex-col items-center justify-center">[m
+[32m+[m[32m                                                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cedo-blue mb-2"></div>[m
+[32m+[m[32m                                                                <p className="text-sm text-muted-foreground">Loading organizations...</p>[m
+[32m+[m[32m                                                            </div>[m
+[32m+[m[32m                                                        </TableCell>[m
+[32m+[m[32m                                                    </TableRow>[m
+[32m+[m[32m                                                ) : error ? ([m
+[32m+[m[32m                                                    <TableRow>[m
+[32m+[m[32m                                                        <TableCell colSpan={8} className="text-center py-6">[m
+[32m+[m[32m                                                            <div className="flex flex-col items-center justify-center text-red-600">[m
+[32m+[m[32m                                                                <X className="h-10 w-10 mb-2" />[m
+[32m+[m[32m                                                                <h3 className="text-lg font-medium">Error Loading Data</h3>[m
+[32m+[m[32m                                                                <p className="text-sm">{error}</p>[m
+[32m+[m[32m                                                                <Button variant="outline" className="mt-2" onClick={loadOrganizations}>[m
+[32m+[m[32m                                                                    Try Again[m
+[32m+[m[32m                                                                </Button>[m
+[32m+[m[32m                                                            </div>[m
+[32m+[m[32m                                                        </TableCell>[m
+[32m+[m[32m                                                    </TableRow>[m
+[32m+[m[32m                                                ) : organizations.length > 0 ? ([m
+[32m+[m[32m                                                    organizations.map((org, index) => ([m
+[32m+[m[32m                                                        <TableRow key={`${org.id}-${index}`} className="cedo-table-row">[m
+[32m+[m[32m                                                            <TableCell>[m
+[32m+[m[32m                                                                <div className="border border-cedo-blue text-cedo-blue px-3 py-1.5 rounded-md text-sm font-medium">[m
+[32m+[m[32m                                                                    {org.name}[m
+[32m+[m[32m                                                                </div>[m
+[32m+[m[32m                                                            </TableCell>[m
+[32m+[m[32m                                                            <TableCell>[m
+[32m+[m[32m                                                                <Badge[m
+[32m+[m[32m                                                                    className={[m
+[32m+[m[32m                                                                        org.category === "community"[m
+[32m+[m[32m                                                                            ? "bg-green-100 text-green-800 hover:bg-green-100"[m
+[32m+[m[32m                                                                            : "bg-blue-100 text-blue-800 hover:bg-blue-100"[m
+[32m+[m[32m                                                                    }[m
+[32m+[m[32m                                                                >[m
+[32m+[m[32m                                                                    {org.category === "community" ? "Community-Based" : "Institutionalized"}[m
+[32m+[m[32m                                                                </Badge>[m
+[32m+[m[32m                                                            </TableCell>[m
+[32m+[m[32m                                                            <TableCell>[m
+[32m+[m[32m                                                                <div className="border border-cedo-blue text-cedo-blue px-3 py-1.5 rounded-md text-sm text-center">[m
+[32m+[m[32m                                                                    {org.totalEvents}[m
+[32m+[m[32m                                                                </div>[m
+[32m+[m[32m                                                            </TableCell>[m
+[32m+[m[32m                                                            <TableCell>[m
+[32m+[m[32m                                                                <div className="border border-green-500 text-green-600 px-3 py-1.5 rounded-md text-sm text-center">[m
+[32m+[m[32m                                                                    {org.completedEvents}[m
+[32m+[m[32m                                                                </div>[m
+[32m+[m[32m                                                            </TableCell>[m
+[32m+[m[32m                                                            <TableCell>[m
+[32m+[m[32m                                                                <div className="border border-amber-500 text-amber-600 px-3 py-1.5 rounded-md text-sm text-center">[m
+[32m+[m[32m                                                                    {org.pendingEvents}[m
+[32m+[m[32m                                                                </div>[m
+[32m+[m[32m                                                            </TableCell>[m
+[32m+[m[32m                                                            <TableCell>[m
+[32m+[m[32m                                                                <div className="w-full bg-gray-200 rounded-full h-2.5">[m
+[32m+[m[32m                                                                    <div[m
+[32m+[m[32m                                                                        className={`h-2.5 rounded-full ${org.completionRate >= 75[m
+[32m+[m[32m                                                                            ? "bg-green-500"[m
+[32m+[m[32m                                                                            : org.completionRate >= 50[m
+[32m+[m[32m                                                                                ? "bg-amber-500"[m
+[32m+[m[32m                                                                                : "bg-red-500"[m
+[32m+[m[32m                                                                            }`}[m
+[32m+[m[32m                                                                        style={{ width: `${org.completionRate}%` }}[m
+[32m+[m[32m                                                                    ></div>[m
+[32m+[m[32m                                                                </div>[m
+[32m+[m[32m                                                                <div className="text-xs text-center mt-1">{org.completionRate}%</div>[m
+[32m+[m[32m                                                            </TableCell>[m
+[32m+[m[32m                                                            <TableCell>[m
+[32m+[m[32m                                                                <div className="border border-cedo-blue text-cedo-blue px-3 py-1.5 rounded-md text-sm">[m
+[32m+[m[32m                                                                    {new Date(org.lastActivity).toLocaleDateString()}[m
+[32m+[m[32m                                                                </div>[m
+[32m+[m[32m                                                            </TableCell>[m
+[32m+[m[32m                                                            <TableCell className="text-right">[m
+[32m+[m[32m                                                                <Button[m
+[32m+[m[32m                                                                    variant="outline"[m
+[32m+[m[32m                                                                    size="sm"[m
+[32m+[m[32m                                                                    onClick={() => handleOrgClick(org)}[m
+[32m+[m[32m                                                                    className="hover:bg-cedo-blue/5 hover:text-cedo-blue"[m
+[32m+[m[32m                                                                >[m
+[32m+[m[32m                                                                    View Details[m
+[32m+[m[32m                                                                </Button>[m
+[32m+[m[32m                                                            </TableCell>[m
+[32m+[m[32m                                                        </TableRow>[m
+[32m+[m[32m                                                    ))[m
+[32m+[m[32m                                                ) : ([m
+[32m+[m[32m                                                    <TableRow>[m
+[32m+[m[32m                                                        <TableCell colSpan={8} className="text-center py-6">[m
+[32m+[m[32m                                                            <div className="flex flex-col items-center justify-center text-muted-foreground">[m
+[32m+[m[32m                                                                <Search className="h-10 w-10 mb-2" />[m
+[32m+[m[32m                                                                <h3 className="text-lg font-medium">No organizations found</h3>[m
+[32m+[m[32m                                                                <p className="text-sm">Try adjusting your filters or search terms</p>[m
+[32m+[m[32m                                                            </div>[m
+[32m+[m[32m                                                        </TableCell>[m
+[32m+[m[32m                                                    </TableRow>[m
+[32m+[m[32m                                                )}[m
+[32m+[m[32m                                            </TableBody>[m
+[32m+[m[32m                                        </Table>[m
+[32m+[m[32m                                    </div>[m
+[32m+[m[32m                                </div>[m
+[32m+[m[32m                            </TabsContent>[m
+[32m+[m
+[32m+[m[32m                            <TabsContent value="analytics" className="space-y-6 mt-0">[m
+[32m+[m[32m                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">[m
+[32m+[m[32m                                    <Card>[m
+[32m+[m[32m                                        <CardHeader className="pb-2">[m
+[32m+[m[32m                                            <CardTitle className="text-lg text-cedo-blue">Events by Category</CardTitle>[m
+[32m+[m[32m                                        </CardHeader>[m
+[32m+[m[32m                                        <CardContent className="pt-2">[m
+[32m+[m[32m                                            <div className="h-60 flex items-center justify-center">[m
+[32m+[m[32m                                                <PieChart className="h-40 w-40 text-cedo-blue opacity-20" />[m
+[32m+[m[32m                                            </div>[m
+[32m+[m[32m                                        </CardContent>[m
+[32m+[m[32m                                    </Card>[m
+[32m+[m
+[32m+[m[32m                                    <Card>[m
+[32m+[m[32m                                        <CardHeader className="pb-2">[m
+[32m+[m[32m                                            <CardTitle className="text-lg text-cedo-blue">Completion Rates</CardTitle>[m
+[32m+[m[32m                                        </CardHeader>[m
+[32m+[m[32m                                        <CardContent className="pt-2">[m
+[32m+[m[32m                                            <div className="h-60 flex items-center justify-center">[m
+[32m+[m[32m                                                <BarChart className="h-40 w-40 text-cedo-blue opacity-20" />[m
+[32m+[m[32m                                            </div>[m
+[32m+[m[32m                                        </CardContent>[m
+[32m+[m[32m                                    </Card>[m
+[32m+[m
+[32m+[m[32m                                    <Card>[m
+[32m+[m[32m                                        <CardHeader className="pb-2">[m
+[32m+[m[32m                                            <CardTitle className="text-lg text-cedo-blue">Overall Statistics</CardTitle>[m
+[32m+[m[32m                                        </CardHeader>[m
+[32m+[m[32m                                        <CardContent className="pt-2">[m
+[32m+[m[32m                                            <div className="grid grid-cols-2 gap-4">[m
+[32m+[m[32m                                                <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">[m
+[32m+[m[32m                                                    <div className="flex items-center justify-between">[m
+[32m+[m[32m                                                        <div>[m
+[32m+[m[32m                                                            <p className="text-sm text-muted-foreground">Total Organizations</p>[m
+[32m+[m[32m                                                            <p className="text-2xl font-bold text-cedo-blue">{organizations.length}</p>[m
+[32m+[m[32m                                                        </div>[m
+[32m+[m[32m                                                        <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">[m
+[32m+[m[32m                                                            <Users className="h-5 w-5 text-blue-500" />[m
+[32m+[m[32m                                                        </div>[m
+[32m+[m[32m                                                    </div>[m
+[32m+[m[32m                                                </div>[m
+[32m+[m
+[32m+[m[32m                                                <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">[m
+[32m+[m[32m                                                    <div className="flex items-center justify-between">[m
+[32m+[m[32m                                                        <div>[m
+[32m+[m[32m                                                            <p className="text-sm text-muted-foreground">Total Events</p>[m
+[32m+[m[32m                                                            <p className="text-2xl font-bold text-cedo-blue">[m
+[32m+[m[32m                                                                {organizations.reduce((sum, org) => sum + org.totalEvents, 0)}[m
+[32m+[m[32m                                                            </p>[m
+[32m+[m[32m                                                        </div>[m
+[32m+[m[32m                                                        <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">[m
+[32m+[m[32m                                                            <Calendar className="h-5 w-5 text-purple-500" />[m
+[32m+[m[32m                                                        </div>[m
+[32m+[m[32m                                                    </div>[m
+[32m+[m[32m                                                </div>[m
+[32m+[m[32m                                            </div>[m
+[32m+[m[32m                                        </CardContent>[m
+[32m+[m[32m                                    </Card>[m
+[32m+[m[32m                                </div>[m
+[32m+[m[32m                            </TabsContent>[m
+[32m+[m[32m                        </Tabs>[m
+[32m+[m[32m                    </CardContent>[m
+[32m+[m[32m                </Card>[m
+[32m+[m[32m            </div>[m
+[32m+[m
+[32m+[m[32m            {/* Organization Details Modal */}[m
+[32m+[m[32m            {showOrgModal && selectedOrg && ([m
+[32m+[m[32m                <div className="fixed inset-0 z-50 flex items-center justify-center">[m
+[32m+[m[32m                    <div[m
+[32m+[m[32m                        className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40"[m
+[32m+[m[32m                        onClick={() => setShowOrgModal(false)}[m
+[32m+[m[32m                    />[m
+[32m+[m
+[32m+[m[32m                    <div className="relative z-50 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">[m
+[32m+[m[32m                        <Card className="border-cedo-blue/20 shadow-lg">[m
+[32m+[m[32m                            <CardHeader className="relative pb-2">[m
+[32m+[m[32m                                <Button[m
+[32m+[m[32m                                    variant="ghost"[m
+[32m+[m[32m                                    size="icon"[m
+[32m+[m[32m                                    className="absolute right-4 top-4"[m
+[32m+[m[32m                                    onClick={() => setShowOrgModal(false)}[m
+[32m+[m[32m                                >[m
+[32m+[m[32m                                    <X className="h-4 w-4" />[m
+[32m+[m[32m                                </Button>[m
+[32m+[m[32m                                <CardTitle className="text-xl text-cedo-blue flex items-center gap-2">[m
+[32m+[m[32m                                    {selectedOrg.name}[m
+[32m+[m[32m                                    <Badge[m
+[32m+[m[32m                                        className={[m
+[32m+[m[32m                                            selectedOrg.category === "community"[m
+[32m+[m[32m                                                ? "bg-green-100 text-green-800 hover:bg-green-100 ml-2"[m
+[32m+[m[32m                                                : "bg-blue-100 text-blue-800 hover:bg-blue-100 ml-2"[m
+[32m+[m[32m                                        }[m
+[32m+[m[32m                                    >[m
+[32m+[m[32m                                        {selectedOrg.category === "community" ? "Community-Based" : "Institutionalized"}[m
+[32m+[m[32m                                    </Badge>[m
+[32m+[m[32m                                </CardTitle>[m
+[32m+[m[32m                            </CardHeader>[m
+[32m+[m
+[32m+[m[32m                            <CardContent className="space-y-6 pt-4">[m
+[32m+[m[32m                                {analyticsLoading && ([m
+[32m+[m[32m                                    <div className="flex items-center justify-center py-8">[m
+[32m+[m[32m                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cedo-blue"></div>[m
+[32m+[m[32m                                        <span className="ml-2 text-gray-600">Loading comprehensive analytics...</span>[m
+[32m+[m[32m                                    </div>[m
+[32m+[m[32m                                )}[m
+[32m+[m
+[32m+[m[32m                                {!analyticsLoading && ([m
+[32m+[m[32m                                    <div>[m
+[32m+[m[32m                                        {/* Comprehensive Summary Section */}[m
+[32m+[m[32m                                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200 mb-6">[m
+[32m+[m[32m                                            <div className="flex items-start justify-between mb-4">[m
+[32m+[m[32m                                                <div>[m
+[32m+[m[32m                                                    <h3 className="text-lg font-semibold text-cedo-blue mb-2">Organization Performance Summary</h3>[m
+[32m+[m[32m                                                    <p className="text-sm text-gray-600 max-w-2xl">[m
+[32m+[m[32m                                                        Comprehensive analysis of {selectedOrg.name}'s event management and approval performance[m
+[32m+[m[32m                                                    </p>[m
+[32m+[m[32m                                                </div>[m
+[32m+[m[32m                                                <div className="flex items-center space-x-2">[m
+[32m+[m[32m                                                    <div className={`px-3 py-1 rounded-full text-xs font-medium ${(selectedOrg.completionRate || selectedOrg.approvalRate || 0) >= 75[m
+[32m+[m[32m                                                        ? 'bg-green-100 text-green-800'[m
+[32m+[m[32m                                                        : (selectedOrg.completionRate || selectedOrg.approvalRate || 0) >= 50[m
+[32m+[m[32m                                                            ? 'bg-amber-100 text-amber-800'[m
+[32m+[m[32m                                                            : 'bg-red-100 text-red-800'[m
+[32m+[m[32m                                                        }`}>[m
+[32m+[m[32m                                                        {(selectedOrg.completionRate || selectedOrg.approvalRate || 0) >= 75 ? 'Excellent Performance' :[m
+[32m+[m[32m                                                            (selectedOrg.completionRate || selectedOrg.approvalRate || 0) >= 50 ? 'Good Performance' : 'Needs Improvement'}[m
+[32m+[m[32m                                                    </div>[m
+[32m+[m[32m                                                </div>[m
+[32m+[m[32m                                            </div>[m
+[32m+[m
+[32m+[m[32m                                            {/* Key Insights Grid */}[m
+[32m+[m[32m                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">[m
+[32m+[m[32m                                                <div className="bg-white rounded-lg p-4 border border-gray-200">[m
+[32m+[m[32m                                                    <div className="flex items-center justify-between">[m
+[32m+[m[32m                                                        <div>[m
+[32m+[m[32m                                                            <p className="text-xs text-gray-500 uppercase tracking-wide">Success Rate</p>[m
+[32m+[m[32m                                                            <p className="text-2xl font-bold text-green-600">{selectedOrg.completionRate}%</p>[m
+[32m+[m[32m                                                            <p className="text-xs text-gray-600">[m
+[32m+[m[32m                                                                {selectedOrg.completedEvents} of {selectedOrg.totalEvents} events approved[m
+[32m+[m[32m                                                            </p>[m
+[32m+[m[32m                                                        </div>[m
+[32m+[m[32m                                                        <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">[m
+[32m+[m[32m                                                            <CheckCircle className="h-6 w-6 text-green-600" />[m
+[32m+[m[32m                                                        </div>[m
+[32m+[m[32m                                                    </div>[m
+[32m+[m[32m                                                </div>[m
+[32m+[m
+[32m+[m[32m                                                <div className="bg-white rounded-lg p-4 border border-gray-200">[m
+[32m+[m[32m                                                    <div className="flex items-center justify-between">[m
+[32m+[m[32m                                                        <div>[m
+[32m+[m[32m                                                            <p className="text-xs text-gray-500 uppercase tracking-wide">Activity Level</p>[m
+[32m+[m[32m                                                            <p className="text-2xl font-bold text-blue-600">[m
+[32m+[m[32m                                                                {selectedOrg.totalEvents >= 10 ? 'High' : selectedOrg.totalEvents >= 5 ? 'Medium' : 'Low'}[m
+[32m+[m[32m                                                            </p>[m
+[32m+[m[32m                                                            <p className="text-xs text-gray-600">[m
+[32m+[m[32m                                                                {selectedOrg.totalEvents} total events submitted[m
+[32m+[m[32m                                                            </p>[m
+[32m+[m[32m                                                        </div>[m
+[32m+[m[32m                                                        <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">[m
+[32m+[m[32m                                                            <BarChart className="h-6 w-6 text-blue-600" />[m
+[32m+[m[32m                                                        </div>[m
+[32m+[m[32m                                                    </div>[m
+[32m+[m[32m                                                </div>[m
+[32m+[m
+[32m+[m[32m                                                <div className="bg-white rounded-lg p-4 border border-gray-200">[m
+[32m+[m[32m                                                    <div className="flex items-center justify-between">[m
+[32m+[m[32m                                                        <div>[m
+[32m+[m[32m                                                            <p className="text-xs text-gray-500 uppercase tracking-wide">Current Status</p>[m
+[32m+[m[32m                                                            <p className="text-2xl font-bold text-amber-600">{selectedOrg.pendingEvents}</p>[m
+[32m+[m[32m                                                            <p className="text-xs text-gray-600">[m
+[32m+[m[32m                                                                events awaiting review[m
+[32m+[m[32m                                                            </p>[m
+[32m+[m[32m                                                        </div>[m
+[32m+[m[32m                                                        <div className="h-12 w-12 rounded-full bg-amber-100 flex items-center justify-center">[m
+[32m+[m[32m                                                            <Clock className="h-6 w-6 text-amber-600" />[m
+[32m+[m[32m                                                        </div>[m
+[32m+[m[32m                                                    </div>[m
+[32m+[m[32m                                                </div>[m
+[32m+[m[32m                                            </div>[m
+[32m+[m
+[32m+[m[32m                                            {/* Recommendations */}[m
+[32m+[m[32m                                            <div className="bg-white rounded-lg p-4 border border-gray-200">[m
+[32m+[m[32m                                                <h4 className="text-sm font-semibold text-gray-800 mb-2 flex items-center">[m
+[32m+[m[32m                                                    <Users className="h-4 w-4 mr-2 text-cedo-blue" />[m
+[32m+[m[32m                                                    Recommendations & Insights[m
+[32m+[m[32m                                                </h4>[m
+[32m+[m[32m                                                <div className="space-y-2">[m
+[32m+[m[32m                                                    {selectedOrg.completionRate >= 75 ? ([m
+[32m+[m[32m                                                        <p className="text-sm text-green-700 bg-green-50 p-2 rounded">[m
+[32m+[m[32m                                                            ✅ Excellent approval rate! This organization consistently submits high-quality proposals.[m
+[32m+[m[32m                                                        </p>[m
+[32m+[m[32m                                                    ) : selectedOrg.completionRate >= 50 ? ([m
+[32m+[m[32m                                                        <p className="text-sm text-amber-700 bg-amber-50 p-2 rounded">[m
+[32m+[m[32m                                                            ⚠️ Good performance with room for improvement. Consider providing feedback on rejected proposals.[m
+[32m+[m[32m                                                        </p>[m
+[32m+[m[32m                                                    ) : ([m
+[32m+[m[32m                                                        <p className="text-sm text-red-700 bg-red-50 p-2 rounded">[m
+[32m+[m[32m                                                            ❌ Low approval rate. Recommend scheduling a consultation to improve proposal quality.[m
+[32m+[m[32m                                                        </p>[m
+[32m+[m[32m                                                    )}[m
+[32m+[m
+[32m+[m[32m                                                    {selectedOrg.pendingEvents > 5 && ([m
+[32m+[m[32m                                                        <p className="text-sm text-blue-700 bg-blue-50 p-2 rounded">[m
+[32m+[m[32m                                                            📋 High number of pending events. Consider prioritizing review of this organization's submissions.[m
+[32m+[m[32m                                                        </p>[m
+[32m+[m[32m                                                    )}[m
+[32m+[m
+[32m+[m[32m                                                    {selectedOrg.rejectedEvents > 0 && ([m
+[32m+[m[32m                                                        <p className="text-sm text-purple-700 bg-purple-50 p-2 rounded">[m
+[32m+[m[32m                                                            📊 {selectedOrg.rejectedEvents} rejected events. Review common rejection reasons to provide targeted guidance.[m
+[32m+[m[32m                                                        </p>[m
+[32m+[m[32m                                                    )}[m
+[32m+[m[32m                                                </div>[m
+[32m+[m[32m                                            </div>[m
+[32m+[m[32m                                        </div>[m
+[32m+[m
+[32m+[m[32m                                        {/* Enhanced Statistics Cards */}[m
+[32m+[m[32m                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">[m
+[32m+[m[32m                                            <Card>[m
+[32m+[m[32m                                                <CardContent className="p-4">[m
+[32m+[m[32m                                                    <div className="flex items-center justify-between">[m
+[32m+[m[32m                                                        <div>[m
+[32m+[m[32m                                                            <p className="text-sm text-muted-foreground">Total Events</p>[m
+[32m+[m[32m                                                            <p className="text-2xl font-bold text-cedo-blue">{selectedOrg.totalEvents}</p>[m
+[32m+[m[32m                                                        </div>[m
+[32m+[m[32m                                                        <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">[m
+[32m+[m[32m                                                            <Calendar className="h-5 w-5 text-blue-500" />[m
+[32m+[m[32m                                                        </div>[m
+[32m+[m[32m                                                    </div>[m
+[32m+[m[32m                                                </CardContent>[m
+[32m+[m[32m                                            </Card>[m
+[32m+[m
+[32m+[m[32m                                            <Card>[m
+[32m+[m[32m                                                <CardContent className="p-4">[m
+[32m+[m[32m                                                    <div className="flex items-center justify-between">[m
+[32m+[m[32m                                                        <div>[m
+[32m+[m[32m                                                            <p className="text-sm text-muted-foreground">Approved Events</p>[m
+[32m+[m[32m                                                            <p className="text-2xl font-bold text-green-600">{selectedOrg.completedEvents}</p>[m
+[32m+[m[32m                                                        </div>[m
+[32m+[m[32m                                                        <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">[m
+[32m+[m[32m                                                            <CheckCircle className="h-5 w-5 text-green-500" />[m
+[32m+[m[32m                                                        </div>[m
+[32m+[m[32m                                                    </div>[m
+[32m+[m[32m                                                </CardContent>[m
+[32m+[m[32m                                            </Card>[m
+[32m+[m
+[32m+[m[32m                                            <Card>[m
+[32m+[m[32m                                                <CardContent className="p-4">[m
+[32m+[m[32m                                                    <div className="flex items-center justify-between">[m
+[32m+[m[32m                                                        <div>[m
+[32m+[m[32m                                                            <p className="text-sm text-muted-foreground">Pending Events</p>[m
+[32m+[m[32m                                                            <p className="text-2xl font-bold text-amber-600">{selectedOrg.pendingEvents}</p>[m
+[32m+[m[32m                                                        </div>[m
+[32m+[m[32m                                                        <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">[m
+[32m+[m[32m                                                            <Clock className="h-5 w-5 text-amber-500" />[m
+[32m+[m[32m                                                        </div>[m
+[32m+[m[32m                                                    </div>[m
+[32m+[m[32m                                                </CardContent>[m
+[32m+[m[32m                                            </Card>[m
+[32m+[m
+[32m+[m[32m                                            <Card>[m
+[32m+[m[32m                                                <CardContent className="p-4">[m
+[32m+[m[32m                                                    <div className="flex items-center justify-between">[m
+[32m+[m[32m                                                        <div>[m
+[32m+[m[32m                                                            <p className="text-sm text-muted-foreground">Rejected Events</p>[m
+[32m+[m[32m                                                            <p className="text-2xl font-bold text-red-600">{selectedOrg.rejectedEvents || 0}</p>[m
+[32m+[m[32m                                                        </div>[m
+[32m+[m[32m                                                        <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">[m
+[32m+[m[32m                                                            <X className="h-5 w-5 text-red-500" />[m
+[32m+[m[32m                                                        </div>[m
+[32m+[m[32m                                                    </div>[m
+[32m+[m[32m                                                </CardContent>[m
+[32m+[m[32m                                            </Card>[m
+[32m+[m[32m                                        </div>[m
+[32m+[m
+[32m+[m[32m                                        {/* Contact Information */}[m
+[32m+[m[32m                                        <div className="bg-gray-50 rounded-lg p-4">[m
+[32m+[m[32m                                            <h4 className="text-sm font-semibold text-gray-800 mb-3">Contact Information</h4>[m
+[32m+[m[32m                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">[m
+[32m+[m[32m                                                <div>[m
+[32m+[m[32m                                                    <span className="text-gray-600">Contact Person:</span>[m
+[32m+[m[32m                                                    <p className="font-medium">{selectedOrg.contactPerson || 'N/A'}</p>[m
+[32m+[m[32m                                                </div>[m
+[32m+[m[32m                                                <div>[m
+[32m+[m[32m                                                    <span className="text-gray-600">Email:</span>[m
+[32m+[m[32m                                                    <p className="font-medium">{selectedOrg.contactEmail || 'N/A'}</p>[m
+[32m+[m[32m                                                </div>[m
+[32m+[m[32m                                                <div>[m
+[32m+[m[32m                                                    <span className="text-gray-600">Phone:</span>[m
+[32m+[m[32m                                                    <p className="font-medium">{selectedOrg.contactPhone || 'N/A'}</p>[m
+[32m+[m[32m                                                </div>[m
+[32m+[m[32m                                            </div>[m
+[32m+[m[32m                                        </div>[m
+[32m+[m[32m                                    </div>[m
+[32m+[m[32m                                )}[m
+[32m+[m[32m                            </CardContent>[m
+[32m+[m[32m                        </Card>[m
+[32m+[m[32m                    </div>[m
+[32m+[m[32m                </div>[m
+[32m+[m[32m            )}[m
+[32m+[m[32m        </div>[m
+[32m+[m[32m    )[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mexport default function ReportsPage() {[m
+[32m+[m[32m    return ([m
+[32m+[m[32m        <Suspense fallback={<div>Loading reports...</div>}>[m
+[32m+[m[32m            <ReportsContent />[m
+[32m+[m[32m        </Suspense>[m
+[32m+[m[32m    )[m
+[32m+[m[32m}[m
+[1mdiff --git a/frontend/src/app/(main)/admin-dashboard/settings/page.jsx b/frontend/src/app/(main)/admin-dashboard/settings/page.jsx[m
+[1mindex 790c473..c62230a 100644[m
+[1m--- a/frontend/src/app/(main)/admin-dashboard/settings/page.jsx[m
+[1m+++ b/frontend/src/app/(main)/admin-dashboard/settings/page.jsx[m
+[36m@@ -69,7 +69,7 @@[m [mconst WhitelistManagementPage = memo(() => {[m
+ [m
+     // Fix: Move authorization check to useEffect to prevent render-time router updates[m
+     useEffect(() => {[m
+[31m-        if (!authLoading && isInitialized && (!authUser || authUser.role !== AuthRoles.head_admin)) {[m
+[32m+[m[32m        if (!authLoading && isInitialized && (!authUser || authUser.role !== AuthRoles.HEAD_ADMIN)) {[m
+             router.replace("/sign-in");[m
+         }[m
+     }, [authLoading, isInitialized, authUser, AuthRoles, router]);[m
+[36m@@ -167,7 +167,7 @@[m [mconst WhitelistManagementPage = memo(() => {[m
+     }[m
+ [m
+     // Show access denied if not authorized[m
+[31m-    if (!authUser || authUser.role !== AuthRoles.head_admin) {[m
+[32m+[m[32m    if (!authUser || authUser.role !== AuthRoles.HEAD_ADMIN) {[m
+         return ([m
+             <div className="min-h-screen flex items-center justify-center p-4">[m
+                 <div className="w-full max-w-md">[m

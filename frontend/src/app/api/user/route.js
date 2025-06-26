@@ -2,6 +2,9 @@ import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
+// Force dynamic rendering for this API route
+export const dynamic = 'force-dynamic';
+
 // JWT verification function
 const verifyAuthToken = async (token) => {
     if (!token) return null;

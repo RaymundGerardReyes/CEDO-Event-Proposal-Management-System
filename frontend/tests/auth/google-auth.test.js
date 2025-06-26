@@ -17,7 +17,7 @@ describe('google-auth.js', () => {
 
     beforeAll(() => {
         // Set up environment
-        process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID = 'test-client-id';
+        process.env.GOOGLE_CLIENT_ID = 'test-client-id';
     });
 
     afterAll(() => {
@@ -181,8 +181,8 @@ describe('google-auth.js', () => {
     describe('configuration handling', () => {
         test('handles missing environment variables gracefully', () => {
             // Temporarily clear the environment variable
-            const originalClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-            delete process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+            const originalClientId = process.env.GOOGLE_CLIENT_ID;
+            delete process.env.GOOGLE_CLIENT_ID;
 
             // Re-import module with missing env var
             jest.resetModules();
@@ -192,7 +192,7 @@ describe('google-auth.js', () => {
             expect(typeof googleAuthNoEnv.decodeJwtResponse).toBe('function');
 
             // Restore environment
-            process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID = originalClientId;
+            process.env.GOOGLE_CLIENT_ID = originalClientId;
         });
 
         test('functions are callable in various states', () => {

@@ -1,217 +1,299 @@
-# =========================================
-# CEDO Google Auth Frontend - Next.js 15.3.2
-# Multi-stage production-ready Dockerfile
-# =========================================
+# ========================================
+# CEDO Partnership Management Frontend
+# Multi-stage Dockerfile for Next.js 15.3.2 Application
+# ========================================
 
-# --- Base Image Configuration ---
+# ========================================
+# Base Stage - Common setup for all stages
+# ========================================
 FROM node:18-alpine AS base
 
-# Metadata
-LABEL maintainer="CEDO Development Team"
-LABEL description="CEDO Google Auth Frontend - Next.js Application"
-LABEL version="0.3.0"
-
-# Install system dependencies for Alpine
-RUN apk add --no-cache \
+# Install system dependencies and security updates
+RUN apk update && apk upgrade && \
+    apk add --no-cache \
     libc6-compat \
     curl \
     bash \
     dumb-init \
-    && rm -rf /var/cache/apk/*
+    tzdata && \
+    rm -rf /var/cache/apk/*
 
 # Set working directory
 WORKDIR /usr/src/app
 
-# Configure Node.js environment
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV NODE_OPTIONS="--max-old-space-size=1024"
-
 # Create non-root user for security
-RUN addgroup --system --gid 1001 nextjs \
-    && adduser --system --uid 1001 nextjs
+RUN addgroup --system --gid 1001 nextjs && \
+    adduser --system --uid 1001 nextjs
 
-# --- Production Dependencies Stage ---
-FROM base AS deps-prod
-WORKDIR /usr/src/app
+# Set timezone
+ENV TZ=UTC
+
+# ========================================
+# Dependencies Stage - Install packages
+# ========================================
+FROM base AS deps
 
 # Copy package files
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json* ./
 
-# Install production dependencies with optimizations
-RUN npm ci --only=production \
-    --ignore-scripts \
-    --no-audit \
-    --no-fund \
-    --prefer-offline \
-    && npm cache clean --force
+# Install production dependencies
+RUN npm install --omit=dev --legacy-peer-deps && \
+    npm cache clean --force
 
-# --- Development Dependencies Stage ---
+# ========================================
+# Development Dependencies Stage
+# ========================================
 FROM base AS deps-dev
-WORKDIR /usr/src/app
 
 # Copy package files
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json* ./
 
-# Install all dependencies for development/building
-RUN npm ci \
-    --ignore-scripts \
-    --no-audit \
-    --no-fund \
-    && npm cache clean --force
+# Install all dependencies (including devDependencies)
+RUN npm install --legacy-peer-deps && \
+    npm cache clean --force
 
-# --- Source Preparation Stage ---
-FROM deps-dev AS source
-WORKDIR /usr/src/app
+# ========================================
+# Development Stage
+# ========================================
+FROM deps-dev AS development
 
-# Copy source code (excluding files in .dockerignore)
-COPY . .
+# Copy application source
+COPY --chown=nextjs:nextjs . .
 
-# Ensure proper ownership
-RUN chown -R nextjs:nextjs /usr/src/app
-
-# --- Builder Stage ---
-FROM source AS builder
-WORKDIR /usr/src/app
-
-# Set build environment
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV ANALYZE=false
-
-# Run as non-root user for security
-USER nextjs
-
-# Build the Next.js application
-RUN npm run build \
-    && npm prune --production
-
-# --- Production Runner Stage ---
-FROM base AS production
-WORKDIR /usr/src/app
-
-# Set production environment variables
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
+# Set environment variables for development
+ENV NODE_ENV=development
 ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-
-# Switch to non-root user
-USER nextjs
-
-# Copy production dependencies
-COPY --from=deps-prod --chown=nextjs:nextjs /usr/src/app/node_modules ./node_modules
-
-# Copy built application
-COPY --from=builder --chown=nextjs:nextjs /usr/src/app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nextjs /usr/src/app/.next/static ./.next/static
-
-# Copy public assets if they exist
-COPY --from=builder --chown=nextjs:nextjs /usr/src/app/public ./public
-
-# Copy package.json for metadata
-COPY --from=builder --chown=nextjs:nextjs /usr/src/app/package.json ./package.json
-
-# Create health check endpoint
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000/api/health || exit 1
+ENV HOSTNAME=0.0.0.0
+ENV NEXT_TELEMETRY_DISABLED=1
 
 # Expose port
 EXPOSE 3000
 
-# Use dumb-init for proper signal handling
-ENTRYPOINT ["dumb-init", "--"]
+# Switch to non-root user
+USER nextjs
 
-# Start the Next.js server
-CMD ["node", "server.js"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:3000 || exit 1
 
-# --- Development Stage ---
-FROM deps-dev AS development
-WORKDIR /usr/src/app
+# Development command
+CMD ["dumb-init", "npm", "run", "dev:normal"]
 
-# Set development environment
-ENV NODE_ENV=development
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV TURBOPACK=1
+# ========================================
+# Build Stage - Create production build
+# ========================================
+FROM deps-dev AS builder
 
-# Copy source code
+# Copy application source
 COPY --chown=nextjs:nextjs . .
 
-# Install additional development tools
-RUN npm install -g nodemon concurrently
+# Set build environment variables
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_PRIVATE_STANDALONE=true
+
+# Build the application
+RUN npm run build
+
+# ========================================
+# Production Stage
+# ========================================
+FROM base AS production
+
+# Copy production dependencies
+COPY --from=deps /usr/src/app/node_modules ./node_modules
+
+# Copy built application from builder stage
+COPY --from=builder --chown=nextjs:nextjs /usr/src/app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nextjs /usr/src/app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nextjs /usr/src/app/public ./public
+
+# Set production environment variables
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Expose port
+EXPOSE 3000
 
 # Switch to non-root user
 USER nextjs
 
-# Expose development port
-EXPOSE 3000
-EXPOSE 3001
-
-# Health check for development
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:3000 || exit 1
 
-# Start development server with Turbopack
-CMD ["npm", "run", "dev"]
+# Production command
+CMD ["dumb-init", "node", "server.js"]
 
-# --- Testing Stage ---
-FROM development AS testing
-WORKDIR /usr/src/app
+# ========================================
+# Testing Stage
+# ========================================
+FROM deps-dev AS testing
 
-# Install testing dependencies
-USER root
-RUN npm install -g jest-cli @testing-library/cli
+# Copy application source
+COPY --chown=nextjs:nextjs . .
 
-# Switch back to non-root user
+# Create test directories
+RUN mkdir -p coverage test-results && \
+    chown -R nextjs:nextjs coverage test-results
+
+# Set test environment
+ENV NODE_ENV=test
+ENV CI=true
+
+# Switch to non-root user
 USER nextjs
 
-# Run tests
-CMD ["npm", "test"]
+# Test command
+CMD ["dumb-init", "npm", "test"]
 
-# --- Bundle Analysis Stage ---
-FROM builder AS analyzer
-WORKDIR /usr/src/app
+# ========================================
+# Bundle Analyzer Stage
+# ========================================
+FROM deps-dev AS analyzer
 
-# Set analysis environment
+# Copy application source
+COPY --chown=nextjs:nextjs . .
+
+# Set analyzer environment
 ENV ANALYZE=true
 ENV NODE_ENV=production
 
-# Run bundle analysis
-RUN npm run build:analyze
+# Switch to non-root user
+USER nextjs
 
 # Expose analyzer port
 EXPOSE 8888
 
-# Start bundle analyzer
-CMD ["npx", "@next/bundle-analyzer"]
+# Analyzer command
+CMD ["dumb-init", "npm", "run", "build:analyze"]
 
-# --- Security Scanning Stage ---
-FROM deps-dev AS security
-WORKDIR /usr/src/app
+# ========================================
+# Linting Stage
+# ========================================
+FROM deps-dev AS linter
 
-# Install security scanning tools
-RUN npm install -g npm-audit-resolver audit-ci
-
-# Copy source for security scanning
+# Copy application source
 COPY --chown=nextjs:nextjs . .
 
 # Switch to non-root user
 USER nextjs
 
-# Run security audit
-CMD ["npm", "audit"]
+# Linting command
+CMD ["dumb-init", "npm", "run", "lint"]
 
-# ===========================================
-# Build Instructions:
-# ===========================================
-# Production:      docker build --target production -t cedo-frontend:prod .
-# Development:     docker build --target development -t cedo-frontend:dev .
-# Testing:         docker build --target testing -t cedo-frontend:test .
-# Bundle Analysis: docker build --target analyzer -t cedo-frontend:analyze .
-# Security Scan:   docker build --target security -t cedo-frontend:security .
-# ===========================================
-# Estimated sizes:
-# - Production: ~120MB (optimized Next.js standalone)
-# - Development: ~180MB (includes dev tools)
-# - Testing: ~200MB (includes test frameworks)
-# ===========================================
+# ========================================
+# Development with Turbopack Stage
+# ========================================
+FROM deps-dev AS development-turbo
+
+# Copy application source
+COPY --chown=nextjs:nextjs . .
+
+# Set environment variables for Turbopack development
+ENV NODE_ENV=development
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV TURBOPACK=1
+
+# Expose port
+EXPOSE 3000
+
+# Switch to non-root user
+USER nextjs
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:3000 || exit 1
+
+# Turbopack development command
+CMD ["dumb-init", "npm", "run", "dev:turbo"]
+
+# ========================================
+# Static Export Stage
+# ========================================
+FROM deps-dev AS static-export
+
+# Copy application source
+COPY --chown=nextjs:nextjs . .
+
+# Modify next.config.js for static export
+RUN echo "module.exports = { ...require('./next.config.js'), output: 'export', trailingSlash: true, images: { unoptimized: true } }" > next.config.export.js
+
+# Set build environment
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Build and export static files
+RUN npm run build && \
+    npx next export
+
+# Switch to non-root user
+USER nextjs
+
+# Static files are in ./out directory
+CMD ["echo", "Static files built in ./out directory"]
+
+# ========================================
+# Nginx Static Serving Stage
+# ========================================
+FROM nginx:alpine AS nginx-static
+
+# Copy static files from export stage
+COPY --from=static-export /usr/src/app/out /usr/share/nginx/html
+
+# Copy custom nginx configuration
+COPY <<EOF /etc/nginx/conf.d/default.conf
+server {
+    listen 80;
+    server_name localhost;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Handle client-side routing
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # Cache static assets
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+EOF
+
+# Expose port
+EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost || exit 1
+
+# Nginx command
+CMD ["nginx", "-g", "daemon off;"]
+
+# ========================================
+# Build Arguments and Labels
+# ========================================
+ARG BUILD_DATE
+ARG BUILD_VERSION
+ARG GIT_COMMIT
+ARG NEXT_VERSION=15.3.2
+
+LABEL maintainer="CEDO Development Team" \
+      version="${BUILD_VERSION}" \
+      description="CEDO Partnership Management Frontend" \
+      build-date="${BUILD_DATE}" \
+      git-commit="${GIT_COMMIT}" \
+      nodejs-version="18" \
+      nextjs-version="${NEXT_VERSION}" \
+      application="cedo-frontend" 

@@ -12,7 +12,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { format } from 'date-fns';
 import React from 'react';
 // Corrected import path to include 'src'
-import { Section3_SchoolEvent } from '../../src/app/(main)/student-dashboard/submit-event/Section3_SchoolEvent';
+import { Section3_SchoolEvent } from '../../src/app/(main)/student-dashboard/submit-event/[draftId]/school-event/Section3_SchoolEvent';
 
 // Mock UI components and icons
 jest.mock('@/components/ui/button', () => ({ Button: (props) => <button {...props}>{props.children}</button> }));

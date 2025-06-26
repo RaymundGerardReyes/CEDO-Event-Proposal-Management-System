@@ -1,1057 +1,398 @@
-// frontend/src/app/(main)/admin-dashboard/page.jsx
-
 "use client"
 
 // Force dynamic rendering to prevent SSG issues
 export const dynamic = 'force-dynamic';
 
+import { PageHeader } from "@/components/dashboard/admin/page-header";
+import { ResponsiveGrid } from "@/components/dashboard/admin/responsive-grid";
 import { Badge } from "@/components/dashboard/admin/ui/badge";
 import { Button } from "@/components/dashboard/admin/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/dashboard/admin/ui/card";
+import { Card, CardContent } from "@/components/dashboard/admin/ui/card";
 import { Input } from "@/components/dashboard/admin/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
-import React from "react";
-
-import {
-  Activity,
-  ArrowDownRight,
-  ArrowUpRight,
-  BarChart3,
-  Calendar,
-  Clock,
-  Download,
-  Eye,
-  FileText,
-  MoreVertical,
-  Search,
-  TrendingUp,
-  Users
-} from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Calendar, ChevronLeft, ClockIcon, FileText, Search, TrendingDown, TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 
-// Enhanced sample data with more realistic content
+/**
+ * @typedef {Object} DashboardStats
+ * @property {number} total
+ * @property {number} pending
+ * @property {number} approved
+ * @property {number} rejected
+ * @property {number} newSinceYesterday
+ * @property {string} approvalRate
+ * @property {string} dayOverDayPct
+ * @property {boolean} isPositiveGrowth
+ */
+
+// Hook for fetching dashboard statistics
+const useDashboardStats = () => {
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await fetch('/api/admin/stats', {
+          method: 'GET',
+          credentials: 'include', // Include cookies for authentication
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch stats: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to fetch dashboard statistics');
+        }
+
+        setStats(data.stats);
+      } catch (err) {
+        console.error('Dashboard stats error:', err);
+        setError(err instanceof Error ? err.message : 'Unknown error');
+
+        // Set fallback data
+        setStats({
+          total: 0,
+          pending: 0,
+          approved: 0,
+          rejected: 0,
+          newSinceYesterday: 0,
+          approvalRate: '0%',
+          dayOverDayPct: '0%',
+          isPositiveGrowth: true,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  return { stats, loading, error };
+};
+
+// Sample data for proposals
 const recentProposals = [
   {
     id: "PROP-1001",
-    title: "Sports Festival 2024",
-    organization: "USTP Sports Council",
-    submittedOn: "2024-01-15",
+    title: "Sports Festival",
+    organization: "USTP Organization",
+    submittedOn: "2023-05-15",
     status: "pending",
     assignedTo: "Gerard Reyes",
-    description: "Annual sports festival promoting healthy lifestyle among students.",
+    description: "A festival to promote sports and healthy activities among students.",
     proposedVenue: "University Gymnasium",
     proposedSchedule: "2024-04-20",
-    expectedParticipants: 200,
-    priority: "high",
-    category: "Sports & Recreation"
+    proposedSpeakers: "Various sports personalities",
+    expectedParticipants: "200",
+    intendedGoal: "To encourage student participation in sports.",
+    requiredResources: "Sports equipment, venue, and refreshments.",
   },
   {
     id: "PROP-1002",
-    title: "HIV Awareness Campaign",
-    organization: "XU Health Advocates",
-    submittedOn: "2024-01-12",
+    title: "HIV And Awareness Month",
+    organization: "XU Organization",
+    submittedOn: "2023-05-12",
     status: "approved",
     assignedTo: "Eva Torres",
-    description: "Month-long campaign to raise HIV/AIDS awareness.",
-    proposedVenue: "City Park",
-    proposedSchedule: "2024-03-15",
-    expectedParticipants: 300,
-    priority: "medium",
-    category: "Health & Wellness"
+    description: "A month-long campaign to raise awareness about HIV and AIDS.",
+    location: "City Park",
+    schedule: "2024-03-15",
+    speakers: "Dr. Emily Carter, HIV Specialist",
+    participants: ["John Doe", "Jane Smith", "Robert Johnson", "Emily Davis", "Michael Brown"],
+    sponsors: "Global Health Organization, Local NGOs",
+    purpose: "To educate the public and reduce the stigma associated with HIV.",
   },
   {
     id: "PROP-1003",
-    title: "Tech Innovation Summit",
-    organization: "Lourdes College IT Society",
-    submittedOn: "2024-01-10",
+    title: "Tech Conference",
+    organization: "Lourdes College Organization",
+    submittedOn: "2023-05-10",
     status: "rejected",
     assignedTo: "Mike Johnson",
-    description: "Conference on latest tech trends and innovations.",
-    proposedVenue: "Convention Center",
+    description: "A conference focused on the latest trends and innovations in technology.",
+    proposedVenue: "Conference Center",
     proposedSchedule: "2024-05-10",
-    expectedParticipants: 150,
-    priority: "low",
-    category: "Technology"
+    proposedSpeakers: "Tech industry leaders",
+    expectedParticipants: "150",
+    intendedGoal: "To provide a platform for tech enthusiasts to learn and network.",
+    requiredResources: "Conference venue, speakers, and presentation equipment.",
   },
   {
     id: "PROP-1004",
-    title: "Local Business Marketing Workshop",
-    organization: "XU Business Club",
-    submittedOn: "2024-01-08",
+    title: "Marketing Strategy for Local Business",
+    organization: "XU Organization",
+    submittedOn: "2023-05-08",
     status: "approved",
     assignedTo: "Khecy Egar",
-    description: "Workshop for local businesses on digital marketing strategies.",
-    proposedVenue: "Community Hall",
-    proposedSchedule: "2024-04-01",
-    expectedParticipants: 80,
-    priority: "medium",
-    category: "Business & Finance"
+    description: "A workshop to help local businesses develop effective marketing strategies.",
+    location: "Community Hall",
+    schedule: "2024-04-01",
+    speakers: "Marketing experts",
+    participants: ["Alice Johnson", "Bob Williams", "Catherine Davis"],
+    sponsors: "Local Business Association",
+    purpose: "To support local businesses and promote economic growth.",
   },
   {
     id: "PROP-1005",
-    title: "Community Clean-Up Drive",
-    organization: "CSO Environmental Team",
-    submittedOn: "2024-01-05",
+    title: "KSB",
+    organization: "CSO Organization",
+    submittedOn: "2023-05-05",
     status: "pending",
     assignedTo: "Robert Brown",
-    description: "Community service project for environmental conservation.",
+    description: "A community service project to clean up and beautify the local park.",
     proposedVenue: "City Park",
     proposedSchedule: "2024-03-28",
-    expectedParticipants: 75,
-    priority: "high",
-    category: "Environment"
+    proposedSpeakers: "Community leaders",
+    expectedParticipants: "75",
+    intendedGoal: "To improve the quality of life in the community.",
+    requiredResources: "Cleaning supplies, volunteers, and refreshments.",
+    signedUpMembers: ["David Lee", "Sarah Kim", "Tom Wilson"],
   },
 ]
 
+// Sample data for upcoming events
 const upcomingEvents = [
   {
     id: "EVENT-001",
     title: "Science Fair Exhibition",
     date: "Mon, Mar 20",
-    time: "9:00 AM",
     location: "Main Campus Hall",
     attendees: 120,
-    status: "confirmed",
-    category: "Academic"
   },
   {
     id: "EVENT-002",
     title: "Leadership Workshop",
     date: "Wed, Mar 22",
-    time: "2:00 PM",
     location: "Conference Room B",
     attendees: 45,
-    status: "pending",
-    category: "Training"
   },
   {
     id: "EVENT-003",
     title: "Community Service Day",
     date: "Sat, Mar 25",
-    time: "8:00 AM",
     location: "City Park",
     attendees: 75,
-    status: "confirmed",
-    category: "Community"
   },
 ]
 
-// Enhanced Error Boundary with better UX
-function ErrorBoundary({ children, fallback }) {
-  const [hasError, setHasError] = useState(false)
-  const [errorDetails, setErrorDetails] = useState(null)
-
-  useEffect(() => {
-    const handleError = (error) => {
-      const errorMessage = error.message || error.toString()
-      if (errorMessage.includes('className') && errorMessage.includes('includes is not a function')) {
-        console.warn('DOM className error detected and handled:', errorMessage)
-        return
-      }
-      console.error('Dashboard Error:', error)
-      setHasError(true)
-      setErrorDetails(errorMessage || 'Unknown error occurred')
-    }
-
-    const handleRejection = (event) => {
-      const reason = event.reason
-      const reasonMessage = reason?.message || reason?.toString() || 'Promise rejection occurred'
-      if (reasonMessage.includes('className') && reasonMessage.includes('includes is not a function')) {
-        console.warn('DOM className promise rejection detected and handled:', reasonMessage)
-        event.preventDefault()
-        return
-      }
-      console.error('Unhandled Promise Rejection:', reason)
-      setHasError(true)
-      setErrorDetails(reasonMessage)
-    }
-
-    window.addEventListener('error', handleError)
-    window.addEventListener('unhandledrejection', handleRejection)
-
-    return () => {
-      window.removeEventListener('error', handleError)
-      window.removeEventListener('unhandledrejection', handleRejection)
-    }
-  }, [])
-
-  if (hasError) {
-    return fallback || (
-      <div className="flex items-center justify-center p-6">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6">
-            <div className="text-center space-y-4">
-              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto">
-                <Activity className="w-6 h-6 text-red-600" />
-              </div>
-              <div className="space-y-2">
-                <h2 className="text-lg font-semibold text-gray-900">Something went wrong</h2>
-                <p className="text-sm text-gray-600">We encountered an error while loading the dashboard.</p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                <Button onClick={() => { setHasError(false); setErrorDetails(null) }} variant="outline" size="sm">
-                  Try Again
-                </Button>
-                <Button onClick={() => window.location.reload()} size="sm" className="bg-cedo-blue hover:bg-cedo-blue/90">
-                  Refresh Page
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  return children
-}
-
-// Responsive Stats Card with modern design
-function StatsCard({ title, value, subtitle, trend, icon, iconBg, isLoading = false }) {
-  if (isLoading) {
-    return (
-      <Card className="relative overflow-hidden border-0 shadow-sm">
-        <CardContent className="p-4 lg:p-6">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-8 w-8 rounded-xl" />
-            </div>
-            <Skeleton className="h-8 w-16" />
-            <Skeleton className="h-3 w-28" />
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  const trendIcon = trend?.direction === 'up' ? ArrowUpRight : ArrowDownRight
-  const trendColor = trend?.direction === 'up' ? 'text-emerald-600' : 'text-red-500'
-
-  return (
-    <Card className="
-      group relative overflow-hidden 
-      border-0 shadow-sm hover:shadow-md
-      bg-white/80 backdrop-blur-sm
-      transition-all duration-300 ease-out
-      hover:-translate-y-0.5
-    ">
-      <CardContent className="p-4 lg:p-6 relative">
-        <div className="relative space-y-3 lg:space-y-4">
-          {/* Header */}
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1 flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-600 leading-tight">
-                {title}
-              </p>
-            </div>
-            <div className={`
-              shrink-0 w-10 h-10 lg:w-12 lg:h-12 
-              rounded-xl ${iconBg} 
-              flex items-center justify-center 
-              transition-transform duration-300 
-              group-hover:scale-110
-            `}>
-              {React.cloneElement(icon, {
-                className: "w-5 h-5 lg:w-6 lg:h-6 text-slate-700"
-              })}
-            </div>
-          </div>
-
-          {/* Value */}
-          <div className="space-y-1">
-            <div className="text-2xl lg:text-3xl font-bold text-slate-900 leading-none">
-              {value}
-            </div>
-            {/* Subtitle with trend */}
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-slate-600">{subtitle}</span>
-              {trend && (
-                <div className={`flex items-center gap-1 ${trendColor}`}>
-                  {React.createElement(trendIcon, { className: "w-3 h-3" })}
-                  <span className="text-xs font-medium">{trend.value}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-// Responsive Event Card
-function EventCard({ title, eventId, date, time, location, attendees, status, category }) {
-  const statusColors = {
-    confirmed: "bg-emerald-100 text-emerald-800 border-emerald-200",
-    pending: "bg-amber-100 text-amber-800 border-amber-200",
-    cancelled: "bg-red-100 text-red-800 border-red-200"
-  }
-
-  return (
-    <Card className="
-      group hover:shadow-md transition-all duration-200 
-      border-slate-200 hover:border-blue-300/30
-      bg-white/90 backdrop-blur-sm
-    ">
-      <CardContent className="p-4">
-        <div className="space-y-3">
-          {/* Header */}
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <h4 className="font-semibold text-slate-900 text-sm leading-tight line-clamp-2 mb-1">
-                {title}
-              </h4>
-              <Badge variant="outline" className="text-xs px-2 py-0.5 text-slate-600 border-slate-300">
-                {category}
-              </Badge>
-            </div>
-            <Badge className={`text-xs ${statusColors[status] || statusColors.pending}`}>
-              {status}
-            </Badge>
-          </div>
-
-          {/* Event Details */}
-          <div className="grid grid-cols-1 gap-2 text-xs text-slate-600">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-3 h-3 text-slate-400" />
-              <span>{date} at {time}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Users className="w-3 h-3 text-slate-400" />
-              <span>{location}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Users className="w-3 h-3 text-slate-400" />
-              <span>{attendees} attendees</span>
-            </div>
-          </div>
-
-          {/* Action */}
-          <div className="pt-2 border-t border-slate-100">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-colors text-xs h-8 justify-center"
-            >
-              <Eye className="w-3 h-3 mr-1" />
-              View Details
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-// Enhanced Loading Component
-function DashboardSkeleton() {
-  return (
-    <div className="space-y-6">
-      {/* Header Skeleton */}
-      <div className="space-y-2">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-4 w-64" />
-      </div>
-
-      {/* Stats Grid Skeleton */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i} className="border-0 shadow-sm">
-            <CardContent className="p-4 lg:p-6">
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <Skeleton className="h-4 w-20" />
-                  <Skeleton className="h-8 w-8 rounded-xl" />
-                </div>
-                <Skeleton className="h-8 w-16" />
-                <Skeleton className="h-3 w-24" />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Content Grid Skeleton */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2">
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <Skeleton className="h-6 w-32" />
-                  <Skeleton className="h-9 w-48" />
-                </div>
-                <div className="space-y-3">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Skeleton key={i} className="h-16 w-full" />
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-        <div>
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                <Skeleton className="h-6 w-32" />
-                <div className="space-y-3">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <Skeleton key={i} className="h-24 w-full" />
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-export default function AdminDashboard() {
+export default function DashboardPage() {
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [isClient, setIsClient] = useState(false)
-  const [networkError, setNetworkError] = useState(false)
-  const [realTimeStats, setRealTimeStats] = useState(null)
-  const [statsLoading, setStatsLoading] = useState(true)
-  const [lastUpdated, setLastUpdated] = useState(null)
-  const [nextRefresh, setNextRefresh] = useState(null)
+  const isMobile = useIsMobile()
+  const [expandedProposalId, setExpandedProposalId] = useState(null)
 
-  // Use ref to track interval to prevent multiple intervals
-  const intervalRef = useRef(null)
-  const countdownRef = useRef(null)
+  // Fetch dashboard statistics
+  const { stats, loading: statsLoading, error: statsError } = useDashboardStats();
 
-  // Get cached token function (same pattern as other components)
-  const getCachedToken = useCallback(() => {
-    // Try to get token from cookies first
-    const cookieValue = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("cedo_token="));
+  const toggleExpandProposal = (id) => {
+    setExpandedProposalId(expandedProposalId === id ? null : id)
+  }
 
-    if (cookieValue) {
-      return cookieValue.split("=")[1];
-    }
-
-    // Fallback to localStorage
-    return localStorage.getItem('cedo_token') || localStorage.getItem('token');
-  }, []);
-
-  // Fetch real-time statistics from backend
-  const fetchRealTimeStats = useCallback(async () => {
-    try {
-      console.log('📊 Frontend: Fetching real-time statistics...')
-      setStatsLoading(true)
-
-      // Use the same backend URL pattern as other components
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
-      const apiUrl = `${backendUrl}/api/proposals/stats`
-
-      // Alternative: Use Next.js API proxy (if rewrites are configured)
-      // const apiUrl = '/api/proposals/stats'
-
-      console.log('📊 Frontend: Calling API URL:', apiUrl)
-
-      // Get authentication token
-      const token = getCachedToken();
-      console.log('📊 Frontend: Token available:', !!token);
-
-      // Prepare headers with authentication
-      const headers = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      };
-
-      // Add Authorization header if token is available
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: headers,
-        // Add CORS and timeout settings
-        mode: 'cors',
-        credentials: 'include',
-        signal: AbortSignal.timeout(10000), // 10 second timeout
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error')
-        console.error('📊 Frontend: API Response Error:', {
-          status: response.status,
-          statusText: response.statusText,
-          url: apiUrl,
-          errorText: errorText
-        })
-        throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`)
-      }
-
-      const data = await response.json()
-      console.log('📊 Frontend: Raw API response:', data)
-
-      if (data.success) {
-        console.log('📊 Frontend: Real-time stats received:', data.stats)
-        setRealTimeStats(data.stats)
-        setLastUpdated(new Date().toLocaleTimeString())
-        setNetworkError(false)
-      } else {
-        throw new Error(data.message || 'Failed to fetch statistics')
-      }
-    } catch (error) {
-      console.error('❌ Frontend: Error fetching real-time stats:', error)
-
-      // Check if it's an authentication error
-      if (error.message.includes('401') || error.message.includes('Unauthorized')) {
-        console.warn('🔐 Authentication required for dashboard stats')
-        // You might want to redirect to login or show auth error
-      }
-
-      setNetworkError(true)
-      // Set fallback stats only if no stats exist yet
-      setRealTimeStats(prevStats => prevStats || {
-        pending: 0,
-        approved: 0,
-        rejected: 0,
-        total: 0,
-        trends: {
-          pending: { direction: 'up', value: '0' },
-          approved: { direction: 'up', value: '0%' },
-          rejected: { direction: 'down', value: '0' },
-          total: { direction: 'up', value: '0%' }
-        }
-      })
-    } finally {
-      setStatsLoading(false)
-    }
-  }, [getCachedToken]) // Removed realTimeStats dependency to prevent infinite loops
-
-  // Enhanced initialization with real-time data fetching
-  useEffect(() => {
-    let mounted = true
-    let timeoutId
-
-    const initializeComponent = async () => {
-      try {
-        if (typeof window !== 'undefined') {
-          setIsClient(true)
-          console.log('📊 Dashboard: Initializing component...')
-
-          // Fetch initial stats immediately
-          await fetchRealTimeStats()
-
-          // Set up auto-refresh every 30 seconds (only if not already running)
-          if (mounted && !intervalRef.current) {
-            console.log('📊 Dashboard: Setting up 30-second auto-refresh interval')
-
-            // Set initial next refresh time
-            setNextRefresh(new Date(Date.now() + 30000))
-
-            intervalRef.current = setInterval(() => {
-              if (mounted) {
-                console.log('📊 Dashboard: Auto-refresh triggered (30s interval)')
-                fetchRealTimeStats()
-                setNextRefresh(new Date(Date.now() + 30000)) // Update next refresh time
-              }
-            }, 30000) // 30 seconds
-
-            // Optional: Add a countdown timer that updates every second
-            countdownRef.current = setInterval(() => {
-              if (mounted) {
-                setNextRefresh(prev => {
-                  if (prev && Date.now() < prev.getTime()) {
-                    return prev // Keep the same time
-                  }
-                  return new Date(Date.now() + 30000) // Reset if expired
-                })
-              }
-            }, 1000) // Update countdown every second
-          }
-
-          timeoutId = setTimeout(() => {
-            if (mounted) {
-              setIsLoading(false)
-            }
-          }, 1000) // Reduced timeout since we're fetching real data
-        }
-      } catch (error) {
-        console.error('Dashboard initialization error:', error)
-        if (mounted) {
-          setNetworkError(true)
-          setIsLoading(false)
-        }
-      }
-    }
-
-    initializeComponent()
-
-    return () => {
-      console.log('📊 Dashboard: Cleaning up intervals and timeouts')
-      mounted = false
-      if (timeoutId) {
-        clearTimeout(timeoutId)
-        console.log('📊 Dashboard: Cleared initialization timeout')
-      }
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
-        console.log('📊 Dashboard: Cleared stats refresh interval')
-      }
-      if (countdownRef.current) {
-        clearInterval(countdownRef.current)
-        countdownRef.current = null
-        console.log('📊 Dashboard: Cleared countdown timer')
-      }
-    }
-  }, [fetchRealTimeStats]) // Keep fetchRealTimeStats dependency but it's now stable
-
-  // Manual refresh function
-  const handleRefreshStats = useCallback(() => {
-    fetchRealTimeStats()
-    // Reset the next refresh timer
-    setNextRefresh(new Date(Date.now() + 30000))
-  }, [fetchRealTimeStats])
-
-  // Test backend connection function
-  const testBackendConnection = useCallback(async () => {
-    try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
-      console.log('🔍 Testing backend connection to:', backendUrl)
-
-      // Get authentication token for test
-      const token = getCachedToken();
-      console.log('🔍 Test: Token available:', !!token);
-
-      const headers = { 'Content-Type': 'application/json' };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const response = await fetch(`${backendUrl}/api/proposals/stats`, {
-        method: 'GET',
-        headers: headers,
-        mode: 'cors',
-      })
-
-      console.log('🔍 Backend connection test result:', {
-        status: response.status,
-        ok: response.ok,
-        url: response.url
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        console.log('🔍 Backend response data:', data)
-        return true
-      }
-      return false
-    } catch (error) {
-      console.error('🔍 Backend connection test failed:', error)
-      return false
-    }
-  }, [getCachedToken])
-
-  // Memoized filtered proposals for performance
-  const filteredProposals = useMemo(() => {
-    try {
-      return recentProposals.filter(proposal => {
-        const matchesSearch = proposal.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          proposal.organization.toLowerCase().includes(searchTerm.toLowerCase())
-        const matchesStatus = statusFilter === "all" || proposal.status === statusFilter
-        return matchesSearch && matchesStatus
-      })
-    } catch (error) {
-      console.error('Filter error:', error)
-      return recentProposals
-    }
-  }, [searchTerm, statusFilter])
-
-  // Memoized stats calculation using real-time data
-  const dashboardStats = useMemo(() => {
-    try {
-      // Use real-time stats if available, otherwise fall back to mock data
-      if (realTimeStats) {
-        return {
-          pending: {
-            value: realTimeStats.pending,
-            trend: realTimeStats.trends?.pending || { direction: 'up', value: '0' }
-          },
-          approved: {
-            value: realTimeStats.approved,
-            trend: realTimeStats.trends?.approved || { direction: 'up', value: '0%' }
-          },
-          rejected: {
-            value: realTimeStats.rejected,
-            trend: realTimeStats.trends?.rejected || { direction: 'down', value: '0' }
-          },
-          total: {
-            value: realTimeStats.total,
-            trend: realTimeStats.trends?.total || { direction: 'up', value: '0%' }
-          }
-        }
-      }
-
-      // Fallback to mock data calculation if real-time stats not available
-      const total = recentProposals.length
-      const pending = recentProposals.filter(p => p.status === 'pending').length
-      const approved = recentProposals.filter(p => p.status === 'approved').length
-      const rejected = recentProposals.filter(p => p.status === 'rejected').length
-      const approvalRate = total > 0 ? Math.round((approved / total) * 100) : 0
-
-      return {
-        pending: { value: pending, trend: { direction: 'up', value: '+5' } },
-        approved: { value: approved, trend: { direction: 'up', value: `${approvalRate}%` } },
-        rejected: { value: rejected, trend: { direction: 'down', value: '-2' } },
-        total: { value: total, trend: { direction: 'up', value: '+6%' } }
-      }
-    } catch (error) {
-      console.error('Stats calculation error:', error)
-      return {
-        pending: { value: 0, trend: { direction: 'up', value: '0' } },
-        approved: { value: 0, trend: { direction: 'up', value: '0%' } },
-        rejected: { value: 0, trend: { direction: 'down', value: '0' } },
-        total: { value: 0, trend: { direction: 'up', value: '0%' } }
-      }
-    }
-  }, [realTimeStats])
-
-  // Callbacks for performance
-  const handleSearch = useCallback((value) => {
-    try {
-      setSearchTerm(value)
-    } catch (error) {
-      console.error('Search error:', error)
-    }
-  }, [])
-
-  const handleStatusFilter = useCallback((status) => {
-    try {
-      setStatusFilter(status)
-    } catch (error) {
-      console.error('Filter error:', error)
-    }
-  }, [])
-
-  // Network error state
-  if (networkError) {
+  // Show loading state while fetching stats
+  if (statsLoading) {
     return (
-      <div className="flex items-center justify-center p-6">
-        <Card className="w-full max-w-md border-0 shadow-sm">
-          <CardContent className="pt-6">
-            <div className="text-center space-y-4">
-              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto">
-                <Activity className="w-6 h-6 text-red-600" />
-              </div>
-              <div className="space-y-2">
-                <h2 className="text-lg font-semibold text-slate-900">Network Error</h2>
-                <p className="text-sm text-slate-600">Unable to load dashboard data</p>
-              </div>
-              <Button onClick={() => window.location.reload()} className="bg-blue-600 hover:bg-blue-700">
-                Retry
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="flex-1 bg-[#f8f9fa] p-6 md:p-8 animate-pulse">
+        <div className="mb-8">
+          <div className="h-8 w-40 bg-gray-200 rounded mb-2"></div>
+          <div className="h-4 w-60 bg-gray-200 rounded"></div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-32 bg-gray-200 rounded-lg"></div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <div className="h-96 bg-gray-200 rounded-lg"></div>
+          </div>
+          <div>
+            <div className="h-96 bg-gray-200 rounded-lg"></div>
+          </div>
+        </div>
       </div>
     )
   }
 
-  // Loading state
-  if (!isClient || isLoading) {
-    return <DashboardSkeleton />
+  // Show error state if stats failed to load
+  if (statsError || !stats) {
+    console.warn('Dashboard stats error:', statsError);
+    // Continue rendering with fallback data instead of stopping
   }
 
-  return (
-    <ErrorBoundary>
-      {/* Dashboard Container - Mobile First, Responsive */}
-      <div className="space-y-6 lg:space-y-8">
+  // Use stats or fallback to prevent crashes
+  const safeStats = stats || {
+    total: 0,
+    pending: 0,
+    approved: 0,
+    rejected: 0,
+    newSinceYesterday: 0,
+    approvalRate: '0%',
+    dayOverDayPct: '0%',
+    isPositiveGrowth: true,
+  };
 
-        {/* Enhanced Dashboard Header - Responsive */}
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="space-y-1">
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-slate-900">
-                Dashboard
-              </h1>
-              <p className="text-sm sm:text-base text-slate-600">
-                Overview of proposals, events, and system activity
-                {lastUpdated && (
-                  <span className="ml-2 text-xs text-slate-500">
-                    • Last updated: {lastUpdated}
-                  </span>
+  return (
+    <div className="flex-1 bg-[#f8f9fa] p-6 md:p-8">
+      <PageHeader title="Dashboard" subtitle="Summary" />
+
+      <ResponsiveGrid cols={{ default: 1, sm: 2, lg: 4 }} className="mb-8">
+        <Card className="hover-card-effect">
+          <CardContent className="cedo-stats-card">
+            <div>
+              <p className="text-muted-foreground text-sm">Pending Review</p>
+              <h2 className="text-3xl font-bold mt-1 text-cedo-blue">{safeStats.pending}</h2>
+              <p className="text-xs text-muted-foreground mt-1">{safeStats.newSinceYesterday} new since yesterday</p>
+            </div>
+            <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
+              <ClockIcon className="h-5 w-5 text-amber-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover-card-effect">
+          <CardContent className="cedo-stats-card">
+            <div>
+              <p className="text-muted-foreground text-sm">Approved</p>
+              <h2 className="text-3xl font-bold mt-1 text-cedo-blue">{safeStats.approved}</h2>
+              <p className="text-xs text-muted-foreground mt-1">{safeStats.approvalRate} approval rate</p>
+            </div>
+            <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-green-500"
+              >
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover-card-effect">
+          <CardContent className="cedo-stats-card">
+            <div>
+              <p className="text-muted-foreground text-sm">Rejected</p>
+              <h2 className="text-3xl font-bold mt-1 text-cedo-blue">{safeStats.rejected}</h2>
+              <p className="text-xs text-muted-foreground mt-1">Requires feedback</p>
+            </div>
+            <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-red-500"
+              >
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover-card-effect">
+          <CardContent className="cedo-stats-card">
+            <div>
+              <p className="text-muted-foreground text-sm">Total Proposals</p>
+              <h2 className="text-3xl font-bold mt-1 text-cedo-blue">{safeStats.total}</h2>
+              <p className={`text-xs mt-1 flex items-center ${safeStats.isPositiveGrowth ? 'text-green-600' : 'text-red-600'}`}>
+                {safeStats.isPositiveGrowth ? (
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                ) : (
+                  <TrendingDown className="h-3 w-3 mr-1" />
                 )}
-                {nextRefresh && !networkError && (
-                  <span className="ml-2 text-xs text-slate-500">
-                    • Next refresh: {Math.max(0, Math.ceil((nextRefresh.getTime() - Date.now()) / 1000))}s
-                  </span>
-                )}
-                {realTimeStats && (
-                  <span className="ml-2 inline-flex items-center gap-1 text-xs text-emerald-600">
-                    <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse block"></span>
-                    Live Data (30s refresh)
-                  </span>
-                )}
-                {networkError && (
-                  <span className="ml-2 inline-flex items-center gap-1 text-xs text-red-600">
-                    <span className="w-2 h-2 bg-red-500 rounded-full block"></span>
-                    {getCachedToken() ? 'Connection Error' : 'Authentication Required'}
-                  </span>
-                )}
+                {safeStats.isPositiveGrowth ? '↑' : '↓'} {safeStats.dayOverDayPct}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefreshStats}
-                disabled={statsLoading}
-                className="shrink-0 border-slate-300 hover:border-slate-400"
-              >
-                <Activity className={`w-4 h-4 mr-2 ${statsLoading ? 'animate-spin' : ''}`} />
-                {statsLoading ? 'Refreshing...' : 'Refresh Stats'}
-              </Button>
-              {process.env.NODE_ENV === 'development' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={testBackendConnection}
-                  className="shrink-0 border-slate-300 hover:border-slate-400 text-xs"
-                >
-                  Test API
-                </Button>
-              )}
-              <Button variant="outline" size="sm" className="shrink-0 border-slate-300 hover:border-slate-400">
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-              <Button variant="outline" size="sm" className="shrink-0 border-slate-300 hover:border-slate-400">
-                <BarChart3 className="w-4 h-4 mr-2" />
-                Analytics
-              </Button>
+            <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+              <FileText className="h-5 w-5 text-blue-500" />
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
+      </ResponsiveGrid>
 
-        {/* Enhanced Stats Grid - Mobile First Responsive with Real-Time Data */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6">
-          <StatsCard
-            title="Pending Review"
-            value={dashboardStats.pending.value}
-            subtitle="Since yesterday"
-            trend={dashboardStats.pending.trend}
-            icon={<Clock />}
-            iconBg="bg-amber-100"
-            isLoading={statsLoading || isLoading}
-          />
-          <StatsCard
-            title="Approved"
-            value={dashboardStats.approved.value}
-            subtitle="Approval rate"
-            trend={dashboardStats.approved.trend}
-            icon={<TrendingUp />}
-            iconBg="bg-emerald-100"
-            isLoading={statsLoading || isLoading}
-          />
-          <StatsCard
-            title="Rejected"
-            value={dashboardStats.rejected.value}
-            subtitle="This month"
-            trend={dashboardStats.rejected.trend}
-            icon={<Activity />}
-            iconBg="bg-red-100"
-            isLoading={statsLoading || isLoading}
-          />
-          <StatsCard
-            title="Total Proposals"
-            value={dashboardStats.total.value}
-            subtitle="Growth rate"
-            trend={dashboardStats.total.trend}
-            icon={<FileText />}
-            iconBg="bg-blue-100"
-            isLoading={statsLoading || isLoading}
-          />
-        </div>
-
-        {/* Enhanced Main Content Grid - Responsive Layout */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-8">
-
-          {/* Recent Proposals - Enhanced with Better Filtering */}
-          <div className="xl:col-span-2">
-            <Card className="shadow-sm border-slate-200 bg-white/90 backdrop-blur-sm">
-              <CardHeader className="pb-4">
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                  <div className="space-y-1">
-                    <CardTitle className="text-lg lg:text-xl text-slate-900">
-                      Recent Proposals
-                    </CardTitle>
-                    <p className="text-sm text-slate-600">
-                      Latest submissions and their current status
-                    </p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <Card className="cedo-card">
+            <CardContent className="p-6">
+              <div className="flex flex-col space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div>
+                    <h3 className="cedo-header">Recent Proposals</h3>
+                    <p className="cedo-subheader">Latest proposal submissions and their status</p>
                   </div>
-
-                  {/* Enhanced Filter Controls */}
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <div className="relative flex-1 lg:flex-none">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                      <Input
-                        type="search"
-                        placeholder="Search proposals..."
-                        className="pl-9 lg:w-64 border-slate-300 focus:border-blue-500 focus:ring-blue-500"
-                        value={searchTerm}
-                        onChange={(e) => handleSearch(e.target.value)}
-                      />
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <div className="relative w-full sm:w-auto">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input type="search" placeholder="Search proposals..." className="pl-8 w-full sm:w-[250px]" />
                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant={statusFilter === "all" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => handleStatusFilter("all")}
-                        className={statusFilter === "all" ? "bg-blue-600 hover:bg-blue-700" : "border-slate-300 hover:border-slate-400"}
-                      >
-                        All
-                      </Button>
-                      <Button
-                        variant={statusFilter === "pending" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => handleStatusFilter("pending")}
-                        className={statusFilter === "pending" ? "bg-amber-500 hover:bg-amber-600" : "border-slate-300 hover:border-slate-400"}
-                      >
-                        Pending
-                      </Button>
-                      <Button
-                        variant={statusFilter === "approved" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => handleStatusFilter("approved")}
-                        className={statusFilter === "approved" ? "bg-emerald-500 hover:bg-emerald-600" : "border-slate-300 hover:border-slate-400"}
-                      >
-                        Approved
-                      </Button>
+                    <Button variant="outline" size="sm">
+                      Export
+                    </Button>
+                    <div className="border rounded-md px-3 py-1 text-sm flex items-center gap-1">
+                      All Statuses
+                      <ChevronLeft className="h-4 w-4" />
                     </div>
                   </div>
                 </div>
-              </CardHeader>
 
-              <CardContent className="p-0">
-                {/* Enhanced Responsive Table */}
-                <div className="overflow-hidden">
-
-                  {/* Desktop Table */}
-                  <div className="hidden lg:block">
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead className="bg-slate-50 border-y border-slate-200">
-                          <tr>
-                            <th className="text-left py-3 px-6 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                              Proposal
-                            </th>
-                            <th className="text-left py-3 px-6 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                              Organization
-                            </th>
-                            <th className="text-left py-3 px-6 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                              Date
-                            </th>
-                            <th className="text-left py-3 px-6 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                              Status
-                            </th>
-                            <th className="text-left py-3 px-6 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                              Assigned
-                            </th>
-                            <th className="text-center py-3 px-6 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                              Actions
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200">
-                          {filteredProposals.map((proposal, index) => (
-                            <tr
-                              key={proposal.id}
-                              className={`hover:bg-slate-50 transition-colors cursor-pointer ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'
-                                }`}
-                            >
-                              <td className="py-4 px-6">
-                                <div className="space-y-1">
-                                  <div className="font-medium text-slate-900 text-sm">
-                                    {proposal.title}
-                                  </div>
-                                  <Badge variant="outline" className="text-xs border-slate-300 text-slate-600">
-                                    {proposal.category}
-                                  </Badge>
-                                </div>
-                              </td>
-                              <td className="py-4 px-6">
-                                <div className="text-sm text-slate-900">
-                                  {proposal.organization}
-                                </div>
-                              </td>
-                              <td className="py-4 px-6">
-                                <div className="text-sm text-slate-600">
-                                  {new Date(proposal.submittedOn).toLocaleDateString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    year: 'numeric'
-                                  })}
-                                </div>
-                              </td>
-                              <td className="py-4 px-6">
-                                <Badge
-                                  className={
-                                    proposal.status === "approved"
-                                      ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-emerald-200"
-                                      : proposal.status === "pending"
-                                        ? "bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200"
-                                        : "bg-red-100 text-red-800 hover:bg-red-100 border-red-200"
-                                  }
-                                >
-                                  {proposal.status.charAt(0).toUpperCase() + proposal.status.slice(1)}
-                                </Badge>
-                              </td>
-                              <td className="py-4 px-6">
-                                <div className="text-sm text-slate-900">
-                                  {proposal.assignedTo}
-                                </div>
-                              </td>
-                              <td className="py-4 px-6 text-center">
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-slate-100">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* Mobile/Tablet Cards */}
-                  <div className="lg:hidden p-4 space-y-4">
-                    {filteredProposals.map((proposal) => (
-                      <Card key={proposal.id} className="border-slate-200 hover:shadow-md transition-shadow bg-white/90">
-                        <CardContent className="p-4">
-                          <div className="space-y-3">
-                            <div className="flex items-start justify-between">
-                              <div className="space-y-1 flex-1 min-w-0">
-                                <h4 className="font-semibold text-slate-900 text-sm">
-                                  {proposal.title}
-                                </h4>
-                                <p className="text-xs text-slate-600">
-                                  {proposal.organization}
-                                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full cedo-table">
+                    <thead>
+                      <tr className="border-b text-xs text-muted-foreground">
+                        <th className="text-left font-medium py-2 px-2">Title</th>
+                        <th className="text-left font-medium py-2 px-2">Organization</th>
+                        <th className="text-left font-medium py-2 px-2">Submitted On</th>
+                        <th className="text-left font-medium py-2 px-2">Status</th>
+                        <th className="text-left font-medium py-2 px-2">Assigned To</th>
+                        <th className="text-right font-medium py-2 px-2">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentProposals.map((proposal) => (
+                        <React.Fragment key={proposal.id}>
+                          <tr className="border-b hover:bg-gray-50 transition-colors">
+                            <td className="py-3 px-2">
+                              <div className="border border-cedo-blue text-cedo-blue px-3 py-1.5 rounded-md text-sm font-medium">
+                                {proposal.title}
                               </div>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0 hover:bg-slate-100">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </div>
-
-                            <div className="flex items-center justify-between">
+                            </td>
+                            <td className="py-3 px-2">
+                              <div className="border border-cedo-blue text-cedo-blue px-3 py-1.5 rounded-md text-sm">
+                                {proposal.organization}
+                              </div>
+                            </td>
+                            <td className="py-3 px-2">
+                              <div className="border border-cedo-blue text-cedo-blue px-3 py-1.5 rounded-md text-sm">
+                                {proposal.submittedOn}
+                              </div>
+                            </td>
+                            <td className="py-3 px-2">
                               <Badge
                                 className={
                                   proposal.status === "approved"
-                                    ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-emerald-200"
+                                    ? "bg-green-100 text-green-800 hover:bg-green-100 border-green-200"
                                     : proposal.status === "pending"
                                       ? "bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200"
                                       : "bg-red-100 text-red-800 hover:bg-red-100 border-red-200"
@@ -1059,84 +400,318 @@ export default function AdminDashboard() {
                               >
                                 {proposal.status.charAt(0).toUpperCase() + proposal.status.slice(1)}
                               </Badge>
-                              <span className="text-xs text-slate-500">
-                                {new Date(proposal.submittedOn).toLocaleDateString()}
-                              </span>
-                            </div>
+                            </td>
+                            <td className="py-3 px-2">
+                              <div className="border border-cedo-blue text-cedo-blue px-3 py-1.5 rounded-md text-sm">
+                                {proposal.assignedTo}
+                              </div>
+                            </td>
+                            <td className="py-3 px-2 text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-cedo-blue hover:text-cedo-blue/70 hover:bg-cedo-blue/5 transition-colors"
+                                onClick={() => toggleExpandProposal(proposal.id)}
+                              >
+                                {expandedProposalId === proposal.id ? "Hide" : "View"}
+                              </Button>
+                            </td>
+                          </tr>
+                          {expandedProposalId === proposal.id && (
+                            <tr className="bg-gray-50">
+                              <td colSpan={6} className="p-0">
+                                <div className="p-4 custom-slide-in">
+                                  <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+                                    <div className="flex justify-between items-start mb-4">
+                                      <div>
+                                        <h3 className="text-lg font-medium text-cedo-blue">{proposal.title}</h3>
+                                        <p className="text-sm text-muted-foreground">{proposal.organization}</p>
+                                      </div>
+                                      <Badge
+                                        className={
+                                          proposal.status === "approved"
+                                            ? "bg-green-100 text-green-800 hover:bg-green-100 border-green-200"
+                                            : proposal.status === "pending"
+                                              ? "bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200"
+                                              : "bg-red-100 text-red-800 hover:bg-red-100 border-red-200"
+                                        }
+                                      >
+                                        {proposal.status.charAt(0).toUpperCase() + proposal.status.slice(1)}
+                                      </Badge>
+                                    </div>
 
-                            <div className="text-xs text-slate-600 pt-2 border-t border-slate-100">
-                              Assigned to: <span className="font-medium">{proposal.assignedTo}</span>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                                    {proposal.status === "approved" ? (
+                                      <div className="space-y-4">
+                                        <div>
+                                          <h4 className="text-sm font-medium text-cedo-blue mb-2">
+                                            ✅ Accomplishment Details
+                                          </h4>
+                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                              <p className="text-sm font-medium">Event Description</p>
+                                              <p className="text-sm text-muted-foreground">
+                                                {proposal.description ||
+                                                  "A successful event that achieved its intended goals and objectives."}
+                                              </p>
+                                            </div>
+                                            <div>
+                                              <p className="text-sm font-medium">Location</p>
+                                              <p className="text-sm text-muted-foreground">
+                                                {proposal.location || "Main Campus Auditorium"}
+                                              </p>
+                                            </div>
+                                            <div>
+                                              <p className="text-sm font-medium">Schedule</p>
+                                              <p className="text-sm text-muted-foreground">
+                                                {proposal.schedule || `${proposal.submittedOn}, 9:00 AM - 4:00 PM`}
+                                              </p>
+                                            </div>
+                                            <div>
+                                              <p className="text-sm font-medium">Speaker(s)</p>
+                                              <p className="text-sm text-muted-foreground">
+                                                {proposal.speakers || "Dr. Jane Smith, Industry Expert"}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        <div>
+                                          <h4 className="text-sm font-medium text-cedo-blue mb-2">Participants</h4>
+                                          {proposal.participants ? (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                              {(
+                                                proposal.participants || [
+                                                  "John Doe",
+                                                  "Jane Smith",
+                                                  "Robert Johnson",
+                                                  "Emily Davis",
+                                                  "Michael Brown",
+                                                ]
+                                              ).map((participant, index) => (
+                                                <div key={index} className="flex items-center gap-2 text-sm">
+                                                  <div className="h-6 w-6 rounded-full bg-cedo-blue/10 flex items-center justify-center text-cedo-blue">
+                                                    {participant
+                                                      .split(" ")
+                                                      .map((name) => name[0])
+                                                      .join("")}
+                                                  </div>
+                                                  <span>{participant}</span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          ) : (
+                                            <p className="text-sm text-muted-foreground">
+                                              No participants have been recorded yet.
+                                            </p>
+                                          )}
+                                        </div>
+
+                                        <div>
+                                          <h4 className="text-sm font-medium text-cedo-blue mb-2">
+                                            Additional Information
+                                          </h4>
+                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                              <p className="text-sm font-medium">Sponsors</p>
+                                              <p className="text-sm text-muted-foreground">
+                                                {proposal.sponsors || "University Alumni Association, TechCorp Inc."}
+                                              </p>
+                                            </div>
+                                            <div>
+                                              <p className="text-sm font-medium">Purpose</p>
+                                              <p className="text-sm text-muted-foreground">
+                                                {proposal.purpose ||
+                                                  "To enhance student knowledge and provide networking opportunities."}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-4">
+                                        <div>
+                                          <h4 className="text-sm font-medium text-cedo-blue mb-2">
+                                            🕒 Pending Event Information
+                                          </h4>
+                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                              <p className="text-sm font-medium">Event Description</p>
+                                              <p className="text-sm text-muted-foreground">
+                                                {proposal.description ||
+                                                  "An upcoming event designed to engage students and faculty."}
+                                              </p>
+                                            </div>
+                                            <div>
+                                              <p className="text-sm font-medium">Proposed Venue</p>
+                                              <p className="text-sm text-muted-foreground">
+                                                {proposal.proposedVenue || "Main Campus Auditorium"}
+                                              </p>
+                                            </div>
+                                            <div>
+                                              <p className="text-sm font-medium">Proposed Schedule</p>
+                                              <p className="text-sm text-muted-foreground">
+                                                {proposal.proposedSchedule ||
+                                                  `${new Date(proposal.submittedOn).toLocaleDateString()}, 9:00 AM - 4:00 PM`}
+                                              </p>
+                                            </div>
+                                            <div>
+                                              <p className="text-sm font-medium">Proposed Speaker(s)</p>
+                                              <p className="text-sm text-muted-foreground">
+                                                {proposal.proposedSpeakers || "To be confirmed"}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        <div>
+                                          <h4 className="text-sm font-medium text-cedo-blue mb-2">
+                                            Expected Participants
+                                          </h4>
+                                          <div className="flex items-center gap-2">
+                                            <div className="h-8 w-8 rounded-full bg-cedo-blue/10 flex items-center justify-center text-cedo-blue font-medium">
+                                              {proposal.expectedParticipants || "50"}
+                                            </div>
+                                            <span className="text-sm">estimated students</span>
+                                          </div>
+
+                                          {proposal.signedUpMembers ? (
+                                            <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                              {(
+                                                proposal.signedUpMembers || ["John Doe", "Jane Smith", "Robert Johnson"]
+                                              ).map((member, index) => (
+                                                <div key={index} className="flex items-center gap-2 text-sm">
+                                                  <div className="h-6 w-6 rounded-full bg-cedo-blue/10 flex items-center justify-center text-cedo-blue">
+                                                    {member
+                                                      .split(" ")
+                                                      .map((name) => name[0])
+                                                      .join("")}
+                                                  </div>
+                                                  <span>{member}</span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          ) : (
+                                            <p className="text-sm text-muted-foreground mt-2">
+                                              No members have signed up yet.
+                                            </p>
+                                          )}
+                                        </div>
+
+                                        <div>
+                                          <h4 className="text-sm font-medium text-cedo-blue mb-2">
+                                            Additional Information
+                                          </h4>
+                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                              <p className="text-sm font-medium">Intended Goal</p>
+                                              <p className="text-sm text-muted-foreground">
+                                                {proposal.intendedGoal ||
+                                                  "To provide educational and networking opportunities for students."}
+                                              </p>
+                                            </div>
+                                            <div>
+                                              <p className="text-sm font-medium">Required Resources</p>
+                                              <p className="text-sm text-muted-foreground">
+                                                {proposal.requiredResources ||
+                                                  "Projector, sound system, seating for 50 people."}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    <div className="flex justify-end mt-4">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-cedo-blue hover:bg-cedo-blue/5 transition-colors"
+                                        onClick={() => toggleExpandProposal(proposal.id)}
+                                      >
+                                        Close
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex justify-between items-center text-sm text-muted-foreground pt-2">
+                  <div>Showing 5 of 5 proposals</div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" disabled>
+                      Previous
+                    </Button>
+                    <Button variant="outline" size="sm" disabled>
+                      Next
+                    </Button>
                   </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-                  {/* Enhanced Pagination */}
-                  <div className="bg-slate-50 px-4 py-3 sm:px-6 border-t border-slate-200">
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                      <div className="text-sm text-slate-600">
-                        Showing <span className="font-medium">{filteredProposals.length}</span> of{' '}
-                        <span className="font-medium">{recentProposals.length}</span> proposals
+        <div>
+          <Card className="cedo-card">
+            <CardContent className="p-6">
+              <div className="flex flex-col space-y-4">
+                <div>
+                  <h3 className="cedo-header">Upcoming Events</h3>
+                  <p className="cedo-subheader">Events scheduled for the next 7 days</p>
+                </div>
+
+                <div className="space-y-4">
+                  {upcomingEvents.map((event) => (
+                    <div
+                      key={event.id}
+                      className="border border-gray-100 rounded-md p-4 hover:border-cedo-blue/30 transition-colors hover-card-effect"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-medium text-cedo-blue">{event.title}</h4>
+                        <Badge variant="outline" className="cedo-badge-primary">
+                          {event.id}
+                        </Badge>
                       </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" disabled className="border-slate-300">
-                          Previous
-                        </Button>
-                        <Button variant="outline" size="sm" disabled className="border-slate-300">
-                          Next
+                      <div className="space-y-1 text-sm text-muted-foreground">
+                        <div>{event.date}</div>
+                        <div>{event.location}</div>
+                        <div>{event.attendees} attendees</div>
+                      </div>
+                      <div className="mt-3">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-cedo-blue hover:text-cedo-blue/70 hover:bg-cedo-blue/5 px-0 transition-colors"
+                        >
+                          View Details
                         </Button>
                       </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Enhanced Upcoming Events */}
-          <div className="xl:col-span-1">
-            <Card className="shadow-sm border-slate-200 bg-white/90 backdrop-blur-sm">
-              <CardHeader>
-                <div className="space-y-1">
-                  <CardTitle className="text-lg text-slate-900">Upcoming Events</CardTitle>
-                  <p className="text-sm text-slate-600">
-                    Events scheduled for the next 7 days
-                  </p>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                {upcomingEvents.map((event) => (
-                  <EventCard
-                    key={event.id}
-                    title={event.title}
-                    eventId={event.id}
-                    date={event.date}
-                    time={event.time}
-                    location={event.location}
-                    attendees={event.attendees}
-                    status={event.status}
-                    category={event.category}
-                  />
-                ))}
 
                 <Button
                   variant="ghost"
-                  className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+                  className="w-full text-cedo-blue hover:text-cedo-blue/70 hover:bg-cedo-blue/5 transition-colors"
                   onClick={() => {
-                    router.push("/admin-dashboard/events?filter=upcoming&timeframe=7days")
+                    router.push("/events?filter=upcoming&timeframe=7days")
                   }}
                 >
-                  <Calendar className="w-4 h-4 mr-2" />
+                  <Calendar className="h-4 w-4 mr-2" />
                   View All Events
                 </Button>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
-    </ErrorBoundary>
+    </div>
   )
 }

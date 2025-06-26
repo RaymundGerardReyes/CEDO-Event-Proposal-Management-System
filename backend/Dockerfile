@@ -1,179 +1,216 @@
 # ========================================
 # CEDO Partnership Management Backend
-# Multi-stage Docker build for production optimization
+# Multi-stage Dockerfile for Node.js Express API
 # ========================================
 
-# =====================================
-# Stage 1: Base dependencies
-# =====================================
+# ========================================
+# Base Stage - Common setup for all stages
+# ========================================
 FROM node:18-alpine AS base
 
-# Set NODE_ENV for dependency optimization
-ARG NODE_ENV=production
-ENV NODE_ENV=${NODE_ENV}
-
-# Create app directory and app user for security
-WORKDIR /usr/src/app
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodeuser -u 1001
-
-# Install system dependencies required for some npm packages
-RUN apk add --no-cache \
-    netcat-openbsd \
+# Install system dependencies and security updates
+RUN apk update && apk upgrade && \
+    apk add --no-cache \
     dumb-init \
-    && rm -rf /var/cache/apk/*
+    netcat-openbsd \
+    curl \
+    bash \
+    tzdata && \
+    rm -rf /var/cache/apk/*
 
-# =====================================
-# Stage 2: Development dependencies
-# =====================================
+# Set working directory
+WORKDIR /usr/src/app
+
+# Create non-root user for security
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodeuser -u 1001 -G nodejs
+
+# Set timezone (optional)
+ENV TZ=UTC
+
+# ========================================
+# Dependencies Stage - Install packages
+# ========================================
 FROM base AS deps
 
-# Copy package files for dependency installation
-COPY package*.json ./
+# Copy package files
+COPY package.json package-lock.json ./
 
-# Install dependencies
+# Install dependencies with npm ci for faster, reliable builds
 RUN npm ci --only=production && \
     npm cache clean --force
 
-# =====================================
-# Stage 3: Development build
-# =====================================
+# ========================================
+# Development Dependencies Stage
+# ========================================
 FROM base AS dev-deps
 
 # Copy package files
-COPY package*.json ./
+COPY package.json package-lock.json ./
 
-# Install all dependencies (including dev dependencies)
+# Install all dependencies (including devDependencies)
 RUN npm ci && \
     npm cache clean --force
 
-# =====================================
-# Stage 4: Source code builder
-# =====================================
-FROM dev-deps AS builder
+# ========================================
+# Development Stage
+# ========================================
+FROM dev-deps AS development
 
-# Copy source code
-COPY . .
+# Copy application code
+COPY --chown=nodeuser:nodejs . .
 
-# Copy and prepare wait-for-it script
-COPY wait-for-it.sh ./
+# Make wait-for-it.sh executable and fix line endings
 RUN sed -i 's/\r$//' wait-for-it.sh && \
     chmod +x wait-for-it.sh
 
-# Run any build steps if needed (e.g., TypeScript compilation)
-# RUN npm run build
-
-# Create necessary directories with proper permissions
+# Create necessary directories and set permissions
 RUN mkdir -p uploads logs && \
     chown -R nodeuser:nodejs uploads logs
 
-# =====================================
-# Stage 5: Production image
-# =====================================
-FROM base AS production
+# Set environment variables
+ENV NODE_ENV=development
+ENV PORT=5000
 
-# Set production environment
-ENV NODE_ENV=production \
-    PORT=5000 \
-    NPM_CONFIG_LOGLEVEL=warn \
-    NODE_OPTIONS="--max-old-space-size=512"
-
-# Copy production dependencies
-COPY --from=deps --chown=nodeuser:nodejs /usr/src/app/node_modules ./node_modules
-
-# Copy source code and built assets
-COPY --from=builder --chown=nodeuser:nodejs /usr/src/app .
-
-# Create uploads and logs directories with proper permissions
-RUN mkdir -p uploads logs && \
-    chown -R nodeuser:nodejs uploads logs /usr/src/app
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD nc -z localhost $PORT || exit 1
-
-# Expose the port
+# Expose port
 EXPOSE 5000
 
 # Switch to non-root user
 USER nodeuser
 
-# Use dumb-init to handle signals properly
-ENTRYPOINT ["dumb-init", "--"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:5000/health || exit 1
 
-# Default command for production
-CMD ["sh", "./wait-for-it.sh", "mysql:3306", "--timeout=60", "--strict", "--", "npm", "start"]
+# Default command for development
+CMD ["dumb-init", "npm", "run", "dev"]
 
-# =====================================
-# Stage 6: Development image
-# =====================================
-FROM dev-deps AS development
+# ========================================
+# Production Build Stage
+# ========================================
+FROM base AS build
 
-# Set development environment
-ENV NODE_ENV=development \
-    PORT=5000
+# Copy package files and install production dependencies
+COPY package.json package-lock.json ./
+RUN npm ci --only=production && \
+    npm cache clean --force
 
-# Copy source code
-COPY --chown=nodeuser:nodejs . .
+# Copy application source
+COPY . .
 
-# Copy and prepare wait-for-it script
+# Remove development files and clean up
+RUN rm -rf \
+    tests/ \
+    *.test.js \
+    *.spec.js \
+    debug-auth-flow.cjs \
+    test-google-config.js \
+    setup-google-auth.bat \
+    fix-*.bat \
+    start-mysql.bat \
+    docker-build.sh \
+    .gitignore \
+    .dockerignore \
+    README.md
+
+# Make wait-for-it.sh executable
 RUN sed -i 's/\r$//' wait-for-it.sh && \
     chmod +x wait-for-it.sh
+
+# ========================================
+# Production Stage
+# ========================================
+FROM base AS production
+
+# Copy production dependencies
+COPY --from=build /usr/src/app/node_modules ./node_modules
+
+# Copy application code
+COPY --from=build --chown=nodeuser:nodejs /usr/src/app .
 
 # Create necessary directories
 RUN mkdir -p uploads logs && \
     chown -R nodeuser:nodejs uploads logs
 
-# Health check for development
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD nc -z localhost $PORT || exit 1
+# Set production environment variables
+ENV NODE_ENV=production
+ENV PORT=5000
 
-# Expose the port
+# Expose port
 EXPOSE 5000
 
 # Switch to non-root user
 USER nodeuser
 
-# Use dumb-init to handle signals properly
-ENTRYPOINT ["dumb-init", "--"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:5000/health || exit 1
 
-# Development command with nodemon
-CMD ["sh", "./wait-for-it.sh", "mysql:3306", "--timeout=60", "--strict", "--", "npm", "run", "dev"]
+# Production command
+CMD ["dumb-init", "node", "server.js"]
 
-# =====================================
-# Stage 7: Testing image
-# =====================================
-FROM development AS testing
+# ========================================
+# Testing Stage
+# ========================================
+FROM dev-deps AS testing
 
-# Switch back to root to install test dependencies
-USER root
+# Copy application code
+COPY --chown=nodeuser:nodejs . .
 
-# Install testing tools if needed
-RUN apk add --no-cache curl
+# Make scripts executable
+RUN sed -i 's/\r$//' wait-for-it.sh && \
+    chmod +x wait-for-it.sh
 
-# Switch back to app user
+# Create test directories
+RUN mkdir -p uploads logs test-results && \
+    chown -R nodeuser:nodejs uploads logs test-results
+
+# Set test environment
+ENV NODE_ENV=test
+ENV PORT=5000
+
+# Switch to non-root user
 USER nodeuser
 
-# Override command for testing
-CMD ["npm", "test"]
+# Test command
+CMD ["dumb-init", "npm", "test"]
 
-# =====================================
+# ========================================
+# Database Initialization Stage
+# ========================================
+FROM dev-deps AS db-init
+
+# Copy application code
+COPY --chown=nodeuser:nodejs . .
+
+# Make scripts executable
+RUN sed -i 's/\r$//' wait-for-it.sh && \
+    chmod +x wait-for-it.sh
+
+# Create necessary directories
+RUN mkdir -p logs && \
+    chown -R nodeuser:nodejs logs
+
+# Set environment
+ENV NODE_ENV=development
+
+# Switch to non-root user
+USER nodeuser
+
+# Database initialization command
+CMD ["dumb-init", "npm", "run", "init-db"]
+
+# ========================================
 # Build Arguments and Labels
-# =====================================
-# Build arguments for flexible builds
-ARG BUILD_VERSION="0.4.0"
+# ========================================
 ARG BUILD_DATE
+ARG BUILD_VERSION
 ARG GIT_COMMIT
 
-# Labels for metadata
 LABEL maintainer="CEDO Development Team" \
       version="${BUILD_VERSION}" \
       description="CEDO Partnership Management Backend API" \
       build-date="${BUILD_DATE}" \
       git-commit="${GIT_COMMIT}" \
-      org.opencontainers.image.title="CEDO Backend" \
-      org.opencontainers.image.description="Backend API for CEDO Partnership Management System" \
-      org.opencontainers.image.version="${BUILD_VERSION}" \
-      org.opencontainers.image.created="${BUILD_DATE}" \
-      org.opencontainers.image.revision="${GIT_COMMIT}" \
-      org.opencontainers.image.licenses="MIT"
+      nodejs-version="18" \
+      application="cedo-backend" 
