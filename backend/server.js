@@ -1,3 +1,13 @@
+// ==============================
+// Backend Server Main Entry Point
+// CEDO Google Auth Application
+// ==============================
+// This is the main server file that initializes and configures the Express.js application
+// Handles database connections, middleware setup, route mounting, and server startup
+
+// ==============================
+// Environment Configuration
+// ==============================
 // Load environment variables from multiple possible locations
 require('dotenv').config({ path: '.env' }); // Try backend/.env first
 require('dotenv').config({ path: '../.env' }); // Then try root/.env
@@ -26,40 +36,59 @@ console.log(`🔑 NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
 console.log(`🔑 MONGODB_URI: ${process.env.MONGODB_URI ? 'SET ✓' : '❌ MISSING'}`);
 console.log(`🔍 MONGODB_URI (masked): ${process.env.MONGODB_URI ? process.env.MONGODB_URI.replace(/\/\/.*@/, '//***:***@') : 'NOT_SET'}\n`);
 
+// ==============================
+// Core Dependencies & Imports
+// ==============================
 const express = require("express")
 const cors = require("cors")
-const morgan = require("morgan")
 const path = require("path")
-const mysql = require('mysql2/promise');
-const cookieSession = require('cookie-session');
-const cookieParser = require('cookie-parser');
-const bodyParser = require('body-parser');
-
-// Import MongoDB connection - ENABLED for hybrid setup
-const { connectToMongo } = require("./config/mongodb")
+const cookieParser = require("cookie-parser")
+const cookieSession = require("cookie-session")
+const morgan = require("morgan")
+const mysql = require('mysql2/promise')
+const bodyParser = require('body-parser')
 
 // Import OAuth configuration
-const { passport } = require('./config/oauth');
+const { passport } = require('./config/oauth')
 
-// Require database config and routes from the root backend directory
-const { pool } = require("./config/db") // Path adjusted based on your structure
-const authRoutes = require("./routes/auth") // Path adjusted based on your structure
-const oauthRoutes = require("./routes/oauth") // New OAuth routes
-const userRoutes = require("./routes/users") // Path adjusted based on your structure
+// ==============================
+// Database & Configuration Imports
+// ==============================
+const { pool } = require("./config/db")
+const { connectToMongo } = require('./config/mongodb')
+
+// ==============================
+// Middleware Imports
+// ==============================
 const errorHandler = require("./middleware/error-handler")
 const { ensureTablesExist } = require("./middleware/db-check")
 
-// ✅ Import proposals routes
+// ==============================
+// Route Imports - Authentication & User Management
+// ==============================
+const authRoutes = require("./routes/auth")
+const oauthRoutes = require("./routes/oauth")
+const userRoutes = require("./routes/users")
+
+// ==============================
+// Route Imports - Core Application Features
+// ==============================
 const proposalsRouter = require('./routes/proposals');  // MySQL-focused proposals
 const mongoUnifiedRouter = require('./routes/mongodb-unified');  // Hybrid admin API ENABLED – now modular
 
 // Initialize express app
 const app = express()
 
+// ==============================
+// Server Configuration
+// ==============================
 // FIXED: Ensure PORT is not the same as MySQL port (3306)
 // Use a different port like 5000 for your Express server
 const PORT = 5000; // Explicitly set to 5000 to match Docker mapping
 
+// ==============================
+// Environment Variables Logging
+// ==============================
 // Log environment variables (excluding sensitive ones)
 console.log("Environment Configuration:")
 console.log(`- NODE_ENV: ${process.env.NODE_ENV}`)
@@ -71,6 +100,9 @@ console.log(`- DB_USER/MYSQL_USER: ${process.env.DB_USER || process.env.MYSQL_US
 console.log(`- FRONTEND_URL: ${process.env.FRONTEND_URL}`)
 console.log(`- RECAPTCHA_SECRET_KEY: ${process.env.RECAPTCHA_SECRET_KEY ? "set" : "not set"}`)
 
+// ==============================
+// CORS Configuration
+// ==============================
 // ✅ ENHANCED CORS CONFIGURATION FOR GOOGLE OAUTH
 const corsOptions = {
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
@@ -86,6 +118,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// ==============================
+// Session & Authentication Middleware
+// ==============================
 // Cookie and session middleware (must be before passport)
 app.use(cookieParser());
 app.use(cookieSession({
@@ -100,57 +135,45 @@ app.use(cookieSession({
 app.use(passport.initialize());
 app.use(passport.session());
 
+// ==============================
+// General Middleware Setup
+// ==============================
 app.use(express.json()) // Parses JSON bodies
 app.use(morgan("dev")) // Logs HTTP requests in development mode
 app.use(express.urlencoded({ extended: true }));
 
+// ==============================
+// Global State
+// ==============================
+let isDbConnected = false; // Global flag for DB status
+
+// ==============================
+// Database Connection Testing
+// ==============================
 // Test DB connection
 async function testConnection() {
-  // Explicitly check if pool was successfully imported and is not undefined
-  // This helps catch issues in config/db.js itself if it fails before exporting
   if (!pool) {
     console.error("MySQL connection failed: Database pool is undefined after require.")
-    console.log("\nTroubleshooting tips:")
-    console.log("Ensure backend/config/db.js is correctly setting up and exporting the pool.")
-    // If pool isn't even defined, we cannot proceed
     throw new Error("Database pool is undefined");
   }
 
   try {
-    // Use pool.query from the promise-based pool
-    await pool.query("SELECT 1") // Simple query to test the connection
+    await pool.query("SELECT 1")
     console.log("✅ MySQL database connected successfully")
+    isDbConnected = true; // Set global flag
     return true;
   } catch (err) {
-    console.error("❌ MySQL connection failed:", err.message) // Log the specific error message
-    console.log("\nTroubleshooting tips:")
-    console.log("1. Make sure MySQL server is running.")
-    console.log(
-      "2. Check your MySQL credentials (DB_HOST/MYSQL_HOST, DB_USER/MYSQL_USER, DB_PASSWORD/MYSQL_PASSWORD) in the .env file.",
-    )
-    console.log(
-      `3. Ensure the database "${process.env.DB_NAME || process.env.MYSQL_DATABASE || "cedo_auth"}" exists (run 'npm run init-db').`,
-    )
-    console.log('4. If using "localhost", try using "127.0.0.1" instead in .env.')
-    console.log("5. Check your MySQL user privileges (needs SELECT on the database).")
-    console.log("6. In Docker, make sure the service name matches the hostname (e.g., 'mysql').")
-    console.log("7. See the full error details above for more clues.")
-
-    // Exit only in production or if database is critical and cannot connect at all
-    // Keeping it running in dev might allow you to fix and hot-reload,
-    // but routes interacting with the DB will fail.
-    // A more robust app might defer starting the server until the DB is ready.
-    if (process.env.NODE_ENV === "production") {
-      console.error("Exiting process due to critical database connection failure in production.")
-      throw err;
-    } else {
-      console.warn(
-        "Continuing in development mode despite database connection failure. API routes requiring the DB will fail.",
-      )
-      throw err;
-    }
+    console.error("❌ MySQL connection failed:", err.message)
+    console.warn("\n⚠️ WARNING: DATABASE CONNECTION FAILED. Continuing in demo mode.")
+    console.warn("API routes requiring the database will not work.")
+    isDbConnected = false; // Set global flag
+    return false;
   }
 }
+
+// ==============================
+// Health Check & Monitoring Endpoints
+// ==============================
 
 // Add a health check endpoint
 app.get("/health", (req, res) => {
@@ -224,121 +247,138 @@ app.post("/api/create-tables", async (req, res) => {
   }
 })
 
-// Start server with proper async initialization
+// ==============================
+// Server Initialization Logic
+// ==============================
 async function startServer() {
+  console.log('🚀 Starting server initialization...');
+
+  // Step 1: Test MySQL connection
+  console.log('📋 Step 1: Testing MySQL connection...');
+  await testConnection(); // This will set the global isDbConnected flag
+
+  // Step 2: Test MongoDB connection
+  console.log('📋 Step 2: Testing MongoDB connection...');
   try {
-    console.log('🚀 Starting server initialization...');
-
-    // Step 1: Test MySQL connection
-    console.log('📋 Step 1: Testing MySQL connection...');
-    await testConnection();
-
-    // Step 2: Initialize MongoDB connection
-    console.log('📋 Step 2: Initializing MongoDB connection...');
     await connectToMongo();
-    console.log('✅ MongoDB connection established');
-
-    // Step 2.5: Initialize data-sync service
-    console.log('📋 Step 2.5: Initializing data-sync service...');
-    const dataSyncService = require('./services/data-sync.service');
-    // The service will use the shared connection automatically
-    console.log('✅ Data-sync service ready');
-
-    // Step 3: Ensure database tables exist
-    console.log('📋 Step 3: Checking database tables...');
-    await ensureTablesExist();
-    console.log('✅ Database tables verified');
-
-    // Step 4: Start the HTTP server
-    console.log('📋 Step 4: Starting HTTP server...');
-    const server = app.listen(PORT, () => {
-      console.log(`✅ Server running on port ${PORT} in ${process.env.NODE_ENV} mode`)
-      console.log(`📊 API base URL: http://localhost:${PORT}/api`)
-      console.log(`📊 MySQL Proposals API: http://localhost:${PORT}/api/proposals`)
-      console.log(`📊 Hybrid Admin API: http://localhost:${PORT}/api/mongodb-unified`)
-
-      if (process.env.NODE_ENV === "development") {
-        console.log("\n📋 Configured API Routes:")
-        console.log(`- /api/auth: Authentication & User management`)
-        console.log(`- /api/users: User data access`)
-        console.log(`- /api/proposals: Main proposal management (MySQL)`)
-        console.log(`- /api/mongodb-unified: Hybrid admin API (MySQL + MongoDB files)`)
-        console.log(`- /api/organizations: Organization management`)
-        console.log(`- /health: Server health check endpoint`)
-        console.log(`- /api/db-check: Database connection check endpoint`)
-        console.log("\n🎉 Server initialization complete! Ready to accept requests.")
-      }
-    });
-
-    // Handle server errors
-    server.on("error", (error) => {
-      if (error.code === "EADDRINUSE") {
-        console.error(`❌ Port ${PORT} is already in use. This could be because:`)
-        console.error(`1. Another instance of your app is already running`)
-        console.error(`2. Another application is using port ${PORT}`)
-        console.error(`3. If ${PORT} is 3306, MySQL is likely using this port`)
-        process.exit(1)
-      } else {
-        console.error("❌ Server error:", error)
-        process.exit(1)
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ Server initialization failed:', error);
-    process.exit(1);
+  } catch (err) {
+    // Error is already logged in connectToMongo, just add a warning here
+    console.warn('⚠️ WARNING: MONGODB CONNECTION FAILED. Continuing in demo mode.');
   }
+
+  // Step 2.5: Initialize dependent services
+  console.log('📋 Step 2.5: Initializing data-sync service...');
+  const dataSyncService = require('./services/data-sync.service');
+  dataSyncService.initialize();
+  console.log('✅ Data-sync service ready');
+
+  // Step 3: Check database tables ONLY if connected
+  console.log('📋 Step 3: Checking database tables...');
+  if (isDbConnected) {
+    try {
+      await ensureTablesExist();
+      console.log('✅ Database tables verified.');
+    } catch (err) {
+      console.error('❌ Failed to ensure database tables exist:', err.message);
+      // Log the error but don't crash the server.
+    }
+  } else {
+    console.warn('⚠️ SKIPPING database table check (not connected).');
+  }
+
+  // Step 4: Start the HTTP server
+  console.log('📋 Step 4: Starting HTTP server...');
+  const server = app.listen(PORT, () => {
+    console.log(`✅ Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
+    console.log("🎉 Server initialization complete! Ready to accept requests.");
+  });
+
+  server.on("error", (error) => {
+    if (error.code === "EADDRINUSE") {
+      console.error(`❌ Port ${PORT} is already in use.`);
+      process.exit(1);
+    } else {
+      console.error("❌ Server error:", error);
+      process.exit(1);
+    }
+  });
+
+  return server;
 }
 
+// ==============================
+// Request Logging Middleware
+// ==============================
 // Add request logging middleware
 app.use((req, res, next) => {
   console.log(`Incoming request: ${req.method} ${req.path}`);
   next();
 });
 
-// Define routes
+// ==============================
+// API Route Mounting
+// ==============================
+
+// ** Authentication & User Management Routes **
 app.use("/api/auth", authRoutes)  // ✅ Mount auth routes at /api/auth to match frontend expectations
 app.use("/auth/oauth", oauthRoutes) // OAuth routes (no /api prefix for OAuth callback compatibility)
 app.use("/auth", oauthRoutes) // Also mount on /auth for backwards compatibility
-app.use("/api/events", require("./routes/events"))
 app.use("/api/users", userRoutes)
+
+// ** Core Application Routes **
+app.use("/api/events", require("./routes/events"))
 app.use("/api/proposals", proposalsRouter)  // ✅ SINGLE PROPOSALS ROUTER - MySQL focused
 app.use("/api/reviews", require("./routes/reviews"))
 app.use("/api/reports", require("./routes/reports"))
 app.use("/api/compliance", require("./routes/compliance"))
+
+// ** Organization Management **
 const organizationRoutes = require('./routes/organizations');
 app.use('/api/organizations', organizationRoutes);
 
+// ** Hybrid MongoDB+MySQL API Routes **
 // ✅ Hybrid MongoDB+MySQL API on separate path for admin features - ENABLED
 app.use('/api/mongodb-unified', mongoUnifiedRouter);
 
+// ** Admin Dashboard Routes **
 // ✅ Admin Dashboard Route
 const adminRoutes = require('./routes/admin');
 app.use('/api/admin', adminRoutes);
 
+// ** Database API Routes **
 // ✅ Database API Routes
 const databaseApiRoutes = require('./routes/database-api');
 app.use('/api/db', databaseApiRoutes);
 
+// ** Profile Management **
 // Profile routes
 const profileRoutes = require('./routes/profile');
 app.use('/api/profile', profileRoutes);
 
+// ** File Upload Support **
 // Static file serving for uploads
 app.use('/uploads', express.static('uploads'));
 
+// ** Draft Management **
 // ✅ New drafts router
 const draftsRouter = require('./routes/drafts');
 app.use('/api', draftsRouter);
 
+// ** Testing & Debug Routes **
 // ✅ Test MongoDB router (for debugging)
 const testMongoDBRouter = require('./routes/test-mongodb');
 app.use('/api', testMongoDBRouter);
 
+// ==============================
+// Error Handling Middleware
+// ==============================
 // Error handling middleware
 // This should be the last middleware added
 app.use(errorHandler)
 
+// ==============================
+// Production Static File Serving
+// ==============================
 // Serve static assets in production
 // Assumes 'backend' and 'frontend' are sibling directories
 if (process.env.NODE_ENV === "production") {
@@ -351,7 +391,14 @@ if (process.env.NODE_ENV === "production") {
   })
 }
 
+// ==============================
+// Server Startup
+// ==============================
 // Initialize server
-startServer();
+startServer().catch(err => {
+  console.error("❌ A critical error occurred during server startup:", err);
+  process.exit(1);
+});
 
-module.exports = app // Export the express app instance (useful for testing)
+module.exports = { app, startServer, pool };
+

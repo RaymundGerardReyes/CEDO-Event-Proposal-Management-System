@@ -96,6 +96,20 @@ const getClientWithRetry = async (maxRetries = 3) => {
     }
 };
 
+// Main connection function called by the server, designed to be resilient.
+async function connectToMongo() {
+    try {
+        // Attempt to connect both native client and mongoose
+        await getClientWithRetry();
+        await connectMongoose();
+    } catch (error) {
+        // The error is already logged by the individual connection functions (getClientWithRetry/connectMongoose).
+        // We catch it here to prevent it from crashing the server startup process.
+        console.warn('❌ MongoDB connection failed. Server will continue in demo mode.');
+        // By not re-throwing the error, we allow the application to proceed.
+    }
+}
+
 // Also connect mongoose for backward compatibility
 async function connectMongoose() {
     try {
@@ -116,12 +130,9 @@ async function connectMongoose() {
         return mongoose;
     } catch (error) {
         console.error('❌ Mongoose: Connection failed:', error.message);
-        throw error;
+        throw error; // This throw is now safely caught by connectToMongo
     }
 }
-
-// Initialize mongoose connection
-connectMongoose().catch(console.error);
 
 // Test connection function with proper authentication and retry logic
 async function testConnection() {
@@ -217,19 +228,6 @@ async function debugMongoDB() {
     }
 }
 
-// Enhanced backward compatibility function with retry logic
-async function connectToMongo() {
-    try {
-        const client = await getClientWithRetry();
-        const db = client.db('cedo_auth');
-        console.log('✅ MongoDB: Connected via connectToMongo compatibility function');
-        return { db, client };
-    } catch (error) {
-        console.error('❌ MongoDB: connectToMongo failed:', error);
-        throw error;
-    }
-}
-
 // Backward compatibility alias for getDatabase
 async function getDb(dbName = 'cedo_auth') {
     return await getDatabase(dbName);
@@ -252,11 +250,11 @@ process.on('SIGINT', async () => {
 });
 
 module.exports = {
-    clientPromise: getClientWithRetry, // Export the retry wrapper instead of raw promise
+    clientPromise,
     getDatabase,
-    getDb, // ✅ ADDED: Backward compatibility alias
     testConnection,
     debugMongoDB,
     connectToMongo,
-    mongoose, // ✅ ADDED: Export mongoose for compatibility
+    getDb,
+    connectMongoose,
 }; 

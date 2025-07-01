@@ -202,6 +202,17 @@ async function createReviewsTable() {
  */
 async function ensureTablesExist() {
     try {
+        // First, perform a simple, safe query to see if the DB is reachable.
+        await pool.query('SELECT 1');
+    } catch (error) {
+        // If this initial check fails, we know we can't connect.
+        console.warn(`⚠️  Skipping table creation: No database connection available.`);
+        // We will not re-throw the error, allowing the server to continue in demo mode.
+        return;
+    }
+
+    try {
+        // If the connection is alive, proceed with table creation.
         // Create tables in order of dependencies
         await createUsersTable()
         await createAccessLogsTable()
@@ -228,8 +239,8 @@ async function ensureTablesExist() {
 
         return true
     } catch (error) {
-        console.error("Error ensuring tables exist:", error.message)
-        throw error
+        console.error("Error during table creation:", error.message)
+        // Again, do not re-throw. The server should continue running.
     }
 }
 
