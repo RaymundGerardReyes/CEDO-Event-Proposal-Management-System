@@ -7,17 +7,17 @@ const path = require("path") // For resolving file paths
 // At the beginning of the file, add:
 console.log("Database initialization script starting...")
 console.log("Environment variables loaded:", {
-  MYSQL_HOST: process.env.DB_HOST || process.env.MYSQL_HOST || "localhost",
-  MYSQL_DATABASE: process.env.DB_NAME || process.env.MYSQL_DATABASE || "cedo_auth",
-  MYSQL_USER: process.env.DB_USER || process.env.MYSQL_USER || "root",
+  MYSQL_HOST: process.env.MYSQL_HOST || "localhost",
+  MYSQL_DATABASE: process.env.MYSQL_DATABASE || "cedo_auth",
+  MYSQL_USER: process.env.MYSQL_USER || "root",
   // Don't log passwords
 })
 
 // Database configuration object using environment variables
 const dbConfig = {
-  host: process.env.DB_HOST || process.env.MYSQL_HOST || "localhost", // Prioritize DB_HOST for Docker
-  user: process.env.DB_USER || process.env.MYSQL_USER || "root", // Prioritize DB_USER for Docker
-  password: process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || "", // Prioritize DB_PASSWORD for Docker
+  host: process.env.MYSQL_HOST || "localhost",
+  user: process.env.MYSQL_USER || "root",
+  password: process.env.MYSQL_PASSWORD || "",
   waitForConnections: true, // Wait for connections when the limit is reached
   connectionLimit: 10, // Maximum number of connections in the pool
   queueLimit: 0, // Unlimited queueing when connectionLimit is reached
@@ -41,9 +41,9 @@ async function main() {
 
     // --- Connect to MySQL Server (without specifying database initially) ---
     // This allows us to create the database if it doesn't exist
-    const host = process.env.DB_HOST || process.env.MYSQL_HOST || "localhost"
-    const user = process.env.DB_USER || process.env.MYSQL_USER || "root"
-    const password = process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || ""
+    const host = process.env.MYSQL_HOST || "localhost"
+    const user = process.env.MYSQL_USER || "root"
+    const password = process.env.MYSQL_PASSWORD || ""
 
     console.log(`Connecting to MySQL at ${host} with user ${user}`)
     connection = await mysql.createConnection({
@@ -55,7 +55,7 @@ async function main() {
     console.log("Connected to MySQL server")
 
     // --- Create Database if it Doesn't Exist ---
-    const dbName = process.env.DB_NAME || process.env.MYSQL_DATABASE || "cedo_auth" // Get database name from .env or use default
+    const dbName = process.env.MYSQL_DATABASE || "cedo_auth" // Get database name from .env or use default
     await connection.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``) // Use backticks around dbName to handle potential special characters
     console.log(`Database '${dbName}' created or already exists`)
 
@@ -277,6 +277,12 @@ async function main() {
                 community_proposal_file_path VARCHAR(500),
                 accomplishment_report_file_name VARCHAR(255),
                 accomplishment_report_file_path VARCHAR(500),
+                pre_registration_file_name VARCHAR(255),
+                pre_registration_file_path VARCHAR(255),
+                final_attendance_file_name VARCHAR(255),
+                final_attendance_file_path VARCHAR(255),
+                final_attendance_proof_file_name VARCHAR(255),
+                final_attendance_proof_file_path VARCHAR(255),
                 digital_signature LONGTEXT,
                 attendance_count INT,
                 event_status ENUM('completed','cancelled','postponed'),
@@ -342,6 +348,97 @@ async function main() {
           );
           console.log("Foreign key for userId added.");
         }
+      }
+
+      // Check if final_attendance_file_path column exists
+      const [finalAttendanceFilePathColumns] = await connection.query(`SHOW COLUMNS FROM proposals LIKE 'final_attendance_file_path'`);
+      if (finalAttendanceFilePathColumns.length === 0) {
+        await connection.query(`ALTER TABLE proposals ADD COLUMN final_attendance_file_path VARCHAR(255) AFTER final_attendance_file_name`);
+        console.log("Added final_attendance_file_path column to proposals table");
+      }
+
+      // Check for final_attendance_proof_file_name
+      const [finalAttendanceProofFileName] = await connection.query(`SHOW COLUMNS FROM proposals LIKE 'final_attendance_proof_file_name'`);
+      if (finalAttendanceProofFileName.length === 0) {
+        await connection.query(`ALTER TABLE proposals ADD COLUMN final_attendance_proof_file_name VARCHAR(255) AFTER final_attendance_file_path`);
+        console.log("Added final_attendance_proof_file_name column to proposals table");
+      }
+
+      // Check for final_attendance_proof_file_path
+      const [finalAttendanceProofFilePath] = await connection.query(`SHOW COLUMNS FROM proposals LIKE 'final_attendance_proof_file_path'`);
+      if (finalAttendanceProofFilePath.length === 0) {
+        await connection.query(`ALTER TABLE proposals ADD COLUMN final_attendance_proof_file_path VARCHAR(255) AFTER final_attendance_proof_file_name`);
+        console.log("Added final_attendance_proof_file_path column to proposals table");
+      }
+
+      // Check if digital_signature column exists
+      const [digitalSignatureColumns] = await connection.query(`SHOW COLUMNS FROM proposals LIKE 'digital_signature'`);
+      if (digitalSignatureColumns.length === 0) {
+        await connection.query(`ALTER TABLE proposals ADD COLUMN digital_signature LONGTEXT AFTER final_attendance_proof_file_path`);
+        console.log("Added digital_signature column to proposals table");
+      }
+
+      // Check if accomplishment_report_file_path column exists
+      const [accomplishmentReportFilePathColumns] = await connection.query(`SHOW COLUMNS FROM proposals LIKE 'accomplishment_report_file_path'`);
+      if (accomplishmentReportFilePathColumns.length === 0) {
+        await connection.query(`ALTER TABLE proposals ADD COLUMN accomplishment_report_file_path VARCHAR(500) AFTER accomplishment_report_file_name`);
+        console.log("Added accomplishment_report_file_path column to proposals table");
+      }
+
+      // Check if pre_registration_file_name column exists
+      const [preRegistrationFileNameColumns] = await connection.query(`SHOW COLUMNS FROM proposals LIKE 'pre_registration_file_name'`);
+      if (preRegistrationFileNameColumns.length === 0) {
+        await connection.query(`ALTER TABLE proposals ADD COLUMN pre_registration_file_name VARCHAR(255) AFTER accomplishment_report_file_path`);
+        console.log("Added pre_registration_file_name column to proposals table");
+      }
+
+      // Check if pre_registration_file_path column exists
+      const [preRegistrationFilePathColumns] = await connection.query(`SHOW COLUMNS FROM proposals LIKE 'pre_registration_file_path'`);
+      if (preRegistrationFilePathColumns.length === 0) {
+        await connection.query(`ALTER TABLE proposals ADD COLUMN pre_registration_file_path VARCHAR(255) AFTER pre_registration_file_name`);
+        console.log("Added pre_registration_file_path column to proposals table");
+      }
+
+      // Check if final_attendance_file_name column exists
+      const [finalAttendanceFileNameColumns] = await connection.query(`SHOW COLUMNS FROM proposals LIKE 'final_attendance_file_name'`);
+      if (finalAttendanceFileNameColumns.length === 0) {
+        await connection.query(`ALTER TABLE proposals ADD COLUMN final_attendance_file_name VARCHAR(255) AFTER pre_registration_file_path`);
+        console.log("Added final_attendance_file_name column to proposals table");
+      }
+
+      // Check if final_attendance_file_path column exists
+      const [finalAttendanceFilePathColumns] = await connection.query(`SHOW COLUMNS FROM proposals LIKE 'final_attendance_file_path'`);
+      if (finalAttendanceFilePathColumns.length === 0) {
+        await connection.query(`ALTER TABLE proposals ADD COLUMN final_attendance_file_path VARCHAR(255) AFTER final_attendance_file_name`);
+        console.log("Added final_attendance_file_path column to proposals table");
+      }
+
+      // Check for final_attendance_proof_file_name
+      const [finalAttendanceProofFileName] = await connection.query(`SHOW COLUMNS FROM proposals LIKE 'final_attendance_proof_file_name'`);
+      if (finalAttendanceProofFileName.length === 0) {
+        await connection.query(`ALTER TABLE proposals ADD COLUMN final_attendance_proof_file_name VARCHAR(255) AFTER final_attendance_file_path`);
+        console.log("Added final_attendance_proof_file_name column to proposals table");
+      }
+
+      // Check for final_attendance_proof_file_path
+      const [finalAttendanceProofFilePath] = await connection.query(`SHOW COLUMNS FROM proposals LIKE 'final_attendance_proof_file_path'`);
+      if (finalAttendanceProofFilePath.length === 0) {
+        await connection.query(`ALTER TABLE proposals ADD COLUMN final_attendance_proof_file_path VARCHAR(255) AFTER final_attendance_proof_file_name`);
+        console.log("Added final_attendance_proof_file_path column to proposals table");
+      }
+
+      // Check if digital_signature column exists
+      const [digitalSignatureColumns] = await connection.query(`SHOW COLUMNS FROM proposals LIKE 'digital_signature'`);
+      if (digitalSignatureColumns.length === 0) {
+        await connection.query(`ALTER TABLE proposals ADD COLUMN digital_signature LONGTEXT AFTER final_attendance_proof_file_path`);
+        console.log("Added digital_signature column to proposals table");
+      }
+
+      // Check if attendance_count column exists
+      const [attendanceCountColumns] = await connection.query(`SHOW COLUMNS FROM proposals LIKE 'attendance_count'`);
+      if (attendanceCountColumns.length === 0) {
+        await connection.query(`ALTER TABLE proposals ADD COLUMN attendance_count INT AFTER digital_signature`);
+        console.log("Added attendance_count column to proposals table");
       }
     }
 

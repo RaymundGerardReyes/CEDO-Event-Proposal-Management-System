@@ -93,10 +93,10 @@ const PORT = 5000; // Explicitly set to 5000 to match Docker mapping
 console.log("Environment Configuration:")
 console.log(`- NODE_ENV: ${process.env.NODE_ENV}`)
 console.log(`- PORT: ${PORT}`)
-console.log(`- DB_HOST/MYSQL_HOST: ${process.env.DB_HOST || process.env.MYSQL_HOST}`)
-console.log(`- DB_PORT/MYSQL_PORT: ${process.env.DB_PORT || process.env.MYSQL_PORT}`)
-console.log(`- DB_NAME/MYSQL_DATABASE: ${process.env.DB_NAME || process.env.MYSQL_DATABASE}`)
-console.log(`- DB_USER/MYSQL_USER: ${process.env.DB_USER || process.env.MYSQL_USER}`)
+console.log(`- MYSQL_HOST: ${process.env.MYSQL_HOST}`)
+console.log(`- MYSQL_PORT: ${process.env.MYSQL_PORT}`)
+console.log(`- MYSQL_DATABASE: ${process.env.MYSQL_DATABASE}`)
+console.log(`- MYSQL_USER: ${process.env.MYSQL_USER}`)
 console.log(`- FRONTEND_URL: ${process.env.FRONTEND_URL}`)
 console.log(`- RECAPTCHA_SECRET_KEY: ${process.env.RECAPTCHA_SECRET_KEY ? "set" : "not set"}`)
 
@@ -269,8 +269,13 @@ async function startServer() {
   // Step 2.5: Initialize dependent services
   console.log('📋 Step 2.5: Initializing data-sync service...');
   const dataSyncService = require('./services/data-sync.service');
-  dataSyncService.initialize();
-  console.log('✅ Data-sync service ready');
+  try {
+    await dataSyncService.initialize();
+    console.log('✅ Data-sync service ready');
+  } catch (error) {
+    console.warn('⚠️ WARNING: Data-sync service initialization failed:', error.message);
+    console.warn('⚠️ Continuing without full data-sync capabilities...');
+  }
 
   // Step 3: Check database tables ONLY if connected
   console.log('📋 Step 3: Checking database tables...');

@@ -14,7 +14,7 @@ const { MongoClient, ObjectId } = require('mongodb');
 console.log('\n🛠  MongoDB initialisation script starting…');
 
 const mongoUri = process.env.MONGODB_URI_PROD || process.env.MONGODB_URI || 'mongodb://localhost:27017';
-const dbName = process.env.MONGODB_DB_NAME || 'cedo_db';
+const dbName = process.env.MONGODB_DB_NAME || 'cedo_db'; // No change needed, not related to MySQL
 
 console.log('Using connection string:', mongoUri.replace(/:(?:[^:@]*?)@/, ':*****@')); // hide password
 console.log('Target database:        ', dbName);
