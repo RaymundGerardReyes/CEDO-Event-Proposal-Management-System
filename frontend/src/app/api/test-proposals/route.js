@@ -1,8 +1,9 @@
+import { config } from '@/lib/utils'
 import { NextResponse } from 'next/server'
 
 export async function GET(request) {
     try {
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
+        const backendUrl = config.backendUrl
         const apiUrl = `${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?limit=3`
 
         console.log('🧪 Testing backend connection:', apiUrl)
@@ -23,7 +24,7 @@ export async function GET(request) {
         return NextResponse.json({
             success: true,
             message: 'Backend connection successful',
-            backendUrl,
+            backendUrl: config.backendUrl,
             proposalCount: data.proposals?.length || 0,
             sampleProposal: data.proposals?.[0] || null,
             pagination: data.pagination
@@ -33,7 +34,7 @@ export async function GET(request) {
         return NextResponse.json({
             success: false,
             error: error.message,
-            backendUrl: process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
+            backendUrl: config.backendUrl
         }, { status: 500 })
     }
 } 

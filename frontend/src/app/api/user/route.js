@@ -26,7 +26,7 @@ const verifyAuthToken = async (token) => {
 
 // Backend API helper function
 const callBackendAPI = async (endpoint, options = {}) => {
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = process.env.API_URL ? process.env.API_URL.replace(/\/api$/, '') : 'http://localhost:5000';
     const url = `${backendUrl}${endpoint}`;
 
     try {

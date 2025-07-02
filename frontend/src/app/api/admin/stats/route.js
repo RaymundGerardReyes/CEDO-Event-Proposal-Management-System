@@ -1,7 +1,8 @@
+import { config } from '@/lib/utils';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_URL = config.apiUrl;
 
 /**
  * GET /api/admin/stats

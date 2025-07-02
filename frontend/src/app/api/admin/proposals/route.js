@@ -1,3 +1,4 @@
+import { config } from '@/lib/utils';
 import { NextResponse } from 'next/server';
 
 // Force dynamic rendering for this API route
@@ -15,8 +16,15 @@ export async function GET(request) {
         console.log('📋 Admin: Fetching proposals from Hybrid API (MySQL + MongoDB)...')
         console.log('📋 Filters:', { status, page, limit, skip })
 
+        // Get auth from cookies or headers
+        const authCookie = request.cookies.get('cedo_token')?.value;
+
+        if (!authCookie) {
+            return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+        }
+
         // Connect to hybrid API (MySQL + MongoDB)
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
+        const backendUrl = config.backendUrl
         const apiUrl = `${backendUrl}/api/mongodb-proposals/admin/proposals-hybrid`
 
         // Build query parameters for backend
