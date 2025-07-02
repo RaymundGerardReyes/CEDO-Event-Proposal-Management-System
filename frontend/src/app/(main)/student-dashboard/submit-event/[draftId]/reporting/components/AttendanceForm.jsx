@@ -6,9 +6,10 @@
 
 import { Label } from "@/components/dashboard/student/ui/label";
 import { Textarea } from "@/components/dashboard/student/ui/textarea";
+import { config } from "@/lib/utils";
 import { AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { AccomplishmentReportUpload, FinalAttendanceUpload, PreRegistrationUpload } from "./FileUploadInput.jsx";
+import { AccomplishmentReportUpload, FinalAttendanceProofUpload, FinalAttendanceUpload, PreRegistrationUpload } from "./FileUploadInput.jsx";
 
 /**
  * Attendance form component for file uploads with database integration
@@ -55,13 +56,13 @@ export const AttendanceForm = ({
             console.log('🔍 AttendanceForm: Fetching proposal data for ID:', proposalId);
 
             // Make request directly to backend server, not through Next.js API routing
-            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+            const backendUrl = config.backendUrl;
             // Prefer the hybrid endpoint that works in both MySQL + MongoDB stacks
             let apiUrl = `${backendUrl}/api/mongodb-unified/proposal/${proposalId}`;
 
             // Fallback to old debug endpoint if the unified one returns 404
 
-            console.log('🌐 AttendanceForm: Backend URL env var:', process.env.NEXT_PUBLIC_BACKEND_URL);
+            console.log('🌐 AttendanceForm: Backend URL env var:', config.backendUrl);
             console.log('🌐 AttendanceForm: Using backend URL:', backendUrl);
             console.log('🌐 AttendanceForm: Full API URL:', apiUrl);
 
@@ -288,7 +289,7 @@ export const AttendanceForm = ({
                             id="preRegistrationFile"
                             onFileSelect={handleFileSelect('preRegistrationList')}
                             disabled={disabled}
-                            required={true}
+                            required={false}
                             error={errors.preRegistrationList}
                             selectedFile={uploadedFiles.preRegistrationList}
                             uploadProgress={uploadProgress.preRegistrationList}
@@ -304,7 +305,7 @@ export const AttendanceForm = ({
                             id="finalAttendanceFile"
                             onFileSelect={handleFileSelect('finalAttendanceList')}
                             disabled={disabled}
-                            required={true}
+                            required={false}
                             error={errors.finalAttendanceList}
                             selectedFile={uploadedFiles.finalAttendanceList}
                             uploadProgress={uploadProgress.finalAttendanceList}
@@ -313,6 +314,22 @@ export const AttendanceForm = ({
                             organizationName={effectiveFormData.organizationName}
                         />
                     </div>
+                </div>
+
+                {/* Final Attendance Proof */}
+                <div className="mt-6">
+                    <FinalAttendanceProofUpload
+                        id="finalAttendanceProofFile"
+                        onFileSelect={handleFileSelect('finalAttendanceProof')}
+                        disabled={disabled}
+                        required={true}
+                        error={errors.finalAttendanceProof}
+                        selectedFile={uploadedFiles.finalAttendanceProof}
+                        uploadProgress={uploadProgress.finalAttendanceProof}
+                        existingFileName={effectiveFormData.final_attendance_proof_file_name}
+                        existingFilePath={effectiveFormData.final_attendance_proof_file_path}
+                        organizationName={effectiveFormData.organizationName}
+                    />
                 </div>
 
                 {/* Attendance Count Input */}

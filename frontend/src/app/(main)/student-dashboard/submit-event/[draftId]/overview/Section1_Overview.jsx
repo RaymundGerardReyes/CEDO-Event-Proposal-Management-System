@@ -57,7 +57,7 @@ const Section1_Overview = ({ formData, onStartProposal, onContinueEditing, onVie
 
     try {
       console.log('🔍 Fetching approved events from database...')
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
+      const backendUrl = process.env.API_URL || 'http://localhost:5000'
 
       // Include contactEmail if available so the backend can filter records
       const contactEmail = formData?.contactEmail || localStorage.getItem('cedo_user_email') || ''
@@ -192,7 +192,7 @@ const Section1_Overview = ({ formData, onStartProposal, onContinueEditing, onVie
         organizationName: formData.organizationName
       })
 
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
+      const backendUrl = process.env.API_URL || 'http://localhost:5000'
 
       // Try multiple endpoints to find the report data
       let reportResponse = null
@@ -329,7 +329,7 @@ const Section1_Overview = ({ formData, onStartProposal, onContinueEditing, onVie
     console.log('📤 Report submission from Section5:', submissionData)
 
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
+      const backendUrl = process.env.API_URL || 'http://localhost:5000'
       const proposalId = formData.id || formData.proposalId
 
       const response = await fetch(`${backendUrl}/api/reports/${proposalId}`, {

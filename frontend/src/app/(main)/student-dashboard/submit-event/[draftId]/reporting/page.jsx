@@ -6,18 +6,20 @@
 "use client"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/dashboard/student/ui/alert";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/dashboard/student/ui/card";
-import { AlertCircle, CheckCircle2, FileText } from "lucide-react";
+import { AlertCircle, FileText } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import EnhancedLoadingPage from "./components/EnhancedLoadingPage.jsx";
 import ReportingErrorBoundary from "./components/ReportingErrorBoundary.jsx";
-import ReportingForm from "./components/ReportingForm.jsx";
 import ReportingLocked from "./components/ReportingLocked.jsx";
 import { useAutoSave } from "./hooks/useAutoSave.js";
 import { useProposalData } from "./hooks/useProposalData.js";
 import { saveReportingData, submitFinalReport } from "./utils/api.js";
 import { createFormDataPayload } from "./utils/helpers.js";
+
+const ReportingForm = lazy(() =>
+    import("./components/ReportingForm.jsx").then(module => ({ default: module.ReportingForm }))
+);
 
 /**
  * Main Section 5 Reporting orchestrator component
@@ -32,7 +34,7 @@ import { createFormDataPayload } from "./utils/helpers.js";
  */
 export const Section5_Reporting = ({
     formData: initialFormData = {},
-    updateFormData = () => { },
+    updateFormData,
     onSubmit = () => { },
     onPrevious = () => { },
     disabled = false,
@@ -117,14 +119,6 @@ export const Section5_Reporting = ({
                     console.log('📦 Found stored proposal data:', parsed);
                     setProposalData(parsed);
                 }
-
-                // TODO: Fetch fresh data from API based on proposalId and source
-                // const backend = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
-                // const response = await fetch(`${backend}/api/proposals/${effectiveProposalId}?source=${source}`);
-                // if (response.ok) {
-                //   const data = await response.json();
-                //   if (isMounted) setProposalData(data);
-                // }
 
             } catch (err) {
                 console.error('❌ Error fetching proposal data:', err);
@@ -258,6 +252,12 @@ export const Section5_Reporting = ({
             }
 
             const formDataPayload = createFormDataPayload(effectiveFormData, proposalIdToUse, uploadedFiles);
+
+            // Manually append the new proof file if it exists
+            if (uploadedFiles.finalAttendanceProof) {
+                formDataPayload.append('final_attendance_proof_file', uploadedFiles.finalAttendanceProof);
+            }
+
             const result = await submitFinalReport(formDataPayload);
 
             console.log('✅ ORCHESTRATOR: Final submission successful:', result);
@@ -505,32 +505,21 @@ export const Section5_Reporting = ({
 
     // Approved proposal: Show reporting form
     return (
-        <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <CheckCircle2 className="h-6 w-6 text-green-600" />
-                        Section 5 of 5: Documentation & Accomplishment Reports
-                    </CardTitle>
-                    <CardDescription>
-                        Your proposal has been approved! Please upload your documentation and accomplishment reports.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <ReportingForm
-                        formData={effectiveFormData}
-                        onFieldChange={handleFieldChange}
-                        onSubmit={handleSubmit}
-                        onPrevious={handlePrevious}
-                        disabled={disabled}
-                        isSubmitting={isSubmitting}
-                        submitSuccess={submitSuccess}
-                        autoSaveState={autoSaveState}
-                        proposalId={proposalId || proposalIdFromProps}
-                    />
-                </CardContent>
-            </Card>
-        </div>
+        <ReportingErrorBoundary>
+            <Suspense fallback={<EnhancedLoadingPage message="Compiling reporting module..." />}>
+                <ReportingForm
+                    formData={effectiveFormData}
+                    onFieldChange={handleFieldChange}
+                    onSubmit={handleSubmit}
+                    onPrevious={handlePrevious}
+                    disabled={disabled}
+                    isSubmitting={isSubmitting}
+                    submitSuccess={submitSuccess}
+                    autoSaveState={autoSaveState}
+                    proposalId={proposalId || proposalIdFromProps}
+                />
+            </Suspense>
+        </ReportingErrorBoundary>
     );
 };
 
@@ -543,7 +532,7 @@ function ReportingPageLoading() {
         <EnhancedLoadingPage
             message="Loading Reporting Section..."
             showProgress={true}
-            estimatedTime={15000}
+            estimatedTime={3000} // Faster estimate for initialization
         />
     );
 }
@@ -551,89 +540,49 @@ function ReportingPageLoading() {
 // Main page component with Suspense boundary
 export default function ReportingPage({ params, searchParams }) {
     return (
-        <ReportingErrorBoundary>
-            <Suspense fallback={<ReportingPageLoading />}>
-                <ReportingPageClient params={params} searchParams={searchParams} />
-            </Suspense>
-        </ReportingErrorBoundary>
+        <Suspense fallback={<ReportingPageLoading />}>
+            <ReportingPageClient params={params} searchParams={searchParams} />
+        </Suspense>
     );
 }
 
 // Client component wrapper that handles async params
 function ReportingPageClient({ params, searchParams }) {
-    const [resolvedParams, setResolvedParams] = useState(null);
-    const [resolvedSearchParams, setResolvedSearchParams] = useState(null);
-    const [isResolving, setIsResolving] = useState(true);
-
-    // ✅ REACT 18/NEXT.JS 15 FIX: Resolve async params in useEffect
-    useEffect(() => {
-        const resolveParams = async () => {
-            try {
-                const [resolvedP, resolvedSP] = await Promise.all([
-                    Promise.resolve(params),
-                    Promise.resolve(searchParams)
-                ]);
-
-                setResolvedParams(resolvedP);
-                setResolvedSearchParams(resolvedSP);
-
-                console.log('🏗️ ReportingPageClient resolved params:', {
-                    draftId: resolvedP?.draftId,
-                    mode: resolvedSP?.mode,
-                    proposalId: resolvedSP?.proposalId,
-                    source: resolvedSP?.source
-                });
-            } catch (error) {
-                console.error('❌ Error resolving params:', error);
-            } finally {
-                setIsResolving(false);
-            }
-        };
-
-        resolveParams();
-    }, [params, searchParams]);
-
-    // Show loading while resolving params
-    if (isResolving || !resolvedParams) {
-        return (
-            <EnhancedLoadingPage
-                message="Initializing Reporting Section..."
-                showProgress={true}
-                estimatedTime={3000}
-            />
-        );
-    }
-
-    // Extract values for the main component
-    const draftId = resolvedParams.draftId;
-    const mode = resolvedSearchParams?.mode;
-    const proposalId = resolvedSearchParams?.proposalId;
-    const source = resolvedSearchParams?.source;
-    const parsedProposalId = proposalId ? String(proposalId) : null;
-
-    console.log('🔧 ReportingPageClient rendering with:', {
-        draftId,
-        mode,
-        proposalId: parsedProposalId,
-        source
+    const [pageState, setPageState] = useState({
+        isReady: false,
+        formData: null,
     });
 
+    // Create a stable update function with useCallback
+    const updateFormData = useCallback((newData) => {
+        setPageState(prevState => ({
+            ...prevState,
+            formData: { ...prevState.formData, ...newData }
+        }));
+    }, []);
+
+    useEffect(() => {
+        const { draftId } = params || {};
+        const mode = searchParams.get('mode');
+        const source = searchParams.get('source');
+        const proposalId = searchParams.get('proposalId');
+
+        setPageState({
+            isReady: true,
+            formData: { draftId, mode, source, proposalId }
+        });
+    }, [params, searchParams]);
+
+    if (!pageState.isReady || !pageState.formData) {
+        return <ReportingPageLoading />;
+    }
+
+    // The orchestrator is now rendered with stable props
     return (
-        <ReportingErrorBoundary>
-            <Section5_Reporting
-                formData={{
-                    draftId,
-                    mode,
-                    proposalId: parsedProposalId,
-                    source
-                }}
-                updateFormData={() => { }}
-                onSubmit={() => { }}
-                onPrevious={() => { }}
-                disabled={false}
-                sectionsComplete={{}}
-            />
-        </ReportingErrorBoundary>
+        <Section5_Reporting
+            formData={pageState.formData}
+            updateFormData={updateFormData} // Pass the stable function
+        />
     );
 }
 

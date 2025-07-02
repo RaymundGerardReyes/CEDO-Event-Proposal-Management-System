@@ -3,10 +3,11 @@
 import StatusBadge from "@/components/dashboard/student/common/StatusBadge";
 import { Button } from "@/components/dashboard/student/ui/button";
 import { TabsContent } from "@/components/dashboard/student/ui/tabs";
+import { config } from "@/lib/utils";
 import { AlertTriangle, FileText, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Section5_Reporting from "./[draftId]/reporting/page";
+import { Section5_Reporting } from "./[draftId]/reporting/page";
 
 export default function AccomplishmentReport({ setActiveTab }) {
     /* ------------------------------------------------------------
@@ -42,7 +43,7 @@ export default function AccomplishmentReport({ setActiveTab }) {
                 }
 
                 const resp = await fetch(
-                    `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"}/profile`,
+                    `${config.apiUrl}/profile`,
                     {
                         method: "GET",
                         headers,
@@ -113,7 +114,7 @@ export default function AccomplishmentReport({ setActiveTab }) {
 
         try {
             const backend =
-                process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+                config.backendUrl;
 
             const queryParams = new URLSearchParams();
 
@@ -465,11 +466,11 @@ export default function AccomplishmentReport({ setActiveTab }) {
                             formData={reportFormData}
                             updateFormData={updateReportData}
                             onSubmit={() => {
-                                fetchApprovedEvents(); // Refresh list on success
-                                setSelectedEventForReport(null); // Go back to list
+                                console.log("Final report submitted!");
+                                fetchApprovedEvents(); // Re-fetch events to update status
+                                setSelectedEventForReport(null); // Return to list
                             }}
                             onPrevious={() => setSelectedEventForReport(null)}
-                            disabled={false} // The Section5 component handles its own disabled logic
                         />
                     )}
                 </div>

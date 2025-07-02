@@ -85,7 +85,7 @@ const Section2_OrgInfo = ({
 
         try {
           // Fetch complete user profile from the profile API endpoint
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/profile`, {
+          const response = await fetch(`${process.env.API_URL || 'http://localhost:5000/api'}/profile`, {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${token}`,

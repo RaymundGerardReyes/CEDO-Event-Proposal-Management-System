@@ -67,7 +67,7 @@ export const validateDateTime = (start_date, end_date, start_time, end_time) => 
  * Database / API helpers
  * ------------------------------------------------------------------------- */
 export const fetchProposalIdFromDatabase = async (formData) => {
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = process.env.API_URL || 'http://localhost:5000';
     if (formData.organizationName && formData.contactEmail) {
         try {
             const res = await fetch(`${backendUrl}/api/proposals/search`, {
@@ -158,7 +158,7 @@ export const saveSchoolEventData = async (formData) => {
 
     // 2️⃣  Upload files + create MongoDB metadata doc
     console.log('📁 FRONTEND SAVE: Step 2 - Preparing MongoDB file upload...');
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = process.env.API_URL || 'http://localhost:5000';
     const uploadUrl = `${backendUrl}/api/mongodb-unified/proposals/school-events`;
     console.log('📁 FRONTEND SAVE: MongoDB upload URL:', uploadUrl);
 
@@ -319,7 +319,7 @@ export const saveSchoolEventData = async (formData) => {
  * GridFS download helpers
  * ------------------------------------------------------------------------- */
 export const downloadFileFromMongoDB = async (proposalId, fileType) => {
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = process.env.API_URL || 'http://localhost:5000';
     const downloadUrl = `${backendUrl}/api/mongodb-unified/proposals/download/${proposalId}/${fileType}`;
     const response = await fetch(downloadUrl);
     if (!response.ok) throw new Error(`Download failed (${response.status})`);
@@ -338,7 +338,7 @@ export const downloadFileFromMongoDB = async (proposalId, fileType) => {
 };
 
 export const getAllFiles = async (proposalId) => {
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = process.env.API_URL || 'http://localhost:5000';
     const filesUrl = `${backendUrl}/api/mongodb-unified/proposals/files/${proposalId}`;
     const res = await fetch(filesUrl);
     if (!res.ok) return {};

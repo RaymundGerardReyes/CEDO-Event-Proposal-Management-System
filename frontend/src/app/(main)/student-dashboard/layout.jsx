@@ -1,7 +1,6 @@
 // frontend/src/app/(main)/student-dashboard/layout.jsx
 
 import RouterStabilizer from "@/components/RouterStabilizer";
-import { AuthProvider } from "@/contexts/auth-context";
 import ClientLayout from './clientLayout';
 
 // ✅ Enable ISR for better performance - Server Component can export revalidate
@@ -50,11 +49,9 @@ export const viewport = {
 export default function StudentDashboardLayout({ children }) {
   return (
     <RouterStabilizer>
-      <AuthProvider>
-        <ClientLayout>
-          {children}
-        </ClientLayout>
-      </AuthProvider>
+      <ClientLayout>
+        {children}
+      </ClientLayout>
     </RouterStabilizer>
   );
 }

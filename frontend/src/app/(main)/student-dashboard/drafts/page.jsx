@@ -121,7 +121,7 @@ function DraftsContent() {
 
   // Memoized backend URL and token
   const backendConfig = useMemo(() => ({
-    backend: process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000',
+    backend: process.env.API_URL || 'http://localhost:5000',
     getToken: () => {
       if (typeof window === 'undefined') return null;
       return localStorage.getItem('cedo_token') ||

@@ -246,12 +246,22 @@ export const PreRegistrationUpload = (props) => (
     />
 );
 
+export const FinalAttendanceProofUpload = (props) => (
+    <FileUploadInput
+        {...props}
+        fileType="finalAttendanceProof"
+        validFormats={["application/pdf", "image/png", "image/jpeg"]}
+        label="Final Attendance Proof"
+        description="Please upload a photo or PDF of the final attendance sheet."
+    />
+);
+
 export const FinalAttendanceUpload = (props) => (
     <FileUploadInput
         {...props}
         fileType="finalAttendanceList"
         validFormats={FILE_VALIDATION.CSV_FILES.formats}
-        label="Actual Post-Event Attendance"
+        label="Final Attendance List"
         description="Upload the final list of actual attendees (CSV format only)"
     />
 );

@@ -10,7 +10,7 @@ import Section4_CommunityEvent from "./[draftId]/community-event/Section4_Commun
 import EventTypeSelection from "./[draftId]/event-type/EventTypeSelection"
 import Section2_OrgInfo from "./[draftId]/organization/Section2_OrgInfo"
 import Section1_Overview from "./[draftId]/overview/Section1_Overview"
-import Section5_Reporting from "./[draftId]/reporting/Section5_Reporting"
+import { Section5_Reporting } from "./[draftId]/reporting/page"
 import Section3_SchoolEvent from "./[draftId]/school-event/Section3_SchoolEvent"
 import { clearFormData, debugStorage, loadFormData, saveFormData, setupFormPersistence } from "./auto-save"
 import { DebugPanel } from "./DebugPanel"

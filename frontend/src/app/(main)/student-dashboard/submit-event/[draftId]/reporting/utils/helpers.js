@@ -22,11 +22,10 @@ export const toMysqlDate = (value) => {
  * Build a normalized API base URL (backend root without /api suffix)
  * @returns {string} Normalized backend base URL
  */
+import { config } from '@/lib/utils';
+
 export const getApiBase = () => {
-    const raw = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
-    const trimmed = raw.replace(/\/+$/, '')
-    // Remove /api suffix if present since we'll add the full path in API calls
-    return trimmed.endsWith('/api') ? trimmed.slice(0, -4) : trimmed
+    return config.backendUrl;
 }
 
 /**

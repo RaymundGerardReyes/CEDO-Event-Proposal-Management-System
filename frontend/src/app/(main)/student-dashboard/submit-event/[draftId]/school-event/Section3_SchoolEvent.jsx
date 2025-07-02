@@ -149,7 +149,7 @@ const Section3_SchoolEventComponent = ({
 
               // Get current user info to search for existing proposals
               // 🔧 FIX: Use proper API base URL instead of relative path
-              const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+              const API_BASE_URL = process.env.API_URL || 'http://localhost:5000/api';
               // 🔧 FIX: Use proper token retrieval (same as auth-context.js)
               const getAuthToken = () => {
                 if (typeof window !== 'undefined') {

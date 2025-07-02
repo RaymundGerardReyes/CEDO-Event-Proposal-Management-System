@@ -4,7 +4,9 @@
 // This replaces the separate school/community event APIs
 // All data goes to the single 'proposals' table
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+import { config } from '@/lib/utils';
+
+const API_BASE_URL = config.backendUrl;
 
 // ===================================================================
 // CORE PROPOSAL API FUNCTIONS

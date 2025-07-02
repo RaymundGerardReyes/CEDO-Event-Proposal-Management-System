@@ -241,7 +241,7 @@ export const submitFinalReport = async (formDataPayload) => {
     console.log('📋 API: Submitting final Section 5 report');
 
     const backendUrl = getApiBase();
-    const response = await fetch(`${backendUrl}/api/mongodb-unified/section5-reporting`, {
+    const response = await fetch(`${backendUrl}/api/mongodb-unified/admin/section5-reporting`, {
         method: 'POST',
         body: formDataPayload
     });
@@ -390,12 +390,6 @@ export const fetchProposalStatus = async (formData) => {
     }
 };
 
-/**
- * Recover missing form data from various sources
- * @param {Object} currentFormData - Current form data
- * @param {number} attemptNumber - Current attempt number
- * @returns {Promise<Object|null>} Recovered data or null
- */
 /**
  * Fetch admin comments for a specific proposal
  * @param {string} proposalId - Proposal ID

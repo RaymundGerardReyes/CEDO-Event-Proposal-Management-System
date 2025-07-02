@@ -73,7 +73,7 @@ const saveCommunityEventData = async (formData) => {
   }
 
   // Use MongoDB API endpoint for community events
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+  const backendUrl = process.env.API_URL || 'http://localhost:5000';
   const apiUrl = `${backendUrl}/api/mongodb-unified/proposals/community-events`; // MongoDB community events endpoint
 
   console.log('Sending community event request to MongoDB:', apiUrl);

@@ -7,10 +7,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/dashboard/stud
 import { Button } from "@/components/dashboard/student/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/dashboard/student/ui/card";
 import { AlertCircle, ArrowLeft, CheckCircle, LockIcon, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import AttendanceForm from "./AttendanceForm.jsx";
-import EventDetailsForm from "./EventDetailsForm.jsx";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
+import EnhancedLoadingPage from "./EnhancedLoadingPage.jsx";
 import { ConnectionStatus, ProgressBar, StatusBadge } from "./StatusBadge.jsx";
+
+const EventDetailsForm = lazy(() => import('./EventDetailsForm.jsx'));
+const AttendanceForm = lazy(() => import('./AttendanceForm.jsx'));
 
 /**
  * Main reporting form component
@@ -43,7 +45,8 @@ export const ReportingForm = ({
     const [uploadedFiles, setUploadedFiles] = useState({
         accomplishmentReport: null,
         preRegistrationList: null,
-        finalAttendanceList: null
+        finalAttendanceList: null,
+        finalAttendanceProof: null
     });
     const [uploadProgress, setUploadProgress] = useState({});
     const [formProgress, setFormProgress] = useState(0);
@@ -82,6 +85,12 @@ export const ReportingForm = ({
 
         if (!uploadedFiles.finalAttendanceList && !data.final_attendance_file_path) {
             newErrors.finalAttendanceList = "Please upload the Final Attendance List";
+        } else {
+            completedFields++;
+        }
+
+        if (!uploadedFiles.finalAttendanceProof && !data.final_attendance_proof_file_path) {
+            newErrors.finalAttendanceProof = "Please upload the Final Attendance Proof";
         } else {
             completedFields++;
         }
@@ -328,65 +337,62 @@ export const ReportingForm = ({
                     </div>
                 </CardHeader>
 
-                <CardContent className="space-y-6">
-                    {/* Event Details Form */}
-                    <EventDetailsForm
-                        formData={formData}
-                        errors={errors}
-                        onFieldChange={onFieldChange}
-                        disabled={disabled}
-                        isSaving={isAutoSaving}
-                        lastSaved={lastSaved}
-                        saveError={saveError}
-                    />
+                <CardContent className="space-y-8">
+                    <Suspense fallback={<EnhancedLoadingPage showProgress={false} message="Loading event details..." />}>
+                        <EventDetailsForm
+                            formData={formData}
+                            onFieldChange={onFieldChange}
+                            errors={errors}
+                            disabled={disabled}
+                        />
+                    </Suspense>
 
-                    {/* Attendance Form */}
-                    <AttendanceForm
-                        formData={formData}
-                        errors={errors}
-                        uploadedFiles={uploadedFiles}
-                        uploadProgress={uploadProgress}
-                        onFieldChange={onFieldChange}
-                        onFileUpload={handleFileUpload}
-                        disabled={disabled}
-                        proposalId={proposalId}
-                    />
+                    <Suspense fallback={<EnhancedLoadingPage showProgress={false} message="Loading attendance section..." />}>
+                        <AttendanceForm
+                            onFileUpload={handleFileUpload}
+                            onFieldChange={onFieldChange}
+                            uploadedFiles={uploadedFiles}
+                            uploadProgress={uploadProgress}
+                            errors={errors}
+                            disabled={disabled}
+                            formData={formData}
+                        />
+                    </Suspense>
                 </CardContent>
 
-                <CardFooter className="flex justify-between">
-                    <Button variant="outline" onClick={onPrevious} disabled={disabled} type="button">
+                <CardFooter className="flex justify-between items-center pt-6">
+                    <Button type="button" variant="outline" onClick={onPrevious} disabled={isSubmitting}>
                         <ArrowLeft className="mr-2 h-4 w-4" /> Previous
                     </Button>
 
-                    <Button
-                        type="submit"
-                        disabled={!isValid || disabled || isSubmitting}
-                        className={
-                            !isValid || disabled || isSubmitting
-                                ? "opacity-50 cursor-not-allowed"
-                                : submitSuccess
-                                    ? "bg-green-600 hover:bg-green-700"
-                                    : "bg-blue-600 hover:bg-blue-700"
-                        }
-                    >
-                        {isSubmitting ? (
-                            <>
-                                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                                Submitting...
-                            </>
-                        ) : submitSuccess ? (
-                            <>
-                                <CheckCircle className="mr-2 h-4 w-4" />
-                                Submitted Successfully!
-                            </>
-                        ) : (
-                            <>
-                                Submit Post-Event Report <CheckCircle className="ml-2 h-4 w-4" />
-                            </>
-                        )}
-                    </Button>
+                    <div className="flex items-center gap-4">
+                        <ConnectionStatus
+                            isSaving={isAutoSaving}
+                            lastSaved={lastSaved}
+                            saveError={saveError}
+                            onRetry={retrySave}
+                            onClearError={clearSaveError}
+                        />
+                        <Button
+                            type="submit"
+                            disabled={!isValid || isSubmitting || disabled}
+                            className="w-48"
+                        >
+                            {isSubmitting ? "Submitting..." : "Submit Final Report"}
+                        </Button>
+                    </div>
                 </CardFooter>
             </Card>
+
+            {submitSuccess && (
+                <Alert variant="success" className="mt-6">
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertTitle>Submission Successful!</AlertTitle>
+                    <AlertDescription>
+                        Your report has been submitted. You will be notified once it has been reviewed.
+                    </AlertDescription>
+                </Alert>
+            )}
         </form>
     );
 };

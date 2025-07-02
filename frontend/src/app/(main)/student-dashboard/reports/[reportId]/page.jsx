@@ -82,7 +82,7 @@ function transformProposalData(proposal, backendUrl) {
  * @returns {Promise<Object>} Report data or null if not found
  */
 async function fetchReportData(reportId, token) {
-    const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = process.env.API_URL || 'http://localhost:5000';
 
     // Try the authenticated endpoint first
     try {
