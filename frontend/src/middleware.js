@@ -122,6 +122,13 @@ function buildUrl(path, origin) {
 }
 
 export default async function middleware(request) {
+  // Skip authentication logic for Link-prefetch and build manifests
+  const isPrefetch =
+    request.headers.get("purpose") === "prefetch" ||
+    request.headers.get("x-middleware-prefetch") === "1";
+
+  if (isPrefetch) return NextResponse.next();
+
   const { pathname, origin } = request.nextUrl;
 
   // Skip middleware for static assets and Next.js internals
@@ -200,7 +207,7 @@ export default async function middleware(request) {
   // Redirect to login if accessing protected routes without authentication
   if (!isPublicRoute) {
     console.log(`Unauthenticated access to ${pathname}. Redirecting to /login`);
-    const loginUrl = new URL("/login", origin);
+    const loginUrl = new URL("/sign-in", origin);
     loginUrl.searchParams.set("redirect", pathname);
 
     const response = NextResponse.redirect(loginUrl, { status: 303 });
@@ -219,14 +226,7 @@ export default async function middleware(request) {
 // Configure which routes the middleware should run on
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public assets (images, etc.)
-     */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.gif$|.*\\.svg$|.*\\.ico$|.*\\.css$|.*\\.js$).*)',
+    '/((?!_next/static|_next/image|favicon.ico).*)',
+    { source: '/:path*', missing: [{ key: 'purpose', value: 'prefetch' }] },
   ],
 };

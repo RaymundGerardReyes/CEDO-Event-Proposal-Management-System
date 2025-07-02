@@ -1,6 +1,8 @@
 // @/lib/draft-api.js
 
-const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+import { config } from "@/lib/utils";
+
+const API_URL = config.backendUrl;
 
 /**
  * Creates a new, empty draft proposal on the backend.

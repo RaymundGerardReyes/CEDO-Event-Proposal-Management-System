@@ -124,6 +124,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { config } from "@/lib/utils";
 import {
   Calendar,
   CheckCircle,
@@ -139,6 +140,59 @@ import {
   XCircle
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+// ✅ Request deduplication cache to prevent duplicate API calls
+const requestCache = new Map();
+const CACHE_DURATION = 2000; // 2 seconds
+
+// ✅ Debounce utility function
+const debounce = (func, wait) => {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+};
+
+// ✅ Retry utility with exponential backoff for 429 errors
+const retryWithBackoff = async (fn, maxRetries = 3, baseDelay = 1000) => {
+  let lastError;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+
+      // Only retry on 429 (Too Many Requests) errors
+      if (error.message && error.message.includes('429') && attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff
+        console.log(`🔄 Rate limited, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries + 1})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw lastError;
+};
+
+// ✅ Create request cache key
+const createCacheKey = (currentPage, statusFilter, searchTerm) => {
+  return `${currentPage}-${statusFilter}-${searchTerm}`;
+};
+
+// ✅ Check if request is already in flight
+const isRequestInFlight = (cacheKey) => {
+  const cached = requestCache.get(cacheKey);
+  return cached && (Date.now() - cached.timestamp < CACHE_DURATION);
+};
 
 const statusColors = {
   pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
@@ -177,6 +231,15 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
     toastRef.current = toast
   }, [toast])
 
+  // ✅ Ref to track if component is mounted (prevent state updates after unmount)
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // Memoized filtered proposals for performance
   const filteredProposals = useMemo(() => {
     if (!searchTerm) return proposals;
@@ -188,80 +251,119 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
     );
   }, [proposals, searchTerm]);
 
-  // Fetch proposals from the backend API
+  // ✅ Enhanced fetch proposals with rate limiting protection
   const fetchProposals = useCallback(async () => {
-    setLoading(true)
+    if (!isMountedRef.current) return;
+
+    const cacheKey = createCacheKey(currentPage, statusFilter, searchTerm);
+
+    if (isRequestInFlight(cacheKey)) {
+      console.log('🚫 Request already in flight, skipping:', cacheKey);
+      return;
+    }
+
+    setLoading(true);
+    requestCache.set(cacheKey, { timestamp: Date.now() });
+
     try {
-      // Build query parameters
-      const queryParams = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: '10',
-        ...(statusFilter && statusFilter !== 'all' && { status: statusFilter }),
-        ...(searchTerm && { search: searchTerm }),
-      }).toString()
+      // ✅ Retry with exponential backoff for 429 errors
+      const result = await retryWithBackoff(async () => {
+        // Build query parameters
+        const queryParams = new URLSearchParams({
+          page: currentPage.toString(),
+          limit: '10',
+          ...(statusFilter && statusFilter !== 'all' && { status: statusFilter }),
+          ...(searchTerm && { search: searchTerm }),
+        }).toString()
 
-      // ✅ Use hybrid API endpoint that combines MySQL + MongoDB
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
-      const apiUrl = `${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?${queryParams}`
-      console.log('📊 Fetching proposals from hybrid API:', apiUrl)
-      console.log('📊 Query params:', { currentPage, statusFilter, searchTerm })
+        // ✅ Use hybrid API endpoint that combines MySQL + MongoDB
+        const backendUrl = config.backendUrl
+        const apiUrl = `${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?${queryParams}`
+        console.log('📊 Fetching proposals from hybrid API:', apiUrl)
+        console.log('📊 Query params:', { currentPage, statusFilter, searchTerm })
 
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
+        const response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        })
 
-      console.log('📡 Frontend API response:', response.status, response.statusText)
+        console.log('📡 Frontend API response:', response.status, response.statusText)
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('❌ Frontend API error:', response.status, response.statusText, errorText)
-        throw new Error(`API request failed: ${response.status} - ${response.statusText}`)
-      }
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error('❌ Frontend API error:', response.status, response.statusText, errorText)
+          throw new Error(`API request failed: ${response.status} - ${response.statusText}`)
+        }
 
-      const data = await response.json()
-      console.log('📊 Raw API response data:', data)
+        return await response.json();
+      });
 
-      if (data.success) {
-        const proposals = data.proposals || []
-        const pagination = data.pagination || {}
+      if (!isMountedRef.current) return;
+
+      console.log('📊 Raw API response data:', result)
+
+      if (result.success) {
+        const proposals = result.proposals || []
+        const pagination = result.pagination || {}
         setProposals(proposals)
         setPagination(pagination)
         console.log('✅ Proposals fetched successfully:', proposals.length)
         console.log('📊 Sample proposal data:', proposals[0])
         console.log('📊 Pagination data:', pagination)
       } else {
-        console.error('❌ Error fetching proposals:', data.error)
-        toastRef.current({
-          title: "Error",
-          description: data.error || "Failed to fetch proposals",
-          variant: "destructive"
-        })
+        console.error('❌ Error fetching proposals:', result.error)
+        if (isMountedRef.current) {
+          toastRef.current({
+            title: "Error",
+            description: result.error || "Failed to fetch proposals",
+            variant: "destructive"
+          })
+        }
       }
     } catch (error) {
       console.error('❌ Fetch error:', error)
-      toastRef.current({
-        title: "Error",
-        description: "Failed to connect to server. Please check if the backend is running.",
-        variant: "destructive"
-      })
+      if (isMountedRef.current) {
+        // ✅ Better error handling for rate limiting
+        if (error.message && error.message.includes('429')) {
+          toastRef.current({
+            title: "Rate Limited",
+            description: "Too many requests. Please wait a moment before trying again.",
+            variant: "destructive"
+          })
+        } else {
+          toastRef.current({
+            title: "Error",
+            description: "Failed to connect to server. Please check if the backend is running.",
+            variant: "destructive"
+          })
+        }
+      }
     } finally {
-      setLoading(false)
+      requestCache.delete(cacheKey);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
-  }, [currentPage, statusFilter, searchTerm])
+  }, [currentPage, statusFilter, searchTerm]) // ✅ REMOVED `loading` dependency to fix infinite loop
 
-  // Fetch proposals on component mount and when dependencies change
+  // ✅ Debounced version of fetchProposals to prevent rapid calls
+  const debouncedFetchProposals = useMemo(
+    () => debounce(fetchProposals, 300), // Pass a flag to indicate it's a debounced call
+    [fetchProposals]
+  );
+
+  // ✅ Use debounced fetch on component mount and when dependencies change
   useEffect(() => {
-    fetchProposals()
-  }, [fetchProposals])
+    debouncedFetchProposals()
+  }, [debouncedFetchProposals])
 
   // ✅ Enhanced proposal status update with comment support
   const updateProposalStatus = async (proposalId, newStatus, adminComments = '') => {
     setActionLoading(true)
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
+      const backendUrl = config.backendUrl
       const response = await fetch(`${backendUrl}/api/mongodb-unified/admin/proposals/${proposalId}/status`, {
         method: 'PATCH',
         headers: {
@@ -320,7 +422,7 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
   // ✅ Fetch updated proposal details after status change
   const fetchUpdatedProposalDetails = async (proposalId) => {
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
+      const backendUrl = config.backendUrl
 
       // Try to fetch individual proposal details first
       let response = await fetch(`${backendUrl}/api/mongodb-unified/admin/proposals/${proposalId}`, {
@@ -382,7 +484,7 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
   // ✅ Simple MongoDB GridFS file download
   const downloadFile = async (proposalId, fileType) => {
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
+      const backendUrl = config.backendUrl
       console.log(`🔍 Downloading ${fileType} for proposal ${proposalId}`)
 
       toast({
@@ -441,9 +543,24 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
 
   // Format time for display
   const formatTime = (timeString) => {
-    if (!timeString) return 'N/A'
-    return timeString
-  }
+    if (!timeString) return 'N/A';
+
+    try {
+      // timeString is expected to be in "HH:mm:ss" format from the database.
+      const [hours, minutes] = timeString.split(':');
+
+      let h = parseInt(hours, 10);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+
+      h = h % 12;
+      h = h || 12; // Convert hour '0' to '12'
+
+      return `${h}:${minutes} ${ampm}`;
+    } catch (error) {
+      console.error('Error formatting time:', timeString, error);
+      return timeString; // Fallback to original string if something goes wrong
+    }
+  };
 
   if (loading) {
     return (

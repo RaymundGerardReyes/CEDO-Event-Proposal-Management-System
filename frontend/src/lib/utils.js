@@ -115,3 +115,57 @@ export function getResponsiveColumns(totalItems, maxColumns = 4) {
     if (totalItems <= 3) return 3
     return Math.min(totalItems, maxColumns)
 }
+
+// Environment configuration utility
+// Centralizes access to environment variables with fallbacks
+
+export const config = {
+    // API Configuration
+    apiUrl: process.env.API_URL || "http://localhost:5000/api",
+    backendUrl: process.env.API_URL ? process.env.API_URL.replace(/\/api$/, '') : "http://localhost:5000",
+
+    // Authentication Configuration
+    googleClientId: process.env.GOOGLE_CLIENT_ID,
+    recaptchaSiteKey: process.env.RECAPTCHA_SITE_KEY,
+    sessionTimeoutMinutes: parseInt(process.env.SESSION_TIMEOUT_MINUTES, 10) || 30,
+
+    // App Configuration
+    appEnv: process.env.APP_ENV || process.env.NODE_ENV || "development",
+    isDevelopment: process.env.NODE_ENV === "development",
+    isProduction: process.env.NODE_ENV === "production",
+
+    // Feature Flags
+    disableGoogleSignInInDev: process.env.DISABLE_GOOGLE_SIGNIN_IN_DEV === "true",
+    enableDomErrorRecovery: process.env.ENABLE_DOM_ERROR_RECOVERY === "true",
+};
+
+// Validation helpers
+export const validateConfig = () => {
+    const errors = [];
+
+    if (!config.googleClientId && config.isProduction) {
+        errors.push("GOOGLE_CLIENT_ID is required in production");
+    }
+
+    if (!config.recaptchaSiteKey && config.isProduction) {
+        errors.push("RECAPTCHA_SITE_KEY is required in production");
+    }
+
+    if (errors.length > 0) {
+        console.error("Configuration validation errors:", errors);
+        return false;
+    }
+
+    return true;
+};
+
+// API URL builders
+export const buildApiUrl = (path = "") => {
+    const cleanPath = path.startsWith("/") ? path : `/${path}`;
+    return `${config.apiUrl}${cleanPath}`;
+};
+
+export const buildBackendUrl = (path = "") => {
+    const cleanPath = path.startsWith("/") ? path : `/${path}`;
+    return `${config.backendUrl}${cleanPath}`;
+};

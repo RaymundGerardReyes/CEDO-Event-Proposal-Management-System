@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { config } from "@/lib/utils";
+import { useEffect, useState } from 'react';
 
 export default function DebugProposalPage() {
     const [data, setData] = useState(null)
@@ -18,7 +19,7 @@ export default function DebugProposalPage() {
                 console.log('✅ Frontend API test:', testData)
 
                 // Test direct backend call
-                const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
+                const backendUrl = config.backendUrl
                 const directResponse = await fetch(`${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?limit=2`)
 
                 if (!directResponse.ok) {

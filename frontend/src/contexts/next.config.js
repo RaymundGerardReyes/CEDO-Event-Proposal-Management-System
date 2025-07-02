@@ -54,7 +54,7 @@ const nextConfig = {
     },
     // ... rest of your config (i18n, eslint, typescript, redirects, etc.) ...
     env: {
-        NEXT_PUBLIC_APP_ENV: process.env.NODE_ENV || "development",
+        APP_ENV: process.env.NODE_ENV || "development",
     },
     distDir: ".next",
 };
