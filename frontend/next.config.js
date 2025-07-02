@@ -16,76 +16,41 @@ const baseConfig = {
   poweredByHeader: false, // Remove X-Powered-By header for security
   generateEtags: true, // Enable ETags for better caching
 
-  // Experimental features (optimized for production)
+  // Experimental features (Windows-optimized for stable builds)
   experimental: {
-    // Enable scroll restoration
+    // WINDOWS FIX: Disable problematic experimental features that cause hangs
+    // Only enable essential features for production stability
+
+    // Enable scroll restoration (stable)
     scrollRestoration: true,
 
-    // CRITICAL: Optimize package imports for faster builds and smaller bundles
-    optimizePackageImports: [
-      // Radix UI components (your heavy dependencies)
-      "@radix-ui/react-avatar",
-      "@radix-ui/react-checkbox",
-      "@radix-ui/react-collapsible",
-      "@radix-ui/react-dialog",
-      "@radix-ui/react-dropdown-menu",
-      "@radix-ui/react-hover-card",
-      "@radix-ui/react-label",
-      "@radix-ui/react-popover",
-      "@radix-ui/react-progress",
-      "@radix-ui/react-radio-group",
-      "@radix-ui/react-scroll-area",
-      "@radix-ui/react-select",
-      "@radix-ui/react-separator",
-      "@radix-ui/react-slot",
-      "@radix-ui/react-tabs",
-      "@radix-ui/react-toast",
-      "@radix-ui/react-tooltip",
-      // Icon libraries
-      "lucide-react",
-      "react-icons",
-      // Heavy libraries
-      "framer-motion",
-      "date-fns",
-      "react-hook-form",
-      "@hookform/resolvers",
-      "class-variance-authority",
-      "clsx",
-      "tailwind-merge",
-      // State management
-      "@xstate/react",
-      "xstate",
-      // Other utilities
-      "zod",
-    ],
+    // WINDOWS FIX: Disable package import optimization that causes build hangs
+    // optimizePackageImports: [], // Disabled for Windows stability
 
-    // Server Actions optimization
+    // Server Actions optimization (simplified)
     serverActions: {
       allowedOrigins: ["localhost:3000", "127.0.0.1:3000"],
       bodySizeLimit: "2mb",
     },
 
-    // Enable optimistic client cache for faster navigation
-    optimisticClientCache: true,
+    // WINDOWS FIX: Disable optimistic client cache (can cause issues)
+    // optimisticClientCache: false,
 
-    // PRODUCTION: Enable CSS optimization
+    // PRODUCTION: Enable CSS optimization only when stable
     optimizeCss: process.env.NODE_ENV === "production",
 
-    // Enable build workers first (required for parallel builds)
-    webpackBuildWorker: true,
+    // WINDOWS FIX: Disable webpack build worker (causes hangs on Windows)
+    // webpackBuildWorker: false,
 
-    // Enable parallel processing in production
-    parallelServerBuildTraces: process.env.NODE_ENV === "production",
-    parallelServerCompiles: process.env.NODE_ENV === "production",
+    // WINDOWS FIX: Disable parallel processing (causes Windows build issues)
+    // parallelServerBuildTraces: false,
+    // parallelServerCompiles: false,
 
-    // PERFORMANCE: Partial prerendering disabled for stable production
-    // ppr: "incremental", // Only available in Next.js canary versions
+    // WINDOWS FIX: Disable server components HMR cache
+    // serverComponentsHmrCache: false,
 
-    // PERFORMANCE: Enable server components HMR cache
-    serverComponentsHmrCache: true,
-
-    // PERFORMANCE: Enable CSS chunking for better caching
-    cssChunking: 'strict',
+    // WINDOWS FIX: Use loose CSS chunking instead of strict
+    cssChunking: true,
   },
 
   // ENHANCED Image optimization
@@ -116,7 +81,7 @@ const baseConfig = {
   pageExtensions: ["js", "jsx"],
 
   // Build output optimization
-  output: "standalone",
+  // output: "standalone", // Not needed for simple container
 
   // ESLint configuration
   eslint: {
@@ -131,12 +96,15 @@ const baseConfig = {
 
   // Environment variables - Critical for middleware
   env: {
-    NEXT_PUBLIC_APP_ENV: process.env.NODE_ENV || "development",
-    NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000",
+    APP_ENV: process.env.NODE_ENV || "development",
+    BACKEND_URL: process.env.BACKEND_URL || "http://localhost:5000",
+    API_URL: process.env.API_URL || "http://localhost:5000/api",
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+    RECAPTCHA_SITE_KEY: process.env.RECAPTCHA_SITE_KEY,
     JWT_SECRET_DEV: process.env.JWT_SECRET_DEV,
     JWT_SECRET: process.env.JWT_SECRET,
     // Session timeout mapping
-    NEXT_PUBLIC_SESSION_TIMEOUT_MINUTES: (() => {
+    SESSION_TIMEOUT_MINUTES: (() => {
       const raw = process.env.SESSION_TIMEOUT_MINUTES;
       const parsed = parseInt(raw, 10);
       return String(
