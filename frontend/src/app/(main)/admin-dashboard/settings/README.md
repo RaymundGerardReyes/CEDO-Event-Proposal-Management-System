@@ -267,7 +267,7 @@ npm start
 ```
 
 ### Environment Variables
-- `NEXT_PUBLIC_API_URL`: Backend API endpoint (for production)
+- `API_URL`: Backend API endpoint (for production)
 - Development uses the mock API automatically
 
 ## 📈 Performance Optimizations

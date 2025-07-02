@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { Suspense, useCallback, useEffect, useState } from "react";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = process.env.API_URL || 'http://localhost:5000/api';
 
 function ReportsContent() {
     const [mounted, setMounted] = useState(false)

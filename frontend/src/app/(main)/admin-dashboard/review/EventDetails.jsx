@@ -1,8 +1,24 @@
 // frontend/src/app/(main)/admin-dashboard/review/EventDetails.jsx
 
-import { Label } from "@/components/dashboard/admin/ui/label"
-import { Button } from "@/components/dashboard/admin/ui/button"
-import { FileText, Download } from "lucide-react"
+import { Button } from "@/components/dashboard/admin/ui/button";
+import { Label } from "@/components/dashboard/admin/ui/label";
+import { Download, FileText } from "lucide-react";
+
+// ✅ Reusable time formatting function to convert "HH:mm:ss" to "h:mm AM/PM".
+const formatTime = (timeString) => {
+  if (!timeString) return 'N/A';
+  try {
+    const [hours, minutes] = timeString.split(':');
+    let h = parseInt(hours, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    h = h || 12; // Convert hour '0' to '12'
+    return `${h}:${minutes} ${ampm}`;
+  } catch (error) {
+    console.error('Error formatting time:', timeString, error);
+    return timeString; // Fallback to original string if something goes wrong
+  }
+};
 
 export default function EventDetails({ selectedProposal }) {
   if (!selectedProposal?.details) return null
@@ -44,7 +60,7 @@ export default function EventDetails({ selectedProposal }) {
           <div>
             <Label className="text-xs text-muted-foreground">Start/End Time</Label>
             <p>
-              {schoolEvent.startTime} - {schoolEvent.endTime}
+              {formatTime(schoolEvent.startTime)} - {formatTime(schoolEvent.endTime)}
             </p>
           </div>
           <div>
@@ -115,6 +131,12 @@ export default function EventDetails({ selectedProposal }) {
             <Label className="text-xs text-muted-foreground">Start/End Date</Label>
             <p>
               {communityEvent.startDate} - {communityEvent.endDate}
+            </p>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Start/End Time</Label>
+            <p>
+              {formatTime(communityEvent.startTime)} - {formatTime(communityEvent.endTime)}
             </p>
           </div>
           <div>

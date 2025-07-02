@@ -31,7 +31,7 @@ export default function ReviewPage() {
     const term = searchTerm.toLowerCase()
     return proposals.filter((proposal) => {
       // Normalise strings safely (fallback to empty string)
-      const titleStr = (proposal.title || proposal.eventName || '').toLowerCase()
+      const titleStr = (proposal.title || proposal.event_name || '').toLowerCase()
       const submitterStr = (proposal.submitter?.name || proposal.contactPerson || '').toLowerCase()
 
       const matchesSearch = !term || titleStr.includes(term) || submitterStr.includes(term)
@@ -55,10 +55,11 @@ export default function ReviewPage() {
   useEffect(() => {
     (async () => {
       try {
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
-        console.log('📊 Fetching proposals from:', `${backendUrl}/api/proposals/admin/proposals?limit=100`);
+        const backendUrl = process.env.API_URL || 'http://localhost:5000';
+        // ✅ Use the MongoDB unified endpoint that includes file metadata
+        console.log('📊 Fetching proposals from:', `${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?limit=100`);
 
-        const res = await fetch(`${backendUrl}/api/proposals/admin/proposals?limit=100`);
+        const res = await fetch(`${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?limit=100`);
 
         if (!res.ok) {
           throw new Error(`Failed to fetch proposals: ${res.status}`);
@@ -67,7 +68,7 @@ export default function ReviewPage() {
         const data = await res.json()
         if (data.success) {
           const transformed = (data.proposals || []).map((p) => {
-            const nameFallback = p.contactPerson || p.organizationName || 'Unknown'
+            const nameFallback = p.contactPerson || p.organizationName || p.contact_name || 'Unknown'
             const initials = nameFallback
               .split(/\s+/)
               .map((n) => n[0] || '')
@@ -77,91 +78,41 @@ export default function ReviewPage() {
 
             const normalisedStatus = p.status ? (p.status === 'denied' ? 'rejected' : p.status) : 'pending'
 
-            // Build synthetic event detail blocks from flat MySQL columns so the
-            // UI tabs have something to display.
-
-            const buildSchoolEvent = () => {
-              if (!p.school_event_type && p.organizationType !== 'school-based') return undefined
-
-              const audienceRaw = p.school_target_audience ? (() => {
-                try { return JSON.parse(p.school_target_audience) } catch { return p.school_target_audience }
-              })() : []
-
-              return {
-                name: p.eventName || '',
-                description: p.description || '',
-                venue: p.venue || p.event_venue || '',
-                startDate: p.startDate || p.event_start_date || '',
-                endDate: p.endDate || p.event_end_date || '',
-                startTime: p.timeStart || p.event_start_time || '',
-                endTime: p.timeEnd || p.event_end_time || '',
-                type: p.school_event_type || '',
-                audience: audienceRaw,
-                mode: p.eventMode || p.event_mode || 'offline',
-                credits: p.school_return_service_credit || '',
-                attachments: {
-                  gpoa: p.school_gpoa_file_name || '—',
-                  proposal: p.school_proposal_file_name || '—',
-                },
-              }
-            }
-
-            const buildCommunityEvent = () => {
-              if (!p.community_event_type && p.organizationType !== 'community-based') return undefined
-
-              const audienceRaw = p.community_target_audience ? (() => {
-                try { return JSON.parse(p.community_target_audience) } catch { return p.community_target_audience }
-              })() : []
-
-              return {
-                name: p.eventName || '',
-                description: p.description || '',
-                venue: p.venue || p.event_venue || '',
-                startDate: p.startDate || p.event_start_date || '',
-                endDate: p.endDate || p.event_end_date || '',
-                type: p.community_event_type || '',
-                audience: audienceRaw,
-                mode: p.eventMode || p.event_mode || 'offline',
-                credits: p.community_sdp_credits || '',
-                attachments: {
-                  gpoa: p.community_gpoa_file_name || '—',
-                  proposal: p.community_proposal_file_name || '—',
-                },
-              }
-            }
-
-            const schoolEvent = buildSchoolEvent()
-            const communityEvent = buildCommunityEvent()
-
             return {
+              // ✅ Pass through all the raw database fields for OverviewTab
               ...p,
+              // ✅ Keep normalized fields for table compatibility
               status: normalisedStatus,
               priority: p.priority || 'medium',
-              title: p.title || p.eventName || 'Untitled Event',
-              date: p.submittedAt || p.created_at || p.createdAt || new Date().toISOString(),
-              category: p.category || p.organizationType || 'General',
+              title: p.title || p.event_name || 'Untitled Event',
+              date: p.submitted_at || p.created_at || new Date().toISOString(),
+              category: p.category || p.organization_type || 'General',
               submitter: {
                 name: nameFallback,
                 avatar: p.submitter?.avatar || null,
                 initials,
               },
-              details: p.details || {
+              // ✅ Keep legacy details structure for compatibility but add files
+              details: {
                 purpose: p.purpose || p.category || 'Event Proposal',
                 organization: {
-                  description: p.description || p.organizationDescription || '',
-                  type: [p.organizationType || 'unknown'],
+                  description: p.organization_description || '',
+                  type: [p.organization_type || 'unknown'],
                 },
-                ...(schoolEvent ? { schoolEvent } : {}),
-                ...(communityEvent ? { communityEvent } : {}),
                 comments: [],
+                // ✅ Include file information from MongoDB
+                files: p.files || {},
+                hasFiles: p.hasFiles || false,
+                adminComments: p.adminComments || null,
               },
             }
           })
 
           setProposals(transformed)
 
-          // Debug logging to help identify status issues
+          // Debug logging to help identify status and file issues
           console.log('📊 Proposals loaded:', transformed.length)
+          console.log('📊 Sample proposal with files:', transformed.find(p => p.details.hasFiles))
           console.log('📊 Status breakdown:', {
             pending: transformed.filter(p => p.status === 'pending').length,
             approved: transformed.filter(p => p.status === 'approved').length,
@@ -440,8 +391,8 @@ export default function ReviewPage() {
                             <TableCell>{new Date(proposal.date).toLocaleDateString()}</TableCell>
                             <TableCell>
                               <div className="max-w-xs">
-                                <p className="text-sm text-gray-600 truncate">
-                                  {proposal.rejectionReason || proposal.reviewComment || 'No reason provided'}
+                                <p className="text-sm text-gray-600 truncate" title={proposal.rejectionReason}>
+                                  {proposal.rejectionReason || 'No reason provided'}
                                 </p>
                               </div>
                             </TableCell>

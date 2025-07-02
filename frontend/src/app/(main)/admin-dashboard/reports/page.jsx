@@ -32,7 +32,7 @@ import ReportGenerator from "./ReportGenerator";
 // ===================================================================
 
 // API base URL - adjust according to your backend setup
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = process.env.API_URL || 'http://localhost:5000/api';
 
 // Fetch organizations with real data from MySQL database
 const fetchOrganizations = async (filters = {}) => {

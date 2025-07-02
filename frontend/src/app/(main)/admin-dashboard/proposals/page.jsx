@@ -8,9 +8,12 @@ import { PageHeader } from "@/components/dashboard/admin/page-header";
 import { ProposalTable } from "@/components/dashboard/admin/proposal-table";
 import { Card, CardContent } from "@/components/dashboard/admin/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/dashboard/admin/ui/tabs";
-import { Suspense } from 'react'; // Added Suspense import
+import { Suspense, useState } from 'react'; // Added useState
 
 const ProposalsPage = () => {
+  // ✅ Single state to manage current active tab/status filter
+  const [activeStatusFilter, setActiveStatusFilter] = useState('all');
+
   // Enhanced fallback UI for Suspense with zoom-perfect responsive design
   const ProposalTableFallback = () => (
     <div className="w-full max-w-full zoom-safe">
@@ -72,6 +75,12 @@ const ProposalsPage = () => {
     </div>
   );
 
+  // ✅ Handle tab changes and update status filter
+  const handleTabChange = (newValue) => {
+    console.log('🔄 Tab changed from', activeStatusFilter, 'to', newValue);
+    setActiveStatusFilter(newValue);
+  };
+
   return (
     <div
       className="flex-1 bg-[#f8f9fa] min-h-screen zoom-safe"
@@ -85,7 +94,12 @@ const ProposalsPage = () => {
 
         <Card className="cedo-card shadow-sm border-0 zoom-safe">
           <CardContent style={{ padding: 'clamp(0.75rem, 3vw, 1.25rem)' }}>
-            <Tabs defaultValue="all" className="space-y-fluid zoom-safe">
+            <Tabs
+              defaultValue="all"
+              value={activeStatusFilter}
+              onValueChange={handleTabChange}
+              className="space-y-fluid zoom-safe"
+            >
               <div className="overflow-x-auto zoom-safe">
                 <TabsList className="inline-flex w-auto min-w-full grid-cols-5 bg-gray-100 rounded-lg zoom-safe"
                   style={{
@@ -146,55 +160,25 @@ const ProposalsPage = () => {
                 </TabsList>
               </div>
 
-              <TabsContent
-                value="all"
+              {/* ✅ Single ProposalTable that reacts to status filter changes */}
+              <div
                 className="zoom-safe"
                 style={{ marginTop: 'clamp(0.75rem, 1.5vw, 1rem)' }}
               >
                 <Suspense fallback={<ProposalTableFallback />}>
-                  <ProposalTable statusFilter="all" />
+                  <ProposalTable
+                    statusFilter={activeStatusFilter === 'drafts' ? 'draft' : activeStatusFilter}
+                    key={activeStatusFilter} // Force re-mount on filter change to ensure fresh data
+                  />
                 </Suspense>
-              </TabsContent>
+              </div>
 
-              <TabsContent
-                value="pending"
-                className="zoom-safe"
-                style={{ marginTop: 'clamp(0.75rem, 1.5vw, 1rem)' }}
-              >
-                <Suspense fallback={<ProposalTableFallback />}>
-                  <ProposalTable statusFilter="pending" />
-                </Suspense>
-              </TabsContent>
-
-              <TabsContent
-                value="approved"
-                className="zoom-safe"
-                style={{ marginTop: 'clamp(0.75rem, 1.5vw, 1rem)' }}
-              >
-                <Suspense fallback={<ProposalTableFallback />}>
-                  <ProposalTable statusFilter="approved" />
-                </Suspense>
-              </TabsContent>
-
-              <TabsContent
-                value="rejected"
-                className="zoom-safe"
-                style={{ marginTop: 'clamp(0.75rem, 1.5vw, 1rem)' }}
-              >
-                <Suspense fallback={<ProposalTableFallback />}>
-                  <ProposalTable statusFilter="rejected" />
-                </Suspense>
-              </TabsContent>
-
-              <TabsContent
-                value="drafts"
-                className="zoom-safe"
-                style={{ marginTop: 'clamp(0.75rem, 1.5vw, 1rem)' }}
-              >
-                <Suspense fallback={<ProposalTableFallback />}>
-                  <ProposalTable statusFilter="draft" />
-                </Suspense>
-              </TabsContent>
+              {/* ✅ Keep TabsContent for proper tab functionality but don't render separate tables */}
+              <TabsContent value="all" className="hidden" />
+              <TabsContent value="pending" className="hidden" />
+              <TabsContent value="approved" className="hidden" />
+              <TabsContent value="rejected" className="hidden" />
+              <TabsContent value="drafts" className="hidden" />
             </Tabs>
           </CardContent>
         </Card>

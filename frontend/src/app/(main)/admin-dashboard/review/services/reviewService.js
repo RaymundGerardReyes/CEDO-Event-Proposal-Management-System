@@ -11,7 +11,8 @@
  * - Clean error handling
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000/api';
+
+const API_BASE_URL = process.env.API_URL || "http://localhost:5000/api";
 
 class ReviewService {
     /**

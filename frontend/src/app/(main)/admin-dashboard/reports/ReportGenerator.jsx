@@ -208,7 +208,7 @@ const MetricCard = ({ icon: Icon, title, value, change, color = "blue" }) => {
     );
 };
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = process.env.API_URL || 'http://localhost:5000/api';
 
 // Helper function to get formatted export type name
 const getExportFormatName = (format) => {

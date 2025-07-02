@@ -9,8 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/dashboard
 import EventDetails from "../../EventDetails";
 import CommentsPanel from "../../comments";
 import DecisionPanel from "../../decision";
-import DocumentationTab from "./tabs/DocumentationTab";
 import OverviewTab from "./tabs/OverviewTab";
+
 
 const ReviewDialogTabs = ({
     proposal,
@@ -72,18 +72,6 @@ const ReviewDialogTabs = ({
                     >
                         Decision
                     </TabsTrigger>
-                    {isApprovedProposal && (
-                        <TabsTrigger
-                            value="documentation"
-                            className="
-                text-sm font-medium rounded-md transition-all duration-200
-                data-[state=active]:bg-cedo-blue data-[state=active]:text-white data-[state=active]:shadow-sm
-                hover:bg-gray-100 data-[state=active]:hover:bg-cedo-blue
-              "
-                        >
-                            Documentation
-                        </TabsTrigger>
-                    )}
                 </TabsList>
             </div>
 
@@ -113,12 +101,6 @@ const ReviewDialogTabs = ({
                     setReviewComment={setReviewComment}
                 />
             </TabsContent>
-
-            {isApprovedProposal && (
-                <TabsContent value="documentation" className="space-y-6">
-                    <DocumentationTab proposal={proposal} />
-                </TabsContent>
-            )}
         </Tabs>
     );
 };

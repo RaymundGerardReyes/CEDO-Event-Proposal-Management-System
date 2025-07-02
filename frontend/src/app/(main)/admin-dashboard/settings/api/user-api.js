@@ -15,10 +15,11 @@
  * - Real-time database updates
  */
 
+import { config } from '@/lib/utils';
 import axios from 'axios';
 
 // Use the same API configuration as auth-context.js
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_URL = config.apiUrl;
 
 // Create axios instance with same configuration as auth-context
 const api = axios.create({
