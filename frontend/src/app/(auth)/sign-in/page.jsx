@@ -25,6 +25,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
 import { ROLES, useAuth } from "@/contexts/auth-context"; // Ensure ROLES are correctly imported if used here
 import { useIsMobile } from "@/hooks/use-mobile";
+import { config } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
@@ -93,7 +94,7 @@ function SignInContent() {
   const [captchaToken, setCaptchaToken] = useState(null);
   const [isErrorDialogOpen, setIsErrorDialogOpen] = useState(false);
 
-  const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+  const recaptchaSiteKey = config.recaptchaSiteKey;
   const GOOGLE_BUTTON_CONTAINER_ID = "google-signin-button-container";
 
   const isMobile = useIsMobile();

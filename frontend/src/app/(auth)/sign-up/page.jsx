@@ -226,7 +226,7 @@ export default function SignUpPage() {
       <div className="flex justify-center items-center h-screen min-h-screen">
         <p className="text-red-500 p-4 text-center">
           Error: reCAPTCHA Site Key is not configured.<br />
-          Please set the NEXT_PUBLIC_RECAPTCHA_SITE_KEY environment variable in your .env.local file.
+          Please set the RECAPTCHA_SITE_KEY environment variable in your .env.local file.
         </p>
       </div>
     );

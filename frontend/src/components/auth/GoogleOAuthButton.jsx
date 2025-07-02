@@ -1,8 +1,9 @@
 "use client";
 
+import { useAuth } from '@/contexts/auth-context';
+import { config } from "@/lib/utils";
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { useAuth } from '@/contexts/auth-context';
 
 /**
  * Google OAuth Button Component
@@ -43,7 +44,7 @@ export default function GoogleOAuthButton({
             console.log('🚀 Initiating Google OAuth flow...');
 
             // Construct the OAuth initiation URL
-            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+            const backendUrl = config.backendUrl;
             const currentUrl = window.location.origin;
             const finalRedirectUrl = redirectUrl || currentUrl;
 
@@ -83,7 +84,7 @@ export default function GoogleOAuthButton({
             console.log('🔄 Processing OAuth callback...');
 
             // Get current user info from the backend to verify authentication
-            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+            const backendUrl = config.backendUrl;
             const response = await fetch(`${backendUrl}/auth/oauth/me`, {
                 credentials: 'include', // Important: Include cookies for authentication
                 headers: {
@@ -136,7 +137,7 @@ export default function GoogleOAuthButton({
         try {
             console.log('Raw Google response:', response);
 
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/google`, {
+            const res = await fetch(`${config.apiUrl}/auth/google`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ token: response.credential || response.access_token })
@@ -255,7 +256,7 @@ export default function GoogleOAuthButton({
  */
 export async function checkOAuthAuthentication() {
     try {
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+        const backendUrl = config.backendUrl;
         const response = await fetch(`${backendUrl}/auth/oauth/me`, {
             credentials: 'include',
             headers: {
@@ -280,7 +281,7 @@ export async function checkOAuthAuthentication() {
  */
 export async function logoutOAuth() {
     try {
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+        const backendUrl = config.backendUrl;
         const response = await fetch(`${backendUrl}/auth/oauth/logout`, {
             method: 'POST',
             credentials: 'include',

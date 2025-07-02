@@ -1,6 +1,8 @@
 // frontend/src/lib/google-auth.js
 
-const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+import { config } from "@/lib/utils";
+
+const GOOGLE_CLIENT_ID = config.googleClientId;
 
 let googleScriptLoadPromise = null;
 let gsiClientInitPromise = null;

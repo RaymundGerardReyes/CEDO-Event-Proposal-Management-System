@@ -2,15 +2,16 @@
 "use client";
 
 import { useToast } from "@/components/ui/use-toast";
+import { config } from "@/lib/utils";
 import axios from "axios";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_URL = config.apiUrl;
 
-// Session timeout: NEXT_PUBLIC_SESSION_TIMEOUT_MINUTES guaranteed > 0 by next.config.js
+// Session timeout: SESSION_TIMEOUT_MINUTES guaranteed > 0 by next.config.js
 // Read from .env as SESSION_TIMEOUT_MINUTES=30, mapped via next.config.js
-const SESSION_TIMEOUT_DURATION = process.env.NEXT_PUBLIC_SESSION_TIMEOUT_MINUTES * 60 * 1000;
+const SESSION_TIMEOUT_DURATION = config.sessionTimeoutMinutes * 60 * 1000;
 
 const internalApi = axios.create({
   baseURL: API_URL,
@@ -138,53 +139,83 @@ export function AuthProvider({ children }) {
       console.log("✅ User role detected:", loggedInUser.role);
       console.log("✅ User dashboard from JWT:", loggedInUser.dashboard);
 
-      let targetPath;
-      if (currentRedirectParam && currentRedirectParam !== pathname) {
-        targetPath = currentRedirectParam;
-        console.log("🎯 Using redirect param:", targetPath);
-      } else {
-        if (loggedInUser.dashboard) {
-          targetPath = loggedInUser.dashboard;
-          console.log("🎯 Using user dashboard:", targetPath);
-        } else {
-          console.log("🔍 Determining path by role...");
-          switch (loggedInUser.role) {
-            case ROLES.HEAD_ADMIN:
-              console.log("👑 HEAD_ADMIN detected, routing to /admin-dashboard");
-              targetPath = "/admin-dashboard";
-              break;
-            case ROLES.MANAGER:
-              console.log("👤 MANAGER detected, routing to /admin-dashboard");
-              targetPath = "/admin-dashboard";
-              break;
-            case ROLES.STUDENT:
-              console.log("🎓 STUDENT detected, routing to /student-dashboard");
-              targetPath = "/student-dashboard";
-              break;
-            case ROLES.PARTNER:
-              console.log("🤝 PARTNER detected, routing to /student-dashboard");
-              targetPath = "/student-dashboard";
-              break;
-            default:
-              console.log("❓ Unknown role, routing to /");
-              targetPath = "/";
-              break;
-          }
+      // 🔧 SMART REDIRECT LOGIC - Check if user is already in a valid area
+      const isValidStudentArea = pathname.startsWith("/student-dashboard");
+      const isValidAdminArea = pathname.startsWith("/admin-dashboard");
+      const isAuthRoute = ["/sign-in", "/signup", "/login", "/sign-up"].includes(pathname);
+      const isRootPath = pathname === "/";
+
+      // Define role-based access validation
+      const hasValidAccess = () => {
+        switch (loggedInUser.role) {
+          case ROLES.HEAD_ADMIN:
+          case ROLES.MANAGER:
+            return isValidAdminArea || isRootPath || isAuthRoute;
+          case ROLES.STUDENT:
+          case ROLES.PARTNER:
+          case ROLES.REVIEWER:
+            return isValidStudentArea || isRootPath || isAuthRoute;
+          default:
+            return false;
         }
+      };
+
+      // Only redirect if necessary
+      let shouldRedirect = false;
+      let targetPath = pathname;
+
+      if (currentRedirectParam && currentRedirectParam !== pathname) {
+        // Honor explicit redirect parameter
+        targetPath = currentRedirectParam;
+        shouldRedirect = true;
+        console.log("🎯 Using redirect param:", targetPath);
+      } else if (isAuthRoute) {
+        // Redirect away from auth routes when authenticated
+        shouldRedirect = true;
+        targetPath = loggedInUser.dashboard || getDefaultDashboardForRole(loggedInUser.role);
+        console.log("🚀 Redirecting away from auth route to:", targetPath);
+      } else if (isRootPath) {
+        // Redirect from root to appropriate dashboard
+        shouldRedirect = true;
+        targetPath = loggedInUser.dashboard || getDefaultDashboardForRole(loggedInUser.role);
+        console.log("🚀 Redirecting from root to:", targetPath);
+      } else if (!hasValidAccess()) {
+        // User is in an area they don't have access to
+        shouldRedirect = true;
+        targetPath = loggedInUser.dashboard || getDefaultDashboardForRole(loggedInUser.role);
+        console.log("🚀 Access denied, redirecting to:", targetPath);
+      } else {
+        // User is already in a valid area, don't redirect
+        console.log("✅ User is already in valid area, no redirect needed:", pathname);
       }
 
       console.log("🎯 Final target path:", targetPath);
-      console.log("🎯 Current pathname:", pathname);
+      console.log("🎯 Should redirect:", shouldRedirect);
 
-      if (pathname !== targetPath) {
+      if (shouldRedirect && pathname !== targetPath) {
         console.log("🚀 Redirecting from", pathname, "to", targetPath);
         router.replace(targetPath);
       } else {
-        console.log("✅ Already on correct path:", pathname);
+        console.log("✅ Staying on current path:", pathname);
       }
     },
     [router, currentSearchParamsHook, pathname],
   );
+
+  // Helper function to get default dashboard for role
+  const getDefaultDashboardForRole = (role) => {
+    switch (role) {
+      case ROLES.HEAD_ADMIN:
+      case ROLES.MANAGER:
+        return "/admin-dashboard";
+      case ROLES.STUDENT:
+      case ROLES.PARTNER:
+      case ROLES.REVIEWER:
+        return "/student-dashboard";
+      default:
+        return "/";
+    }
+  };
 
   let commonSignOutLogicWithDependencies;
 
@@ -306,13 +337,9 @@ export function AuthProvider({ children }) {
 
   const signOut = useCallback(
     async (redirect = true, redirectPath = "/sign-in") => {
-      let effectiveRedirectPath = redirectPath;
-      if (redirectPath === "/sign-in" && pathname !== "/sign-in" && pathname !== "/") {
-        effectiveRedirectPath = `/sign-in?redirect=${encodeURIComponent(pathname)}`;
-      }
-      await commonSignOutLogicWithDependencies(redirect, effectiveRedirectPath);
+      await commonSignOutLogicWithDependencies(redirect, redirectPath);
     },
-    [commonSignOutLogicWithDependencies, pathname]
+    [commonSignOutLogicWithDependencies]
   );
 
   useEffect(() => {
@@ -627,10 +654,10 @@ export function AuthProvider({ children }) {
         console.log("AuthContext: signInWithGoogleAuth - Attempting to load Google script...");
         await loadGoogleScript();
         console.log("AuthContext: signInWithGoogleAuth - Google script loaded. Checking Client ID...");
-        const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+        const clientId = config.googleClientId;
         if (!clientId) {
           console.error("AuthContext: signInWithGoogleAuth - Google Client ID is not configured.");
-          throw new Error("Google Client ID (NEXT_PUBLIC_GOOGLE_CLIENT_ID) is not configured in environment variables.");
+          throw new Error("Google Client ID (GOOGLE_CLIENT_ID) is not configured in environment variables.");
         }
         console.log("AuthContext: signInWithGoogleAuth - Client ID found. Initializing GSI if needed...");
 
