@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 // Use the shared, already-authenticated MongoClient promise so GridFS always reuses
 // the same credentials that the rest of the application relies on.
-const { clientPromise } = require('../config/mongodb');
+const { getClientWithRetry } = require('../config/mongodb');
 
 // Helper to lazily resolve the native DB instance from the shared connection with retry logic
 const getNativeDb = async (maxRetries = 3) => {
@@ -9,8 +9,8 @@ const getNativeDb = async (maxRetries = 3) => {
         try {
             console.log(`🔄 (GridFS Utility) Native DB connection attempt ${attempt}/${maxRetries}`);
 
-            // Use the enhanced clientPromise which now includes retry logic
-            const client = await clientPromise(); // Call as function since we exported the retry wrapper
+            // Use the enhanced getClientWithRetry which includes retry logic
+            const client = await getClientWithRetry(); // Call the retry wrapper function
             const db = client.db(); // default DB comes from the connection string
 
             // Test the connection by running a simple command with timeout

@@ -9,7 +9,7 @@ const { pool } = require("../config/db")
 async function tableExists(tableName) {
     try {
         // Get the database name from environment variables
-        const dbName = process.env.DB_NAME || process.env.MYSQL_DATABASE || "cedo_auth"
+        const dbName = process.env.MYSQL_DATABASE || "cedo_auth"
 
         // Query to check if the table exists
         const [rows] = await pool.query(

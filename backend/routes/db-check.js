@@ -26,7 +26,7 @@ router.get("/db-check", async (req, res) => {
 router.get("/tables-check", async (req, res) => {
     try {
         // Get database name
-        const dbName = process.env.MYSQL_DATABASE || process.env.DB_NAME || "cedo_auth"
+        const dbName = process.env.MYSQL_DATABASE || "cedo_auth"
 
         // Check if users table exists
         const [usersTables] = await pool.query(

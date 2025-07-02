@@ -69,7 +69,45 @@ const memoryUpload = multer({
     }
 });
 
+const accomplishmentReportUpload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB limit
+    },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'text/csv',
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
+            'image/webp'
+        ];
+
+        if (allowedTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid file type. Only PDF, Word, Excel, CSV, and image files are allowed.'));
+        }
+    }
+}).fields([
+    { name: 'accomplishment_report_file', maxCount: 1 },
+    { name: 'pre_registration_file', maxCount: 1 },
+    { name: 'final_attendance_file', maxCount: 1 },
+    { name: 'final_attendance_proof_file', maxCount: 1 }
+]);
+
+const complianceReportUpload = upload.fields([
+    // ... existing code ...
+]);
+
 module.exports = {
     upload,
-    memoryUpload
-}; 
+    memoryUpload,
+    accomplishmentReportUpload,
+    complianceReportUpload
+};

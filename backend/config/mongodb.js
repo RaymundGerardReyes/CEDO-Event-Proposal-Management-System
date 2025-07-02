@@ -251,6 +251,7 @@ process.on('SIGINT', async () => {
 
 module.exports = {
     clientPromise,
+    getClientWithRetry,
     getDatabase,
     testConnection,
     debugMongoDB,

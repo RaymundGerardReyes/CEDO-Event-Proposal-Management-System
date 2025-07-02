@@ -8,7 +8,7 @@ console.log("Attempting to setup MySQL connection pool...") // Log startup step
 // For Docker or other environments, use the environment variable.
 const dbHost = process.env.NODE_ENV === 'development'
   ? '127.0.0.1'
-  : (process.env.DB_HOST || 'mysql');
+  : (process.env.MYSQL_HOST || 'mysql');
 
 // 🔍 ENHANCED PASSWORD DEBUGGING
 console.log('\n🔍 MYSQL PASSWORD DEBUG:');
@@ -16,26 +16,26 @@ console.log('========================');
 console.log(`DB_PASSWORD env var: ${process.env.DB_PASSWORD ? 'SET (length: ' + process.env.DB_PASSWORD.length + ')' : '❌ UNDEFINED'}`);
 console.log(`MYSQL_PASSWORD env var: ${process.env.MYSQL_PASSWORD ? 'SET (length: ' + process.env.MYSQL_PASSWORD.length + ')' : '❌ UNDEFINED'}`);
 
-const actualPassword = process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD;
+const actualPassword = process.env.MYSQL_PASSWORD;
 console.log(`Final password being used: ${actualPassword ? 'SET (length: ' + actualPassword.length + ')' : '❌ NO PASSWORD'}`);
 console.log(`Password starts with: ${actualPassword ? actualPassword.substring(0, 3) + '***' : 'N/A'}`);
 console.log('========================\n');
 
 console.log("Database connection parameters:", {
   host: dbHost,
-  port: process.env.DB_PORT || '3306',
-  user: process.env.DB_USER || 'root',
-  database: process.env.DB_NAME || process.env.MYSQL_DATABASE,
+  port: process.env.MYSQL_PORT || '3306',
+  user: process.env.MYSQL_USER || 'root',
+  database: process.env.MYSQL_DATABASE,
   // Not logging full password for security reasons
 })
 
 // Enhanced connection pool configuration for production performance
 const poolConfig = {
-  host: process.env.DB_HOST || process.env.MYSQL_HOST || 'localhost',
-  port: process.env.DB_PORT || process.env.MYSQL_PORT || 3306,
-  user: process.env.DB_USER || process.env.MYSQL_USER || 'root',
-  password: process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || '',
-  database: process.env.DB_NAME || process.env.MYSQL_DATABASE || 'cedo_auth',
+  host: process.env.MYSQL_HOST || 'localhost',
+  port: process.env.MYSQL_PORT || 3306,
+  user: process.env.MYSQL_USER || 'root',
+  password: process.env.MYSQL_PASSWORD || '',
+  database: process.env.MYSQL_DATABASE || 'cedo_auth',
 
   // PRODUCTION CONNECTION POOLING
   connectionLimit: process.env.NODE_ENV === 'production' ? 50 : 10, // Higher limit for production
