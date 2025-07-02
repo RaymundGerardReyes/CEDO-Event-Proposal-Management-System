@@ -107,12 +107,12 @@ describe('SignInPage Exhaustive Stress Tests', () => {
         usePathname.mockReturnValue('/sign-in');
         useToast.mockReturnValue({ toast: mockToast });
         useIsMobile.mockReturnValue(false);
-        process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY = 'mock-site-key';
+        process.env.RECAPTCHA_SITE_KEY = 'mock-site-key';
     });
 
     afterEach(() => {
         jest.useRealTimers();
-        delete process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+        delete process.env.RECAPTCHA_SITE_KEY;
     });
 
     // Helper function to submit form properly

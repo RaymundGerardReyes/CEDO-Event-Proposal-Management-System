@@ -59,9 +59,9 @@ const originalEnv = process.env;
 beforeAll(() => {
     process.env = {
         ...originalEnv,
-        NEXT_PUBLIC_SESSION_TIMEOUT_MINUTES: '30',
-        NEXT_PUBLIC_GOOGLE_CLIENT_ID: 'mock-google-client-id',
-        NEXT_PUBLIC_API_URL: 'http://localhost:5050/api'
+        SESSION_TIMEOUT_MINUTES: '30',
+        GOOGLE_CLIENT_ID: 'mock-google-client-id',
+        API_URL: 'http://localhost:5050/api'
     };
 });
 

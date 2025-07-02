@@ -177,7 +177,7 @@ describe('Google Auth Library (google-auth.js)', () => {
         });
 
         test('IGG_002: Rejects if GOOGLE_CLIENT_ID is not configured', async () => {
-            process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID = ''; // Unset client ID
+            process.env.GOOGLE_CLIENT_ID = ''; // Unset client ID
             // Reset modules to re-evaluate GOOGLE_CLIENT_ID at the top of google-auth.js
             jest.resetModules();
             const { initializeGoogleGIS: initFn } = require('../src/lib/google-auth');

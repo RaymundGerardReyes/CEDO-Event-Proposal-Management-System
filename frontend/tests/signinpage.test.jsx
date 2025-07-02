@@ -99,7 +99,7 @@ describe('SignInPage', () => {
     beforeEach(() => {
         // Reset mocks and environment variables before each test
         jest.clearAllMocks();
-        process.env = { ...originalEnv, NEXT_PUBLIC_RECAPTCHA_SITE_KEY: 'test-recaptcha-key' };
+        process.env = { ...originalEnv, RECAPTCHA_SITE_KEY: 'test-recaptcha-key' };
         // @ts-ignore
         mockPathname.mockReturnValue('/sign-in');
         // @ts-ignore

@@ -65,7 +65,7 @@ describe('API Service (api.js)', () => {
         mockLocalStorage.clear();
         window.location.href = '';
         window.location.pathname = '/some-page'; // Default pathname for tests
-        process.env = { ...originalEnv, NEXT_PUBLIC_API_URL: 'http://test-api.com/api' };
+        process.env = { ...originalEnv, API_URL: 'http://test-api.com/api' };
 
         // Simulate interceptor setup
         // The actual api.js file calls use() on import. We need to capture those.
@@ -83,16 +83,16 @@ describe('API Service (api.js)', () => {
         test('AIC_001: Creates axios instance with default API_URL', () => {
             // We need to re-import or re-run the module logic to test create with different env
             jest.resetModules();
-            process.env.NEXT_PUBLIC_API_URL = ''; // Force fallback
+            process.env.API_URL = ''; // Force fallback
             require('./api'); // Re-run the module to call axios.create
             expect(axios.create).toHaveBeenCalledWith(expect.objectContaining({
                 baseURL: "http://localhost:5000/api",
             }));
         });
 
-        test('AIC_002: Creates axios instance with process.env.NEXT_PUBLIC_API_URL', () => {
+        test('AIC_002: Creates axios instance with process.env.API_URL', () => {
             jest.resetModules();
-            process.env.NEXT_PUBLIC_API_URL = 'https://custom-api.com/v1';
+            process.env.API_URL = 'https://custom-api.com/v1';
             require('./api');
             expect(axios.create).toHaveBeenCalledWith(expect.objectContaining({
                 baseURL: "https://custom-api.com/v1",
