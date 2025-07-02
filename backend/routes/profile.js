@@ -5,11 +5,11 @@ const jwt = require('jsonwebtoken');
 
 // Database connection configuration - Updated to match your setup
 const dbConfig = {
-    host: process.env.DB_HOST || process.env.MYSQL_HOST || '127.0.0.1',
-    user: process.env.DB_USER || process.env.MYSQL_USER || 'root',
-    password: process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || '',
-    database: process.env.DB_NAME || process.env.MYSQL_DATABASE || 'cedo_auth',
-    port: process.env.DB_PORT || process.env.MYSQL_PORT || 3306
+    host: process.env.MYSQL_HOST || '127.0.0.1',
+    user: process.env.MYSQL_USER || 'root',
+    password: process.env.MYSQL_PASSWORD || '',
+    database: process.env.MYSQL_DATABASE || 'cedo_auth',
+    port: process.env.MYSQL_PORT || 3306
 };
 
 // Check if the token is likely a JWT

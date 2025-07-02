@@ -47,9 +47,10 @@ function setupMongoMonitoring() {
  * Synchronize proposal data between MySQL and MongoDB
  * @param {string} proposalId - The proposal ID to synchronize
  * @param {object} additionalData - Additional data to sync
+ * @param {object} options - Options for synchronization (optional)
  * @returns {Promise<object>} Synchronization result
  */
-const syncProposalData = async (proposalId, additionalData = {}) => {
+const syncProposalData = async (proposalId, additionalData = {}, options = {}) => {
     const startTime = Date.now();
     const cacheKey = CacheKeys.proposal(proposalId);
 
@@ -270,14 +271,18 @@ const getOrganizationName = async (proposalId) => {
  * Update proposal status in both databases
  * @param {string} proposalId - The proposal ID
  * @param {string} newStatus - The new status
+ * @param {string} userId - The user making the change (optional)
+ * @param {object} options - Additional options (optional)
  * @returns {Promise<object>} Update result
  */
-const updateProposalStatus = async (proposalId, newStatus) => {
+const updateProposalStatus = async (proposalId, newStatus, userId = 'system', options = {}) => {
     const startTime = Date.now();
     const connection = await pool.getConnection();
 
     try {
-        console.log('🔄 DATA SYNC: Updating proposal status:', { proposalId, newStatus });
+        console.log('🔄 DATA SYNC: Updating proposal status:', { proposalId, newStatus, userId });
+
+        await connection.beginTransaction();
 
         // Optimistic locking: check if proposal was modified
         const [currentData] = await connection.execute(
@@ -286,6 +291,7 @@ const updateProposalStatus = async (proposalId, newStatus) => {
         );
 
         if (!currentData || currentData.length === 0) {
+            await connection.rollback();
             throw new Error(`Proposal ${proposalId} not found`);
         }
 
@@ -293,33 +299,52 @@ const updateProposalStatus = async (proposalId, newStatus) => {
 
         // Check version for optimistic locking (if version field exists)
         if (options.expectedVersion && current.version !== options.expectedVersion) {
+            await connection.rollback();
             throw new Error('Proposal was modified by another user. Please refresh and try again.');
         }
 
-        // Update proposal with version increment
-        const [updateResult] = await connection.execute(
-            `UPDATE proposals 
-             SET status = ?, updated_at = NOW(), updated_by = ?, version = version + 1
-             WHERE id = ?`,
-            [newStatus, userId, proposalId]
-        );
+        // Update proposal - handle cases where version column may not exist
+        let updateQuery, updateParams;
+        if (current.version !== undefined) {
+            updateQuery = `UPDATE proposals 
+                          SET status = ?, updated_at = NOW(), updated_by = ?, version = version + 1
+                          WHERE id = ?`;
+            updateParams = [newStatus, userId, proposalId];
+        } else {
+            updateQuery = `UPDATE proposals 
+                          SET status = ?, updated_at = NOW(), updated_by = ?
+                          WHERE id = ?`;
+            updateParams = [newStatus, userId, proposalId];
+        }
+
+        const [updateResult] = await connection.execute(updateQuery, updateParams);
 
         if (updateResult.affectedRows === 0) {
+            await connection.rollback();
             throw new Error('Failed to update proposal status');
         }
 
-        // Log the status change
-        await connection.execute(
-            `INSERT INTO proposal_status_log (proposal_id, old_status, new_status, changed_by, changed_at)
-             VALUES (?, ?, ?, ?, NOW())`,
-            [proposalId, current.status, newStatus, userId]
-        );
+        // Log the status change - create table if it doesn't exist
+        try {
+            await connection.execute(
+                `INSERT INTO proposal_status_log (proposal_id, old_status, new_status, changed_by, changed_at)
+                 VALUES (?, ?, ?, ?, NOW())`,
+                [proposalId, current.status, newStatus, userId]
+            );
+        } catch (logError) {
+            // If status log table doesn't exist, just log the warning but don't fail
+            console.warn('⚠️ Could not log status change (table may not exist):', logError.message);
+        }
 
         await connection.commit();
 
         // Invalidate caches
-        await cache.del(CacheKeys.proposal(proposalId));
-        await cache.delPattern(`user:*:proposals`); // Clear user proposal lists
+        try {
+            await cache.del(CacheKeys.proposal(proposalId));
+            await cache.delPattern(`user:*:proposals`); // Clear user proposal lists
+        } catch (cacheError) {
+            console.warn('⚠️ Cache invalidation failed:', cacheError.message);
+        }
 
         console.log(`✅ Proposal ${proposalId} status updated: ${current.status} → ${newStatus} (${Date.now() - startTime}ms)`);
 
@@ -408,10 +433,32 @@ process.on('SIGINT', async () => {
     }
 });
 
-// MongoDB initialization is now handled by the main server startup sequence
-// initMongoDB().catch(console.error); // Removed to prevent conflicts with shared connection
+/**
+ * Initialize the data sync service
+ * Sets up MongoDB connection and monitoring
+ */
+const initialize = async () => {
+    console.log('🔧 Data-Sync Service: Initializing...');
+
+    try {
+        const mongoInitialized = await initMongoDB();
+
+        if (mongoInitialized) {
+            console.log('✅ Data-Sync Service: MongoDB connection established');
+        } else {
+            console.warn('⚠️ Data-Sync Service: MongoDB connection failed, continuing in limited mode');
+        }
+
+        console.log('✅ Data-Sync Service: Initialization complete');
+        return mongoInitialized;
+    } catch (error) {
+        console.error('❌ Data-Sync Service: Initialization failed:', error.message);
+        throw error;
+    }
+};
 
 module.exports = {
+    initialize,
     syncProposalData,
     ensureProposalConsistency,
     getOrganizationName,
