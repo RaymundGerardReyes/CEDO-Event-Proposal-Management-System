@@ -561,8 +561,8 @@ const getUserDraftsAndRejected = async (req, res) => {
             const { clientPromise } = require('../config/mongodb');
 
             // Get client and database
-            const client = await clientPromise;
-            const db = client.db('cedo_auth');
+            const client = await clientPromise();
+            const db = client.db('cedo_db');
 
             console.log('🍃 MongoDB: Connection established successfully');
 

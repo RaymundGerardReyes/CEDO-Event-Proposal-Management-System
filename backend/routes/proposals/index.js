@@ -5,6 +5,7 @@ const reportController = require('../../controllers/report.controller');
 const { validateToken } = require("../../middleware/auth");
 const { upload } = require("../../config/multer.config");
 const { createProposalValidation, updateProposalValidation } = require("../../validators/proposal.validator");
+const { rateLimiters } = require('../../middleware/performance');
 
 const adminRoutes = require('./admin.routes');
 const reportRoutes = require('./report.routes');
@@ -162,7 +163,7 @@ router.post(
     proposalController.createProposal
 );
 
-router.get("/", validateToken, proposalController.getProposals);
+router.get("/", validateToken, rateLimiters.table, proposalController.getProposals);
 router.get("/:id", validateToken, proposalController.getProposalById);
 
 router.put(

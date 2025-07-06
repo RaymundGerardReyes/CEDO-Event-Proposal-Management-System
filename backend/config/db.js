@@ -1,6 +1,6 @@
 // backend/config/db.js
 const mysql = require('mysql2/promise');
-require("dotenv").config({ path: '../.env' }); // Ensure environment variables are loaded from the root
+require("dotenv").config({ path: './.env' }); // Load from current directory
 
 console.log("Attempting to setup MySQL connection pool...") // Log startup step
 
@@ -31,11 +31,19 @@ console.log("Database connection parameters:", {
 
 // Enhanced connection pool configuration for production performance
 const poolConfig = {
+<<<<<<< HEAD
   host: process.env.MYSQL_HOST || 'localhost',
   port: process.env.MYSQL_PORT || 3306,
   user: process.env.MYSQL_USER || 'root',
   password: process.env.MYSQL_PASSWORD || '',
   database: process.env.MYSQL_DATABASE || 'cedo_auth',
+=======
+  host: process.env.DB_HOST || process.env.MYSQL_HOST || 'localhost',
+  port: process.env.DB_PORT || process.env.MYSQL_PORT || 3306,
+  user: process.env.DB_USER || process.env.MYSQL_USER || 'root',
+  password: process.env.MYSQL_PASSWORD || process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || process.env.MYSQL_DATABASE || 'cedo_auth',
+>>>>>>> f6553a8 (Refactor backend services and configuration files)
 
   // PRODUCTION CONNECTION POOLING
   connectionLimit: process.env.NODE_ENV === 'production' ? 50 : 10, // Higher limit for production

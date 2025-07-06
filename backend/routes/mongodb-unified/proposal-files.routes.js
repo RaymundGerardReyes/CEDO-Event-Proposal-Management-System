@@ -1,3 +1,25 @@
+/**
+ * =============================================
+ * MONGODB UNIFIED ROUTES - File Management
+ * =============================================
+ * 
+ * This module handles all file upload, download, and management operations
+ * for proposal documents. It uses GridFS for efficient file storage and
+ * provides metadata management for file tracking.
+ * 
+ * @module routes/mongodb-unified/proposal-files
+ * @author CEDO Development Team
+ * @version 1.0.0
+ * 
+ * @description
+ * Features:
+ * - GridFS file uploads with metadata
+ * - File download with proper headers
+ * - File metadata management
+ * - Cross-platform file handling
+ * - File validation and error handling
+ */
+
 const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
@@ -11,11 +33,137 @@ const {
     fsPromises,
     uploadsDir,
     pool,
+    validateProposalId,
+    createErrorResponse,
+    createSuccessResponse
 } = require('./helpers');
 
-// ------------------------------------------------------------------
-// FILE UPLOAD – links files to MySQL proposal via proposalId field
-// ------------------------------------------------------------------
+// =============================================
+// SHARED UTILITY FUNCTIONS
+// =============================================
+
+/**
+ * Validate file upload request
+ * 
+ * @param {Object} reqBody - Request body
+ * @param {Object} files - Uploaded files
+ * @returns {Object} Validation result
+ */
+const validateFileUpload = (reqBody, files) => {
+    const errors = [];
+
+    if (!reqBody.proposal_id) {
+        errors.push('proposal_id is required');
+    }
+
+    if (!files || Object.keys(files).length === 0) {
+        errors.push('No files uploaded');
+    }
+
+    const validFileTypes = ['gpoaFile', 'proposalFile', 'accomplishmentReport'];
+    const uploadedTypes = Object.keys(files || {});
+    
+    for (const fileType of uploadedTypes) {
+        if (!validFileTypes.includes(fileType)) {
+            errors.push(`Invalid file type: ${fileType}`);
+        }
+    }
+
+    return {
+        isValid: errors.length === 0,
+        errors
+    };
+};
+
+/**
+ * Process file uploads to GridFS
+ * 
+ * @param {Object} files - Multer files object
+ * @param {string} organizationName - Organization name for file naming
+ * @param {string} proposalId - Proposal ID for linking
+ * @returns {Promise<Object>} File metadata object
+ */
+const processFileUploads = async (files, organizationName, proposalId) => {
+    const fileMetadata = {};
+    const uploadPromises = [];
+
+    // Process each file type
+    for (const [fileType, fileArray] of Object.entries(files)) {
+        if (fileArray && fileArray.length > 0) {
+            const file = fileArray[0];
+            console.log(`📎 Processing ${fileType} upload:`, {
+                originalName: file.originalname,
+                size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
+                mimetype: file.mimetype
+            });
+
+            try {
+                const metadata = await uploadToGridFS(file, fileType, organizationName, proposalId);
+                fileMetadata[fileType] = metadata;
+                console.log(`✅ ${fileType} uploaded successfully:`, {
+                    filename: metadata.filename,
+                    gridFsId: metadata.gridFsId,
+                    size: metadata.size
+                });
+            } catch (error) {
+                console.error(`❌ ${fileType} upload failed:`, error);
+                throw new Error(`${fileType} upload failed: ${error.message}`);
+            }
+        }
+    }
+
+    return fileMetadata;
+};
+
+/**
+ * Create file metadata record in MongoDB
+ * 
+ * @param {string} proposalId - Proposal ID
+ * @param {string} organizationName - Organization name
+ * @param {Object} fileMetadata - File upload metadata
+ * @returns {Promise<Object>} Created record
+ */
+const createFileMetadataRecord = async (proposalId, organizationName, fileMetadata) => {
+    const db = await getDb();
+    
+    const record = {
+        proposalId: proposalId,
+        organizationName: organizationName,
+        files: fileMetadata,
+        uploadedAt: new Date(),
+        updatedAt: new Date(),
+        fileCount: Object.keys(fileMetadata).length,
+        totalSize: Object.values(fileMetadata).reduce((sum, file) => sum + file.size, 0)
+    };
+
+    const result = await db.collection('proposal_files').insertOne(record);
+    console.log('✅ File metadata record created:', {
+        recordId: result.insertedId,
+        proposalId: proposalId,
+        fileCount: record.fileCount,
+        totalSize: `${(record.totalSize / 1024 / 1024).toFixed(2)} MB`
+    });
+
+    return { ...record, _id: result.insertedId };
+};
+
+// =============================================
+// FILE UPLOAD ROUTES
+// =============================================
+
+/**
+ * @route POST /api/mongodb-unified/proposals/files
+ * @desc Upload files for a proposal with GridFS storage
+ * @access Public (Student)
+ * 
+ * @body {string} proposal_id - Proposal ID to link files to
+ * @body {string} organization_name - Organization name for file naming
+ * @body {File} gpoaFile - GPOA document (optional)
+ * @body {File} proposalFile - Proposal document (optional)
+ * @body {File} accomplishmentReport - Accomplishment report (optional)
+ * 
+ * @returns {Object} Success response with file metadata
+ */
 router.post(
     '/proposals/files',
     upload.fields([
@@ -25,186 +173,323 @@ router.post(
     ]),
     async (req, res) => {
         try {
-            const db = getDb();
-            const { proposal_id, organization_name = 'Unknown' } = req.body;
+            console.log('📁 FILE UPLOAD: ==================== FILE UPLOAD REQUEST ====================');
+            console.log('📁 FILE UPLOAD: Request method:', req.method);
+            console.log('📁 FILE UPLOAD: Request body keys:', Object.keys(req.body));
+            console.log('📁 FILE UPLOAD: Files attached:', req.files ? Object.keys(req.files) : 'None');
 
-            if (!proposal_id) {
-                return res.status(400).json({ success: false, error: 'proposal_id is required' });
-            }
-
-            const fileMetadata = {};
-            if (req.files.gpoaFile) {
-                fileMetadata.gpoa = await uploadToGridFS(req.files.gpoaFile[0], 'gpoa', organization_name);
-            }
-            if (req.files.proposalFile) {
-                fileMetadata.proposal = await uploadToGridFS(
-                    req.files.proposalFile[0],
-                    'proposal',
-                    organization_name,
+            // STEP 1: Validate request
+            const validation = validateFileUpload(req.body, req.files);
+            if (!validation.isValid) {
+                const errorResponse = createErrorResponse(
+                    `File upload validation failed: ${validation.errors.join(', ')}`,
+                    400
                 );
-            }
-            if (req.files.accomplishmentReport) {
-                fileMetadata.accomplishmentReport = await uploadToGridFS(
-                    req.files.accomplishmentReport[0],
-                    'AR',
-                    organization_name,
-                );
+                return res.status(400).json(errorResponse);
             }
 
-            const record = {
-                proposalId: proposal_id,
-                organizationName: organization_name,
+            const proposalId = validateProposalId(req.body.proposal_id);
+            if (!proposalId) {
+                const errorResponse = createErrorResponse('Invalid proposal ID', 400);
+                return res.status(400).json(errorResponse);
+            }
+
+            // STEP 2: Verify proposal exists
+            const [proposal] = await pool.query(
+                'SELECT id, organization_name FROM proposals WHERE id = ?',
+                [proposalId]
+            );
+
+            if (proposal.length === 0) {
+                const errorResponse = createErrorResponse(`Proposal with ID ${proposalId} not found`, 404);
+                return res.status(404).json(errorResponse);
+            }
+
+            const organizationName = req.body.organization_name || proposal[0].organization_name || 'Unknown';
+            console.log('📁 FILE UPLOAD: Processing files for proposal:', {
+                proposalId: proposalId,
+                organizationName: organizationName,
+                fileCount: Object.keys(req.files).length
+            });
+
+            // STEP 3: Upload files to GridFS
+            const fileMetadata = await processFileUploads(req.files, organizationName, proposalId.toString());
+
+            // STEP 4: Create metadata record
+            const metadataRecord = await createFileMetadataRecord(proposalId.toString(), organizationName, fileMetadata);
+
+            // STEP 5: Send success response
+            const responseData = createSuccessResponse({
+                id: metadataRecord._id,
                 files: fileMetadata,
-                uploadedAt: new Date(),
-                updatedAt: new Date(),
-            };
+                fileUploads: Object.keys(fileMetadata).reduce((acc, key) => {
+                    acc[key] = {
+                        success: true,
+                        filename: fileMetadata[key].filename,
+                        mongoId: fileMetadata[key].gridFsId,
+                        size: fileMetadata[key].size
+                    };
+                    return acc;
+                }, {}),
+                metadata: {
+                    proposalId: proposalId,
+                    organizationName: organizationName,
+                    fileCount: metadataRecord.fileCount,
+                    totalSize: metadataRecord.totalSize,
+                    uploadedAt: metadataRecord.uploadedAt
+                }
+            }, 'Files uploaded successfully');
 
-            const result = await db.collection('proposal_files').insertOne(record);
+            console.log('🎉 FILE UPLOAD: Upload completed successfully:', {
+                proposalId: proposalId,
+                fileCount: metadataRecord.fileCount,
+                totalSize: `${(metadataRecord.totalSize / 1024 / 1024).toFixed(2)} MB`
+            });
 
-            res.json({ success: true, id: result.insertedId, message: 'Files uploaded', files: fileMetadata });
-        } catch (err) {
-            console.error('Error uploading files:', err);
-            res.status(500).json({ success: false, error: err.message });
+            res.json(responseData);
+
+        } catch (error) {
+            console.error('❌ FILE UPLOAD: Error uploading files:', {
+                error: error.message,
+                stack: error.stack,
+                requestBody: req.body,
+                files: req.files ? Object.keys(req.files) : []
+            });
+
+            const errorResponse = createErrorResponse(
+                error.message,
+                500,
+                'Check server logs for more information'
+            );
+            res.status(500).json(errorResponse);
         }
-    },
+    }
 );
 
-// ------------------------------------------------------------------
-// LEGACY STATIC DOWNLOAD (plain filesystem)
-// ------------------------------------------------------------------
-router.get('/files/:filename', (req, res) => {
-    const filePath = path.join(uploadsDir, req.params.filename);
-    if (fs.existsSync(filePath)) {
-        return res.download(filePath);
-    }
-    return res.status(404).json({ success: false, error: 'File not found' });
-});
+// =============================================
+// FILE DOWNLOAD ROUTES
+// =============================================
 
-// ------------------------------------------------------------------
-// GRIDFS DOWNLOADS (hybrid – works with MySQL proposal IDs)
-// ------------------------------------------------------------------
-const validFileTypes = ['gpoa', 'proposal'];
-
+/**
+ * @route GET /api/mongodb-unified/proposals/download/:proposalId/:fileType
+ * @desc Download a specific file from GridFS
+ * @access Public (Student/Admin)
+ * 
+ * @param {string} proposalId - Proposal ID
+ * @param {string} fileType - Type of file to download (gpoa, proposal, etc.)
+ * 
+ * @returns {Stream} File stream with proper headers
+ */
 router.get('/proposals/download/:proposalId/:fileType', async (req, res) => {
     try {
         const { proposalId, fileType } = req.params;
+        console.log('📥 FILE DOWNLOAD: Downloading file:', { proposalId, fileType });
+
+        // Validate parameters
+        const validatedProposalId = validateProposalId(proposalId);
+        if (!validatedProposalId) {
+            const errorResponse = createErrorResponse('Invalid proposal ID', 400);
+            return res.status(400).json(errorResponse);
+        }
+
+        const validFileTypes = ['gpoa', 'proposal', 'accomplishmentReport'];
         if (!validFileTypes.includes(fileType)) {
-            return res.status(400).json({ error: 'Invalid file type' });
+            const errorResponse = createErrorResponse(`Invalid file type: ${fileType}`, 400);
+            return res.status(400).json(errorResponse);
         }
 
+        // Get file metadata from MongoDB
         const db = await getDb();
+        const fileRecord = await db.collection('proposal_files').findOne({
+            proposalId: proposalId.toString(),
+            [`files.${fileType}`]: { $exists: true }
+        });
 
-        // First, try MongoDB GridFS
-        let fileRecord = await db.collection('proposal_files').findOne({ proposalId: proposalId.toString() });
+        if (!fileRecord || !fileRecord.files[fileType]) {
+            const errorResponse = createErrorResponse(`File not found: ${fileType} for proposal ${proposalId}`, 404);
+            return res.status(404).json(errorResponse);
+        }
 
-        if (!fileRecord) {
-            // Fallback: look inside proposals.files (embedded metadata)
-            const mainDoc = await db.collection('proposals').findOne({ organizationId: proposalId.toString() });
-            if (mainDoc && mainDoc.files && mainDoc.files[fileType]) {
-                fileRecord = { files: { [fileType]: mainDoc.files[fileType] } };
+        const fileInfo = fileRecord.files[fileType];
+        console.log('📥 FILE DOWNLOAD: Found file metadata:', {
+            filename: fileInfo.filename,
+            size: fileInfo.size,
+            gridFsId: fileInfo.gridFsId
+        });
+
+        // Download from GridFS
+        const { getBucket } = require('../../utils/gridfs');
+        const bucket = await getBucket();
+
+        const downloadStream = bucket.openDownloadStream(fileInfo.gridFsId);
+        
+        // Set proper headers
+        res.setHeader('Content-Type', fileInfo.mimeType || 'application/octet-stream');
+        res.setHeader('Content-Disposition', `attachment; filename="${fileInfo.originalName || fileInfo.filename}"`);
+        res.setHeader('Content-Length', fileInfo.size);
+
+        // Stream file to response
+        downloadStream.pipe(res);
+
+        downloadStream.on('error', (error) => {
+            console.error('❌ FILE DOWNLOAD: Stream error:', error);
+            if (!res.headersSent) {
+                const errorResponse = createErrorResponse('File download failed', 500);
+                res.status(500).json(errorResponse);
             }
+        });
+
+        downloadStream.on('end', () => {
+            console.log('✅ FILE DOWNLOAD: Download completed successfully');
+        });
+
+    } catch (error) {
+        console.error('❌ FILE DOWNLOAD: Error downloading file:', error);
+        
+        if (!res.headersSent) {
+            const errorResponse = createErrorResponse(
+                error.message,
+                500,
+                'Check server logs for more information'
+            );
+            res.status(500).json(errorResponse);
         }
-
-        // If found in MongoDB, stream from GridFS
-        if (fileRecord && fileRecord.files && fileRecord.files[fileType]) {
-            const meta = fileRecord.files[fileType];
-
-            // Stream from GridFS
-            const bucket = new mongoose.mongo.GridFSBucket(db, { bucketName: 'proposal_files' });
-            const docArr = await bucket.find({ filename: meta.filename }).toArray();
-            if (!docArr || docArr.length === 0) {
-                return res.status(404).json({ success: false, error: 'File not found in GridFS storage' });
-            }
-
-            const fileDoc = docArr[0];
-            res.set({
-                'Content-Type': meta.mimeType || 'application/octet-stream',
-                'Content-Length': fileDoc.length,
-                'Content-Disposition': `attachment; filename="${meta.originalName || fileDoc.filename}"`,
-            });
-
-            bucket.openDownloadStreamByName(meta.filename)
-                .on('error', (e) => {
-                    console.error('GridFS stream error:', e);
-                    if (!res.headersSent) res.status(500).json({ error: 'Error streaming file' });
-                })
-                .pipe(res);
-            return;
-        }
-
-        // If not found in MongoDB, try MySQL file paths
-        console.log(`🔍 File not found in MongoDB, checking MySQL for proposal ${proposalId}, file type ${fileType}`);
-
-        const [mysqlRows] = await pool.query('SELECT * FROM proposals WHERE id = ?', [proposalId]);
-        if (mysqlRows.length === 0) {
-            return res.status(404).json({ success: false, error: 'Proposal not found' });
-        }
-
-        const proposal = mysqlRows[0];
-        let filePath = null;
-        let fileName = null;
-
-        // Map file types to MySQL columns
-        switch (fileType) {
-            case 'gpoa':
-                filePath = proposal.school_gpoa_file_path || proposal.community_gpoa_file_path;
-                fileName = proposal.school_gpoa_file_name || proposal.community_gpoa_file_name;
-                break;
-            case 'proposal':
-                filePath = proposal.school_proposal_file_path || proposal.community_proposal_file_path;
-                fileName = proposal.school_proposal_file_name || proposal.community_proposal_file_name;
-                break;
-        }
-
-        if (!filePath || !fileName) {
-            return res.status(404).json({
-                success: false,
-                error: `No ${fileType} file found for this proposal. Files may not have been uploaded yet.`
-            });
-        }
-
-        // Check if file exists on filesystem
-        const fullPath = path.resolve(filePath);
-        try {
-            await fsPromises.access(fullPath);
-        } catch (error) {
-            return res.status(404).json({
-                success: false,
-                error: `File not found on server. The file may have been moved or deleted.`
-            });
-        }
-
-        // Send file
-        res.download(fullPath, fileName);
-
-    } catch (err) {
-        console.error('Download error:', err);
-        if (!res.headersSent) res.status(500).json({ error: err.message });
     }
 });
 
-// Simple file-info endpoint
-router.get('/proposals/file-info/:proposalId/:fileType', async (req, res) => {
-    const { proposalId, fileType } = req.params;
-    const db = await getDb();
-    const record = await db.collection('proposal_files').findOne({ proposalId: proposalId.toString() });
-    if (!record) return res.status(404).json({ error: 'No files for proposal' });
-    if (!record.files[fileType]) return res.status(404).json({ error: 'File type not found' });
-    res.json({ success: true, fileInfo: record.files[fileType] });
-});
+// =============================================
+// FILE METADATA ROUTES
+// =============================================
 
-// List files (lightweight)
+/**
+ * @route GET /api/mongodb-unified/proposals/files/:proposalId
+ * @desc Get file metadata for a proposal
+ * @access Public (Student/Admin)
+ * 
+ * @param {string} proposalId - Proposal ID
+ * 
+ * @returns {Object} File metadata for the proposal
+ */
 router.get('/proposals/files/:proposalId', async (req, res) => {
-    const db = await getDb();
-    const record = await db.collection('proposal_files').findOne({ proposalId: req.params.proposalId.toString() });
-    if (!record) return res.status(404).json({ error: 'No files found', files: {} });
-    res.json({ success: true, files: record.files, proposalId: req.params.proposalId });
+    try {
+        const { proposalId } = req.params;
+        console.log('📋 FILE METADATA: Getting file metadata for proposal:', proposalId);
+
+        // Validate proposal ID
+        const validatedProposalId = validateProposalId(proposalId);
+        if (!validatedProposalId) {
+            const errorResponse = createErrorResponse('Invalid proposal ID', 400);
+            return res.status(400).json(errorResponse);
+        }
+
+        // Get file metadata from MongoDB
+        const db = await getDb();
+        const fileRecord = await db.collection('proposal_files').findOne({
+            proposalId: proposalId.toString()
+        });
+
+        if (!fileRecord) {
+            const responseData = createSuccessResponse({
+                files: {},
+                proposalId: proposalId,
+                hasFiles: false
+            }, 'No files found for this proposal');
+            return res.json(responseData);
+        }
+
+        const responseData = createSuccessResponse({
+            files: fileRecord.files,
+            proposalId: proposalId,
+            hasFiles: Object.keys(fileRecord.files).length > 0,
+            metadata: {
+                organizationName: fileRecord.organizationName,
+                uploadedAt: fileRecord.uploadedAt,
+                updatedAt: fileRecord.updatedAt,
+                fileCount: fileRecord.fileCount,
+                totalSize: fileRecord.totalSize
+            }
+        }, 'File metadata retrieved successfully');
+
+        console.log('✅ FILE METADATA: Retrieved metadata:', {
+            proposalId: proposalId,
+            fileCount: fileRecord.fileCount,
+            hasFiles: Object.keys(fileRecord.files).length > 0
+        });
+
+        res.json(responseData);
+
+    } catch (error) {
+        console.error('❌ FILE METADATA: Error getting file metadata:', error);
+        
+        const errorResponse = createErrorResponse(
+            error.message,
+            500,
+            'Check server logs for more information'
+        );
+        res.status(500).json(errorResponse);
+    }
 });
 
-// Legacy alias to avoid 404s
-router.get('/proposals/files/download-legacy/:proposalId/:fileType', (req, res, next) => {
-    req.url = `/proposals/download/${req.params.proposalId}/${req.params.fileType}`;
-    next();
+/**
+ * @route GET /api/mongodb-unified/proposals/file-info/:proposalId/:fileType
+ * @desc Get specific file information
+ * @access Public (Student/Admin)
+ * 
+ * @param {string} proposalId - Proposal ID
+ * @param {string} fileType - Type of file
+ * 
+ * @returns {Object} Specific file information
+ */
+router.get('/proposals/file-info/:proposalId/:fileType', async (req, res) => {
+    try {
+        const { proposalId, fileType } = req.params;
+        console.log('📋 FILE INFO: Getting file info:', { proposalId, fileType });
+
+        // Validate parameters
+        const validatedProposalId = validateProposalId(proposalId);
+        if (!validatedProposalId) {
+            const errorResponse = createErrorResponse('Invalid proposal ID', 400);
+            return res.status(400).json(errorResponse);
+        }
+
+        // Get file metadata from MongoDB
+        const db = await getDb();
+        const fileRecord = await db.collection('proposal_files').findOne({
+            proposalId: proposalId.toString(),
+            [`files.${fileType}`]: { $exists: true }
+        });
+
+        if (!fileRecord || !fileRecord.files[fileType]) {
+            const errorResponse = createErrorResponse(`File not found: ${fileType} for proposal ${proposalId}`, 404);
+            return res.status(404).json(errorResponse);
+        }
+
+        const fileInfo = fileRecord.files[fileType];
+        const responseData = createSuccessResponse({
+            fileInfo: fileInfo,
+            proposalId: proposalId,
+            fileType: fileType
+        }, 'File information retrieved successfully');
+
+        console.log('✅ FILE INFO: Retrieved file info:', {
+            proposalId: proposalId,
+            fileType: fileType,
+            filename: fileInfo.filename,
+            size: fileInfo.size
+        });
+
+        res.json(responseData);
+
+    } catch (error) {
+        console.error('❌ FILE INFO: Error getting file info:', error);
+        
+        const errorResponse = createErrorResponse(
+            error.message,
+            500,
+            'Check server logs for more information'
+        );
+        res.status(500).json(errorResponse);
+    }
 });
 
 module.exports = router; 

@@ -1,48 +1,489 @@
-const { pool } = require('../config/db');
-const { MongoClient } = require('mongodb');
-const { cache, CacheKeys, CacheTTL } = require('../config/redis');
-const { clientPromise: sharedClientPromise } = require('../config/mongodb');
-
 /**
- * Data Synchronization Service
- * Handles consistency between MySQL and MongoDB databases
+ * =============================================
+ * DATA SYNC SERVICE - MySQL + MongoDB Synchronization
+ * =============================================
+ * 
+ * This service handles data synchronization between MySQL and MongoDB
+ * databases, ensuring data consistency across the hybrid architecture.
+ * It provides comprehensive sync operations, validation, and error handling.
+ * 
+ * @module services/data-sync.service
+ * @author CEDO Development Team
+ * @version 1.0.0
+ * 
+ * @description
+ * Features:
+ * - Bidirectional data synchronization
+ * - Data validation and integrity checks
+ * - Conflict resolution strategies
+ * - Incremental sync operations
+ * - Error recovery and logging
+ * - Performance optimization
  */
 
-// Enhanced MongoDB connection with performance optimizations
-let mongoClient = null;
-let mongoDb = null;
+const { pool } = require('../config/db');
+const { getDb } = require('../utils/db');
 
-// Initialize MongoDB connection – now just resolve the shared client
-async function initMongoDB() {
-    try {
-        mongoClient = await sharedClientPromise;
-        mongoDb = mongoClient.db(); // default DB in the connection string (cedo_auth)
-        console.log('✅ Data-Sync Service: Re-using shared MongoDB connection');
-        setupMongoMonitoring();
-        return true;
-    } catch (error) {
-        console.error('❌ Data-Sync Service: Failed to obtain shared MongoDB client:', error.message);
-        return false;
+// =============================================
+// SHARED UTILITY FUNCTIONS
+// =============================================
+
+/**
+ * Validate sync operation parameters
+ * 
+ * @param {Object} params - Sync parameters
+ * @returns {Object} Validation result
+ */
+const validateSyncParams = (params) => {
+  const errors = [];
+
+  if (!params.proposalId) {
+    errors.push('Proposal ID is required');
+  }
+
+  if (!params.direction || !['mysql-to-mongo', 'mongo-to-mysql', 'bidirectional'].includes(params.direction)) {
+    errors.push('Invalid sync direction');
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+};
+
+/**
+ * Compare data structures for differences
+ * 
+ * @param {Object} data1 - First data object
+ * @param {Object} data2 - Second data object
+ * @returns {Object} Comparison result
+ */
+const compareDataStructures = (data1, data2) => {
+  const differences = [];
+  const allKeys = new Set([...Object.keys(data1), ...Object.keys(data2)]);
+
+  allKeys.forEach(key => {
+    if (data1[key] !== data2[key]) {
+      differences.push({
+        field: key,
+        mysqlValue: data1[key],
+        mongoValue: data2[key]
+      });
     }
-}
+  });
 
-// MongoDB monitoring
-function setupMongoMonitoring() {
-    mongoClient.on('connectionPoolCreated', () => {
-        console.log('📊 MongoDB connection pool created');
-    });
+  return {
+    hasDifferences: differences.length > 0,
+    differences: differences,
+    totalFields: allKeys.size,
+    differentFields: differences.length
+  };
+};
 
-    mongoClient.on('connectionCheckedOut', () => {
-        // Connection pool monitoring (can be used for metrics)
-    });
+/**
+ * Generate sync timestamp
+ * 
+ * @returns {string} ISO timestamp
+ */
+const generateSyncTimestamp = () => {
+  return new Date().toISOString();
+};
 
-    mongoClient.on('commandStarted', (event) => {
-        if (event.commandName === 'find' || event.commandName === 'aggregate') {
-            console.log(`🔍 MongoDB Query: ${event.commandName} on ${event.command.collection || event.databaseName}`);
+/**
+ * Log sync operation
+ * 
+ * @param {string} operation - Operation type
+ * @param {Object} details - Operation details
+ */
+const logSyncOperation = (operation, details) => {
+  console.log(`🔄 SYNC: ${operation}`, {
+    timestamp: generateSyncTimestamp(),
+    ...details
+  });
+};
+
+// =============================================
+// MYSQL TO MONGODB SYNC FUNCTIONS
+// =============================================
+
+/**
+ * Sync proposal data from MySQL to MongoDB
+ * 
+ * @param {string|number} proposalId - Proposal ID
+ * @returns {Promise<Object>} Sync result
+ */
+const syncMySQLToMongo = async (proposalId) => {
+  try {
+    logSyncOperation('MySQL to MongoDB sync started', { proposalId });
+
+    // Get MySQL proposal data
+    const [mysqlProposals] = await pool.query(
+      'SELECT * FROM proposals WHERE id = ?',
+      [proposalId]
+    );
+
+    if (mysqlProposals.length === 0) {
+      throw new Error('Proposal not found in MySQL');
+    }
+
+    const mysqlData = mysqlProposals[0];
+
+    // Get MongoDB database
+    const db = await getDb();
+    const collection = db.collection('proposals');
+
+    // Check if MongoDB record exists
+    const existingMongoRecord = await collection.findOne({ proposalId: proposalId.toString() });
+
+    if (existingMongoRecord) {
+      // Update existing record
+      const updateResult = await collection.updateOne(
+        { proposalId: proposalId.toString() },
+        {
+          $set: {
+            ...mysqlData,
+            proposalId: proposalId.toString(),
+            lastSyncedFromMySQL: generateSyncTimestamp(),
+            updatedAt: new Date()
+          }
         }
-    });
-}
+      );
 
+      logSyncOperation('MySQL to MongoDB sync completed (update)', {
+        proposalId,
+        modifiedCount: updateResult.modifiedCount
+      });
+
+      return {
+        success: true,
+        operation: 'update',
+        proposalId: proposalId,
+        modifiedCount: updateResult.modifiedCount,
+        syncedAt: generateSyncTimestamp()
+      };
+
+    } else {
+      // Create new record
+      const insertResult = await collection.insertOne({
+        ...mysqlData,
+        proposalId: proposalId.toString(),
+        lastSyncedFromMySQL: generateSyncTimestamp(),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+
+      logSyncOperation('MySQL to MongoDB sync completed (insert)', {
+        proposalId,
+        insertedId: insertResult.insertedId
+      });
+
+      return {
+        success: true,
+        operation: 'insert',
+        proposalId: proposalId,
+        insertedId: insertResult.insertedId,
+        syncedAt: generateSyncTimestamp()
+      };
+    }
+
+  } catch (error) {
+    console.error('❌ SYNC: Error syncing MySQL to MongoDB:', error);
+    throw new Error(`Failed to sync MySQL to MongoDB: ${error.message}`);
+  }
+};
+
+/**
+ * Sync multiple proposals from MySQL to MongoDB
+ * 
+ * @param {Array} proposalIds - Array of proposal IDs
+ * @returns {Promise<Object>} Batch sync result
+ */
+const batchSyncMySQLToMongo = async (proposalIds) => {
+  try {
+    logSyncOperation('Batch MySQL to MongoDB sync started', {
+      proposalCount: proposalIds.length
+    });
+
+    const results = [];
+    const errors = [];
+
+    for (const proposalId of proposalIds) {
+      try {
+        const result = await syncMySQLToMongo(proposalId);
+        results.push(result);
+      } catch (error) {
+        errors.push({
+          proposalId: proposalId,
+          error: error.message
+        });
+      }
+    }
+
+    const summary = {
+      total: proposalIds.length,
+      successful: results.length,
+      failed: errors.length,
+      results: results,
+      errors: errors
+    };
+
+    logSyncOperation('Batch MySQL to MongoDB sync completed', summary);
+
+    return summary;
+
+  } catch (error) {
+    console.error('❌ SYNC: Error in batch MySQL to MongoDB sync:', error);
+    throw new Error(`Failed to batch sync MySQL to MongoDB: ${error.message}`);
+  }
+};
+
+// =============================================
+// MONGODB TO MYSQL SYNC FUNCTIONS
+// =============================================
+
+/**
+ * Sync proposal data from MongoDB to MySQL
+ * 
+ * @param {string|number} proposalId - Proposal ID
+ * @returns {Promise<Object>} Sync result
+ */
+const syncMongoToMySQL = async (proposalId) => {
+  try {
+    logSyncOperation('MongoDB to MySQL sync started', { proposalId });
+
+    // Get MongoDB proposal data
+    const db = await getDb();
+    const collection = db.collection('proposals');
+
+    const mongoData = await collection.findOne({ proposalId: proposalId.toString() });
+
+    if (!mongoData) {
+      throw new Error('Proposal not found in MongoDB');
+    }
+
+    // Check if MySQL record exists
+    const [mysqlProposals] = await pool.query(
+      'SELECT id FROM proposals WHERE id = ?',
+      [proposalId]
+    );
+
+    if (mysqlProposals.length > 0) {
+      // Update existing record
+      const updateFields = [];
+      const updateValues = [];
+
+      // Map MongoDB fields to MySQL fields
+      const fieldMapping = {
+        organization_name: mongoData.organization_name,
+        organization_type: mongoData.organization_type,
+        contact_name: mongoData.contact_name,
+        contact_email: mongoData.contact_email,
+        contact_phone: mongoData.contact_phone,
+        event_name: mongoData.event_name,
+        event_venue: mongoData.event_venue,
+        event_mode: mongoData.event_mode,
+        event_start_date: mongoData.event_start_date,
+        event_end_date: mongoData.event_end_date,
+        proposal_status: mongoData.proposal_status,
+        updated_at: new Date()
+      };
+
+      Object.entries(fieldMapping).forEach(([key, value]) => {
+        if (value !== undefined) {
+          updateFields.push(`${key} = ?`);
+          updateValues.push(value);
+        }
+      });
+
+      updateValues.push(proposalId);
+
+      const [updateResult] = await pool.query(
+        `UPDATE proposals SET ${updateFields.join(', ')} WHERE id = ?`,
+        updateValues
+      );
+
+      logSyncOperation('MongoDB to MySQL sync completed (update)', {
+        proposalId,
+        affectedRows: updateResult.affectedRows
+      });
+
+      return {
+        success: true,
+        operation: 'update',
+        proposalId: proposalId,
+        affectedRows: updateResult.affectedRows,
+        syncedAt: generateSyncTimestamp()
+      };
+
+    } else {
+      // Create new record
+      const [insertResult] = await pool.query(
+        `INSERT INTO proposals (
+          id, organization_name, organization_type, contact_name, contact_email,
+          contact_phone, event_name, event_venue, event_mode,
+          event_start_date, event_end_date, proposal_status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          proposalId,
+          mongoData.organization_name,
+          mongoData.organization_type,
+          mongoData.contact_name,
+          mongoData.contact_email,
+          mongoData.contact_phone,
+          mongoData.event_name,
+          mongoData.event_venue,
+          mongoData.event_mode,
+          mongoData.event_start_date,
+          mongoData.event_end_date,
+          mongoData.proposal_status,
+          new Date(),
+          new Date()
+        ]
+      );
+
+      logSyncOperation('MongoDB to MySQL sync completed (insert)', {
+        proposalId,
+        insertId: insertResult.insertId
+      });
+
+      return {
+        success: true,
+        operation: 'insert',
+        proposalId: proposalId,
+        insertId: insertResult.insertId,
+        syncedAt: generateSyncTimestamp()
+      };
+    }
+
+  } catch (error) {
+    console.error('❌ SYNC: Error syncing MongoDB to MySQL:', error);
+    throw new Error(`Failed to sync MongoDB to MySQL: ${error.message}`);
+  }
+};
+
+// =============================================
+// BIDIRECTIONAL SYNC FUNCTIONS
+// =============================================
+
+/**
+ * Perform bidirectional sync for a proposal
+ * 
+ * @param {string|number} proposalId - Proposal ID
+ * @returns {Promise<Object>} Bidirectional sync result
+ */
+const bidirectionalSync = async (proposalId) => {
+  try {
+    logSyncOperation('Bidirectional sync started', { proposalId });
+
+    // Get data from both databases
+    const [mysqlProposals] = await pool.query(
+      'SELECT * FROM proposals WHERE id = ?',
+      [proposalId]
+    );
+
+    const db = await getDb();
+    const collection = db.collection('proposals');
+    const mongoData = await collection.findOne({ proposalId: proposalId.toString() });
+
+    const mysqlData = mysqlProposals[0] || null;
+
+    // Compare data structures
+    const comparison = compareDataStructures(mysqlData || {}, mongoData || {});
+
+    const syncResult = {
+      proposalId: proposalId,
+      mysqlExists: !!mysqlData,
+      mongoExists: !!mongoData,
+      hasDifferences: comparison.hasDifferences,
+      differences: comparison.differences,
+      syncOperations: []
+    };
+
+    // Sync based on differences
+    if (comparison.hasDifferences) {
+      if (mysqlData && mongoData) {
+        // Both exist, resolve conflicts
+        const conflictResolution = await resolveDataConflicts(proposalId, mysqlData, mongoData);
+        syncResult.conflictResolution = conflictResolution;
+      } else if (mysqlData && !mongoData) {
+        // Only MySQL exists, sync to MongoDB
+        const mongoResult = await syncMySQLToMongo(proposalId);
+        syncResult.syncOperations.push(mongoResult);
+      } else if (!mysqlData && mongoData) {
+        // Only MongoDB exists, sync to MySQL
+        const mysqlResult = await syncMongoToMySQL(proposalId);
+        syncResult.syncOperations.push(mysqlResult);
+      }
+    }
+
+    syncResult.syncedAt = generateSyncTimestamp();
+
+    logSyncOperation('Bidirectional sync completed', {
+      proposalId,
+      hasDifferences: comparison.hasDifferences,
+      operations: syncResult.syncOperations.length
+    });
+
+    return syncResult;
+
+  } catch (error) {
+    console.error('❌ SYNC: Error in bidirectional sync:', error);
+    throw new Error(`Failed to perform bidirectional sync: ${error.message}`);
+  }
+};
+
+/**
+ * Resolve data conflicts between MySQL and MongoDB
+ * 
+ * @param {string|number} proposalId - Proposal ID
+ * @param {Object} mysqlData - MySQL data
+ * @param {Object} mongoData - MongoDB data
+ * @returns {Promise<Object>} Conflict resolution result
+ */
+const resolveDataConflicts = async (proposalId, mysqlData, mongoData) => {
+  try {
+    logSyncOperation('Resolving data conflicts', { proposalId });
+
+    const comparison = compareDataStructures(mysqlData, mongoData);
+    const resolution = {
+      proposalId: proposalId,
+      conflicts: comparison.differences,
+      resolution: 'mysql-wins', // Default strategy
+      resolvedFields: []
+    };
+
+    // Apply resolution strategy (MySQL wins by default)
+    for (const conflict of comparison.differences) {
+      const mysqlValue = conflict.mysqlValue;
+      const mongoValue = conflict.mongoValue;
+
+      // Update MongoDB with MySQL value
+      const db = await getDb();
+      const collection = db.collection('proposals');
+
+      await collection.updateOne(
+        { proposalId: proposalId.toString() },
+        {
+          $set: {
+            [conflict.field]: mysqlValue,
+            lastConflictResolution: generateSyncTimestamp()
+          }
+        }
+      );
+
+      resolution.resolvedFields.push({
+        field: conflict.field,
+        oldValue: mongoValue,
+        newValue: mysqlValue
+      });
+    }
+
+    logSyncOperation('Data conflicts resolved', {
+      proposalId,
+      resolvedFields: resolution.resolvedFields.length
+    });
+
+<<<<<<< HEAD
 /**
  * Synchronize proposal data between MySQL and MongoDB
  * @param {string} proposalId - The proposal ID to synchronize
@@ -53,220 +494,80 @@ function setupMongoMonitoring() {
 const syncProposalData = async (proposalId, additionalData = {}, options = {}) => {
     const startTime = Date.now();
     const cacheKey = CacheKeys.proposal(proposalId);
+=======
+    return resolution;
+>>>>>>> f6553a8 (Refactor backend services and configuration files)
 
-    try {
-        console.log('🔄 DATA SYNC: Starting proposal synchronization for ID:', proposalId);
-
-        // Check cache first
-        if (!options.skipCache) {
-            const cachedData = await cache.get(cacheKey);
-            if (cachedData) {
-                console.log(`⚡ Cache hit for proposal ${proposalId}`);
-                return cachedData;
-            }
-        }
-
-        // Start transaction for MySQL
-        const connection = await pool.getConnection();
-        await connection.beginTransaction();
-
-        try {
-            // Optimized MySQL query with prepared statement
-            const [mysqlData] = await connection.execute(
-                `SELECT p.*, u.name as creator_name, u.email as creator_email 
-                 FROM proposals p 
-                 LEFT JOIN users u ON p.user_id = u.id 
-                 WHERE p.id = ? 
-                 FOR UPDATE`,
-                [proposalId]
-            );
-
-            if (!mysqlData || mysqlData.length === 0) {
-                await connection.rollback();
-                connection.release();
-                throw new Error(`Proposal ${proposalId} not found in MySQL`);
-            }
-
-            const proposal = mysqlData[0];
-
-            // MongoDB file data with optimized aggregation
-            let mongoData = null;
-            if (mongoDb) {
-                mongoData = await mongoDb.collection('events').aggregate([
-                    { $match: { proposalId: parseInt(proposalId) } },
-                    {
-                        $lookup: {
-                            from: 'fs.files',
-                            localField: 'files.gridFsId',
-                            foreignField: '_id',
-                            as: 'fileDetails'
-                        }
-                    },
-                    {
-                        $project: {
-                            proposalId: 1,
-                            eventType: 1,
-                            files: 1,
-                            fileDetails: 1,
-                            createdAt: 1,
-                            updatedAt: 1
-                        }
-                    }
-                ]).toArray();
-            }
-
-            // Sync result
-            const syncResult = {
-                proposal,
-                mongoData: mongoData || [],
-                lastSync: new Date().toISOString(),
-                performance: {
-                    syncTime: Date.now() - startTime,
-                    cacheHit: false
-                }
-            };
-
-            // Commit MySQL transaction
-            await connection.commit();
-            connection.release();
-
-            // Cache the result
-            await cache.set(cacheKey, syncResult, CacheTTL.PROPOSALS);
-
-            console.log(`✅ Proposal ${proposalId} synced successfully (${Date.now() - startTime}ms)`);
-            return syncResult;
-
-        } catch (error) {
-            await connection.rollback();
-            connection.release();
-            throw error;
-        }
-
-    } catch (error) {
-        console.error(`❌ Sync error for proposal ${proposalId}:`, error.message);
-        throw error;
-    }
+  } catch (error) {
+    console.error('❌ SYNC: Error resolving data conflicts:', error);
+    throw new Error(`Failed to resolve data conflicts: ${error.message}`);
+  }
 };
+
+// =============================================
+// SYNC VALIDATION FUNCTIONS
+// =============================================
 
 /**
- * Ensure proposal exists in both databases with consistent data
- * @param {string} proposalId - The proposal ID
- * @param {object} proposalData - Proposal data to ensure consistency
- * @returns {Promise<object>} Consistency check result
+ * Validate sync integrity
+ * 
+ * @param {string|number} proposalId - Proposal ID
+ * @returns {Promise<Object>} Validation result
  */
-const ensureProposalConsistency = async (proposalId, proposalData = {}) => {
-    const startTime = Date.now();
+const validateSyncIntegrity = async (proposalId) => {
+  try {
+    logSyncOperation('Validating sync integrity', { proposalId });
 
-    try {
-        console.log('🔍 DATA SYNC: Checking proposal consistency for ID:', proposalId);
+    // Get data from both databases
+    const [mysqlProposals] = await pool.query(
+      'SELECT * FROM proposals WHERE id = ?',
+      [proposalId]
+    );
 
-        // Check MySQL
-        const [mysqlRows] = await pool.query(
-            'SELECT id, status, updated_at FROM proposals WHERE id = ?',
-            [proposalId]
-        );
+    const db = await getDb();
+    const collection = db.collection('proposals');
+    const mongoData = await collection.findOne({ proposalId: proposalId.toString() });
 
-        const mysqlExists = mysqlRows.length > 0;
-        console.log('📊 DATA SYNC: MySQL existence check:', mysqlExists);
+    const mysqlData = mysqlProposals[0] || null;
 
-        // Check MongoDB
-        const mongoDoc = await mongoDb.collection('events').findOne({
-            proposalId: parseInt(proposalId)
-        });
+    const validation = {
+      proposalId: proposalId,
+      mysqlExists: !!mysqlData,
+      mongoExists: !!mongoData,
+      dataConsistent: false,
+      differences: [],
+      validationPassed: false
+    };
 
-        const mongoExists = !!mongoDoc;
-        console.log('📄 DATA SYNC: MongoDB existence check:', mongoExists);
-
-        const result = {
-            proposalId: proposalId,
-            consistency: {
-                mysql: mysqlExists,
-                mongodb: mongoExists,
-                bothExist: mysqlExists && mongoExists,
-                consistent: mysqlExists && mongoExists
-            },
-            data: {
-                mysql: mysqlExists ? mysqlRows[0] : null,
-                mongodb: mongoDoc || null
-            },
-            recommendations: []
-        };
-
-        // Generate recommendations based on consistency state
-        if (!mysqlExists && !mongoExists) {
-            result.recommendations.push('Create proposal in both MySQL and MongoDB');
-        } else if (mysqlExists && !mongoExists) {
-            result.recommendations.push('Create corresponding MongoDB document');
-        } else if (!mysqlExists && mongoExists) {
-            result.recommendations.push('Create corresponding MySQL record');
-        } else {
-            result.recommendations.push('Databases are consistent');
-        }
-
-        // Add performance recommendations
-        if (result.checkTime > 1000) {
-            result.recommendations.push('Consider adding database indexes');
-        }
-
-        if (mongoDoc && mongoDoc.length > 100) {
-            result.recommendations.push('Consider archiving old events');
-        }
-
-        console.log('✅ DATA SYNC: Consistency check completed:', {
-            proposalId: proposalId,
-            consistent: result.consistency.consistent,
-            recommendations: result.recommendations.length
-        });
-
-        return result;
-
-    } catch (error) {
-        console.error('❌ DATA SYNC: Consistency check failed:', {
-            proposalId: proposalId,
-            error: error.message
-        });
-        throw new Error(`Consistency check failed: ${error.message}`);
+    if (mysqlData && mongoData) {
+      const comparison = compareDataStructures(mysqlData, mongoData);
+      validation.dataConsistent = !comparison.hasDifferences;
+      validation.differences = comparison.differences;
+      validation.validationPassed = comparison.hasDifferences === false;
+    } else {
+      validation.validationPassed = false;
+      validation.differences = [{
+        field: 'existence',
+        mysqlValue: !!mysqlData,
+        mongoValue: !!mongoData
+      }];
     }
+
+    logSyncOperation('Sync integrity validation completed', {
+      proposalId,
+      validationPassed: validation.validationPassed,
+      differences: validation.differences.length
+    });
+
+    return validation;
+
+  } catch (error) {
+    console.error('❌ SYNC: Error validating sync integrity:', error);
+    throw new Error(`Failed to validate sync integrity: ${error.message}`);
+  }
 };
 
-/**
- * Get organization name for a proposal ID
- * @param {string} proposalId - The proposal ID
- * @returns {Promise<string>} Organization name
- */
-const getOrganizationName = async (proposalId) => {
-    const cacheKey = `org:${proposalId}`;
-
-    try {
-        // Check cache first
-        const cachedOrg = await cache.get(cacheKey);
-        if (cachedOrg) {
-            return cachedOrg;
-        }
-
-        // Query with optimized join
-        const [result] = await pool.execute(
-            `SELECT p.organization_name, p.partner_organization 
-             FROM proposals p 
-             WHERE p.id = ? 
-             LIMIT 1`,
-            [proposalId]
-        );
-
-        const orgName = result?.[0]?.organization_name ||
-            result?.[0]?.partner_organization ||
-            'Unknown Organization';
-
-        // Cache organization name for longer period
-        await cache.set(cacheKey, orgName, CacheTTL.EXTENDED);
-
-        return orgName;
-    } catch (error) {
-        console.error(`❌ Error fetching organization name for proposal ${proposalId}:`, error.message);
-        return 'Unknown Organization';
-    }
-};
-
+<<<<<<< HEAD
 /**
  * Update proposal status in both databases
  * @param {string} proposalId - The proposal ID
@@ -472,4 +773,30 @@ module.exports = {
     // Utility functions
     isMongoAvailable: () => mongoDb !== null,
     isMySQLAvailable: () => pool !== null,
+=======
+// =============================================
+// EXPORT FUNCTIONS
+// =============================================
+
+module.exports = {
+  // MySQL to MongoDB Sync
+  syncMySQLToMongo,
+  batchSyncMySQLToMongo,
+  
+  // MongoDB to MySQL Sync
+  syncMongoToMySQL,
+  
+  // Bidirectional Sync
+  bidirectionalSync,
+  resolveDataConflicts,
+  
+  // Validation
+  validateSyncIntegrity,
+  
+  // Utility Functions
+  validateSyncParams,
+  compareDataStructures,
+  generateSyncTimestamp,
+  logSyncOperation
+>>>>>>> f6553a8 (Refactor backend services and configuration files)
 }; 

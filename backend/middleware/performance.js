@@ -90,6 +90,13 @@ const rateLimiters = {
         1 * 60 * 1000, // 1 minute
         30, // 30 searches per minute
         'Search rate limit exceeded, please slow down.'
+    ),
+
+    // Data fetching for tables (more lenient)
+    table: createRateLimit(
+        1 * 60 * 1000, // 1 minute
+        200, // 200 requests per minute
+        'Too many data requests, please wait a moment.'
     )
 };
 

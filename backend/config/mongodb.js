@@ -2,7 +2,7 @@ const { MongoClient } = require('mongodb');
 const mongoose = require('mongoose');
 
 // Fixed MongoDB connection configuration - use the working connection string with authentication
-const uri = process.env.MONGODB_URI || 'mongodb://cedo_admin:Raymund-Estaca01@localhost:27017/cedo_auth?authSource=admin';
+const uri = process.env.MONGODB_URI || 'mongodb://cedo_admin:Raymund-Estaca01@localhost:27017/cedo_db?authSource=admin';
 
 // Enhanced options based on common timeout solutions
 const options = {
@@ -24,7 +24,7 @@ let clientPromise;
 if (process.env.NODE_ENV === 'development') {
     // In development mode, use a global variable so the connection is preserved across module reloads
     // FORCE FRESH CONNECTION - clear cache if URI changed
-    const currentUri = process.env.MONGODB_URI || 'mongodb://cedo_admin:Raymund-Estaca01@localhost:27017/cedo_auth?authSource=admin';
+    const currentUri = process.env.MONGODB_URI || 'mongodb://cedo_admin:Raymund-Estaca01@localhost:27017/cedo_db?authSource=admin';
     if (global._mongoUri && global._mongoUri !== currentUri) {
         console.log('🔄 MongoDB: URI changed, clearing cached connection');
         delete global._mongoClientPromise;
@@ -139,7 +139,7 @@ async function testConnection() {
     try {
         const client = await getClientWithRetry();
         // Test with the specific database instead of admin
-        const db = client.db('cedo_auth');
+        const db = client.db('cedo_db');
         await db.command({ ping: 1 });
         console.log('✅ MongoDB: Connection test successful');
         return true;
@@ -150,7 +150,7 @@ async function testConnection() {
 }
 
 // Get database instance with explicit database name and retry logic
-async function getDatabase(dbName = 'cedo_auth') {
+async function getDatabase(dbName = 'cedo_db') {
     try {
         const client = await getClientWithRetry();
         return client.db(dbName);
@@ -164,7 +164,7 @@ async function getDatabase(dbName = 'cedo_auth') {
 async function debugMongoDB() {
     try {
         const client = await getClientWithRetry();
-        const db = client.db('cedo_auth');
+        const db = client.db('cedo_db');
 
         console.log('🔍 MongoDB Debug Information:');
         console.log('🔗 Connection URI (masked):', uri.replace(/\/\/.*@/, '//***:***@'));
@@ -228,8 +228,24 @@ async function debugMongoDB() {
     }
 }
 
+<<<<<<< HEAD
+=======
+// Enhanced backward compatibility function with retry logic
+async function connectToMongo() {
+    try {
+        const client = await getClientWithRetry();
+        const db = client.db('cedo_db');
+        console.log('✅ MongoDB: Connected via connectToMongo compatibility function');
+        return { db, client };
+    } catch (error) {
+        console.error('❌ MongoDB: connectToMongo failed:', error);
+        throw error;
+    }
+}
+
+>>>>>>> f6553a8 (Refactor backend services and configuration files)
 // Backward compatibility alias for getDatabase
-async function getDb(dbName = 'cedo_auth') {
+async function getDb(dbName = 'cedo_db') {
     return await getDatabase(dbName);
 }
 

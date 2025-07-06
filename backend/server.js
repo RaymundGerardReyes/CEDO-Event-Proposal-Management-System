@@ -14,12 +14,12 @@ require('dotenv').config({ path: '../.env' }); // Then try root/.env
 
 // Fallback environment variables for development
 if (!process.env.MONGODB_URI) {
-  process.env.MONGODB_URI = 'mongodb://cedo_admin:Raymund-Estaca01@localhost:27017/cedo_auth?authSource=admin';
+  process.env.MONGODB_URI = 'mongodb://cedo_admin:Raymund-Estaca01@localhost:27017/cedo_db?authSource=admin';
 }
 // Force authentication for development to prevent unauthenticated connections
 if (process.env.NODE_ENV === 'development' && !process.env.MONGODB_URI.includes('@')) {
   console.log('⚠️  Forcing authenticated MongoDB URI for development...');
-  process.env.MONGODB_URI = 'mongodb://cedo_admin:Raymund-Estaca01@localhost:27017/cedo_auth?authSource=admin';
+  process.env.MONGODB_URI = 'mongodb://cedo_admin:Raymund-Estaca01@localhost:27017/cedo_db?authSource=admin';
 }
 if (!process.env.JWT_SECRET) {
   process.env.JWT_SECRET = 'your-development-jwt-secret-key';
@@ -75,6 +75,7 @@ const userRoutes = require("./routes/users")
 // ==============================
 const proposalsRouter = require('./routes/proposals');  // MySQL-focused proposals
 const mongoUnifiedRouter = require('./routes/mongodb-unified');  // Hybrid admin API ENABLED – now modular
+const configRouter = require('./routes/config'); // Public-facing config route
 
 // Initialize express app
 const app = express()
@@ -374,12 +375,20 @@ app.use('/api', draftsRouter);
 const testMongoDBRouter = require('./routes/test-mongodb');
 app.use('/api', testMongoDBRouter);
 
+<<<<<<< HEAD
 // ==============================
 // Error Handling Middleware
 // ==============================
 // Error handling middleware
 // This should be the last middleware added
 app.use(errorHandler)
+=======
+// ✅ Config router
+app.use("/api/config", configRouter);
+
+// Centralized error handling
+app.use(errorHandler);
+>>>>>>> f6553a8 (Refactor backend services and configuration files)
 
 // ==============================
 // Production Static File Serving

@@ -9,9 +9,15 @@ const getNativeDb = async (maxRetries = 3) => {
         try {
             console.log(`🔄 (GridFS Utility) Native DB connection attempt ${attempt}/${maxRetries}`);
 
+<<<<<<< HEAD
             // Use the enhanced getClientWithRetry which includes retry logic
             const client = await getClientWithRetry(); // Call the retry wrapper function
             const db = client.db(); // default DB comes from the connection string
+=======
+            // Use the enhanced clientPromise which now includes retry logic
+            const client = await clientPromise(); // Call the function to get the client
+            const db = client.db('cedo_db'); // Specify the database name
+>>>>>>> f6553a8 (Refactor backend services and configuration files)
 
             // Test the connection by running a simple command with timeout
             const timeoutPromise = new Promise((_, reject) => {
