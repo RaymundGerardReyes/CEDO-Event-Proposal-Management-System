@@ -25,11 +25,11 @@ import { getFieldClasses, hasFieldError } from "../../validation"
 const saveCommunityEventData = async (formData) => {
   const form = new FormData();
 
-  // Get organization_id from form data or use default
-  const organizationId = formData.organizationId || formData.organization_id || '1';
+  // Get proposal_id from form data or use default
+  const proposalId = formData.proposalId || formData.id || formData.organization_id || '1';
 
   // Add text fields for MongoDB document
-  form.append('organization_id', organizationId);
+  form.append('proposal_id', proposalId);
   form.append('name', formData.communityEventName);
   form.append('venue', formData.communityVenue);
   form.append('start_date', formData.communityStartDate ? new Date(formData.communityStartDate).toISOString().split('T')[0] : '');

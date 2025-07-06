@@ -1,8 +1,12 @@
 // frontend/src/lib/google-auth.js
 
+<<<<<<< HEAD
 import { config } from "@/lib/utils";
 
 const GOOGLE_CLIENT_ID = config.googleClientId;
+=======
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+>>>>>>> 4336112 (Refactor and enhance backend and frontend components)
 
 let googleScriptLoadPromise = null;
 let gsiClientInitPromise = null;

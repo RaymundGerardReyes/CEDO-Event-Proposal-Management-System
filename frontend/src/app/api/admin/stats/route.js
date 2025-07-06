@@ -58,7 +58,7 @@ export async function GET() {
             pendingTrend?.direction === 'down' ?
                 -parseInt(pendingTrend.value) : 0;
 
-        // Return formatted stats
+        // Return formatted stats that match the admin dashboard expectations
         return NextResponse.json({
             success: true,
             stats: {

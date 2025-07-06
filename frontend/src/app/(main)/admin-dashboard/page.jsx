@@ -12,7 +12,7 @@ import { Input } from "@/components/dashboard/admin/ui/input";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Calendar, ChevronLeft, ClockIcon, FileText, Search, TrendingDown, TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 /**
  * @typedef {Object} DashboardStats
@@ -32,52 +32,53 @@ const useDashboardStats = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  const fetchStats = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        const response = await fetch('/api/admin/stats', {
-          method: 'GET',
-          credentials: 'include', // Include cookies for authentication
-        });
+      const response = await fetch('/api/admin/stats', {
+        method: 'GET',
+        credentials: 'include', // Include cookies for authentication
+        cache: 'no-store', // Prevent browser caching of this request
+      });
 
-        if (!response.ok) {
-          throw new Error(`Failed to fetch stats: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (!data.success) {
-          throw new Error(data.error || 'Failed to fetch dashboard statistics');
-        }
-
-        setStats(data.stats);
-      } catch (err) {
-        console.error('Dashboard stats error:', err);
-        setError(err instanceof Error ? err.message : 'Unknown error');
-
-        // Set fallback data
-        setStats({
-          total: 0,
-          pending: 0,
-          approved: 0,
-          rejected: 0,
-          newSinceYesterday: 0,
-          approvalRate: '0%',
-          dayOverDayPct: '0%',
-          isPositiveGrowth: true,
-        });
-      } finally {
-        setLoading(false);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch stats: ${response.status}`);
       }
-    };
 
-    fetchStats();
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to fetch dashboard statistics');
+      }
+
+      setStats(data.stats);
+    } catch (err) {
+      console.error('Dashboard stats error:', err);
+      setError(err instanceof Error ? err.message : 'Unknown error');
+
+      // Set fallback data
+      setStats({
+        total: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+        newSinceYesterday: 0,
+        approvalRate: '0%',
+        dayOverDayPct: '0%',
+        isPositiveGrowth: true,
+      });
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  return { stats, loading, error };
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  return { stats, loading, error, refetch: fetchStats };
 };
 
 // Sample data for proposals
@@ -191,7 +192,7 @@ export default function DashboardPage() {
   const [expandedProposalId, setExpandedProposalId] = useState(null)
 
   // Fetch dashboard statistics
-  const { stats, loading: statsLoading, error: statsError } = useDashboardStats();
+  const { stats, loading: statsLoading, error: statsError, refetch: refetchStats } = useDashboardStats();
 
   const toggleExpandProposal = (id) => {
     setExpandedProposalId(expandedProposalId === id ? null : id)
@@ -242,7 +243,15 @@ export default function DashboardPage() {
 
   return (
     <div className="flex-1 bg-[#f8f9fa] p-6 md:p-8">
-      <PageHeader title="Dashboard" subtitle="Summary" />
+      <PageHeader
+        title="Dashboard"
+        subtitle="Summary"
+        actions={
+          <Button onClick={refetchStats} variant="outline" size="sm" disabled={statsLoading}>
+            {statsLoading ? "Refreshing..." : "Refresh"}
+          </Button>
+        }
+      />
 
       <ResponsiveGrid cols={{ default: 1, sm: 2, lg: 4 }} className="mb-8">
         <Card className="hover-card-effect">

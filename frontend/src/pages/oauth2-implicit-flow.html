@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <html>
 
 <head></head>
@@ -99,4 +100,107 @@
     <button onclick="trySampleRequest();">Try sample request</button>
 </body>
 
+=======
+<html>
+
+<head></head>
+
+<body>
+    <script>
+        var YOUR_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+        var YOUR_REDIRECT_URI = 'http://localhost:3000/api/auth/google/callback';
+
+        // Parse query string to see if page request is coming from OAuth 2.0 server.
+        var fragmentString = location.hash.substring(1);
+        var params = {};
+        var regex = /([^&=]+)=([^&]*)/g, m;
+        while (m = regex.exec(fragmentString)) {
+            params[decodeURIComponent(m[1])] = decodeURIComponent(m[2]);
+        }
+        if (Object.keys(params).length > 0 && params['state']) {
+            if (params['state'] == localStorage.getItem('state')) {
+                localStorage.setItem('oauth2-test-params', JSON.stringify(params));
+                trySampleRequest();
+            } else {
+                console.log('State mismatch. Possible CSRF attack');
+            }
+        }
+
+        // Function to generate a random state value
+        function generateCryptoRandomState() {
+            const randomValues = new Uint32Array(2);
+            window.crypto.getRandomValues(randomValues);
+            const utf8Encoder = new TextEncoder();
+            const utf8Array = utf8Encoder.encode(
+                String.fromCharCode.apply(null, randomValues)
+            );
+            return btoa(String.fromCharCode.apply(null, utf8Array))
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=+$/, '');
+        }
+
+        // If there's an access token, try an API request.
+        // Otherwise, start OAuth 2.0 flow.
+        function trySampleRequest() {
+            var params = JSON.parse(localStorage.getItem('oauth2-test-params'));
+            if (params && params['access_token']) {
+                if (params['scope'].includes('https://www.googleapis.com/auth/drive.metadata.readonly')) {
+                    var xhr = new XMLHttpRequest();
+                    xhr.open('GET',
+                        'https://www.googleapis.com/drive/v3/about?fields=user&' +
+                        'access_token=' + params['access_token']);
+                    xhr.onreadystatechange = function (e) {
+                        if (xhr.readyState === 4 && xhr.status === 200) {
+                            console.log(xhr.response);
+                        } else if (xhr.readyState === 4 && xhr.status === 401) {
+                            oauth2SignIn();
+                        }
+                    };
+                    xhr.send(null);
+                } else {
+                    console.log('User did not authorize read-only Drive activity permission.');
+                }
+
+                if (params['scope'].includes('https://www.googleapis.com/auth/calendar.readonly')) {
+                    console.log('User authorized Calendar read permission.');
+                } else {
+                    console.log('User did not authorize Calendar read permission.');
+                }
+            } else {
+                oauth2SignIn();
+            }
+        }
+
+        function oauth2SignIn() {
+            var state = generateCryptoRandomState();
+            localStorage.setItem('state', state);
+            var oauth2Endpoint = 'https://accounts.google.com/o/oauth2/v2/auth';
+            var form = document.createElement('form');
+            form.setAttribute('method', 'GET');
+            form.setAttribute('action', oauth2Endpoint);
+            var params = {
+                'client_id': YOUR_CLIENT_ID,
+                'redirect_uri': YOUR_REDIRECT_URI,
+                'scope': 'https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/calendar.readonly',
+                'state': state,
+                'include_granted_scopes': 'true',
+                'response_type': 'token'
+            };
+            for (var p in params) {
+                var input = document.createElement('input');
+                input.setAttribute('type', 'hidden');
+                input.setAttribute('name', p);
+                input.setAttribute('value', params[p]);
+                form.appendChild(input);
+            }
+            document.body.appendChild(form);
+            form.submit();
+        }
+    </script>
+
+    <button onclick="trySampleRequest();">Try sample request</button>
+</body>
+
+>>>>>>> 4336112 (Refactor and enhance backend and frontend components)
 </html>

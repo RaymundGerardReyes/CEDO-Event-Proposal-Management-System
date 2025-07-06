@@ -116,6 +116,7 @@ export function getResponsiveColumns(totalItems, maxColumns = 4) {
     return Math.min(totalItems, maxColumns)
 }
 
+<<<<<<< HEAD
 // Environment configuration utility
 // Centralizes access to environment variables with fallbacks
 
@@ -169,3 +170,33 @@ export const buildBackendUrl = (path = "") => {
     const cleanPath = path.startsWith("/") ? path : `/${path}`;
     return `${config.backendUrl}${cleanPath}`;
 };
+=======
+// Centralized configuration object
+export const config = {
+    recaptchaSiteKey: null,
+};
+
+// Import centralized API configuration
+import { loadApiConfig } from './api.js'
+
+// Function to load configuration from the backend
+export async function loadConfig() {
+    // Prevent re-fetching if already loaded
+    if (config.recaptchaSiteKey) {
+        return;
+    }
+
+    try {
+        const data = await loadApiConfig();
+        if (data.recaptchaSiteKey) {
+            config.recaptchaSiteKey = data.recaptchaSiteKey;
+        } else {
+            console.error("reCAPTCHA site key not found in response from /api/config");
+        }
+    } catch (error) {
+        console.error("Error fetching application config:", error);
+        // Depending on the app's needs, you might want to re-throw the error
+        // or handle it gracefully.
+    }
+}
+>>>>>>> 4336112 (Refactor and enhance backend and frontend components)

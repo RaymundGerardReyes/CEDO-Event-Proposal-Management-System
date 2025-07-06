@@ -168,7 +168,11 @@ function ProfilePageContent() {
       }
 
       const response = await fetch(
+<<<<<<< HEAD
         `${config.apiUrl}/profile?t=${Date.now()}`,
+=======
+        `${process.env.API_URL || 'http://localhost:5000'}/api/profile?t=${Date.now()}`,
+>>>>>>> 4336112 (Refactor and enhance backend and frontend components)
         {
           method: 'GET',
           headers,
@@ -317,7 +321,11 @@ function ProfilePageContent() {
       console.log('👤 Profile: Saving organization description...', organizationDescription);
 
       const response = await fetch(
+<<<<<<< HEAD
         `${config.apiUrl}/profile/organization`,
+=======
+        `${process.env.API_URL || 'http://localhost:5000'}/api/profile/organization`,
+>>>>>>> 4336112 (Refactor and enhance backend and frontend components)
         {
           method: 'PUT',
           headers,
@@ -374,7 +382,11 @@ function ProfilePageContent() {
       }
 
       const response = await fetch(
+<<<<<<< HEAD
         `${config.apiUrl}/profile/phone`,
+=======
+        `${process.env.API_URL || 'http://localhost:5000'}/api/profile/phone`,
+>>>>>>> 4336112 (Refactor and enhance backend and frontend components)
         {
           method: 'PUT',
           headers,

@@ -2,6 +2,7 @@
     "name": "cedo-partnership-management-frontend",
     "version": "1.0.0",
     "private": true,
+    "type": "module",
     "scripts": {
         "dev": "next dev",
         "dev:normal": "next dev",
@@ -23,8 +24,14 @@
         "profile": "next build --profile",
         "debug": "DEBUG=next:* next dev --turbo",
         "debug:normal": "DEBUG=next:* next dev",
-        "test": "jest --cache",
-        "test:watch": "jest --watch --cache",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
+        "test:ui": "vitest --ui",
+        "test:watch:ui": "vitest --ui --watch",
+        "test:coverage:ui": "vitest --coverage --ui",
+        "test:watch:coverage:ui": "vitest --coverage --ui --watch",
+        "test:watch:coverage:ui": "vitest --coverage --ui --watch",
         "test:config": "node test-config.js",
         "validate:turbopack": "node turbopack-test.js",
         "deps:check": "npx npm-check-updates",
@@ -34,6 +41,23 @@
         "turbo:check": "next info",
         "turbo:trace": "NEXT_TURBOPACK_TRACING=1 npm run dev"
     },
+
+    "release": {
+    "branches": ["main"],
+    "plugins": [
+      "@semantic-release/commit-analyzer",
+      "@semantic-release/release-notes-generator",
+      "@semantic-release/changelog",
+      "@semantic-release/npm",
+      [
+        "@semantic-release/git",
+        {
+          "assets": ["package.json", "CHANGELOG.md"],
+          "message": "chore(release): ${nextRelease.version}\n\n${nextRelease.notes}"
+        }
+      ]
+    ]
+  },
     "dependencies": {
         "@google-recaptcha/react": "2.2.0",
         "@hookform/resolvers": "5.0.1",
@@ -114,7 +138,8 @@
         "identity-obj-proxy": "3.0.0",
         "jest-environment-jsdom": "29.7.0",
         "postcss": "8.5.6",
-        "rimraf": "^5.0.5"
+        "rimraf": "^5.0.5",
+        "vitest": "3.2.4"
     },
     "engines": {
         "node": ">=18.17.0",

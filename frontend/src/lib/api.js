@@ -1,298 +1,166 @@
-import axios from "axios"
-
-// API base URL with fallback
-const API_URL = process.env.API_URL;
-
-// Create axios instance with default config
-const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  },
-})
-
-// Request interceptor to add auth token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("cedo_token")
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  },
-  (error) => Promise.reject(error),
-)
-
-// Response interceptor for error handling
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    // Handle session expiration
-    if (error.response && error.response.status === 401) {
-      // Clear auth data
-      localStorage.removeItem("cedo_token")
-      localStorage.removeItem("cedo_user")
-
-      // Redirect to login if not already there
-      if (typeof window !== "undefined" && !window.location.pathname.includes("/sign-in")) {
-        window.location.href = "/sign-in"
-      }
-    }
-    return Promise.reject(error)
-  },
-)
 
 /**
- * Auth API functions
+ * Centralized API Configuration
+ * Ensures consistent API URL handling across the frontend
  */
-export const authApi = {
-  login: async (email, password) => {
-    try {
-      const response = await api.post("/auth/login", { email, password })
-      return response.data
-    } catch (error) {
-      throw error
-    }
+
+// Base API URL with fallback
+export const API_BASE_URL = process.env.API_URL || 'http://localhost:5000';
+
+// API endpoints
+export const API_ENDPOINTS = {
+  // Auth endpoints
+  AUTH: {
+    GOOGLE: `${API_BASE_URL}/auth/google`,
+    STATUS: `${API_BASE_URL}/auth/oauth/me`,
+    LOGOUT: `${API_BASE_URL}/auth/oauth/logout`,
   },
 
-  verifyOtp: async (email, otp) => {
-    try {
-      const response = await api.post("/auth/verify-otp", { email, otp })
-      if (response.data.token) {
-        localStorage.setItem("cedo_token", response.data.token)
-      }
-      return response.data
-    } catch (error) {
-      throw error
-    }
+  // Config endpoints
+  CONFIG: `${API_BASE_URL}/api/config`,
+
+  // Profile endpoints
+  PROFILE: {
+    BASE: `${API_BASE_URL}/api/profile`,
+    ORGANIZATION: `${API_BASE_URL}/api/profile/organization`,
+    PHONE: `${API_BASE_URL}/api/profile/phone`,
   },
 
-  register: async (userData) => {
-    try {
-      const response = await api.post("/auth/register", userData)
-      return response.data
-    } catch (error) {
-      throw error
-    }
+  // Health and status endpoints
+  HEALTH: `${API_BASE_URL}/health`,
+  DB_CHECK: `${API_BASE_URL}/api/db-check`,
+  TABLES_CHECK: `${API_BASE_URL}/api/tables-check`,
+
+  // Proposals endpoints
+  PROPOSALS: `${API_BASE_URL}/api/proposals`,
+
+  // Admin endpoints
+  ADMIN: {
+    STATS: `${API_BASE_URL}/api/admin/stats`,
+    REPORTS: `${API_BASE_URL}/api/admin/reports`,
   },
 
-  forgotPassword: async (email) => {
-    try {
-      const response = await api.post("/auth/forgot-password", { email })
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
+  // MongoDB unified endpoints
+  MONGODB_UNIFIED: `${API_BASE_URL}/api/mongodb-unified`,
+};
 
-  resetPassword: async (token, password) => {
-    try {
-      const response = await api.put(`/auth/reset-password/${token}`, { password })
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
+/**
+ * Generic fetch wrapper with error handling
+ */
+export async function apiFetch(endpoint, options = {}) {
+  const url = typeof endpoint === 'string' ? endpoint : endpoint;
 
-  getProfile: async () => {
-    try {
-      const response = await api.get("/users/me")
-      return response.data
-    } catch (error) {
-      throw error
+  const defaultOptions = {
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    credentials: 'include', // Include cookies for session management
+  };
+
+  const fetchOptions = {
+    ...defaultOptions,
+    ...options,
+    headers: {
+      ...defaultOptions.headers,
+      ...options.headers,
+    },
+  };
+
+  try {
+    const response = await fetch(url, fetchOptions);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
     }
-  },
+
+    return await response.json();
+  } catch (error) {
+    console.error(`API request failed for ${url}:`, error);
+    throw error;
+  }
 }
 
 /**
- * Proposals API functions
+ * GET request helper
  */
-export const proposalsApi = {
-  getAll: async (filters = {}) => {
-    try {
-      const queryParams = new URLSearchParams(filters).toString()
-      const response = await api.get(`/proposals?${queryParams}`)
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
-
-  getById: async (id) => {
-    try {
-      const response = await api.get(`/proposals/${id}`)
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
-
-  create: async (proposalData) => {
-    try {
-      const response = await api.post("/proposals", proposalData)
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
-
-  update: async (id, proposalData) => {
-    try {
-      const response = await api.put(`/proposals/${id}`, proposalData)
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
-
-  delete: async (id) => {
-    try {
-      const response = await api.delete(`/proposals/${id}`)
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
-
-  addDocuments: async (id, formData) => {
-    try {
-      const response = await api.post(`/proposals/${id}/documents`, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      })
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
-
-  deleteDocument: async (proposalId, documentId) => {
-    try {
-      const response = await api.delete(`/proposals/${proposalId}/documents/${documentId}`)
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
+export async function apiGet(endpoint, options = {}) {
+  return apiFetch(endpoint, { ...options, method: 'GET' });
 }
 
 /**
- * Reviews API functions
+ * POST request helper
  */
-export const reviewsApi = {
-  getPending: async () => {
-    try {
-      const response = await api.get("/reviews/pending")
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
-
-  submitReview: async (proposalId, reviewData) => {
-    try {
-      const response = await api.post(`/reviews/${proposalId}`, reviewData)
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
-
-  assignReviewer: async (proposalId, reviewerId) => {
-    try {
-      const response = await api.put(`/reviews/${proposalId}/assign`, { reviewerId })
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
-
-  getStats: async () => {
-    try {
-      const response = await api.get("/reviews/stats")
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
+export async function apiPost(endpoint, data, options = {}) {
+  return apiFetch(endpoint, {
+    ...options,
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
 
 /**
- * Compliance API functions
+ * PUT request helper
  */
-export const complianceApi = {
-  getAll: async (filters = {}) => {
-    try {
-      const queryParams = new URLSearchParams(filters).toString()
-      const response = await api.get(`/compliance?${queryParams}`)
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
-
-  submitDocuments: async (proposalId, formData) => {
-    try {
-      const response = await api.post(`/compliance/${proposalId}/documents`, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      })
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
-
-  updateStatus: async (proposalId, statusData) => {
-    try {
-      const response = await api.put(`/compliance/${proposalId}/status`, statusData)
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
-
-  getOverdue: async () => {
-    try {
-      const response = await api.get("/compliance/overdue")
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
-
-  getStats: async () => {
-    try {
-      const response = await api.get("/compliance/stats")
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
+export async function apiPut(endpoint, data, options = {}) {
+  return apiFetch(endpoint, {
+    ...options,
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
 }
 
 /**
- * Reports API functions
+ * DELETE request helper
  */
-export const reportsApi = {
-  getProposalsReport: async (filters = {}) => {
-    try {
-      const queryParams = new URLSearchParams(filters).toString()
-      const response = await api.get(`/reports/proposals?${queryParams}`)
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
+export async function apiDelete(endpoint, options = {}) {
+  return apiFetch(endpoint, { ...options, method: 'DELETE' });
 }
 
+/**
+ * Load configuration from backend
+ */
+export async function loadApiConfig() {
+  try {
+    const config = await apiGet(API_ENDPOINTS.CONFIG);
+    return config;
+  } catch (error) {
+    console.error('Failed to load API configuration:', error);
+    throw error;
+  }
+}
+
+/**
+ * Check if backend is available
+ */
+export async function checkBackendHealth() {
+  try {
+    const health = await apiGet(API_ENDPOINTS.HEALTH);
+    return health.status === 'ok';
+  } catch (error) {
+    console.error('Backend health check failed:', error);
+    return false;
+  }
+}
+
+/**
+ * Get API base URL for debugging
+ */
+export function getApiBaseUrl() {
+  return API_BASE_URL;
+}
+
+// Export for backward compatibility
 export default {
-  auth: authApi,
-  proposals: proposalsApi,
-  reviews: reviewsApi,
-  compliance: complianceApi,
-  reports: reportsApi,
-}
+  API_BASE_URL,
+  API_ENDPOINTS,
+  apiFetch,
+  apiGet,
+  apiPost,
+  apiPut,
+  apiDelete,
+  loadApiConfig,
+  checkBackendHealth,
+  getApiBaseUrl,
+};

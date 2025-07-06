@@ -115,6 +115,8 @@ const baseConfig = {
     })(),
     DISABLE_GOOGLE_SIGNIN_IN_DEV: process.env.NODE_ENV === 'development' ? 'true' : 'false',
     ENABLE_DOM_ERROR_RECOVERY: 'true',
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+    SESSION_TIMEOUT_MINUTES: process.env.SESSION_TIMEOUT_MINUTES || '30',
   },
 
   // Build directory

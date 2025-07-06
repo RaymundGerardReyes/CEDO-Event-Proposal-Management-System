@@ -141,6 +141,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+<<<<<<< HEAD
 // ✅ Request deduplication cache to prevent duplicate API calls
 const requestCache = new Map();
 const CACHE_DURATION = 2000; // 2 seconds
@@ -194,6 +195,17 @@ const isRequestInFlight = (cacheKey) => {
   return cached && (Date.now() - cached.timestamp < CACHE_DURATION);
 };
 
+=======
+// Debounce function
+const debounce = (func, delay) => {
+  let timeout;
+  return (...args) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), delay);
+  };
+};
+
+>>>>>>> 4336112 (Refactor and enhance backend and frontend components)
 const statusColors = {
   pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
   approved: 'bg-green-100 text-green-800 border-green-200',
@@ -251,7 +263,29 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
     );
   }, [proposals, searchTerm]);
 
+<<<<<<< HEAD
   // ✅ Enhanced fetch proposals with rate limiting protection
+=======
+  // Debounced search term state
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+
+  // Debounce the search term update
+  useEffect(() => {
+    const handler = debounce(() => {
+      setDebouncedSearchTerm(searchTerm);
+      setCurrentPage(1); // Reset to first page on new search
+    }, 500); // 500ms delay
+
+    handler();
+
+    // Cleanup function
+    return () => {
+      // You might not need this if your debounce implementation handles it
+    };
+  }, [searchTerm]);
+
+  // Fetch proposals from the backend API
+>>>>>>> 4336112 (Refactor and enhance backend and frontend components)
   const fetchProposals = useCallback(async () => {
     if (!isMountedRef.current) return;
 
@@ -266,6 +300,7 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
     requestCache.set(cacheKey, { timestamp: Date.now() });
 
     try {
+<<<<<<< HEAD
       // ✅ Retry with exponential backoff for 429 errors
       const result = await retryWithBackoff(async () => {
         // Build query parameters
@@ -281,6 +316,21 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
         const apiUrl = `${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?${queryParams}`
         console.log('📊 Fetching proposals from hybrid API:', apiUrl)
         console.log('📊 Query params:', { currentPage, statusFilter, searchTerm })
+=======
+      // Build query parameters
+      const queryParams = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: '10',
+        ...(statusFilter && statusFilter !== 'all' && { status: statusFilter }),
+        ...(debouncedSearchTerm && { search: debouncedSearchTerm }),
+      }).toString()
+
+      // ✅ Use hybrid API endpoint that combines MySQL + MongoDB
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
+      const apiUrl = `${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?${queryParams}`
+      console.log('📊 Fetching proposals from hybrid API:', apiUrl)
+      console.log('📊 Query params:', { currentPage, statusFilter, debouncedSearchTerm })
+>>>>>>> 4336112 (Refactor and enhance backend and frontend components)
 
         const response = await fetch(apiUrl, {
           method: 'GET',
@@ -291,11 +341,28 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
 
         console.log('📡 Frontend API response:', response.status, response.statusText)
 
+<<<<<<< HEAD
         if (!response.ok) {
           const errorText = await response.text()
           console.error('❌ Frontend API error:', response.status, response.statusText, errorText)
           throw new Error(`API request failed: ${response.status} - ${response.statusText}`)
         }
+=======
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('❌ Frontend API error:', response.status, response.statusText, errorText)
+        if (response.status === 429) {
+          toastRef.current({
+            title: "Too Many Requests",
+            description: "You're searching too quickly. Please wait a moment.",
+            variant: "destructive"
+          });
+        } else {
+          throw new Error(`API request failed: ${response.status} - ${response.statusText}`)
+        }
+        return; // Stop execution if response is not ok
+      }
+>>>>>>> 4336112 (Refactor and enhance backend and frontend components)
 
         return await response.json();
       });
@@ -346,6 +413,7 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
         setLoading(false);
       }
     }
+<<<<<<< HEAD
   }, [currentPage, statusFilter, searchTerm]) // ✅ REMOVED `loading` dependency to fix infinite loop
 
   // ✅ Debounced version of fetchProposals to prevent rapid calls
@@ -355,6 +423,11 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
   );
 
   // ✅ Use debounced fetch on component mount and when dependencies change
+=======
+  }, [currentPage, debouncedSearchTerm, statusFilter])
+
+  // Effect to fetch proposals when page, filter, or debounced search term changes
+>>>>>>> 4336112 (Refactor and enhance backend and frontend components)
   useEffect(() => {
     debouncedFetchProposals()
   }, [debouncedFetchProposals])

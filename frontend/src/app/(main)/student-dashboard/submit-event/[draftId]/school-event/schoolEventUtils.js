@@ -163,8 +163,8 @@ export const saveSchoolEventData = async (formData) => {
     console.log('📁 FRONTEND SAVE: MongoDB upload URL:', uploadUrl);
 
     const form = new FormData();
-    form.append('organization_id', proposalId);
-    console.log('📁 FRONTEND SAVE: Added organization_id to FormData:', proposalId);
+    form.append('proposal_id', proposalId);
+    console.log('📁 FRONTEND SAVE: Added proposal_id to FormData:', proposalId);
 
     // CRITICAL FIX: Add organization name to ensure proper file metadata
     if (formData.organizationName) {

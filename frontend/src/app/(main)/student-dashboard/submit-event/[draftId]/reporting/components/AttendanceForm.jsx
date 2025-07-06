@@ -66,7 +66,7 @@ export const AttendanceForm = ({
             console.log('🌐 AttendanceForm: Using backend URL:', backendUrl);
             console.log('🌐 AttendanceForm: Full API URL:', apiUrl);
 
-            const response = await fetch(apiUrl, {
+            let response = await fetch(apiUrl, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',

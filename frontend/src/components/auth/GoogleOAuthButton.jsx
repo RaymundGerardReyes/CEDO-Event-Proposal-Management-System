@@ -1,7 +1,10 @@
 "use client";
 
 import { useAuth } from '@/contexts/auth-context';
+<<<<<<< HEAD
 import { config } from "@/lib/utils";
+=======
+>>>>>>> 4336112 (Refactor and enhance backend and frontend components)
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -137,7 +140,11 @@ export default function GoogleOAuthButton({
         try {
             console.log('Raw Google response:', response);
 
+<<<<<<< HEAD
             const res = await fetch(`${config.apiUrl}/auth/google`, {
+=======
+            const res = await fetch(`${process.env.API_URL || 'http://localhost:5000'}/auth/google`, {
+>>>>>>> 4336112 (Refactor and enhance backend and frontend components)
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ token: response.credential || response.access_token })

@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="18" failures="18" errors="0" time="0">
+    <testsuite name="tests/api.test.js" timestamp="2025-07-06T08:47:32.762Z" hostname="RAYMUND-PC03" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="tests/api.test.js" name="tests/api.test.js" time="0">
+            <failure message="jest is not defined" type="ReferenceError">
+ReferenceError: jest is not defined
+ ❯ tests/api.test.js:11:1
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/datePickerComponent.test.jsx" timestamp="2025-07-06T08:47:32.771Z" hostname="RAYMUND-PC03" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="tests/datePickerComponent.test.jsx" name="tests/datePickerComponent.test.jsx" time="0">
+            <failure message="expect is not defined" type="ReferenceError">
+ReferenceError: expect is not defined
+ ❯ ../../CEDO%20Google%20Auth/frontend/node_modules/@testing-library/jest-dom/dist/index.mjs:10:1
+ ❯ tests/datePickerComponent.test.jsx:1:1
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/google-auth.test.js" timestamp="2025-07-06T08:47:32.773Z" hostname="RAYMUND-PC03" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="tests/google-auth.test.js" name="tests/google-auth.test.js" time="0">
+            <failure message="describe is not defined" type="ReferenceError">
+ReferenceError: describe is not defined
+ ❯ tests/google-auth.test.js:54:1
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/middleware.test.js" timestamp="2025-07-06T08:47:32.775Z" hostname="RAYMUND-PC03" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="tests/middleware.test.js" name="tests/middleware.test.js" time="0">
+            <failure message="Do not import `@jest/globals` outside of the Jest test environment" type="Error">
+Error: Do not import `@jest/globals` outside of the Jest test environment
+ ❯ Object.&lt;anonymous&gt; node_modules/@jest/globals/build/index.js:12:7
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/section3SchoolEvent.test.jsx" timestamp="2025-07-06T08:47:32.777Z" hostname="RAYMUND-PC03" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="tests/section3SchoolEvent.test.jsx" name="tests/section3SchoolEvent.test.jsx" time="0">
+            <failure message="expect is not defined" type="ReferenceError">
+ReferenceError: expect is not defined
+ ❯ ../../CEDO%20Google%20Auth/frontend/node_modules/@testing-library/jest-dom/dist/index.mjs:10:1
+ ❯ tests/section3SchoolEvent.test.jsx:1:1
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/signinpage.test.jsx" timestamp="2025-07-06T08:47:32.781Z" hostname="RAYMUND-PC03" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="tests/signinpage.test.jsx" name="tests/signinpage.test.jsx" time="0">
+            <failure message="expect is not defined" type="ReferenceError">
+ReferenceError: expect is not defined
+ ❯ ../../CEDO%20Google%20Auth/frontend/node_modules/@testing-library/jest-dom/dist/index.mjs:10:1
+ ❯ tests/signinpage.test.jsx:1:1
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/submitEventFlow.test.jsx" timestamp="2025-07-06T08:47:32.783Z" hostname="RAYMUND-PC03" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="tests/submitEventFlow.test.jsx" name="tests/submitEventFlow.test.jsx" time="0">
+            <failure message="expect is not defined" type="ReferenceError">
+ReferenceError: expect is not defined
+ ❯ ../../CEDO%20Google%20Auth/frontend/node_modules/@testing-library/jest-dom/dist/index.mjs:10:1
+ ❯ tests/submitEventFlow.test.jsx:1:1
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/utils.test.js" timestamp="2025-07-06T08:47:32.786Z" hostname="RAYMUND-PC03" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="tests/utils.test.js" name="tests/utils.test.js" time="0">
+            <failure message="Cannot find module &apos;./utils&apos; imported from &apos;C:/Users/LOQ/Downloads/CEDO Google Auth/frontend/tests/utils.test.js&apos;" type="Error">
+Error: Cannot find module &apos;./utils&apos; imported from &apos;C:/Users/LOQ/Downloads/CEDO Google Auth/frontend/tests/utils.test.js&apos;
+ ❯ tests/utils.test.js:1:1
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: &apos;ERR_MODULE_NOT_FOUND&apos; }
+Caused by: Caused by: Error: Failed to load url ./utils (resolved id: ./utils) in C:/Users/LOQ/Downloads/CEDO Google Auth/frontend/tests/utils.test.js. Does the file exist?
+ ❯ loadAndTransform ../../CEDO%20Google%20Auth/frontend/node_modules/vite/dist/node/chunks/dep-CXCa-anf.js:26401:33
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/auth/auth-context.test.js" timestamp="2025-07-06T08:47:32.790Z" hostname="RAYMUND-PC03" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="tests/auth/auth-context.test.js" name="tests/auth/auth-context.test.js" time="0">
+            <failure message="Failed to parse source for import analysis because the content contains invalid JS syntax. If you are using JSX, make sure to name the file with the .jsx or .tsx extension." type="Error">
+Error: Failed to parse source for import analysis because the content contains invalid JS syntax. If you are using JSX, make sure to name the file with the .jsx or .tsx extension.
+  Plugin: vite:import-analysis
+  File: C:/Users/LOQ/Downloads/CEDO Google Auth/frontend/tests/auth/auth-context.test.js:186:75
+  184|      return (
+  185|          &lt;div&gt;
+  186|              &lt;div data-testid=&quot;is-loading&quot;&gt;{auth.isLoading.toString()}&lt;/div&gt;
+     |                                                                             ^
+  187|              &lt;div data-testid=&quot;is-initialized&quot;&gt;{auth.isInitialized.toString()}&lt;/div&gt;
+  188|              &lt;div data-testid=&quot;user&quot;&gt;{auth.user ? JSON.stringify(auth.user) : &apos;null&apos;}&lt;/div&gt;
+ ❯ TransformPluginContext._formatLog ../../CEDO%20Google%20Auth/frontend/node_modules/vite/dist/node/chunks/dep-CXCa-anf.js:31420:43
+ ❯ TransformPluginContext.error ../../CEDO%20Google%20Auth/frontend/node_modules/vite/dist/node/chunks/dep-CXCa-anf.js:31417:14
+ ❯ TransformPluginContext.transform ../../CEDO%20Google%20Auth/frontend/node_modules/vite/dist/node/chunks/dep-CXCa-anf.js:29929:10
+ ❯ EnvironmentPluginContainer.transform ../../CEDO%20Google%20Auth/frontend/node_modules/vite/dist/node/chunks/dep-CXCa-anf.js:31234:14
+ ❯ loadAndTransform ../../CEDO%20Google%20Auth/frontend/node_modules/vite/dist/node/chunks/dep-CXCa-anf.js:26408:26
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/auth/google-auth.test.js" timestamp="2025-07-06T08:47:32.793Z" hostname="RAYMUND-PC03" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="tests/auth/google-auth.test.js" name="tests/auth/google-auth.test.js" time="0">
+            <failure message="jest is not defined" type="ReferenceError">
+ReferenceError: jest is not defined
+ ❯ tests/auth/google-auth.test.js:7:11
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/auth/sign-in.test.jsx" timestamp="2025-07-06T08:47:32.795Z" hostname="RAYMUND-PC03" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="tests/auth/sign-in.test.jsx" name="tests/auth/sign-in.test.jsx" time="0">
+            <failure message="Cannot find package &apos;@/app/(auth)/sign-in/page&apos; imported from &apos;C:/Users/LOQ/Downloads/CEDO Google Auth/frontend/tests/auth/sign-in.test.jsx&apos;" type="Error">
+Error: Cannot find package &apos;@/app/(auth)/sign-in/page&apos; imported from &apos;C:/Users/LOQ/Downloads/CEDO Google Auth/frontend/tests/auth/sign-in.test.jsx&apos;
+ ❯ tests/auth/sign-in.test.jsx:3:1
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: &apos;ERR_MODULE_NOT_FOUND&apos; }
+Caused by: Caused by: Error: Failed to load url @/app/(auth)/sign-in/page (resolved id: @/app/(auth)/sign-in/page) in C:/Users/LOQ/Downloads/CEDO Google Auth/frontend/tests/auth/sign-in.test.jsx. Does the file exist?
+ ❯ loadAndTransform ../../CEDO%20Google%20Auth/frontend/node_modules/vite/dist/node/chunks/dep-CXCa-anf.js:26401:33
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/student-dashboard/Section1_Purpose.test.jsx" timestamp="2025-07-06T08:47:32.800Z" hostname="RAYMUND-PC03" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="tests/student-dashboard/Section1_Purpose.test.jsx" name="tests/student-dashboard/Section1_Purpose.test.jsx" time="0">
+            <failure message="expect is not defined" type="ReferenceError">
+ReferenceError: expect is not defined
+ ❯ ../../CEDO%20Google%20Auth/frontend/node_modules/@testing-library/jest-dom/dist/index.mjs:10:1
+ ❯ tests/student-dashboard/Section1_Purpose.test.jsx:3:1
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/student-dashboard/Section2_OrgInfo.test.jsx" timestamp="2025-07-06T08:47:32.802Z" hostname="RAYMUND-PC03" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="tests/student-dashboard/Section2_OrgInfo.test.jsx" name="tests/student-dashboard/Section2_OrgInfo.test.jsx" time="0">
+            <failure message="Cannot find package &apos;@testing-library/react&apos; imported from &apos;C:/Users/LOQ/Downloads/CEDO Google Auth/frontend/tests/student-dashboard/Section2_OrgInfo.test.jsx&apos;" type="Error">
+Error: Cannot find package &apos;@testing-library/react&apos; imported from &apos;C:/Users/LOQ/Downloads/CEDO Google Auth/frontend/tests/student-dashboard/Section2_OrgInfo.test.jsx&apos;
+ ❯ tests/student-dashboard/Section2_OrgInfo.test.jsx:4:1
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: &apos;ERR_MODULE_NOT_FOUND&apos; }
+Caused by: Caused by: Error: Failed to load url @testing-library/react (resolved id: @testing-library/react) in C:/Users/LOQ/Downloads/CEDO Google Auth/frontend/tests/signinpage.test.jsx. Does the file exist?
+ ❯ loadAndTransform ../../CEDO%20Google%20Auth/frontend/node_modules/vite/dist/node/chunks/dep-CXCa-anf.js:26401:33
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/student-dashboard/Section3_SchoolEvent.test.jsx" timestamp="2025-07-06T08:47:32.805Z" hostname="RAYMUND-PC03" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="tests/student-dashboard/Section3_SchoolEvent.test.jsx" name="tests/student-dashboard/Section3_SchoolEvent.test.jsx" time="0">
+            <failure message="expect is not defined" type="ReferenceError">
+ReferenceError: expect is not defined
+ ❯ ../../CEDO%20Google%20Auth/frontend/node_modules/@testing-library/jest-dom/dist/index.mjs:10:1
+ ❯ tests/student-dashboard/Section3_SchoolEvent.test.jsx:10:1
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/student-dashboard/Section4_CommunityEvent.test.jsx" timestamp="2025-07-06T08:47:32.807Z" hostname="RAYMUND-PC03" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="tests/student-dashboard/Section4_CommunityEvent.test.jsx" name="tests/student-dashboard/Section4_CommunityEvent.test.jsx" time="0">
+            <failure message="expect is not defined" type="ReferenceError">
+ReferenceError: expect is not defined
+ ❯ ../../CEDO%20Google%20Auth/frontend/node_modules/@testing-library/jest-dom/dist/index.mjs:10:1
+ ❯ tests/student-dashboard/Section4_CommunityEvent.test.jsx:3:1
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/student-dashboard/Section5_Reporting.test.jsx" timestamp="2025-07-06T08:47:32.809Z" hostname="RAYMUND-PC03" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="tests/student-dashboard/Section5_Reporting.test.jsx" name="tests/student-dashboard/Section5_Reporting.test.jsx" time="0">
+            <failure message="The service is no longer running" type="Error">
+Error: The service is no longer running
+  Plugin: vite:esbuild
+  File: C:/Users/LOQ/Downloads/CEDO Google Auth/frontend/tests/student-dashboard/Section5_Reporting.test.jsx
+ ❯ node_modules/esbuild/lib/main.js:716:38
+ ❯ sendRequest node_modules/esbuild/lib/main.js:597:36
+ ❯ start node_modules/esbuild/lib/main.js:715:9
+ ❯ Object.transform2 [as transform] node_modules/esbuild/lib/main.js:776:5
+ ❯ node_modules/esbuild/lib/main.js:2038:77
+ ❯ Object.transform node_modules/esbuild/lib/main.js:2038:36
+ ❯ transform node_modules/esbuild/lib/main.js:1873:62
+ ❯ transformWithEsbuild ../../CEDO%20Google%20Auth/frontend/node_modules/vite/dist/node/chunks/dep-CXCa-anf.js:6590:24
+ ❯ TransformPluginContext.transform ../../CEDO%20Google%20Auth/frontend/node_modules/vite/dist/node/chunks/dep-CXCa-anf.js:6641:26
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/student-dashboard/SubmitEventFlow.test.jsx" timestamp="2025-07-06T08:47:32.812Z" hostname="RAYMUND-PC03" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="tests/student-dashboard/SubmitEventFlow.test.jsx" name="tests/student-dashboard/SubmitEventFlow.test.jsx" time="0">
+            <failure message="The service is no longer running" type="Error">
+Error: The service is no longer running
+  Plugin: vite:esbuild
+  File: C:/Users/LOQ/Downloads/CEDO Google Auth/frontend/tests/student-dashboard/SubmitEventFlow.test.jsx
+ ❯ node_modules/esbuild/lib/main.js:716:38
+ ❯ sendRequest node_modules/esbuild/lib/main.js:597:36
+ ❯ start node_modules/esbuild/lib/main.js:715:9
+ ❯ Object.transform2 [as transform] node_modules/esbuild/lib/main.js:776:5
+ ❯ node_modules/esbuild/lib/main.js:2038:77
+ ❯ Object.transform node_modules/esbuild/lib/main.js:2038:36
+ ❯ transform node_modules/esbuild/lib/main.js:1873:62
+ ❯ transformWithEsbuild ../../CEDO%20Google%20Auth/frontend/node_modules/vite/dist/node/chunks/dep-CXCa-anf.js:6590:24
+ ❯ TransformPluginContext.transform ../../CEDO%20Google%20Auth/frontend/node_modules/vite/dist/node/chunks/dep-CXCa-anf.js:6641:26
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/contexts/auth-context.test.js" timestamp="2025-07-06T08:47:32.815Z" hostname="RAYMUND-PC03" tests="1" failures="1" errors="0" skipped="0" time="0">
+        <testcase classname="src/contexts/auth-context.test.js" name="src/contexts/auth-context.test.js" time="0">
+            <failure message="No test suite found in file C:/Users/LOQ/Downloads/CEDO Google Auth/frontend/src/contexts/auth-context.test.js" type="Error">
+Error: No test suite found in file C:/Users/LOQ/Downloads/CEDO Google Auth/frontend/src/contexts/auth-context.test.js
+            </failure>
+        </testcase>
+    </testsuite>
+</testsuites>

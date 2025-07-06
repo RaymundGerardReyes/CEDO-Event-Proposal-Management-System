@@ -47,7 +47,7 @@
     "**/*.jsx",
     ".next/types/**/*.ts",
     ".babel.config.js"
-  ],
+, "vitest.config.js"  ],
   "exclude": [
     "node_modules",
     "**/*.ts",
