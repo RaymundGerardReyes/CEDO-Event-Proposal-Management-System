@@ -228,22 +228,6 @@ async function debugMongoDB() {
     }
 }
 
-<<<<<<< HEAD
-=======
-// Enhanced backward compatibility function with retry logic
-async function connectToMongo() {
-    try {
-        const client = await getClientWithRetry();
-        const db = client.db('cedo_db');
-        console.log('✅ MongoDB: Connected via connectToMongo compatibility function');
-        return { db, client };
-    } catch (error) {
-        console.error('❌ MongoDB: connectToMongo failed:', error);
-        throw error;
-    }
-}
-
->>>>>>> f6553a8 (Refactor backend services and configuration files)
 // Backward compatibility alias for getDatabase
 async function getDb(dbName = 'cedo_db') {
     return await getDatabase(dbName);

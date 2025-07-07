@@ -85,11 +85,7 @@ const Section2_OrgInfo = ({
 
         try {
           // Fetch complete user profile from the profile API endpoint
-<<<<<<< HEAD
-          const response = await fetch(`${process.env.API_URL || 'http://localhost:5000/api'}/profile`, {
-=======
           const response = await fetch(`${process.env.API_URL || 'http://localhost:5000'}/api/profile`, {
->>>>>>> 4336112 (Refactor and enhance backend and frontend components)
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${token}`,

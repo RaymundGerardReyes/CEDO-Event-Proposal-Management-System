@@ -124,13 +124,35 @@ app.use((req, res, next) => {
 // ==============================
 // Cookie and session middleware (must be before passport)
 app.use(cookieParser());
+
+// ✅ FIXED: Enhanced session configuration with proper error handling
 app.use(cookieSession({
+  name: 'cedo-session',
   maxAge: 24 * 60 * 60 * 1000, // 24 hours
-  keys: [process.env.COOKIE_SECRET],
+  keys: [process.env.COOKIE_SECRET || process.env.JWT_SECRET || 'fallback-secret'],
   secure: process.env.NODE_ENV === 'production',
   httpOnly: true,
-  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  signed: true
 }));
+
+// ✅ FIXED: Session error handling middleware
+app.use((req, res, next) => {
+  // Ensure session exists
+  if (!req.session) {
+    req.session = {};
+  }
+
+  // Add session destroy method if it doesn't exist
+  if (!req.session.destroy) {
+    req.session.destroy = (callback) => {
+      req.session = null;
+      if (callback) callback();
+    };
+  }
+
+  next();
+});
 
 // Passport middleware (must be after session middleware)
 app.use(passport.initialize());
@@ -147,6 +169,7 @@ app.use(express.urlencoded({ extended: true }));
 // Global State
 // ==============================
 let isDbConnected = false; // Global flag for DB status
+let isMongoConnected = false; // Global flag for MongoDB status
 
 // ==============================
 // Database Connection Testing
@@ -182,6 +205,8 @@ app.get("/health", (req, res) => {
     status: "ok",
     timestamp: new Date().toISOString(),
     env: process.env.NODE_ENV,
+    mysql: isDbConnected ? "connected" : "disconnected",
+    mongodb: isMongoConnected ? "connected" : "disconnected"
   })
 })
 
@@ -262,17 +287,24 @@ async function startServer() {
   console.log('📋 Step 2: Testing MongoDB connection...');
   try {
     await connectToMongo();
+    isMongoConnected = true;
+    console.log('✅ MongoDB connection established');
   } catch (err) {
-    // Error is already logged in connectToMongo, just add a warning here
     console.warn('⚠️ WARNING: MONGODB CONNECTION FAILED. Continuing in demo mode.');
+    console.warn('⚠️ GridFS and MongoDB features will not be available.');
+    isMongoConnected = false;
   }
 
-  // Step 2.5: Initialize dependent services
+  // Step 2.5: Initialize dependent services (with proper error handling)
   console.log('📋 Step 2.5: Initializing data-sync service...');
-  const dataSyncService = require('./services/data-sync.service');
   try {
-    await dataSyncService.initialize();
-    console.log('✅ Data-sync service ready');
+    const dataSyncService = require('./services/data-sync.service');
+    if (typeof dataSyncService.initialize === 'function') {
+      await dataSyncService.initialize();
+      console.log('✅ Data-sync service ready');
+    } else {
+      console.warn('⚠️ Data-sync service not available or missing initialize method');
+    }
   } catch (error) {
     console.warn('⚠️ WARNING: Data-sync service initialization failed:', error.message);
     console.warn('⚠️ Continuing without full data-sync capabilities...');
@@ -375,20 +407,12 @@ app.use('/api', draftsRouter);
 const testMongoDBRouter = require('./routes/test-mongodb');
 app.use('/api', testMongoDBRouter);
 
-<<<<<<< HEAD
-// ==============================
-// Error Handling Middleware
-// ==============================
-// Error handling middleware
-// This should be the last middleware added
-app.use(errorHandler)
-=======
-// ✅ Config router
+// ** Config API Route **
+// ✅ Public-facing config route for frontend (e.g., reCAPTCHA site key)
 app.use("/api/config", configRouter);
 
 // Centralized error handling
 app.use(errorHandler);
->>>>>>> f6553a8 (Refactor backend services and configuration files)
 
 // ==============================
 // Production Static File Serving

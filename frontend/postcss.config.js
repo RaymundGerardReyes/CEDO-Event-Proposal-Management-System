@@ -2,7 +2,7 @@
 
 // ✅ PostCSS configuration optimized for Turbopack + Fast Refresh
 // Turbopack automatically processes postcss.config.js in a Node.js worker pool
-module.exports = {
+export default {
   plugins: {
     // ✅ Tailwind CSS - fully supported by Turbopack
     tailwindcss: {},

@@ -2,24 +2,15 @@
 "use client";
 
 import { useToast } from "@/components/ui/use-toast";
-import { config } from "@/lib/utils";
 import axios from "axios";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
-<<<<<<< HEAD
-const API_URL = config.apiUrl;
-
-// Session timeout: SESSION_TIMEOUT_MINUTES guaranteed > 0 by next.config.js
-// Read from .env as SESSION_TIMEOUT_MINUTES=30, mapped via next.config.js
-const SESSION_TIMEOUT_DURATION = config.sessionTimeoutMinutes * 60 * 1000;
-=======
 const API_URL = process.env.API_URL || "http://localhost:5000/api";
 
 // Safely parse the session timeout duration, providing a sensible default.
 const sessionTimeoutMinutes = parseInt(process.env.SESSION_TIMEOUT_MINUTES, 10);
 const SESSION_TIMEOUT_DURATION = (isNaN(sessionTimeoutMinutes) ? 30 : sessionTimeoutMinutes) * 60 * 1000;
->>>>>>> 4336112 (Refactor and enhance backend and frontend components)
 
 const internalApi = axios.create({
   baseURL: API_URL,
@@ -253,7 +244,7 @@ export function AuthProvider({ children }) {
       clearTimeout(sessionTimeoutId);
 
       try {
-        // Call backend logout to clear server-side cookie
+        // Always use internalApi (which uses API_URL as base)
         await internalApi.post("/auth/logout");
         console.log("✅ AuthContext: Backend logout successful");
       } catch (error) {
@@ -478,6 +469,7 @@ export function AuthProvider({ children }) {
       try {
         const payload = { email, password };
         if (captchaToken) payload.captchaToken = captchaToken;
+        // Always use internalApi (which uses API_URL as base)
         const response = await internalApi.post("/auth/login", payload);
         const { token, user: userData } = response.data;
         if (token && userData) {
@@ -488,7 +480,6 @@ export function AuthProvider({ children }) {
       } catch (error) {
         // Use the new error handling system
         const errorInfo = handleAuthError(error, "Sign-In");
-
         await commonSignOutLogicWithDependencies(false);
         setIsLoading(false);
         throw new Error(errorInfo.description);
@@ -566,10 +557,9 @@ export function AuthProvider({ children }) {
           }
           throw new Error(errMsg);
         }
-
+        // Always use internalApi (which uses API_URL as base)
         const backendResponse = await internalApi.post("/auth/google", { token: googleResponse.credential });
         const { token, user: userDataFromBackend } = backendResponse.data;
-
         if (token && userDataFromBackend) {
           commonSignInSuccess(token, userDataFromBackend, false);
           showSuccessToast("Sign-In Successful", `Welcome back, ${userDataFromBackend.name}!`);
@@ -578,13 +568,7 @@ export function AuthProvider({ children }) {
         }
       } catch (error) {
         const errorInfo = handleAuthError(error, "Google Sign-In");
-
-        // Don't sign out, just set the error for the UI to handle.
-        // The user might want to try again or use a different method.
         setGoogleError(errorInfo);
-
-        // We don't re-throw here because this is a callback, not part of a promise chain the UI is waiting on.
-        // The error is communicated via the `googleError` state.
       }
     },
     [commonSignInSuccess, handleAuthError, showSuccessToast]
@@ -617,16 +601,6 @@ export function AuthProvider({ children }) {
         }
 
         await loadGoogleScript();
-<<<<<<< HEAD
-        console.log("AuthContext: signInWithGoogleAuth - Google script loaded. Checking Client ID...");
-        const clientId = config.googleClientId;
-        if (!clientId) {
-          console.error("AuthContext: signInWithGoogleAuth - Google Client ID is not configured.");
-          throw new Error("Google Client ID (GOOGLE_CLIENT_ID) is not configured in environment variables.");
-        }
-        console.log("AuthContext: signInWithGoogleAuth - Client ID found. Initializing GSI if needed...");
-=======
->>>>>>> 4336112 (Refactor and enhance backend and frontend components)
 
         const googleClientId = process.env.GOOGLE_CLIENT_ID;
         if (!googleClientId) {

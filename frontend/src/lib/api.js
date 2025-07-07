@@ -1,13 +1,18 @@
-
 /**
- * Centralized API Configuration
- * Ensures consistent API URL handling across the frontend
+ * Centralized API Configuration and Utilities
+ * Provides consistent API handling across the frontend with both fetch and axios support
  */
 
-// Base API URL with fallback
-export const API_BASE_URL = process.env.API_URL || 'http://localhost:5000';
+import axios from 'axios';
 
-// API endpoints
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
+
+// Base API URL with fallback
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || 'http://localhost:5000';
+
+// API endpoints configuration
 export const API_ENDPOINTS = {
   // Auth endpoints
   AUTH: {
@@ -33,6 +38,7 @@ export const API_ENDPOINTS = {
 
   // Proposals endpoints
   PROPOSALS: `${API_BASE_URL}/api/proposals`,
+  PROPOSALS_SEARCH: `${API_BASE_URL}/api/proposals/search`,
 
   // Admin endpoints
   ADMIN: {
@@ -44,8 +50,60 @@ export const API_ENDPOINTS = {
   MONGODB_UNIFIED: `${API_BASE_URL}/api/mongodb-unified`,
 };
 
+// ============================================================================
+// AXIOS INSTANCE CONFIGURATION
+// ============================================================================
+
+/**
+ * Configured axios instance with interceptors
+ */
+export const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 30000, // 30 seconds
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
+  withCredentials: true, // Include cookies for session management
+});
+
+// Request interceptor for logging and error handling
+api.interceptors.request.use(
+  (config) => {
+    console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    return config;
+  },
+  (error) => {
+    console.error('❌ Request interceptor error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor for error handling
+api.interceptors.response.use(
+  (response) => {
+    console.log(`✅ API Response: ${response.status} ${response.config.url}`);
+    return response;
+  },
+  (error) => {
+    console.error('❌ API Error:', {
+      status: error.response?.status,
+      message: error.message,
+      url: error.config?.url,
+    });
+    return Promise.reject(error);
+  }
+);
+
+// ============================================================================
+// FETCH-BASED API UTILITIES
+// ============================================================================
+
 /**
  * Generic fetch wrapper with error handling
+ * @param {string} endpoint - API endpoint URL
+ * @param {Object} options - Fetch options
+ * @returns {Promise<Object>} Response data
  */
 export async function apiFetch(endpoint, options = {}) {
   const url = typeof endpoint === 'string' ? endpoint : endpoint;
@@ -68,6 +126,7 @@ export async function apiFetch(endpoint, options = {}) {
   };
 
   try {
+    console.log(`🚀 Fetch Request: ${fetchOptions.method || 'GET'} ${url}`);
     const response = await fetch(url, fetchOptions);
 
     if (!response.ok) {
@@ -75,22 +134,31 @@ export async function apiFetch(endpoint, options = {}) {
       throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    console.log(`✅ Fetch Response: ${response.status} ${url}`);
+    return data;
   } catch (error) {
-    console.error(`API request failed for ${url}:`, error);
+    console.error(`❌ Fetch request failed for ${url}:`, error);
     throw error;
   }
 }
 
 /**
- * GET request helper
+ * GET request helper using fetch
+ * @param {string} endpoint - API endpoint URL
+ * @param {Object} options - Fetch options
+ * @returns {Promise<Object>} Response data
  */
 export async function apiGet(endpoint, options = {}) {
   return apiFetch(endpoint, { ...options, method: 'GET' });
 }
 
 /**
- * POST request helper
+ * POST request helper using fetch
+ * @param {string} endpoint - API endpoint URL
+ * @param {Object} data - Request body data
+ * @param {Object} options - Fetch options
+ * @returns {Promise<Object>} Response data
  */
 export async function apiPost(endpoint, data, options = {}) {
   return apiFetch(endpoint, {
@@ -101,7 +169,11 @@ export async function apiPost(endpoint, data, options = {}) {
 }
 
 /**
- * PUT request helper
+ * PUT request helper using fetch
+ * @param {string} endpoint - API endpoint URL
+ * @param {Object} data - Request body data
+ * @param {Object} options - Fetch options
+ * @returns {Promise<Object>} Response data
  */
 export async function apiPut(endpoint, data, options = {}) {
   return apiFetch(endpoint, {
@@ -112,49 +184,94 @@ export async function apiPut(endpoint, data, options = {}) {
 }
 
 /**
- * DELETE request helper
+ * DELETE request helper using fetch
+ * @param {string} endpoint - API endpoint URL
+ * @param {Object} options - Fetch options
+ * @returns {Promise<Object>} Response data
  */
 export async function apiDelete(endpoint, options = {}) {
   return apiFetch(endpoint, { ...options, method: 'DELETE' });
 }
 
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
 /**
  * Load configuration from backend
+ * @returns {Promise<Object>} Configuration data
  */
 export async function loadApiConfig() {
   try {
+    console.log(`🔧 Loading API config from: ${API_ENDPOINTS.CONFIG}`);
+    console.log(`🔧 API Base URL: ${API_BASE_URL}`);
+
     const config = await apiGet(API_ENDPOINTS.CONFIG);
+    console.log('✅ API config loaded successfully:', config);
     return config;
   } catch (error) {
-    console.error('Failed to load API configuration:', error);
+    console.error('❌ Failed to load API configuration:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      url: API_ENDPOINTS.CONFIG,
+      baseUrl: API_BASE_URL
+    });
+
+    // Provide more specific error information
+    if (error.message.includes('fetch')) {
+      console.error('❌ Network error - backend may not be running at:', API_BASE_URL);
+    } else if (error.response?.status === 404) {
+      console.error('❌ Config endpoint not found - check backend routes');
+    } else if (error.response?.status === 500) {
+      console.error('❌ Backend server error - check backend logs');
+    }
+
     throw error;
   }
 }
 
 /**
  * Check if backend is available
+ * @returns {Promise<boolean>} True if backend is healthy
  */
 export async function checkBackendHealth() {
   try {
     const health = await apiGet(API_ENDPOINTS.HEALTH);
     return health.status === 'ok';
   } catch (error) {
-    console.error('Backend health check failed:', error);
+    console.error('❌ Backend health check failed:', error);
     return false;
   }
 }
 
 /**
  * Get API base URL for debugging
+ * @returns {string} API base URL
  */
 export function getApiBaseUrl() {
   return API_BASE_URL;
 }
 
-// Export for backward compatibility
+/**
+ * Create a full API URL from a path
+ * @param {string} path - API path
+ * @returns {string} Full API URL
+ */
+export function createApiUrl(path) {
+  return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
+// ============================================================================
+// EXPORTS
+// ============================================================================
+
+// Default export for backward compatibility
 export default {
   API_BASE_URL,
   API_ENDPOINTS,
+  api, // Export axios instance
   apiFetch,
   apiGet,
   apiPost,
@@ -163,4 +280,5 @@ export default {
   loadApiConfig,
   checkBackendHealth,
   getApiBaseUrl,
+  createApiUrl,
 };

@@ -130,6 +130,149 @@ const aggregateByTimePeriod = (data, period = 'month') => {
 };
 
 // =============================================
+// DASHBOARD STATISTICS FUNCTIONS
+// =============================================
+
+/**
+ * Get dashboard statistics for admin dashboard
+ * 
+ * @returns {Promise<Object>} Dashboard statistics
+ */
+const getDashboardStats = async () => {
+    try {
+        console.log('📊 DASHBOARD: Fetching real-time statistics');
+
+        // Get basic proposal counts by status
+        const [proposalStats] = await pool.query(`
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN proposal_status = 'pending' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN proposal_status = 'approved' THEN 1 ELSE 0 END) as approved,
+                SUM(CASE WHEN proposal_status IN ('rejected', 'denied') THEN 1 ELSE 0 END) as rejected,
+                SUM(CASE WHEN proposal_status = 'draft' THEN 1 ELSE 0 END) as draft,
+                SUM(CASE WHEN proposal_status = 'revision' THEN 1 ELSE 0 END) as revision
+            FROM proposals
+        `);
+
+        // Get yesterday's stats for comparison
+        const [yesterdayStats] = await pool.query(`
+            SELECT 
+                COUNT(*) as yesterdayTotal,
+                SUM(CASE WHEN proposal_status = 'pending' THEN 1 ELSE 0 END) as yesterdayPending,
+                SUM(CASE WHEN proposal_status = 'approved' THEN 1 ELSE 0 END) as yesterdayApproved,
+                SUM(CASE WHEN proposal_status IN ('rejected', 'denied') THEN 1 ELSE 0 END) as yesterdayRejected
+            FROM proposals 
+            WHERE DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+        `);
+
+        // Get new proposals since yesterday
+        const [newSinceYesterday] = await pool.query(`
+            SELECT COUNT(*) as newSinceYesterday
+            FROM proposals 
+            WHERE DATE(created_at) >= CURDATE()
+        `);
+
+        // Calculate approval rate
+        const total = proposalStats[0]?.total || 0;
+        const approved = proposalStats[0]?.approved || 0;
+        const approvalRate = total > 0 ? Math.round((approved / total) * 100) : 0;
+
+        // Calculate trends
+        const currentTotal = total;
+        const yesterdayTotal = yesterdayStats[0]?.yesterdayTotal || 0;
+        const dayOverDayChange = yesterdayTotal > 0
+            ? Math.round(((currentTotal - yesterdayTotal) / yesterdayTotal) * 100)
+            : 0;
+
+        const stats = {
+            total: currentTotal,
+            pending: proposalStats[0]?.pending || 0,
+            approved: approved,
+            rejected: proposalStats[0]?.rejected || 0,
+            draft: proposalStats[0]?.draft || 0,
+            revision: proposalStats[0]?.revision || 0,
+            approvalRate: approvalRate,
+            newSinceYesterday: newSinceYesterday[0]?.newSinceYesterday || 0,
+            dayOverDayChange: dayOverDayChange,
+            trends: {
+                pending: {
+                    direction: proposalStats[0]?.pending > (yesterdayStats[0]?.yesterdayPending || 0) ? 'up' : 'down',
+                    value: proposalStats[0]?.pending || 0
+                },
+                approved: {
+                    direction: approved > (yesterdayStats[0]?.yesterdayApproved || 0) ? 'up' : 'down',
+                    value: `${approvalRate}%`
+                },
+                rejected: {
+                    direction: proposalStats[0]?.rejected > (yesterdayStats[0]?.yesterdayRejected || 0) ? 'up' : 'down',
+                    value: proposalStats[0]?.rejected || 0
+                },
+                total: {
+                    direction: dayOverDayChange >= 0 ? 'up' : 'down',
+                    value: `${Math.abs(dayOverDayChange)}%`
+                }
+            },
+            lastUpdated: new Date().toISOString()
+        };
+
+        console.log('✅ DASHBOARD: Successfully fetched statistics:', stats);
+
+        return stats;
+
+    } catch (error) {
+        console.error('❌ DASHBOARD: Error fetching statistics:', error);
+        throw new Error(`Failed to fetch dashboard statistics: ${error.message}`);
+    }
+};
+
+/**
+ * Get live statistics for real-time updates
+ * 
+ * @returns {Promise<Object>} Live statistics
+ */
+const getLiveStats = async () => {
+    try {
+        console.log('📊 LIVE: Fetching live statistics');
+
+        // Get current hour statistics
+        const [hourlyStats] = await pool.query(`
+            SELECT COUNT(*) as hourlyCount
+            FROM proposals 
+            WHERE created_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
+        `);
+
+        // Get today's statistics
+        const [todayStats] = await pool.query(`
+            SELECT COUNT(*) as todayCount
+            FROM proposals 
+            WHERE DATE(created_at) = CURDATE()
+        `);
+
+        // Get this week's statistics
+        const [weekStats] = await pool.query(`
+            SELECT COUNT(*) as weekCount
+            FROM proposals 
+            WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        `);
+
+        const liveStats = {
+            hourly: hourlyStats[0]?.hourlyCount || 0,
+            today: todayStats[0]?.todayCount || 0,
+            thisWeek: weekStats[0]?.weekCount || 0,
+            lastUpdated: new Date().toISOString()
+        };
+
+        console.log('✅ LIVE: Successfully fetched live statistics');
+
+        return liveStats;
+
+    } catch (error) {
+        console.error('❌ LIVE: Error fetching live statistics:', error);
+        throw new Error(`Failed to fetch live statistics: ${error.message}`);
+    }
+};
+
+// =============================================
 // PROPOSAL ANALYTICS FUNCTIONS
 // =============================================
 
@@ -477,6 +620,10 @@ const getFileUploadAnalytics = async (filters = {}) => {
 // =============================================
 
 module.exports = {
+    // Dashboard Statistics
+    getDashboardStats,
+    getLiveStats,
+
     // Proposal Analytics
     getProposalStatistics,
     getProposalTrends,

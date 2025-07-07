@@ -21,7 +21,6 @@
         "./src/contexts/*"
       ]
     },
-
     "jsx": "react-jsx",
     "lib": [
       "es6",
@@ -46,8 +45,9 @@
     "**/*.js",
     "**/*.jsx",
     ".next/types/**/*.ts",
-    ".babel.config.js"
-, "vitest.config.js"  ],
+    ".babel.config.js",
+    "vitest.config.js"
+  ],
   "exclude": [
     "node_modules",
     "**/*.ts",

@@ -1,8 +1,6 @@
-import { config } from '@/lib/utils';
+import { getAppConfig } from '@/lib/utils';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-
-const API_URL = config.apiUrl;
 
 /**
  * GET /api/admin/stats
@@ -10,53 +8,65 @@ const API_URL = config.apiUrl;
  */
 export async function GET() {
     try {
-        // Get authentication token from cookies (optional for this endpoint)
+        const config = getAppConfig();
+        const API_URL = config.backendUrl || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+
+        // Get authentication token from cookies
         const cookieStore = await cookies();
         const token = cookieStore.get('cedo_token')?.value;
 
-        // Prepare headers - include auth token if available
-        const headers = {
-            'Content-Type': 'application/json',
-        };
-
-        if (token) {
-            headers['Authorization'] = `Bearer ${token}`;
+        if (!token) {
+            console.error('No authentication token found');
+            throw new Error('Authentication required');
         }
 
-        // Fetch stats from backend - using working proposals admin stats endpoint
-        const response = await fetch(`${API_URL}/proposals/admin/stats`, {
+        // Prepare headers with authentication
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        };
+
+        console.log('🔍 Fetching stats from backend:', `${API_URL}/api/proposals/stats`);
+
+        // Fetch stats from proposals endpoint (more comprehensive data)
+        const response = await fetch(`${API_URL}/api/proposals/stats`, {
             method: 'GET',
             headers: headers,
         });
 
+        console.log('📡 Backend response status:', response.status);
+
         if (!response.ok) {
-            console.error('Backend stats API error:', response.status, response.statusText);
-            throw new Error(`Backend API error: ${response.status}`);
+            const errorText = await response.text();
+            console.error('Backend stats API error:', response.status, response.statusText, errorText);
+
+            if (response.status === 401) {
+                throw new Error('Authentication failed - please sign in again');
+            } else if (response.status === 403) {
+                throw new Error('Access denied - insufficient permissions');
+            } else {
+                throw new Error(`Backend API error: ${response.status} - ${response.statusText}`);
+            }
         }
 
         const data = await response.json();
+        console.log('✅ Backend stats response:', data);
 
         if (!data.success) {
-            throw new Error(data.message || 'Failed to fetch stats');
+            throw new Error(data.error || data.message || 'Failed to fetch stats');
         }
 
-        // Extract stats from proposals admin endpoint response format
-        const stats = data.data;
-        const total = (stats.pending || 0) + (stats.approved || 0) + (stats.rejected || 0) + (stats.draft || 0);
-        const pending = stats.pending || 0;
-        const approved = stats.approved || 0;
-        const rejected = stats.rejected || 0;
+        // Transform backend data to match frontend expectations
+        const backendStats = data.stats || {};
 
-        // Calculate metrics from available data
-        const newSinceYesterday = stats.recentActivity || 0; // Use recent activity as proxy
-        const approvalRate = total > 0 ? Math.round((approved / total) * 100) : 0;
-
-        // Use trends data if available
-        const pendingTrend = stats.trends?.pending;
-        const dayOverDayChange = pendingTrend?.direction === 'up' ?
-            parseInt(pendingTrend.value) :
-            pendingTrend?.direction === 'down' ?
-                -parseInt(pendingTrend.value) : 0;
+        // Extract metrics from backend response
+        const total = backendStats.total || 0;
+        const pending = backendStats.pending || 0;
+        const approved = backendStats.approved || 0;
+        const rejected = backendStats.rejected || 0;
+        const newSinceYesterday = backendStats.newSinceYesterday || 0;
+        const approvalRate = backendStats.approvalRate || 0;
+        const dayOverDayChange = backendStats.dayOverDayChange || 0;
 
         // Return formatted stats that match the admin dashboard expectations
         return NextResponse.json({
@@ -68,8 +78,8 @@ export async function GET() {
                 rejected,
                 newSinceYesterday,
                 approvalRate: `${approvalRate}%`,
-                dayOverDayPct: `${dayOverDayChange}%`,
-                isPositiveGrowth: parseFloat(dayOverDayChange) >= 0,
+                dayOverDayPct: `${Math.abs(dayOverDayChange)}%`,
+                isPositiveGrowth: dayOverDayChange >= 0,
             }
         });
 

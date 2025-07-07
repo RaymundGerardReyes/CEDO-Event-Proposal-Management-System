@@ -233,138 +233,77 @@ router.post("/google", async (req, res, next) => {
       });
     }
 
-    let users, user, isNewUser = false;
-
     try {
       console.log(`Backend [/google]: Checking for existing user by Google ID: ${googleId}`);
-      [users] = await pool.query("SELECT * FROM users WHERE google_id = ?", [googleId]);
-      user = users[0];
-      if (user) {
-        console.log(`Backend [/google]: Found existing user by Google ID: ${user.id}, Email: ${user.email}`);
-      } else {
-        console.log(`Backend [/google]: No user found with Google ID ${googleId}.`);
-      }
-    } catch (dbError) {
-      console.error("Backend [/google] DB Error: Error checking for existing Google user:", dbError.message);
-      return res.status(500).json({
-        message: "Could not verify user account (google_id lookup). Please try again later.",
-        error: process.env.NODE_ENV === "development" ? dbError.message : undefined,
-        reason: "DB_LOOKUP_GOOGLE_ID_FAILED"
-      });
-    }
+      let [users] = await pool.query("SELECT * FROM users WHERE google_id = ?", [googleId]);
+      let user = users[0];
 
-    if (!user) {
-      console.log(`Backend [/google]: Checking for existing user by email: ${email}`);
-      try {
-        [users] = await pool.query("SELECT * FROM users WHERE email = ?", [email]);
-        user = users[0];
-        if (user) {
-          console.log(`Backend [/google]: Found existing user by email: ${user.id}. Will link Google ID.`);
-        } else {
-          console.log(`Backend [/google]: No user found by email ${email}. Will create new user.`);
-        }
-      } catch (dbError) {
-        console.error("Backend [/google] DB Error: Error checking for existing user by email:", dbError.message);
-        return res.status(500).json({
-          message: "Could not verify user account (email lookup). Please try again later.",
-          error: process.env.NODE_ENV === "development" ? dbError.message : undefined,
-          reason: "DB_LOOKUP_EMAIL_FAILED"
-        });
-      }
-
+      // Step 1: Find user by Google ID or Email
       if (!user) {
-        // For security: Only allow existing users to sign in with Google
-        // Do not create new users automatically to prevent unauthorized data storage
-        console.log(`Backend [/google]: User ${email} not found in system. Rejecting Google sign-in attempt.`);
-        return res.status(403).json({
-          message: "Account not found. Please contact an administrator to create your account first.",
-          reason: "USER_NOT_FOUND",
-          email: email // Optional: include email for admin reference
-        });
-      } else {
-        // User found by email - link Google ID if not already linked
-        console.log(`Backend [/google]: Linking Google ID ${googleId} to existing user ${user.id} (Email: ${email})`);
-        try {
-          await pool.query(
-            "UPDATE users SET google_id = ?, name = COALESCE(?, name), avatar = COALESCE(?, avatar) WHERE id = ?",
-            [googleId, name || user.name, picture || user.avatar, user.id]
-          );
-          const [updatedUsers] = await pool.query("SELECT * FROM users WHERE id = ?", [user.id]);
-          user = updatedUsers[0];
-          console.log(`Backend [/google]: Successfully linked Google ID to user ${user.id}.`);
-        } catch (dbError) {
-          console.error(`Backend [/google] DB Error: Database error updating user (linking Google ID):`, dbError.message);
-          return res.status(500).json({
-            message: "Could not update your account (linking Google ID). Please try again later.",
-            error: process.env.NODE_ENV === "development" ? dbError.message : undefined,
-            reason: "DB_LINK_GOOGLE_ID_FAILED"
-          });
-        }
-      }
-    } else {
-      // User found by Google ID - update profile if needed
-      console.log(`Backend [/google]: User ${user.id} (Email: ${user.email}) found by Google ID. Checking for profile updates.`);
-      if ((name && user.name !== name) || (picture && user.avatar !== picture)) {
-        console.log(`Backend [/google]: Profile differences found. Updating name/avatar for user ${user.id}.`);
-        try {
-          await pool.query("UPDATE users SET name = COALESCE(?, name), avatar = COALESCE(?, avatar) WHERE id = ?", [
-            name || user.name,
-            picture || user.avatar,
-            user.id,
-          ]);
-          const [updatedUsers] = await pool.query("SELECT * FROM users WHERE id = ?", [user.id]);
-          user = updatedUsers[0];
-          console.log(`Backend [/google]: Successfully updated profile information for user ${user.id}.`);
-        } catch (dbError) {
-          console.error(`Backend [/google] DB Error: Database error updating user profile (name/avatar):`, dbError.message);
-          console.warn(`Backend [/google]: Continuing with existing user data for ${user.id} despite profile update failure.`);
-        }
-      } else {
-        console.log(`Backend [/google]: No profile updates needed for user ${user.id}.`);
-      }
-    }
+        console.log(`Backend [/google]: No user found by google_id. Checking by email: ${email}`);
+        let [usersByEmail] = await pool.query("SELECT * FROM users WHERE email = ?", [email]);
 
-    console.log(`Backend [/google]: Checking approval status for User ID: ${user.id}, Email: ${user.email}. Is Approved: ${user.is_approved}`);
-    if (!user.is_approved) {
-      console.warn(`Backend [/google] Authorization Denied: User ${user.id} (Email: ${user.email}) IS NOT APPROVED.`);
-      return res.status(403).json({
-        message: "Account pending approval. Please contact an administrator.",
-        reason: "USER_NOT_APPROVED",
+        // Step 2: If not found by either, deny access
+        if (usersByEmail.length === 0) {
+          console.warn(`Backend [/google]: User not found by google_id or email. Access denied.`);
+          return res.status(403).json({ reason: "USER_NOT_FOUND", message: "User not found" });
+        }
+
+        // Step 3: If found by email, link Google ID and set as current user
+        user = usersByEmail[0];
+        console.log(`Backend [/google]: Linking google_id ${googleId} to user ${user.id}`);
+        await pool.query("UPDATE users SET google_id = ? WHERE id = ?", [googleId, user.id]);
+        user.google_id = googleId; // Update in-memory object
+      }
+
+      // Step 4: Now that we have a user, check if they are approved
+      if (!user.is_approved) {
+        console.warn(`Backend [/google] Auth Denied: User ${user.id} is not approved.`);
+        return res.status(403).json({ reason: "USER_NOT_APPROVED", message: "User not approved" });
+      }
+
+      // Step 5: Update profile if necessary
+      if (user.name !== name || user.avatar !== picture) {
+        console.log(`Backend [/google]: Profile differences found for user ${user.id}. Updating.`);
+        await pool.query("UPDATE users SET name = ?, avatar = ? WHERE id = ?", [name, picture, user.id]);
+        // Update in-memory user object
+        user.name = name;
+        user.avatar = picture;
+      }
+
+      console.log(`Backend [/google]: User ${user.id} (Email: ${user.email}) IS APPROVED. Generating app token.`);
+      const appToken = sessionManager.generateToken(user);
+      await sessionManager.logAccess(user.id, user.role, "google_login");
+      console.log(`Backend [/google]: User ${user.id} (Email: ${user.email}) successfully authenticated via Google.`);
+
+      res.json({
+        token: appToken,
         user: {
           id: user.id,
           name: user.name,
           email: user.email,
+          role: user.role,
+          organization: user.organization,
+          organization_type: user.organization_type,
           avatar: user.avatar,
           is_approved: Boolean(user.is_approved),
-        }
+          google_id: user.google_id,
+          dashboard: roleAccess[user.role]?.dashboard,
+          permissions: roleAccess[user.role]?.permissions,
+        },
+      });
+
+    } catch (dbError) {
+      console.error("Backend [/google] DB Error:", dbError.message);
+      return res.status(500).json({
+        message: "A database error occurred during Google Sign-In.",
+        error: process.env.NODE_ENV === "development" ? dbError.message : undefined,
       });
     }
 
-    console.log(`Backend [/google]: User ${user.id} (Email: ${email}) IS APPROVED. Generating app token.`);
-    const appToken = sessionManager.generateToken(user);
-    await sessionManager.logAccess(user.id, user.role, "google_login");
-    console.log(`Backend [/google]: User ${user.id} (Email: ${email}) successfully authenticated via Google.`);
-
-    res.json({
-      token: appToken,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        organization: user.organization,
-        organization_type: user.organization_type,
-        avatar: user.avatar,
-        is_approved: Boolean(user.is_approved),
-        google_id: user.google_id,
-        dashboard: roleAccess[user.role]?.dashboard,
-        permissions: roleAccess[user.role]?.permissions,
-      },
-    });
-
   } catch (error) {
-    console.error("Backend [/google] Critical Error: Unhandled exception in Google sign-in process:", error);
-    next(error); // Pass to the main error handler
+    console.error(`Backend [/google] Critical Error: Unhandled exception in Google sign-in for ${email}:`, error);
+    next(error);
   } finally {
     console.log('--- Backend /auth/google Endpoint Finished ---\n');
   }
@@ -374,31 +313,18 @@ router.post("/google", async (req, res, next) => {
  * Logout Endpoint
  * @route POST /auth/logout
  */
-router.post('/logout', async (req, res, next) => {
+router.post('/logout', authMiddleware.validateToken, async (req, res) => {
   console.log('\n--- Backend /auth/logout Endpoint Hit ---');
   console.log('Timestamp:', new Date().toISOString());
-
   try {
-    // Optional: Log logout activity if user ID is available
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      try {
-        const decoded = sessionManager.verifyToken(token);
-        if (decoded && decoded.user && decoded.user.id) {
-          await sessionManager.logAccess(decoded.user.id, decoded.user.role, "logout");
-          console.log(`Backend [/logout]: Logged logout for user ID: ${decoded.user.id}`);
-        }
-      } catch (tokenError) {
-        console.log('Backend [/logout]: Could not decode token for logging, but logout proceeding');
-      }
-    }
-
-    console.log('Backend [/logout]: Logout successful');
-    res.json({ message: 'Logout successful' });
+    const userId = req.user.id;
+    // Perform any server-side logout logic if needed (e.g., invalidating a refresh token)
+    await sessionManager.logAccess(userId, req.user.role, 'logout');
+    console.log(`Backend [/logout]: Logout successful for user ID: ${userId}`);
+    res.status(200).json({ message: 'Logout successful' });
   } catch (error) {
-    console.error('Backend [/logout] Error:', error);
-    next(error);
+    console.error(`Backend [/logout] Error:`, error);
+    res.status(500).json({ message: 'Server error during logout' });
   } finally {
     console.log('--- Backend /auth/logout Endpoint Finished ---\n');
   }
@@ -463,3 +389,4 @@ router.get('/me', async (req, res, next) => {
 });
 
 module.exports = router;
+

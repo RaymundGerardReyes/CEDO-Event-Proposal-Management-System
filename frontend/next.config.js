@@ -174,6 +174,23 @@ const baseConfig = {
   },
 }
 
+// ✅ TURBOPACK CONFIGURATION
+// Configure Turbopack when it's being used
+if (isTurbopack) {
+  baseConfig.experimental = {
+    ...baseConfig.experimental,
+    // Turbopack specific optimizations
+    turbo: {
+      rules: {
+        '*.svg': {
+          loaders: ['@svgr/webpack'],
+          as: '*.js',
+        },
+      },
+    },
+  }
+}
+
 // Simplified compiler configuration to prevent RSC conflicts
 if (!isTurbopack && process.env.NODE_ENV !== "production") {
   baseConfig.compiler = {
@@ -181,13 +198,4 @@ if (!isTurbopack && process.env.NODE_ENV !== "production") {
   }
 }
 
-// Bundle analyzer configuration
-if (process.env.ANALYZE === "true") {
-  const withBundleAnalyzer = require("@next/bundle-analyzer")({
-    enabled: true,
-    openAnalyzer: true,
-  })
-  module.exports = withBundleAnalyzer(baseConfig)
-} else {
-  module.exports = baseConfig
-}
+export default baseConfig;

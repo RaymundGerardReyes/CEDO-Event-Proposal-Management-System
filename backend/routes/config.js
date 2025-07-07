@@ -8,7 +8,7 @@ const router = express.Router();
  */
 router.get('/', (req, res) => {
     try {
-        const recaptchaSiteKey = process.env.RECAPTCHA_SITE_KEY;
+        const recaptchaSiteKey = process.env.RECAPTCHA_SITE_KEY || '';
 
         if (!recaptchaSiteKey) {
             console.error('FATAL: RECAPTCHA_SITE_KEY is not configured on the backend.');

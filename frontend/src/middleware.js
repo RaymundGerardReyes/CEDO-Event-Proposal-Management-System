@@ -226,7 +226,13 @@ export default async function middleware(request) {
 // Configure which routes the middleware should run on
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico).*)',
-    { source: '/:path*', missing: [{ key: 'purpose', value: 'prefetch' }] },
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 };

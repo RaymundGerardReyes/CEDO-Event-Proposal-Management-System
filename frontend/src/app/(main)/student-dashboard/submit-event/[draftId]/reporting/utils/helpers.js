@@ -22,10 +22,10 @@ export const toMysqlDate = (value) => {
  * Build a normalized API base URL (backend root without /api suffix)
  * @returns {string} Normalized backend base URL
  */
-import { config } from '@/lib/utils';
+import { getAppConfig } from '@/lib/utils';
 
 export const getApiBase = () => {
-    return config.backendUrl;
+    return getAppConfig().backendUrl;
 }
 
 /**

@@ -4,9 +4,9 @@
 // This replaces the separate school/community event APIs
 // All data goes to the single 'proposals' table
 
-import { config } from '@/lib/utils';
+import { getAppConfig } from '@/lib/utils';
 
-const API_BASE_URL = config.backendUrl;
+const API_BASE_URL = getAppConfig().backendUrl;
 
 // ===================================================================
 // CORE PROPOSAL API FUNCTIONS

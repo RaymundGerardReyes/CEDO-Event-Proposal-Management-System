@@ -24,13 +24,12 @@
         "profile": "next build --profile",
         "debug": "DEBUG=next:* next dev --turbo",
         "debug:normal": "DEBUG=next:* next dev",
-        "test": "vitest run",
-        "test:watch": "vitest",
+        "test": "jest",
+        "test:watch": "jest --watch",
         "test:coverage": "vitest run --coverage",
         "test:ui": "vitest --ui",
         "test:watch:ui": "vitest --ui --watch",
         "test:coverage:ui": "vitest --coverage --ui",
-        "test:watch:coverage:ui": "vitest --coverage --ui --watch",
         "test:watch:coverage:ui": "vitest --coverage --ui --watch",
         "test:config": "node test-config.js",
         "validate:turbopack": "node turbopack-test.js",
@@ -41,23 +40,27 @@
         "turbo:check": "next info",
         "turbo:trace": "NEXT_TURBOPACK_TRACING=1 npm run dev"
     },
-
     "release": {
-    "branches": ["main"],
-    "plugins": [
-      "@semantic-release/commit-analyzer",
-      "@semantic-release/release-notes-generator",
-      "@semantic-release/changelog",
-      "@semantic-release/npm",
-      [
-        "@semantic-release/git",
-        {
-          "assets": ["package.json", "CHANGELOG.md"],
-          "message": "chore(release): ${nextRelease.version}\n\n${nextRelease.notes}"
-        }
-      ]
-    ]
-  },
+        "branches": [
+            "main"
+        ],
+        "plugins": [
+            "@semantic-release/commit-analyzer",
+            "@semantic-release/release-notes-generator",
+            "@semantic-release/changelog",
+            "@semantic-release/npm",
+            [
+                "@semantic-release/git",
+                {
+                    "assets": [
+                        "package.json",
+                        "CHANGELOG.md"
+                    ],
+                    "message": "chore(release): ${nextRelease.version}\n\n${nextRelease.notes}"
+                }
+            ]
+        ]
+    },
     "dependencies": {
         "@google-recaptcha/react": "2.2.0",
         "@hookform/resolvers": "5.0.1",
@@ -128,15 +131,18 @@
     "devDependencies": {
         "@next/bundle-analyzer": "15.3.4",
         "@tailwindcss/postcss": "4.1.7",
+        "@testing-library/dom": "10.4.0",
         "@testing-library/jest-dom": "6.6.3",
-        "@types/node": "22.15.17",
-        "@types/react": "19.1.4",
+        "@testing-library/react": "16.3.0",
+        "@testing-library/user-event": "14.6.1",
         "autoprefixer": "10.4.21",
         "critters": "0.0.23",
+        "cross-fetch": "4.1.0",
         "eslint": "^8.55.0",
         "eslint-config-next": "15.3.4",
         "identity-obj-proxy": "3.0.0",
         "jest-environment-jsdom": "29.7.0",
+        "jest-junit": "16.0.0",
         "postcss": "8.5.6",
         "rimraf": "^5.0.5",
         "vitest": "3.2.4"

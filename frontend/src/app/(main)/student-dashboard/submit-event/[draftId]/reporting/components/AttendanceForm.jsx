@@ -6,7 +6,7 @@
 
 import { Label } from "@/components/dashboard/student/ui/label";
 import { Textarea } from "@/components/dashboard/student/ui/textarea";
-import { config } from "@/lib/utils";
+import { getAppConfig } from "@/lib/utils";
 import { AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { AccomplishmentReportUpload, FinalAttendanceProofUpload, FinalAttendanceUpload, PreRegistrationUpload } from "./FileUploadInput.jsx";
@@ -56,13 +56,13 @@ export const AttendanceForm = ({
             console.log('🔍 AttendanceForm: Fetching proposal data for ID:', proposalId);
 
             // Make request directly to backend server, not through Next.js API routing
-            const backendUrl = config.backendUrl;
+            const backendUrl = getAppConfig().backendUrl;
             // Prefer the hybrid endpoint that works in both MySQL + MongoDB stacks
             let apiUrl = `${backendUrl}/api/mongodb-unified/proposal/${proposalId}`;
 
             // Fallback to old debug endpoint if the unified one returns 404
 
-            console.log('🌐 AttendanceForm: Backend URL env var:', config.backendUrl);
+            console.log('🌐 AttendanceForm: Backend URL env var:', getAppConfig().backendUrl);
             console.log('🌐 AttendanceForm: Using backend URL:', backendUrl);
             console.log('🌐 AttendanceForm: Full API URL:', apiUrl);
 

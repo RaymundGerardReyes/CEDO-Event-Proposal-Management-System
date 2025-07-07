@@ -1,8 +1,8 @@
 // @/lib/draft-api.js
 
-import { config } from "@/lib/utils";
+import { getAppConfig } from "@/lib/utils";
 
-const API_URL = config.backendUrl;
+const API_URL = getAppConfig.backendUrl;
 
 /**
  * Creates a new, empty draft proposal on the backend.

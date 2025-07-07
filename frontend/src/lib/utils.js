@@ -116,87 +116,46 @@ export function getResponsiveColumns(totalItems, maxColumns = 4) {
     return Math.min(totalItems, maxColumns)
 }
 
-<<<<<<< HEAD
-// Environment configuration utility
-// Centralizes access to environment variables with fallbacks
-
-export const config = {
-    // API Configuration
-    apiUrl: process.env.API_URL || "http://localhost:5000/api",
-    backendUrl: process.env.API_URL ? process.env.API_URL.replace(/\/api$/, '') : "http://localhost:5000",
-
-    // Authentication Configuration
-    googleClientId: process.env.GOOGLE_CLIENT_ID,
-    recaptchaSiteKey: process.env.RECAPTCHA_SITE_KEY,
-    sessionTimeoutMinutes: parseInt(process.env.SESSION_TIMEOUT_MINUTES, 10) || 30,
-
-    // App Configuration
-    appEnv: process.env.APP_ENV || process.env.NODE_ENV || "development",
-    isDevelopment: process.env.NODE_ENV === "development",
-    isProduction: process.env.NODE_ENV === "production",
-
-    // Feature Flags
-    disableGoogleSignInInDev: process.env.DISABLE_GOOGLE_SIGNIN_IN_DEV === "true",
-    enableDomErrorRecovery: process.env.ENABLE_DOM_ERROR_RECOVERY === "true",
-};
-
-// Validation helpers
-export const validateConfig = () => {
-    const errors = [];
-
-    if (!config.googleClientId && config.isProduction) {
-        errors.push("GOOGLE_CLIENT_ID is required in production");
-    }
-
-    if (!config.recaptchaSiteKey && config.isProduction) {
-        errors.push("RECAPTCHA_SITE_KEY is required in production");
-    }
-
-    if (errors.length > 0) {
-        console.error("Configuration validation errors:", errors);
-        return false;
-    }
-
-    return true;
-};
-
-// API URL builders
-export const buildApiUrl = (path = "") => {
-    const cleanPath = path.startsWith("/") ? path : `/${path}`;
-    return `${config.apiUrl}${cleanPath}`;
-};
-
-export const buildBackendUrl = (path = "") => {
-    const cleanPath = path.startsWith("/") ? path : `/${path}`;
-    return `${config.backendUrl}${cleanPath}`;
-};
-=======
-// Centralized configuration object
-export const config = {
-    recaptchaSiteKey: null,
-};
+// Application configuration management
+let appConfig = null;
 
 // Import centralized API configuration
-import { loadApiConfig } from './api.js'
 
-// Function to load configuration from the backend
+/**
+ * Get the current application configuration
+ * @returns {Object} - Current configuration with fallbacks
+ */
+export function getAppConfig() {
+    return appConfig || {};
+}
+
+/**
+ * Set a configuration value
+ * @param {string} key - Configuration key
+ * @param {any} value - Configuration value
+ */
+export function setAppConfig(key, value) {
+    appConfig[key] = value;
+}
+
+/**
+ * Load configuration from the backend
+ * @returns {Promise<void>}
+ */
 export async function loadConfig() {
-    // Prevent re-fetching if already loaded
-    if (config.recaptchaSiteKey) {
-        return;
-    }
-
+    if (appConfig) return appConfig;
     try {
-        const data = await loadApiConfig();
-        if (data.recaptchaSiteKey) {
-            config.recaptchaSiteKey = data.recaptchaSiteKey;
-        } else {
-            console.error("reCAPTCHA site key not found in response from /api/config");
-        }
-    } catch (error) {
-        console.error("Error fetching application config:", error);
-        // Depending on the app's needs, you might want to re-throw the error
-        // or handle it gracefully.
+        // Use API_URL as base, fallback to relative for production
+        const base = process.env.API_URL || '';
+        // Ensure no double slash
+        const url = base.endsWith('/') ? base + 'config' : base + '/config';
+        const res = await fetch(url);
+        appConfig = await res.json();
+        console.log('Loaded config:', appConfig); // Debug log
+        return appConfig;
+    } catch (err) {
+        console.error('Failed to load config:', err);
+        appConfig = {};
+        return appConfig;
     }
 }
->>>>>>> 4336112 (Refactor and enhance backend and frontend components)

@@ -15,11 +15,11 @@
  * - Real-time database updates
  */
 
-import { config } from '@/lib/utils';
+import { getAppConfig } from '@/lib/utils';
 import axios from 'axios';
 
 // Use the same API configuration as auth-context.js
-const API_URL = config.apiUrl;
+const API_URL = getAppConfig().apiUrl;
 
 // Create axios instance with same configuration as auth-context
 const api = axios.create({
@@ -36,7 +36,7 @@ api.interceptors.request.use((config) => {
         const cookieValue = document.cookie.split("; ").find((row) => row.startsWith("cedo_token="));
         if (cookieValue) {
             const token = cookieValue.split("=")[1];
-            config.headers.Authorization = `Bearer ${token}`;
+            getAppConfig().headers.Authorization = `Bearer ${token}`;
         }
     }
     return config;

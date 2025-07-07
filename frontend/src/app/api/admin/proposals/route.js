@@ -1,4 +1,4 @@
-import { config } from '@/lib/utils';
+import { getAppConfig } from '@/lib/utils';
 import { NextResponse } from 'next/server';
 
 // Force dynamic rendering for this API route
@@ -24,7 +24,8 @@ export async function GET(request) {
         }
 
         // Connect to hybrid API (MySQL + MongoDB)
-        const backendUrl = config.backendUrl
+        const config = getAppConfig();
+        const backendUrl = config.backendUrl || process.env.BACKEND_URL || 'http://localhost:5000';
         const apiUrl = `${backendUrl}/api/mongodb-proposals/admin/proposals-hybrid`
 
         // Build query parameters for backend

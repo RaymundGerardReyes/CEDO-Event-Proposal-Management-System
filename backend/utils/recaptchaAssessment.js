@@ -28,22 +28,55 @@ async function createAssessment({
         parent: projectPath,
     };
 
-    const [response] = await client.createAssessment(request);
+    try {
+        const response = await client.createAssessment(request);
 
-    if (!response.tokenProperties.valid) {
-        console.log(`The CreateAssessment call failed because the token was: ${response.tokenProperties.invalidReason}`);
-        return null;
-    }
+        // Handle different response formats
+        let assessmentResponse;
+        if (Array.isArray(response)) {
+            assessmentResponse = response[0];
+        } else {
+            assessmentResponse = response;
+        }
 
-    if (response.tokenProperties.action === recaptchaAction) {
-        console.log(`The reCAPTCHA score is: ${response.riskAnalysis.score}`);
-        response.riskAnalysis.reasons.forEach((reason) => {
-            console.log(reason);
-        });
-        return response.riskAnalysis.score;
-    } else {
-        console.log("The action attribute in your reCAPTCHA tag does not match the action you are expecting to score");
-        return null;
+        // Check if response exists
+        if (!assessmentResponse) {
+            return undefined;
+        }
+
+        // Check if tokenProperties exists
+        if (!assessmentResponse.tokenProperties) {
+            return undefined;
+        }
+
+        if (!assessmentResponse.tokenProperties.valid) {
+            console.log(`The CreateAssessment call failed because the token was: ${assessmentResponse.tokenProperties.invalidReason}`);
+            return null;
+        }
+
+        if (assessmentResponse.tokenProperties.action === recaptchaAction) {
+            // Check if riskAnalysis exists
+            if (!assessmentResponse.riskAnalysis) {
+                return undefined;
+            }
+
+            console.log(`The reCAPTCHA score is: ${assessmentResponse.riskAnalysis.score}`);
+
+            // Check if reasons array exists before iterating
+            if (assessmentResponse.riskAnalysis.reasons && Array.isArray(assessmentResponse.riskAnalysis.reasons)) {
+                assessmentResponse.riskAnalysis.reasons.forEach((reason) => {
+                    console.log(reason);
+                });
+            }
+
+            return assessmentResponse.riskAnalysis.score;
+        } else {
+            console.log("The action attribute in your reCAPTCHA tag does not match the action you are expecting to score");
+            return null;
+        }
+    } catch (error) {
+        // Re-throw the error to maintain the original behavior
+        throw error;
     }
 }
 

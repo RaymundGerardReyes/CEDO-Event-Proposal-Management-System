@@ -364,11 +364,16 @@ router.post('/logout', (req, res) => {
 
         // Clear session if exists
         if (req.session) {
-            req.session.destroy((err) => {
-                if (err) {
-                    console.error('Session destruction error:', err);
-                }
-            });
+            if (typeof req.session.destroy === 'function') {
+                req.session.destroy((err) => {
+                    if (err) {
+                        console.error('Session destruction error:', err);
+                    }
+                });
+            } else {
+                // Fallback: just clear the session object
+                req.session = null;
+            }
         }
 
         res.json({

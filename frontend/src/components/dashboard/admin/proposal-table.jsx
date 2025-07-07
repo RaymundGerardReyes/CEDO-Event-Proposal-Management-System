@@ -124,7 +124,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { config } from "@/lib/utils";
+import { getAppConfig } from "@/lib/utils";
 import {
   Calendar,
   CheckCircle,
@@ -141,61 +141,6 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-<<<<<<< HEAD
-// ✅ Request deduplication cache to prevent duplicate API calls
-const requestCache = new Map();
-const CACHE_DURATION = 2000; // 2 seconds
-
-// ✅ Debounce utility function
-const debounce = (func, wait) => {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-};
-
-// ✅ Retry utility with exponential backoff for 429 errors
-const retryWithBackoff = async (fn, maxRetries = 3, baseDelay = 1000) => {
-  let lastError;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      lastError = error;
-
-      // Only retry on 429 (Too Many Requests) errors
-      if (error.message && error.message.includes('429') && attempt < maxRetries) {
-        const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff
-        console.log(`🔄 Rate limited, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries + 1})`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        continue;
-      }
-
-      throw error;
-    }
-  }
-
-  throw lastError;
-};
-
-// ✅ Create request cache key
-const createCacheKey = (currentPage, statusFilter, searchTerm) => {
-  return `${currentPage}-${statusFilter}-${searchTerm}`;
-};
-
-// ✅ Check if request is already in flight
-const isRequestInFlight = (cacheKey) => {
-  const cached = requestCache.get(cacheKey);
-  return cached && (Date.now() - cached.timestamp < CACHE_DURATION);
-};
-
-=======
 // Debounce function
 const debounce = (func, delay) => {
   let timeout;
@@ -205,7 +150,6 @@ const debounce = (func, delay) => {
   };
 };
 
->>>>>>> 4336112 (Refactor and enhance backend and frontend components)
 const statusColors = {
   pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
   approved: 'bg-green-100 text-green-800 border-green-200',
@@ -254,42 +198,50 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
 
   // Memoized filtered proposals for performance
   const filteredProposals = useMemo(() => {
-    if (!searchTerm) return proposals;
-    return proposals.filter(proposal =>
-      proposal.eventName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      proposal.contactPerson?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      proposal.organizationType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      proposal.contactEmail?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [proposals, searchTerm]);
+    return proposals.filter(proposal => {
+      const matchesSearch = !searchTerm ||
+        proposal.organization_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        proposal.contact_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        proposal.contact_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        proposal.event_title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        proposal.proposal_status?.toLowerCase().includes(searchTerm.toLowerCase());
 
-<<<<<<< HEAD
-  // ✅ Enhanced fetch proposals with rate limiting protection
-=======
-  // Debounced search term state
+      const matchesStatus = statusFilter === 'all' || proposal.proposal_status === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [proposals, searchTerm, statusFilter]);
+
+  // Cache for preventing duplicate requests
+  const requestCache = useMemo(() => new Map(), []);
+
+  const createCacheKey = (page, status, search) => {
+    return `${page}-${status}-${search}`;
+  };
+
+  const isRequestInFlight = (cacheKey) => {
+    const cached = requestCache.get(cacheKey);
+    return cached && (Date.now() - cached.timestamp) < 5000; // 5 second cache
+  };
+
+  // ✅ Fixed debounced search term implementation
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
 
-  // Debounce the search term update
   useEffect(() => {
-    const handler = debounce(() => {
+    const handler = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
-      setCurrentPage(1); // Reset to first page on new search
-    }, 500); // 500ms delay
+    }, 300);
 
-    handler();
-
-    // Cleanup function
     return () => {
-      // You might not need this if your debounce implementation handles it
+      clearTimeout(handler);
     };
   }, [searchTerm]);
 
   // Fetch proposals from the backend API
->>>>>>> 4336112 (Refactor and enhance backend and frontend components)
   const fetchProposals = useCallback(async () => {
     if (!isMountedRef.current) return;
 
-    const cacheKey = createCacheKey(currentPage, statusFilter, searchTerm);
+    const cacheKey = createCacheKey(currentPage, statusFilter, debouncedSearchTerm);
 
     if (isRequestInFlight(cacheKey)) {
       console.log('🚫 Request already in flight, skipping:', cacheKey);
@@ -300,23 +252,17 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
     requestCache.set(cacheKey, { timestamp: Date.now() });
 
     try {
-<<<<<<< HEAD
-      // ✅ Retry with exponential backoff for 429 errors
-      const result = await retryWithBackoff(async () => {
-        // Build query parameters
-        const queryParams = new URLSearchParams({
-          page: currentPage.toString(),
-          limit: '10',
-          ...(statusFilter && statusFilter !== 'all' && { status: statusFilter }),
-          ...(searchTerm && { search: searchTerm }),
-        }).toString()
+      // Get authentication token from cookies
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('cedo_token='))
+        ?.split('=')[1];
 
-        // ✅ Use hybrid API endpoint that combines MySQL + MongoDB
-        const backendUrl = config.backendUrl
-        const apiUrl = `${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?${queryParams}`
-        console.log('📊 Fetching proposals from hybrid API:', apiUrl)
-        console.log('📊 Query params:', { currentPage, statusFilter, searchTerm })
-=======
+      if (!token) {
+        console.warn('No authentication token found for fetching proposals');
+        return;
+      }
+
       // Build query parameters
       const queryParams = new URLSearchParams({
         page: currentPage.toString(),
@@ -330,24 +276,17 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
       const apiUrl = `${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?${queryParams}`
       console.log('📊 Fetching proposals from hybrid API:', apiUrl)
       console.log('📊 Query params:', { currentPage, statusFilter, debouncedSearchTerm })
->>>>>>> 4336112 (Refactor and enhance backend and frontend components)
 
-        const response = await fetch(apiUrl, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        })
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      })
 
-        console.log('📡 Frontend API response:', response.status, response.statusText)
+      console.log('📡 Frontend API response:', response.status, response.statusText)
 
-<<<<<<< HEAD
-        if (!response.ok) {
-          const errorText = await response.text()
-          console.error('❌ Frontend API error:', response.status, response.statusText, errorText)
-          throw new Error(`API request failed: ${response.status} - ${response.statusText}`)
-        }
-=======
       if (!response.ok) {
         const errorText = await response.text()
         console.error('❌ Frontend API error:', response.status, response.statusText, errorText)
@@ -357,15 +296,19 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
             description: "You're searching too quickly. Please wait a moment.",
             variant: "destructive"
           });
+        } else if (response.status === 401) {
+          toastRef.current({
+            title: "Authentication Failed",
+            description: "Please sign in again to continue.",
+            variant: "destructive"
+          });
         } else {
           throw new Error(`API request failed: ${response.status} - ${response.statusText}`)
         }
         return; // Stop execution if response is not ok
       }
->>>>>>> 4336112 (Refactor and enhance backend and frontend components)
 
-        return await response.json();
-      });
+      const result = await response.json();
 
       if (!isMountedRef.current) return;
 
@@ -413,21 +356,17 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
         setLoading(false);
       }
     }
-<<<<<<< HEAD
-  }, [currentPage, statusFilter, searchTerm]) // ✅ REMOVED `loading` dependency to fix infinite loop
+  }, [currentPage, debouncedSearchTerm, statusFilter])
 
-  // ✅ Debounced version of fetchProposals to prevent rapid calls
-  const debouncedFetchProposals = useMemo(
-    () => debounce(fetchProposals, 300), // Pass a flag to indicate it's a debounced call
+  // Debounced fetch function
+  const debouncedFetchProposals = useCallback(
+    debounce(() => {
+      fetchProposals();
+    }, 300),
     [fetchProposals]
   );
 
-  // ✅ Use debounced fetch on component mount and when dependencies change
-=======
-  }, [currentPage, debouncedSearchTerm, statusFilter])
-
   // Effect to fetch proposals when page, filter, or debounced search term changes
->>>>>>> 4336112 (Refactor and enhance backend and frontend components)
   useEffect(() => {
     debouncedFetchProposals()
   }, [debouncedFetchProposals])
@@ -436,11 +375,23 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
   const updateProposalStatus = async (proposalId, newStatus, adminComments = '') => {
     setActionLoading(true)
     try {
-      const backendUrl = config.backendUrl
-      const response = await fetch(`${backendUrl}/api/mongodb-unified/admin/proposals/${proposalId}/status`, {
+      const backendUrl = getAppConfig().backendUrl
+
+      // Get authentication token from cookies
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('cedo_token='))
+        ?.split('=')[1];
+
+      if (!token) {
+        throw new Error('Authentication token not found. Please sign in again.');
+      }
+
+      const response = await fetch(`${backendUrl}/api/admin/proposals/${proposalId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           status: newStatus,
@@ -495,13 +446,25 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
   // ✅ Fetch updated proposal details after status change
   const fetchUpdatedProposalDetails = async (proposalId) => {
     try {
-      const backendUrl = config.backendUrl
+      const backendUrl = getAppConfig().backendUrl
+
+      // Get authentication token from cookies
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('cedo_token='))
+        ?.split('=')[1];
+
+      if (!token) {
+        console.warn('No authentication token found for fetching proposal details');
+        return;
+      }
 
       // Try to fetch individual proposal details first
-      let response = await fetch(`${backendUrl}/api/mongodb-unified/admin/proposals/${proposalId}`, {
+      let response = await fetch(`${backendUrl}/api/admin/proposals/${proposalId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
       })
 
@@ -521,6 +484,7 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
       })
 
@@ -557,7 +521,7 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
   // ✅ Simple MongoDB GridFS file download
   const downloadFile = async (proposalId, fileType) => {
     try {
-      const backendUrl = config.backendUrl
+      const backendUrl = getAppConfig().backendUrl
       console.log(`🔍 Downloading ${fileType} for proposal ${proposalId}`)
 
       toast({

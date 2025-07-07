@@ -26,15 +26,10 @@
         "dev:cluster": "nodemon cluster.js",
         "build": "echo 'No build step required for Express.js'",
         "init-db": "node scripts/init-db.js",
-<<<<<<< HEAD
-        "check-env": "node scripts/check-environment.js",
-        "check-db": "node scripts/check-mongodb.js && node test-db-connections.js",
-=======
         "init-mongodb": "node scripts/init-mongodb.js",
         "init-databases": "npm run init-db && npm run init-mongodb",
         "setup-mongodb-dev": "node scripts/setup-mongodb-dev.js",
         "build": "tsc",
->>>>>>> f6553a8 (Refactor backend services and configuration files)
         "wait-db": "sh wait-for-it.sh mysql:3306 -- npm run init-db",
         "test": "jest --coverage",
         "test:watch": "jest --watch",
@@ -87,18 +82,5 @@
         "jest": "^29.7.0",
         "nodemon": "^3.1.10",
         "supertest": "^7.1.1"
-<<<<<<< HEAD
-    },
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/your-org/cedo-google-auth.git"
-    },
-    "bugs": {
-        "url": "https://github.com/your-org/cedo-google-auth/issues"
-    },
-    "homepage": "https://github.com/your-org/cedo-google-auth#readme"
-}
-=======
     }
 }
->>>>>>> f6553a8 (Refactor backend services and configuration files)

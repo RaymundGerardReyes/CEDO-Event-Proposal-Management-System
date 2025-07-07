@@ -46,6 +46,9 @@ async function verifyRecaptchaToken(token, remoteIp = null) {
             },
         });
 
+        // Early return if response or response.data is missing/invalid
+        if (!response || !response.data || typeof response.data !== 'object') return undefined;
+
         console.log('reCAPTCHA Response:', {
             success: response.data.success,
             challenge_ts: response.data.challenge_ts,
@@ -55,13 +58,12 @@ async function verifyRecaptchaToken(token, remoteIp = null) {
             error_codes: response.data['error-codes']
         });
 
-        if (!response.data.success) {
-            console.error('reCAPTCHA verification failed. Error codes:', response.data['error-codes']);
+        if (response.data.success === false) {
+            console.error('reCAPTCHA verification failed');
         }
-
-        return response.data.success; // Check if the token is valid
+        return response.data.success === undefined ? undefined : response.data.success;
     } catch (error) {
-        console.error("Error verifying reCAPTCHA token:", error.message);
+        console.error("Error verifying reCAPTCHA token");
         return false;
     } finally {
         console.log('--- reCAPTCHA Verification Debug End ---\n');

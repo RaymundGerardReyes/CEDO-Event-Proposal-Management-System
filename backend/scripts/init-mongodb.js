@@ -14,13 +14,9 @@ console.log('📋 Based on CEDO_ERD_Data_Model.md specifications');
 
 // Environment configuration with fallbacks
 const mongoUri = process.env.MONGODB_URI_PROD || process.env.MONGODB_URI || 'mongodb://localhost:27017';
-<<<<<<< HEAD
-const dbName = process.env.MONGODB_DB_NAME || 'cedo_db'; // No change needed, not related to MySQL
-=======
 const dbName = process.env.MONGODB_DB_NAME || 'cedo_db';
 const maxRetries = parseInt(process.env.DB_CONNECT_RETRIES) || 5;
 const retryDelay = parseInt(process.env.DB_CONNECT_DELAY_MS) || 3000;
->>>>>>> f6553a8 (Refactor backend services and configuration files)
 
 // MongoDB authentication configuration
 const mongoUser = process.env.MONGODB_USER || process.env.MONGO_USER;
