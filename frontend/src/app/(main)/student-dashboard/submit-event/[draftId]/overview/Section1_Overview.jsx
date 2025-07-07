@@ -59,11 +59,18 @@ const Section1_Overview = ({ formData, onStartProposal, onContinueEditing, onVie
       console.log('🔍 Fetching approved events from database...')
       const backendUrl = process.env.API_URL || 'http://localhost:5000'
 
-      // Include contactEmail if available so the backend can filter records
-      const contactEmail = formData?.contactEmail || localStorage.getItem('cedo_user_email') || ''
-      const url = contactEmail ?
-        `${backendUrl}/api/events/approved?email=${encodeURIComponent(contactEmail)}` :
-        `${backendUrl}/api/events/approved`
+      let contactEmail = formData?.contactEmail;
+      if (!contactEmail && typeof window !== "undefined") {
+        contactEmail = localStorage.getItem('cedo_user_email');
+      }
+      if (!contactEmail) {
+        console.warn("No contactEmail found for approved events fetch. Skipping fetch.");
+        setIsLoadingEvents(false);
+        setApprovedEvents([]);
+        return;
+      }
+      const url = `${backendUrl}/api/events/approved?email=${encodeURIComponent(contactEmail)}`;
+      console.log("Fetching approved events with URL:", url);
 
       // Fetch approved events from your database schema
       const response = await fetch(url, {

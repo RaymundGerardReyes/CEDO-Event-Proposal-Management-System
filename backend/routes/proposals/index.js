@@ -194,4 +194,24 @@ router.delete("/:id/documents/:docId",
     proposalController.deleteDocument
 );
 
+// Add this route for draft creation:
+router.post("/drafts", async (req, res) => {
+    console.log('Received POST /api/proposals/drafts');
+    // You can add authentication middleware if needed
+    try {
+        // Create a new draft object (customize as needed)
+        const draft = {
+            draftId: require('crypto').randomUUID(),
+            form_data: {},
+            status: 'draft',
+            createdAt: new Date().toISOString()
+        };
+        // TODO: Save draft to your database here if needed
+
+        res.status(201).json({ draftId: draft.draftId });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to create draft", message: err.message });
+    }
+});
+
 module.exports = router; 

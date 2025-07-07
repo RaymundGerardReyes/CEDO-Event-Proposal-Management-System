@@ -1,8 +1,11 @@
 // @/lib/draft-api.js
 
-import { getAppConfig } from "@/lib/utils";
+import { getAppConfig, loadConfig } from "@/lib/utils";
 
-const API_URL = getAppConfig.backendUrl;
+async function getApiUrl() {
+    await loadConfig();
+    return getAppConfig().backendUrl;
+}
 
 /**
  * Creates a new, empty draft proposal on the backend.
@@ -11,6 +14,8 @@ const API_URL = getAppConfig.backendUrl;
  * @returns {Promise<{draftId: string}>} The UUID of the newly created draft.
  */
 export async function createDraft() {
+    const API_URL = await getApiUrl();
+    console.log('Draft API: Using API_URL:', API_URL);
     console.log('API: Creating new draft...');
     // TODO: This requires a new backend endpoint: POST /api/proposals/drafts
     const response = await fetch(`${API_URL}/api/proposals/drafts`, {
@@ -22,6 +27,8 @@ export async function createDraft() {
     });
 
     if (!response.ok) {
+        const text = await response.text();
+        console.error('Draft API: Backend error response:', text);
         throw new Error('Failed to create draft. Please ensure the backend is running and the endpoint is configured.');
     }
 
@@ -37,6 +44,7 @@ export async function createDraft() {
  * @returns {Promise<Object>} The draft data, including its status and formData.
  */
 export async function getDraft(draftId) {
+    const API_URL = await getApiUrl();
     console.log(`API: Fetching draft ${draftId}...`);
     // TODO: This requires a new backend endpoint: GET /api/proposals/drafts/:draftId
     const response = await fetch(`${API_URL}/api/proposals/drafts/${draftId}`);
@@ -67,6 +75,7 @@ export async function getDraft(draftId) {
  * @returns {Promise<{success: boolean}>}
  */
 export async function updateDraft(draftId, data) {
+    const API_URL = await getApiUrl();
     console.log(`API: Updating draft ${draftId}...`);
     // TODO: This requires a new backend endpoint: PATCH /api/proposals/drafts/:draftId
     const response = await fetch(`${API_URL}/api/proposals/drafts/${draftId}`, {

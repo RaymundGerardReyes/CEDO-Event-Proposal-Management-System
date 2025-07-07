@@ -3,7 +3,7 @@
 import StatusBadge from "@/components/dashboard/student/common/StatusBadge";
 import { Button } from "@/components/dashboard/student/ui/button";
 import { TabsContent } from "@/components/dashboard/student/ui/tabs";
-import { getAppConfig } from "@/lib/utils";
+import { getAppConfig, loadConfig } from "@/lib/utils";
 import { AlertTriangle, FileText, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Section5_Reporting } from "./[draftId]/reporting/page";
@@ -41,8 +41,27 @@ export default function AccomplishmentReport({ setActiveTab }) {
                     headers["Authorization"] = `Bearer ${token}`;
                 }
 
+                // Ensure backendUrl is available in app config
+                let backendUrl = getAppConfig().backendUrl;
+                if (!backendUrl) {
+                    // Try to load config if not already loaded
+                    const config = await loadConfig();
+                    backendUrl = config.backendUrl;
+                }
+                if (!backendUrl) {
+                    // Fallback to environment variables or localhost
+                    backendUrl = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:5000';
+                }
+                if (!backendUrl) {
+                    console.error('No backendUrl found in app config or environment. Skipping profile fetch.');
+                    setUserError('No backendUrl found in app config or environment.');
+                    setIsLoadingUserData(false);
+                    return;
+                }
+                const profileUrl = `${backendUrl}/api/profile`;
+                console.log('Fetching user profile from:', profileUrl);
                 const resp = await fetch(
-                    `${getAppConfig.apiUrl}/profile`,
+                    profileUrl,
                     {
                         method: "GET",
                         headers,
@@ -59,8 +78,8 @@ export default function AccomplishmentReport({ setActiveTab }) {
                 }
 
                 // If we reach here: response not ok OR format unexpected.
-                if (resp.status === 401 || resp.status === 403) {
-                    console.warn("🔒 Not authenticated or token expired; falling back to local profile cache");
+                if (resp.status === 401 || resp.status === 403 || resp.status === 404) {
+                    console.warn("🔒 Not authenticated, token expired, or profile not found; falling back to local profile cache");
                     const cachedEmail =
                         (typeof localStorage !== "undefined" &&
                             (localStorage.getItem("cedo_user_email") || localStorage.getItem("contact_email"))) ||
@@ -100,7 +119,6 @@ export default function AccomplishmentReport({ setActiveTab }) {
         const userRole = userProfileData?.role || 'student';
 
         // Do not fetch if the user is a student/partner but we don't have their ID yet.
-        // This prevents fetching all events by mistake.
         if ((userRole === 'student' || userRole === 'partner') && !userId) {
             console.warn("User ID not found in profile data. Skipping event fetch to prevent loading incorrect data.");
             setIsLoadingEvents(false);
@@ -112,20 +130,34 @@ export default function AccomplishmentReport({ setActiveTab }) {
         setEventsError(null);
 
         try {
-            const backend =
-                getAppConfig.backendUrl;
+            // Always use getAppConfig() as a function
+            let backend = getAppConfig().backendUrl;
+            if (!backend) {
+                // Try to load config if not already loaded
+                const config = await loadConfig();
+                backend = config.backendUrl;
+            }
+            if (!backend) {
+                backend = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:5000';
+            }
 
             const queryParams = new URLSearchParams();
-
             // Admins see all events. Other roles are filtered by their User ID.
             if (userRole !== 'admin' && userId) {
                 queryParams.append('userId', userId);
             }
             queryParams.append('status', 'approved,pending');
 
+            // Only require backend for admin, backend+userId for student/partner
+            if (!backend || ((userRole !== 'admin') && !userId)) {
+                console.error('fetchApprovedEvents: baseUrl or userId is undefined', { backend, userId, userRole });
+                setEventsError('Cannot fetch events: missing base URL or user ID.');
+                setIsLoadingEvents(false);
+                setApprovedEvents([]);
+                return;
+            }
             const url = `${backend}/api/events/approved?${queryParams.toString()}`;
-            console.log(`✅ Fetching events for user ${userId || '(admin)'} from URL: ${url}`);
-
+            console.log('Fetching events from:', url, { backend, userId, userRole });
             const res = await fetch(url, {
                 method: "GET",
                 headers: { "Content-Type": "application/json", "Cache-Control": "no-cache" },

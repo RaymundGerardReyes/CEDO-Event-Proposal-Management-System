@@ -145,17 +145,31 @@ export function setAppConfig(key, value) {
 export async function loadConfig() {
     if (appConfig) return appConfig;
     try {
-        // Use API_URL as base, fallback to relative for production
-        const base = process.env.API_URL || '';
+        // Use API_URL as base, fallback to BACKEND_URL, then to localhost:5000
+        const base = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:5000';
         // Ensure no double slash
         const url = base.endsWith('/') ? base + 'config' : base + '/config';
         const res = await fetch(url);
         appConfig = await res.json();
+        // Ensure backendUrl is always set and does NOT end with /api
+        if (!appConfig.backendUrl) {
+            appConfig.backendUrl = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:5000';
+        }
+        // Remove trailing /api if present
+        if (appConfig.backendUrl.endsWith('/api')) {
+            appConfig.backendUrl = appConfig.backendUrl.replace(/\/api$/, '');
+        }
         console.log('Loaded config:', appConfig); // Debug log
         return appConfig;
     } catch (err) {
         console.error('Failed to load config:', err);
-        appConfig = {};
+        appConfig = {
+            backendUrl: process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:5000'
+        };
+        // Remove trailing /api if present
+        if (appConfig.backendUrl.endsWith('/api')) {
+            appConfig.backendUrl = appConfig.backendUrl.replace(/\/api$/, '');
+        }
         return appConfig;
     }
 }
