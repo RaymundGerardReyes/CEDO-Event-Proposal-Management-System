@@ -1,28 +1,41 @@
-// Middleware to check if user has required role(s)
-const checkRole = (...allowedRoles) => {
-    // Flatten the array of roles if it's passed as a nested array
-    const roles = allowedRoles.flat();
+/**
+ * Role checking middleware with legacy support
+ * @param {string|symbol|number|boolean|Array} allowedRoles - Single or array of allowed roles
+ * @returns {Function} Express middleware
+ */
+function requireRole(allowedRoles) {
+  return (req, res, next) => {
+    const role = req?.user?.role;
 
-    return (req, res, next) => {
-        if (!req.user) {
-            return res.status(401).json({ message: 'Unauthorized: No user data found in request' })
-        }
-
-        // Add detailed logging for debugging
-        console.log(`🔐 Role Check: User role is "${req.user.role}", Allowed roles are "${roles.join(', ')}"`);
-
-        if (!roles.includes(req.user.role)) {
-            console.log(`🚫 Access Denied: User role "${req.user.role}" is not in the allowed list.`);
-            return res.status(403).json({
-                message: 'Forbidden: Insufficient permissions',
-                requiredRoles: roles,
-                userRole: req.user.role
-            })
-        }
-
-        console.log(`✅ Access Granted: User role "${req.user.role}" is authorized.`);
-        next()
+    if (!req.user || role === undefined) {
+      return res.status(401).json({ error: 'Unauthorized' });
     }
+
+    const roles = Array.isArray(allowedRoles)
+      ? allowedRoles
+      : Array.from(arguments);
+
+    if (roles.length === 0) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const hasAccess = roles.some(r => {
+      if (typeof r === 'symbol') return role === r;
+      return role === r;
+    });
+
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    try {
+      console.log(`[ACCESS GRANTED] role=${String(role)}`);
+    } catch (e) {
+      console.warn('[SECURITY EVENT] Failed to log access grant:', e.message);
+    }
+
+    next();
+  };
 }
 
-module.exports = checkRole 
+module.exports = requireRole;

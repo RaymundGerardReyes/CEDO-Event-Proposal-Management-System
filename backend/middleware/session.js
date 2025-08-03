@@ -1,87 +1,66 @@
 // backend/middleware/session.js
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/db');
+const logger = require('../config/logger');
 
-// Use the same JWT secret that the frontend expects
-const JWT_SECRET = process.env.JWT_SECRET_DEV || process.env.JWT_SECRET;
+let testSecretOverride = null;
+const getJwtSecret = () => {
+  const secret = testSecretOverride ?? process.env.JWT_SECRET_DEV ?? process.env.JWT_SECRET;
+  if (typeof secret !== 'string' || !secret.trim()) {
+    throw new Error('JWT_SECRET_DEV or JWT_SECRET is not defined in environment variables.');
+  }
+  return secret;
+};
 
 const sessionManager = {
-    // Generate new token
-    generateToken: (user) => {
-        if (!JWT_SECRET) {
-            throw new Error("JWT_SECRET_DEV or JWT_SECRET is not defined in environment variables.");
-        }
-        return jwt.sign(
-            {
-                user: {
-                    id: user.id,
-                    role: user.role,
-                    email: user.email,
-                    name: user.name
-                }
-            },
-            JWT_SECRET,
-            {
-                expiresIn: "7d", // Match the frontend cookie expiration
-            }
-        );
-    },
+  __setTestSecret: (val) => (testSecretOverride = val), // test hook
 
-    // Verify token
-    verifyToken: (token) => {
-        try {
-            if (!JWT_SECRET) {
-                throw new Error("JWT_SECRET_DEV or JWT_SECRET is not defined in environment variables.");
-            }
-            const decoded = jwt.verify(token, JWT_SECRET);
-            return decoded;
-        } catch (error) {
-            // Re-throw JWT errors (like TokenExpiredError, JsonWebTokenError)
-            throw error;
-        }
-    },
+  generateToken: (user) => {
+    const JWT_SECRET = getJwtSecret();
+    return jwt.sign(
+      { id: user.id, email: user.email, role: user.role, approved: user.approved },
+      JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+  },
 
-    // Refresh token
-    refreshToken: async (oldToken) => {
-        try {
-            // verifyToken will check if the token is valid
-            const decodedOldToken = sessionManager.verifyToken(oldToken);
+  verifyToken: (token) => {
+    const JWT_SECRET = getJwtSecret();
+    return jwt.verify(token, JWT_SECRET);
+  },
 
-            // Fetch the full user object to ensure we have the latest details for the new token
-            const [users] = await pool.query('SELECT * FROM users WHERE id = ?', [decodedOldToken.user.id]);
+  refreshToken: async (token) => {
+    const decoded = sessionManager.verifyToken(token);
+    const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [decoded.id]);
+    const user = rows[0];
 
-            if (users.length === 0) {
-                throw new Error('User not found for refresh token');
-            }
+    if (!user) throw new Error('User not found for refresh token');
 
-            // Ensure the user is still approved before issuing a new token
-            if (!users[0].is_approved) {
-                throw new Error('User not approved for refresh token');
-            }
-
-            // Pass the user object from the DB to generateToken
-            return sessionManager.generateToken(users[0]);
-        } catch (error) {
-            // Re-throw errors to be handled by the calling route and then the main error handler
-            throw error;
-        }
-    },
-
-    // Log access - NOW ACCEPTS 'role'
-    logAccess: async (userId, role, action) => { // Added 'role' parameter
-        if (!userId || !action) {
-            console.warn('Attempted to log access with missing userId or action.');
-            return;
-        }
-        try {
-            await pool.query(
-                'INSERT INTO access_logs (user_id, role, action, timestamp) VALUES (?, ?, ?, NOW())', // Added 'role' to SQL query
-                [userId, role, action] // Pass 'role' to query parameters
-            );
-        } catch (error) {
-            console.error('Failed to log access:', error.message); // Log only message for brevity
-        }
+    const requiredFields = ['id', 'email', 'role', 'approved'];
+    for (const field of requiredFields) {
+      if (user[field] === undefined || user[field] === null) {
+        throw new Error(`User field ${field} is missing or malformed`);
+      }
     }
+
+    if (!user.approved) throw new Error('User not approved for refresh token');
+
+    return sessionManager.generateToken(user);
+  },
+
+  logAccess: async (userId, role, action) => {
+    if (!userId) return logger.warn('Missing userId in logAccess');
+    if (!action) return logger.warn('Missing action in logAccess');
+
+    try {
+      await pool.query(
+        'INSERT INTO access_logs (user_id, role, action, timestamp) VALUES (?, ?, ?, NOW())',
+        [userId, role, action]
+      );
+    } catch (e) {
+      logger.error('Failed to log access:', e.message);
+    }
+  }
 };
 
 module.exports = sessionManager;
