@@ -3,7 +3,7 @@
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
-import Section1_Purpose from '../../app/(main)/student-dashboard/submit-event/Section1_Purpose'; // Adjust path as needed
+import Section1_Purpose from '../../app/main/student-dashboard/submit-event/Section1_Purpose'; // Adjust path as needed
 
 // Mock UI components and icons
 jest.mock('@/components/ui/button', () => ({ Button: (props) => <button {...props} /> }));

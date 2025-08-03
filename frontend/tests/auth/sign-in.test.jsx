@@ -1,5 +1,5 @@
 // --- TESTS FOR SIGN-IN PAGE ---
-import SignInPage from '@/app/(auth)/sign-in/page';
+import SignInPage from '@/app/auth/sign-in/page';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 

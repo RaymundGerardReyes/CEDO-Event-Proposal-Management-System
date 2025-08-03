@@ -1,9 +1,8 @@
 // frontend/tests/student-dashboard/Section2_OrgInfo.test.jsx
 
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import Section2_OrgInfo from '../../app/(main)/student-dashboard/submit-event/Section2_OrgInfo'; // Adjust path as needed
+import { fireEvent, render, screen } from '@testing-library/react';
+import Section2_OrgInfo from '../../app/main/student-dashboard/submit-event/Section2_OrgInfo'; // Adjust path as needed
 
 // Mock child components if they are complex or have side effects not relevant to this component's tests
 jest.mock('@/components/ui/button', () => ({ Button: (props) => <button {...props} /> }));
@@ -84,7 +83,7 @@ describe('Section2_OrgInfo', () => {
     renderComponent();
     const schoolBasedCheckbox = screen.getByTestId('school-based');
     fireEvent.click(schoolBasedCheckbox); // MUI Checkbox might need `fireEvent.click` on label or specific part
-                                      // but here we use a simple input mock
+    // but here we use a simple input mock
     expect(schoolBasedCheckbox).toBeChecked();
     expect(mockOnChange).toHaveBeenCalledWith(expect.objectContaining({ organizationTypes: ['school-based'] }));
 
@@ -92,7 +91,7 @@ describe('Section2_OrgInfo', () => {
     expect(schoolBasedCheckbox).not.toBeChecked();
     expect(mockOnChange).toHaveBeenCalledWith(expect.objectContaining({ organizationTypes: [] }));
   });
-  
+
   test('toggles organization types correctly', () => {
     renderComponent({ formData: { organizationTypes: ['school-based'] } });
     const schoolBasedCheckbox = screen.getByTestId('school-based');
@@ -103,7 +102,7 @@ describe('Section2_OrgInfo', () => {
 
     fireEvent.click(communityBasedCheckbox); // Check community-based
     expect(mockOnChange).toHaveBeenCalledWith(expect.objectContaining({ organizationTypes: ['school-based', 'community-based'] }));
-    
+
     fireEvent.click(schoolBasedCheckbox); // Uncheck school-based
     expect(mockOnChange).toHaveBeenCalledWith(expect.objectContaining({ organizationTypes: ['community-based'] }));
   });
@@ -159,7 +158,7 @@ describe('Section2_OrgInfo', () => {
 
       expect(screen.getByText('Invalid email format')).toBeInTheDocument();
       expect(mockOnNext).not.toHaveBeenCalled();
-       expect(mockOnChange).toHaveBeenCalledWith(expect.objectContaining({
+      expect(mockOnChange).toHaveBeenCalledWith(expect.objectContaining({
         validationErrors: expect.objectContaining({ contactEmail: "Invalid email format" })
       }));
     });
@@ -194,29 +193,29 @@ describe('Section2_OrgInfo', () => {
     expect(screen.queryByRole('button', { name: /Withdraw/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Save & Continue/i })).toBeDisabled();
   });
-  
+
   test('updates localFormData when formData prop changes', () => {
     const { rerender } = renderComponent({ formData: { organizationName: 'Old Name' } });
     expect(screen.getByLabelText(/Organization Name/i)).toHaveValue('Old Name');
 
     const newFormData = { ...initialFormData, organizationName: 'New Name From Prop' };
     rerender(<Section2_OrgInfo {...defaultProps} formData={newFormData} />);
-    
+
     expect(screen.getByLabelText(/Organization Name/i)).toHaveValue('New Name From Prop');
   });
 
-   test('clears organizationTypes error locally when a checkbox is selected', () => {
+  test('clears organizationTypes error locally when a checkbox is selected', () => {
     renderComponent({ formData: { organizationTypes: [] } }); // Start with no types selected
-    
+
     // Trigger validation to show the error
     const nextButton = screen.getByRole('button', { name: /Save & Continue/i });
     fireEvent.submit(nextButton);
     expect(screen.getByText('At least one organization type must be selected')).toBeInTheDocument();
-    
+
     // Now select a checkbox
     const schoolBasedCheckbox = screen.getByTestId('school-based');
     fireEvent.click(schoolBasedCheckbox);
-    
+
     // The local error message for organizationTypes should disappear after interaction leading to valid state for that field.
     // Note: The parent `errors` prop isn't directly cleared by this action,
     // but the local display of the error for this specific field should be managed.
@@ -237,7 +236,7 @@ describe('Section2_OrgInfo', () => {
     fireEvent.change(screen.getByLabelText(/Organization Name/i), { target: { name: 'organizationName', value: 'Valid Name' } });
     fireEvent.change(screen.getByLabelText(/Contact Person/i), { target: { name: 'contactName', value: 'Valid Contact' } });
     fireEvent.change(screen.getByLabelText(/Email/i), { target: { name: 'contactEmail', value: 'valid@email.com' } });
-    
+
     // Submit again
     fireEvent.submit(nextButton);
 

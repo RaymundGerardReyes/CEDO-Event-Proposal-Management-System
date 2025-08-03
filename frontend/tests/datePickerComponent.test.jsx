@@ -21,7 +21,7 @@ jest.mock('rsuite', () => ({
 jest.mock('rsuite/DatePicker/styles/index.css', () => ({}), { virtual: true })
 
 // Import after mocks
-import DatePickerComponent from '../src/app/(main)/student-dashboard/submit-event/DatePickerComponent'
+import { DatePickerComponent } from '../src/app/main/student-dashboard/submit-event/components'
 
 const baseProps = {
     label: 'Start Date',

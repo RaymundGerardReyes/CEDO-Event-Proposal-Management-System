@@ -57,7 +57,7 @@ jest.mock('rsuite', () => ({
 jest.mock('rsuite/DatePicker/styles/index.css', () => ({}), { virtual: true })
 
 // Finally import the component under test
-import SubmitEventFlow from '@/app/(main)/student-dashboard/submit-event/SubmitEventFlow'
+import SubmitEventFlow from '@/app/main/student-dashboard/submit-event/[draftId]/components/SubmitEventFlow'
 
 // Helper utils --------------------------------------------------------------
 const setLS = (key, val) => {

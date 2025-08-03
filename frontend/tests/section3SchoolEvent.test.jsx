@@ -73,7 +73,7 @@ afterEach(() => {
 })
 
 // Import CUT **after** mocks so they apply
-import Section3_SchoolEvent from '../src/app/(main)/student-dashboard/submit-event/[draftId]/school-event/Section3_SchoolEvent'
+import { Section3_SchoolEvent } from '../../src/app/main/student-dashboard/submit-event/[draftId]/school-event/page'
 
 // ──────────────────────────────────────────────────────────────────────────────
 //    TEST SUITE – 20 focused cases (no placeholders)
