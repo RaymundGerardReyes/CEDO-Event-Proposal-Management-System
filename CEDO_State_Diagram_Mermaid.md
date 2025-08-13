@@ -11,7 +11,7 @@ This document provides a comprehensive Mermaid State Diagram for the CEDO Event 
 - User approval and session management states
 
 ### 2. **Proposal Submission States**
-- Based on `frontend/src/app/(main)/student-dashboard/submit-event/eventStateMachine.js`
+- Based on `frontend/src/app/main/student-dashboard/submit-event/eventStateMachine.js`
 - Multi-step form progression with XState state machine
 - Auto-save and data persistence states
 
@@ -498,9 +498,9 @@ stateDiagram-v2
 This state diagram is based on analysis of these actual code files:
 
 ### Frontend State Management
-- `frontend/src/app/(main)/student-dashboard/submit-event/eventStateMachine.js` - XState machine
+- `frontend/src/app/main/student-dashboard/submit-event/eventStateMachine.js` - XState machine
 - `frontend/src/contexts/auth-context.js` - Authentication states
-- `frontend/src/app/(main)/student-dashboard/submit-event/[draftId]/SubmitEventFlow.jsx` - Form flow
+- `frontend/src/app/main/student-dashboard/submit-event/[draftId]/SubmitEventFlow.jsx` - Form flow
 
 ### Backend State Transitions
 - `backend/routes/auth.js` - Authentication endpoints

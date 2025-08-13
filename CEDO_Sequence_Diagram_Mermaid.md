@@ -804,8 +804,8 @@ These sequence diagrams are based on analysis of actual code files:
 
 ### **Frontend Sequences**
 - `frontend/src/contexts/auth-context.js` - Authentication state management
-- `frontend/src/app/(main)/student-dashboard/submit-event/SubmitEventFlow.jsx` - Proposal submission flow
-- `frontend/src/app/(main)/admin-dashboard/review/` - Admin review interface
+- `frontend/src/app/main/student-dashboard/submit-event/SubmitEventFlow.jsx` - Proposal submission flow
+- `frontend/src/app/main/admin-dashboard/review/` - Admin review interface
 - `frontend/src/lib/api.js` - API client interactions
 
 ### **Backend Sequences**

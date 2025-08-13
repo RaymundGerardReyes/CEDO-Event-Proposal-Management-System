@@ -12,7 +12,7 @@ This document provides a comprehensive Mermaid Activity Diagram for the CEDO Eve
 - User approval workflow activities
 
 ### 2. **Proposal Submission Activities**
-- Based on `frontend/src/app/(main)/student-dashboard/submit-event/SubmitEventFlow.jsx`
+- Based on `frontend/src/app/main/student-dashboard/submit-event/SubmitEventFlow.jsx`
 - Multi-step form progression activities
 - Auto-save and localStorage persistence activities
 - Form validation and error handling activities
@@ -475,10 +475,10 @@ flowchart TD
 This activity diagram is based on analysis of these actual code files:
 
 ### Frontend Activities
-- `frontend/src/app/(main)/student-dashboard/submit-event/SubmitEventFlow.jsx` - Multi-step form activities
+- `frontend/src/app/main/student-dashboard/submit-event/SubmitEventFlow.jsx` - Multi-step form activities
 - `frontend/src/contexts/auth-context.js` - Authentication activities
-- `frontend/src/app/(main)/admin-dashboard/` - Admin dashboard activities
-- `frontend/src/app/(main)/student-dashboard/drafts/page.jsx` - Proposal management activities
+- `frontend/src/app/main/admin-dashboard/` - Admin dashboard activities
+- `frontend/src/app/main/student-dashboard/drafts/page.jsx` - Proposal management activities
 
 ### Backend Activities
 - `backend/routes/auth.js` - Authentication processing activities

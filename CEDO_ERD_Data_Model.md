@@ -275,9 +275,9 @@ This comprehensive application flowchart includes:
 This flowchart is based on analysis of actual code files:
 
 - **Frontend Components**: Based on [Mermaid.js documentation](https://mermaid.js.org/intro/getting-started.html) and [flowchart syntax](https://mermaid.js.org/syntax/flowchart.html)
-- **Authentication**: `frontend/src/app/(auth)/sign-in/page.jsx`, `backend/routes/auth.js`
-- **Proposal Flow**: `frontend/src/app/(main)/student-dashboard/submit-event/SubmitEventFlow.jsx`
-- **Admin Dashboard**: `backend/routes/admin.js`, `frontend/src/app/(main)/admin-dashboard/`
+- **Authentication**: `frontend/src/app/auth/sign-in/page.jsx`, `backend/routes/auth.js`
+- **Proposal Flow**: `frontend/src/app/main/student-dashboard/submit-event/SubmitEventFlow.jsx`
+- **Admin Dashboard**: `backend/routes/admin.js`, `frontend/src/app/main/admin-dashboard/`
 - **Database Models**: `backend/models/User.js`, `backend/models/Proposal.js`
 - **Services**: `backend/services/admin.service.js`, `backend/services/proposal.service.js`
 
