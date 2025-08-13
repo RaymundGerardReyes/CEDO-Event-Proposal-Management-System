@@ -102,6 +102,113 @@ const logSyncOperation = (operation, details) => {
   });
 };
 
+/**
+ * Get organization name by ID
+ * 
+ * @param {string|number} organizationId - Organization ID
+ * @returns {Promise<string>} Organization name
+ */
+const getOrganizationName = async (organizationId) => {
+  try {
+    console.log(`🔍 SYNC: Looking up organization name for ID: ${organizationId}`);
+
+    // Try to get from users table first
+    const [userRows] = await pool.query(
+      'SELECT organization_name FROM users WHERE id = ? AND organization_name IS NOT NULL',
+      [organizationId]
+    );
+
+    if (userRows.length > 0 && userRows[0].organization_name) {
+      console.log(`✅ SYNC: Found organization name from users table: ${userRows[0].organization_name}`);
+      return userRows[0].organization_name;
+    }
+
+    // Try to get from proposals table
+    const [proposalRows] = await pool.query(
+      'SELECT organization_name FROM proposals WHERE user_id = ? AND organization_name IS NOT NULL ORDER BY created_at DESC LIMIT 1',
+      [organizationId]
+    );
+
+    if (proposalRows.length > 0 && proposalRows[0].organization_name) {
+      console.log(`✅ SYNC: Found organization name from proposals table: ${proposalRows[0].organization_name}`);
+      return proposalRows[0].organization_name;
+    }
+
+    // Fallback to default organization name
+    console.log(`⚠️ SYNC: No organization name found for ID ${organizationId}, using default`);
+    return 'Unknown Organization';
+
+  } catch (error) {
+    console.error(`❌ SYNC: Error getting organization name for ID ${organizationId}:`, error.message);
+    return 'Unknown Organization';
+  }
+};
+
+/**
+ * Ensure proposal consistency across databases
+ * 
+ * @param {string|number} organizationId - Organization ID
+ * @returns {Promise<Object>} Consistency check result
+ */
+const ensureProposalConsistency = async (organizationId) => {
+  try {
+    console.log(`🔄 SYNC: Checking proposal consistency for organization: ${organizationId}`);
+
+    const orgName = await getOrganizationName(organizationId);
+
+    // Check MySQL proposals
+    const [mysqlProposals] = await pool.query(
+      'SELECT id, uuid, proposal_status, organization_name FROM proposals WHERE user_id = ?',
+      [organizationId]
+    );
+
+    // Check MongoDB proposals (if available)
+    let mongoProposals = [];
+    try {
+      const db = await getDb();
+      mongoProposals = await db.collection('proposals').find({ submitter: organizationId.toString() }).toArray();
+    } catch (mongoError) {
+      console.warn('⚠️ SYNC: MongoDB not available for consistency check');
+    }
+
+    const consistency = {
+      organizationName: orgName,
+      mysqlProposalCount: mysqlProposals.length,
+      mongoProposalCount: mongoProposals.length,
+      consistent: true,
+      recommendations: []
+    };
+
+    // Check for inconsistencies
+    if (mysqlProposals.length !== mongoProposals.length) {
+      consistency.consistent = false;
+      consistency.recommendations.push('Proposal count mismatch between databases');
+    }
+
+    // Check organization name consistency
+    const inconsistentProposals = mysqlProposals.filter(p => p.organization_name !== orgName);
+    if (inconsistentProposals.length > 0) {
+      consistency.consistent = false;
+      consistency.recommendations.push(`${inconsistentProposals.length} proposals have inconsistent organization names`);
+    }
+
+    console.log(`✅ SYNC: Consistency check completed for organization: ${orgName}`);
+    return { consistency };
+
+  } catch (error) {
+    console.error(`❌ SYNC: Error checking proposal consistency:`, error.message);
+    return {
+      consistency: {
+        organizationName: 'Unknown',
+        mysqlProposalCount: 0,
+        mongoProposalCount: 0,
+        consistent: false,
+        recommendations: ['Error occurred during consistency check']
+      }
+    };
+  }
+};
+
 // =============================================
 // MYSQL TO MONGODB SYNC FUNCTIONS
 // =============================================
@@ -562,20 +669,22 @@ module.exports = {
   // MySQL to MongoDB Sync
   syncMySQLToMongo,
   batchSyncMySQLToMongo,
-  
+
   // MongoDB to MySQL Sync
   syncMongoToMySQL,
-  
+
   // Bidirectional Sync
   bidirectionalSync,
   resolveDataConflicts,
-  
+
   // Validation
   validateSyncIntegrity,
-  
+
   // Utility Functions
   validateSyncParams,
   compareDataStructures,
   generateSyncTimestamp,
-  logSyncOperation
+  logSyncOperation,
+  getOrganizationName,
+  ensureProposalConsistency
 }; 

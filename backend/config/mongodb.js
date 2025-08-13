@@ -1,261 +1,202 @@
+/**
+ * MongoDB Configuration
+ * Purpose: Robust MongoDB connection management with graceful degradation
+ * Key approaches: Connection pooling, retry logic, fallback URIs, health monitoring
+ */
+
 const { MongoClient } = require('mongodb');
-const mongoose = require('mongoose');
+require('dotenv').config({ path: './.env' });
 
-// Fixed MongoDB connection configuration - use the working connection string with authentication
-const uri = process.env.MONGODB_URI || 'mongodb://cedo_admin:Raymund-Estaca01@localhost:27017/cedo_db?authSource=admin';
+const isVerbose = process.env.MONGODB_VERBOSE === 'true';
 
-// Enhanced options based on common timeout solutions
-const options = {
-    maxPoolSize: 10, // Maintain up to 10 socket connections
-    serverSelectionTimeoutMS: 30000, // Increased from 5000ms to 30000ms (30 seconds)
-    socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
-    connectTimeoutMS: 30000, // How long to wait for a connection to be established
-    heartbeatFrequencyMS: 10000, // How often to check the connection (10 seconds)
-    maxIdleTimeMS: 30000, // Close connections after 30 seconds of inactivity
-    retryWrites: true, // Retry writes on network errors
-    retryReads: true, // Retry reads on network errors
-    // Removed deprecated options: bufferMaxEntries, bufferCommands, useUnifiedTopology
-};
-
-let client;
-let clientPromise;
-
-// Development environment - use global variable to preserve connection
-if (process.env.NODE_ENV === 'development') {
-    // In development mode, use a global variable so the connection is preserved across module reloads
-    // FORCE FRESH CONNECTION - clear cache if URI changed
-    const currentUri = process.env.MONGODB_URI || 'mongodb://cedo_admin:Raymund-Estaca01@localhost:27017/cedo_db?authSource=admin';
-    if (global._mongoUri && global._mongoUri !== currentUri) {
-        console.log('🔄 MongoDB: URI changed, clearing cached connection');
-        delete global._mongoClientPromise;
-        delete global._mongoUri;
-    }
-
-    // FORCE CLEAR CACHE FOR TESTING - remove this in production
-    if (global._mongoClientPromise) {
-        console.log('🔄 MongoDB: Force clearing cached connection for testing');
-        delete global._mongoClientPromise;
-        delete global._mongoUri;
-    }
-
-    if (!global._mongoClientPromise) {
-        client = new MongoClient(uri, options);
-        global._mongoClientPromise = client.connect();
-        global._mongoUri = uri;
-        console.log('🍃 MongoDB: Creating new client connection (development)');
-        console.log('🔗 MongoDB: Using URI:', uri.replace(/\/\/.*@/, '//***:***@'));
-        console.log('🔧 MongoDB: Timeout settings - Server Selection: 30s, Socket: 45s, Connect: 30s');
-    }
-    clientPromise = global._mongoClientPromise;
-} else {
-    // In production mode, create a new connection
-    client = new MongoClient(uri, options);
-    clientPromise = client.connect();
-    console.log('🍃 MongoDB: Creating new client connection (production)');
-    console.log('🔧 MongoDB: Timeout settings - Server Selection: 30s, Socket: 45s, Connect: 30s');
+if (isVerbose) {
+    console.log('🍃 MongoDB: Initializing configuration...');
 }
 
-// Enhanced connection wrapper with retry logic and connection reuse
-let cachedClient = null;
-const getClientWithRetry = async (maxRetries = 3) => {
-    // Return cached client if available and connected
-    if (cachedClient) {
-        try {
-            // Test the connection is still alive
-            await cachedClient.db('cedo_auth').command({ ping: 1 });
-            return cachedClient;
-        } catch (error) {
-            console.log('🔄 MongoDB: Cached connection failed, reconnecting...');
-            cachedClient = null;
-        }
-    }
+// Enhanced MongoDB configuration with fallback options
+const mongoConfig = {
+    uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/cedo_db',
+    options: {
+        // Connection timeout settings
+        serverSelectionTimeoutMS: 5000, // 5 seconds
+        connectTimeoutMS: 10000, // 10 seconds
+        socketTimeoutMS: 45000, // 45 seconds
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-            // Only log on first attempt to reduce spam
-            if (attempt === 1) {
-                console.log(`🔄 MongoDB: Establishing connection...`);
-            }
+        // Connection pool settings
+        maxPoolSize: 10,
+        minPoolSize: 1,
 
-            const client = await clientPromise;
-            cachedClient = client; // Cache the successful connection
-            console.log('✅ MongoDB: Client connection established');
-            return client;
-        } catch (error) {
-            console.error(`❌ MongoDB: Connection attempt ${attempt} failed:`, error.message);
+        // Retry settings
+        retryWrites: true,
+        retryReads: true,
 
-            if (attempt === maxRetries) {
-                throw error;
-            }
+        // Write concern
+        w: 'majority',
+        j: true,
 
-            // Wait before retrying (exponential backoff)
-            const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
-            console.log(`⏳ MongoDB: Waiting ${delay}ms before retry...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-        }
+        // Read preference
+        readPreference: 'primary',
+
+        // Compression
+        compressors: ['zlib'],
+
+        // SSL settings (if needed)
+        ssl: process.env.NODE_ENV === 'production',
+
+        // Authentication (if needed)
+        authSource: process.env.MONGO_AUTH_SOURCE || 'admin'
+
+        // Removed loggerLevel option as it's not supported in newer MongoDB driver versions
     }
 };
 
-// Main connection function called by the server, designed to be resilient.
-async function connectToMongo() {
-    try {
-        // Attempt to connect both native client and mongoose
-        await getClientWithRetry();
-        await connectMongoose();
-    } catch (error) {
-        // The error is already logged by the individual connection functions (getClientWithRetry/connectMongoose).
-        // We catch it here to prevent it from crashing the server startup process.
-        console.warn('❌ MongoDB connection failed. Server will continue in demo mode.');
-        // By not re-throwing the error, we allow the application to proceed.
-    }
+if (isVerbose) {
+    console.log('🔍 MongoDB Configuration:');
+    console.log('   URI:', mongoConfig.uri.replace(/\/\/.*@/, '//***:***@')); // Mask credentials
+    console.log('   Environment:', process.env.NODE_ENV);
+    console.log('   Timeout (server selection):', mongoConfig.options.serverSelectionTimeoutMS + 'ms');
+    console.log('   Timeout (connect):', mongoConfig.options.connectTimeoutMS + 'ms');
 }
 
-// Also connect mongoose for backward compatibility
-async function connectMongoose() {
-    try {
-        if (mongoose.connection.readyState === 0) {
-            console.log('🔧 Mongoose: Connecting with URI:', uri.replace(/\/\/.*@/, '//***:***@'));
-            await mongoose.connect(uri, {
-                serverSelectionTimeoutMS: 30000,
-                socketTimeoutMS: 45000,
-                connectTimeoutMS: 30000,
-            });
-            console.log('✅ Mongoose: Connected for legacy support');
+let mongoClient = null;
+let isConnected = false;
+let connectionRetries = 0;
+const maxRetries = 3;
 
-            // Test the mongoose connection
-            const db = mongoose.connection.db;
-            await db.admin().ping();
-            console.log('✅ Mongoose: Authentication test successful');
+/**
+ * Initialize MongoDB connection with retry logic
+ */
+async function initializeMongoDB() {
+    console.log('🍃 MongoDB: Creating new client connection (' + process.env.NODE_ENV + ')');
+    console.log('🔗 MongoDB: Using URI:', mongoConfig.uri.replace(/\/\/.*@/, '//***:***@'));
+    console.log('🔧 MongoDB: Timeout settings - Server Selection:', mongoConfig.options.serverSelectionTimeoutMS + 'ms, Socket:', mongoConfig.options.socketTimeoutMS + 'ms, Connect:', mongoConfig.options.connectTimeoutMS + 'ms');
+
+    try {
+        mongoClient = new MongoClient(mongoConfig.uri, mongoConfig.options);
+
+        // Test connection with timeout
+        const connectionPromise = mongoClient.connect();
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Connection timeout')), mongoConfig.options.connectTimeoutMS);
+        });
+
+        await Promise.race([connectionPromise, timeoutPromise]);
+
+        // Test the connection
+        await mongoClient.db().admin().ping();
+
+        isConnected = true;
+        connectionRetries = 0;
+
+        console.log('✅ MongoDB: Connection established successfully');
+
+        // Set up connection event handlers
+        mongoClient.on('close', () => {
+            console.log('⚠️ MongoDB: Connection closed');
+            isConnected = false;
+        });
+
+        mongoClient.on('error', (error) => {
+            console.error('❌ MongoDB: Connection error:', error.message);
+            isConnected = false;
+        });
+
+        return mongoClient;
+
+    } catch (error) {
+        connectionRetries++;
+        console.error('❌ MongoDB: Connection failed (attempt ' + connectionRetries + '/' + maxRetries + '):', error.message);
+
+        if (connectionRetries < maxRetries) {
+            console.log('🔄 MongoDB: Retrying connection in 2 seconds...');
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            return initializeMongoDB();
+        } else {
+            console.log('⚠️ MongoDB: Max retries reached. Continuing without MongoDB...');
+            console.log('💡 MongoDB will be disabled. Some features may not work properly.');
+            return null;
         }
-        return mongoose;
-    } catch (error) {
-        console.error('❌ Mongoose: Connection failed:', error.message);
-        throw error; // This throw is now safely caught by connectToMongo
     }
 }
 
-// Test connection function with proper authentication and retry logic
-async function testConnection() {
-    try {
-        const client = await getClientWithRetry();
-        // Test with the specific database instead of admin
-        const db = client.db('cedo_db');
-        await db.command({ ping: 1 });
-        console.log('✅ MongoDB: Connection test successful');
-        return true;
-    } catch (error) {
-        console.error('❌ MongoDB: Connection test failed:', error.message);
-        return false;
+/**
+ * Get MongoDB database instance
+ */
+async function getDb() {
+    if (!mongoClient || !isConnected) {
+        console.log('⚠️ MongoDB: Client not connected, attempting to initialize...');
+        await initializeMongoDB();
+    }
+
+    if (mongoClient && isConnected) {
+        return mongoClient.db();
+    } else {
+        throw new Error('MongoDB not available');
     }
 }
 
-// Get database instance with explicit database name and retry logic
-async function getDatabase(dbName = 'cedo_db') {
-    try {
-        const client = await getClientWithRetry();
-        return client.db(dbName);
-    } catch (error) {
-        console.error('❌ MongoDB: Failed to get database:', error);
-        throw error;
-    }
+/**
+ * Get MongoDB client instance
+ */
+function getClient() {
+    return mongoClient;
 }
 
-// Enhanced debug function with authentication handling
-async function debugMongoDB() {
-    try {
-        const client = await getClientWithRetry();
-        const db = client.db('cedo_db');
+/**
+ * Check if MongoDB is connected
+ */
+function isMongoConnected() {
+    return isConnected && mongoClient;
+}
 
-        console.log('🔍 MongoDB Debug Information:');
-        console.log('🔗 Connection URI (masked):', uri.replace(/\/\/.*@/, '//***:***@'));
-
-        // Test basic database access first
+/**
+ * Gracefully close MongoDB connection
+ */
+async function closeMongoDB() {
+    if (mongoClient) {
         try {
-            await db.command({ ping: 1 });
-            console.log('✅ Database ping successful');
-        } catch (pingError) {
-            console.error('❌ Database ping failed:', pingError.message);
-            throw pingError;
+            await mongoClient.close();
+            console.log('✅ MongoDB: Connection closed gracefully');
+        } catch (error) {
+            console.error('❌ MongoDB: Error closing connection:', error.message);
         }
-
-        // List all collections with proper error handling
-        let collections = [];
-        try {
-            collections = await db.listCollections().toArray();
-            console.log('📊 Available collections:', collections.map(c => c.name));
-        } catch (listError) {
-            console.error('❌ Failed to list collections:', listError.message);
-            // Try alternative approach - check if specific collections exist
-            const commonCollections = ['proposals', 'users', 'events'];
-            for (const collName of commonCollections) {
-                try {
-                    const collExists = await db.collection(collName).findOne({});
-                    console.log(`📁 Collection '${collName}': ${collExists ? 'EXISTS' : 'EMPTY/NOT_FOUND'}`);
-                } catch (err) {
-                    console.log(`📁 Collection '${collName}': ACCESS_DENIED`);
-                }
-            }
-        }
-
-        // Check proposals collection specifically
-        try {
-            const proposalsCollection = db.collection('proposals');
-            const proposalCount = await proposalsCollection.countDocuments();
-            console.log(`📝 Proposals collection: ${proposalCount} documents`);
-
-            if (proposalCount > 0) {
-                // Sample a few documents to see structure
-                const sampleProposals = await proposalsCollection.find({}).limit(3).toArray();
-                console.log('📄 Sample proposal structures:');
-                sampleProposals.forEach((proposal, index) => {
-                    console.log(`  ${index + 1}. ID: ${proposal._id}, Status: ${proposal.status}, Email: ${proposal.contactEmail || 'N/A'}`);
-                });
-
-                // Check status distribution
-                const statusCounts = await proposalsCollection.aggregate([
-                    { $group: { _id: '$status', count: { $sum: 1 } } }
-                ]).toArray();
-                console.log('📊 Status distribution:', statusCounts);
-            }
-        } catch (proposalError) {
-            console.error('❌ Failed to access proposals collection:', proposalError.message);
-        }
-
-        return true;
-    } catch (error) {
-        console.error('❌ MongoDB Debug failed:', error);
-        return false;
     }
 }
 
-// Backward compatibility alias for getDatabase
-async function getDb(dbName = 'cedo_db') {
-    return await getDatabase(dbName);
+/**
+ * Health check for MongoDB
+ */
+async function mongoHealthCheck() {
+    try {
+        if (!isConnected || !mongoClient) {
+            return { status: 'disconnected', message: 'MongoDB not connected' };
+        }
+
+        await mongoClient.db().admin().ping();
+        return { status: 'healthy', message: 'MongoDB connection is healthy' };
+
+    } catch (error) {
+        return { status: 'unhealthy', message: 'MongoDB health check failed: ' + error.message };
+    }
 }
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
-    try {
-        const client = await clientPromise;
-        await client.close();
-        if (mongoose.connection.readyState !== 0) {
-            await mongoose.connection.close();
-        }
-        console.log('🍃 MongoDB: Connection closed gracefully');
-        process.exit(0);
-    } catch (error) {
-        console.error('❌ MongoDB: Error during graceful shutdown:', error);
-        process.exit(1);
-    }
+    console.log('🔄 Closing MongoDB connection...');
+    await closeMongoDB();
+});
+
+process.on('SIGTERM', async () => {
+    console.log('🔄 Closing MongoDB connection...');
+    await closeMongoDB();
 });
 
 module.exports = {
-    clientPromise,
-    getClientWithRetry,
-    getDatabase,
-    testConnection,
-    debugMongoDB,
-    connectToMongo,
+    initializeMongoDB,
     getDb,
-    connectMongoose,
+    getClient,
+    isMongoConnected,
+    closeMongoDB,
+    mongoHealthCheck,
+    mongoConfig
 }; 

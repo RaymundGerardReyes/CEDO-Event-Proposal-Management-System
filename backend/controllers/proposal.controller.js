@@ -160,8 +160,9 @@ const searchProposal = async (req, res) => {
         const proposal = await proposalService.searchProposal(organization_name, contact_email);
 
         if (!proposal) {
-            return res.status(404).json({
-                error: 'No proposal found',
+            // Return 200 with found: false, not 404
+            return res.status(200).json({
+                found: false,
                 message: 'No proposal found with the given organization name and contact email'
             });
         }
@@ -169,6 +170,7 @@ const searchProposal = async (req, res) => {
         console.log('✅ MySQL: Found proposal:', proposal);
         res.status(200).json({
             ...proposal,
+            found: true,
             message: 'Proposal found successfully'
         });
 
@@ -561,7 +563,7 @@ const getUserDraftsAndRejected = async (req, res) => {
             const { clientPromise } = require('../config/mongodb');
 
             // Get client and database
-            const client = await clientPromise();
+            const client = await clientPromise;
             const db = client.db('cedo_db');
 
             console.log('🍃 MongoDB: Connection established successfully');

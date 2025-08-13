@@ -42,7 +42,7 @@ const { pool } = require('../../config/db');
  * GridFS upload utility for MongoDB file storage
  * @type {Function}
  */
-const { uploadToGridFS, getBucket } = require('../../utils/gridfs');
+const { uploadFile, getBucket } = require('../../utils/gridfs');
 
 /**
  * Ensure uploads directory exists for legacy file routes
@@ -74,6 +74,8 @@ const upload = multer({
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'application/vnd.ms-excel',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'text/csv',
+            'text/plain',
             'image/jpeg',
             'image/png'
         ];
@@ -81,7 +83,7 @@ const upload = multer({
         if (allowedMimeTypes.includes(file.mimetype)) {
             cb(null, true);
         } else {
-            cb(new Error(`Invalid file type: ${file.mimetype}. Allowed types: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG`));
+            cb(new Error(`Invalid file type: ${file.mimetype}. Allowed types: PDF, DOC, DOCX, XLS, XLSX, CSV, TXT, JPG, PNG`));
         }
     }
 });
@@ -107,18 +109,34 @@ const toObjectId = (value) => {
 };
 
 /**
- * Validate and sanitize proposal ID
+ * Validate and sanitize proposal ID (supports both numeric IDs and UUIDs)
  * 
  * @param {any} proposalId - The proposal ID to validate
- * @returns {number|null} Valid proposal ID or null
+ * @returns {string|null} Valid proposal ID or null
  * 
  * @example
- * const id = validateProposalId('123'); // Returns 123
+ * const id = validateProposalId('123'); // Returns '123'
+ * const uuid = validateProposalId('c723880e-f29f-45b8-a146-02ff79ab73e6'); // Returns UUID
  * const invalid = validateProposalId('abc'); // Returns null
  */
 const validateProposalId = (proposalId) => {
-    const parsed = parseInt(proposalId);
-    return !isNaN(parsed) && parsed > 0 ? parsed : null;
+    if (!proposalId) return null;
+
+    const str = String(proposalId).trim();
+
+    // Check if it's a valid UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(str)) {
+        return str;
+    }
+
+    // Check if it's a valid numeric ID
+    const parsed = parseInt(str);
+    if (!isNaN(parsed) && parsed > 0) {
+        return str;
+    }
+
+    return null;
 };
 
 /**
@@ -167,10 +185,10 @@ module.exports = {
     pool,
 
     // File upload utilities
-    uploadToGridFS,
     getBucket,
     upload,
     uploadsDir,
+    uploadFile,
 
     // MongoDB utilities
     ObjectId,

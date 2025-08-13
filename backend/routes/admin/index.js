@@ -6,7 +6,7 @@ router.use('/', require('./dashboard'));
 router.use('/mysql', require('./mysql'));
 router.use('/mongodb', require('./mongodb'));
 router.use('/proposals', require('./proposals'));
-router.use('/users', require('./users'));
+router.use('/users', require('./users')); // Use real users route instead of mock
 router.use('/reports', require('./reports'));
 
 // Export the central admin router

@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const { passport, generateSecureState } = require('../config/oauth');
 const sessionManager = require('../middleware/session');
 const { verifyGoogleToken } = require('../utils/googleAuth');
+const ROLES = require('../constants/roles');
 
 // Check if OAuth is configured
 const isOAuthConfigured = () => {
@@ -13,11 +14,7 @@ const isOAuthConfigured = () => {
 
 // Role access configuration
 const roleAccess = {
-    student: {
-        dashboard: "/student-dashboard",
-        permissions: ["view_own_profile", "submit_requests", "view_own_requests"],
-    },
-    head_admin: {
+    [ROLES.HEAD_ADMIN]: {
         dashboard: "/admin-dashboard",
         permissions: [
             "view_all_users",
@@ -31,7 +28,7 @@ const roleAccess = {
             "manage_reviews",
         ],
     },
-    manager: {
+    [ROLES.MANAGER]: {
         dashboard: "/admin-dashboard",
         permissions: [
             "view_student_requests",
@@ -44,11 +41,15 @@ const roleAccess = {
             "manage_reviews",
         ],
     },
-    partner: {
+    [ROLES.STUDENT]: {
         dashboard: "/student-dashboard",
         permissions: ["view_own_profile", "submit_requests", "view_own_requests"],
     },
-    reviewer: {
+    [ROLES.PARTNER]: {
+        dashboard: "/student-dashboard",
+        permissions: ["view_own_profile", "submit_requests", "view_own_requests"],
+    },
+    [ROLES.REVIEWER]: {
         dashboard: "/admin-dashboard",
         permissions: ["view_all_proposals", "view_assigned_proposals", "submit_reviews"],
     },

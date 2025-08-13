@@ -143,6 +143,12 @@ async function uploadFile(fileBuffer, filename, metadata = {}) {
             throw new Error('GridFS bucket not available');
         }
 
+        console.log('📁 (GridFS Utility) Starting file upload:', {
+            filename,
+            size: Buffer.isBuffer(fileBuffer) ? `${(fileBuffer.length / 1024 / 1024).toFixed(2)} MB` : 'stream',
+            metadata: Object.keys(metadata)
+        });
+
         // Create upload stream
         const uploadStream = bucket.openUploadStream(filename, {
             metadata: {
@@ -154,14 +160,23 @@ async function uploadFile(fileBuffer, filename, metadata = {}) {
 
         // Write file to stream
         if (Buffer.isBuffer(fileBuffer)) {
+            console.log('📁 (GridFS Utility) Writing buffer to stream...');
             uploadStream.write(fileBuffer);
+            // 🔧 CRITICAL FIX: End the stream after writing buffer
+            uploadStream.end();
+            console.log('📁 (GridFS Utility) Buffer written and stream ended');
         } else {
             // Handle readable stream
+            console.log('📁 (GridFS Utility) Piping stream to upload...');
             fileBuffer.pipe(uploadStream);
         }
 
         return new Promise((resolve, reject) => {
             uploadStream.on('finish', () => {
+                console.log('✅ (GridFS Utility) Upload completed successfully:', {
+                    fileId: uploadStream.id.toString(),
+                    filename: uploadStream.filename
+                });
                 resolve({
                     fileId: uploadStream.id,
                     filename: uploadStream.filename,
@@ -170,7 +185,22 @@ async function uploadFile(fileBuffer, filename, metadata = {}) {
             });
 
             uploadStream.on('error', (error) => {
+                console.error('❌ (GridFS Utility) Upload stream error:', error);
                 reject(new Error(`Upload failed: ${error.message}`));
+            });
+
+            // 🔧 ADDITIONAL SAFETY: Add timeout to prevent infinite hanging
+            const timeout = setTimeout(() => {
+                console.error('❌ (GridFS Utility) Upload timeout after 30 seconds');
+                reject(new Error('Upload timeout after 30 seconds'));
+            }, 30000);
+
+            uploadStream.on('finish', () => {
+                clearTimeout(timeout);
+            });
+
+            uploadStream.on('error', () => {
+                clearTimeout(timeout);
             });
         });
 

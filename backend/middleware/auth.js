@@ -49,12 +49,16 @@ const validateApiKey = (req, res, next) => {
  * Middleware: Validate JWT token
  */
 const validateToken = async (req, res, next) => {
+  const isVerbose = process.env.AUTH_VERBOSE === 'true';
+
   try {
-    console.log('🔐 validateToken middleware called');
-    console.log('🔐 Request headers:', {
-      authorization: req.headers.authorization ? 'Present' : 'Missing',
-      'x-api-key': req.headers["x-api-key"] ? 'Present' : 'Missing'
-    });
+    if (isVerbose) {
+      console.log('🔐 validateToken middleware called');
+      console.log('🔐 Request headers:', {
+        authorization: req.headers.authorization ? 'Present' : 'Missing',
+        'x-api-key': req.headers["x-api-key"] ? 'Present' : 'Missing'
+      });
+    }
 
     const apiKey = req.headers["x-api-key"];
     if (apiKey === process.env.ADMIN_API_KEY) {
@@ -74,7 +78,9 @@ const validateToken = async (req, res, next) => {
     }
 
     const token = authHeader.split(" ")[1];
-    console.log('🔐 Token extracted:', token ? 'Present' : 'Missing');
+    if (isVerbose) {
+      console.log('🔐 Token extracted:', token ? 'Present' : 'Missing');
+    }
 
     const jwtSecret = process.env.JWT_SECRET_DEV || process.env.JWT_SECRET;
     if (!jwtSecret) {
@@ -85,38 +91,47 @@ const validateToken = async (req, res, next) => {
     let decoded;
     try {
       decoded = jwt.verify(token, jwtSecret);
-      console.log('🔐 JWT decoded successfully:', {
-        hasUserId: !!decoded.userId,
-        hasId: !!decoded.id,
-        hasUser: !!decoded.user,
-        decodedKeys: Object.keys(decoded)
-      });
+      if (isVerbose) {
+        console.log('🔐 JWT decoded successfully:', {
+          hasUserId: !!decoded.userId,
+          hasId: !!decoded.id,
+          hasUser: !!decoded.user,
+          decodedKeys: Object.keys(decoded)
+        });
+      }
     } catch (err) {
-      console.log('❌ JWT verification failed:', err.message);
+      if (isVerbose) {
+        console.log('❌ JWT verification failed:', err.message);
+      }
       const msg = err.name === "TokenExpiredError" ? "Token expired" : "Invalid token";
       return next(createError(msg));
     }
 
     const userId = decoded.userId || decoded.id || (decoded.user && decoded.user.id);
-    console.log('🔐 User ID extracted:', {
-      userId,
-      fromUserId: decoded.userId,
-      fromId: decoded.id,
-      fromUser: decoded.user?.id,
-      decodedStructure: {
-        hasUserId: !!decoded.userId,
-        hasId: !!decoded.id,
-        hasUser: !!decoded.user,
-        allKeys: Object.keys(decoded)
-      }
-    });
+    if (isVerbose) {
+      console.log('🔐 User ID extracted:', {
+        userId,
+        fromUserId: decoded.userId,
+        fromId: decoded.id,
+        fromUser: decoded.user?.id,
+        decodedStructure: {
+          hasUserId: !!decoded.userId,
+          hasId: !!decoded.id,
+          hasUser: !!decoded.user,
+          allKeys: Object.keys(decoded)
+        }
+      });
+    }
 
     if (!userId) {
       console.log('❌ No user ID found in token');
       return next(createError("Invalid token"));
     }
 
-    console.log('🔐 Querying database for user ID:', userId);
+    if (isVerbose) {
+      console.log('🔐 Querying database for user ID:', userId);
+    }
+
     const [users] = await pool.query(
       "SELECT id, email, role, name, organization, organization_type, avatar, is_approved FROM users WHERE id = ?",
       [userId]
@@ -124,14 +139,17 @@ const validateToken = async (req, res, next) => {
 
     if (!users.length) {
       console.log('❌ User not found in database for ID:', userId);
-      console.log('🔍 Available user IDs in database:');
-      try {
-        const [allUsers] = await pool.query("SELECT id, email, name, role FROM users ORDER BY id");
-        allUsers.forEach(user => {
-          console.log(`  - ID: ${user.id}, Email: ${user.email}, Name: ${user.name}, Role: ${user.role}`);
-        });
-      } catch (dbError) {
-        console.log('❌ Could not fetch user list for debugging:', dbError.message);
+
+      if (isVerbose) {
+        console.log('🔍 Available user IDs in database:');
+        try {
+          const [allUsers] = await pool.query("SELECT id, email, name, role FROM users ORDER BY id");
+          allUsers.forEach(user => {
+            console.log(`  - ID: ${user.id}, Email: ${user.email}, Name: ${user.name}, Role: ${user.role}`);
+          });
+        } catch (dbError) {
+          console.log('❌ Could not fetch user list for debugging:', dbError.message);
+        }
       }
 
       // Return a more specific error for this case
@@ -142,12 +160,14 @@ const validateToken = async (req, res, next) => {
     }
 
     const user = users[0];
-    console.log('🔐 User found in database:', {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      is_approved: user.is_approved
-    });
+    if (isVerbose) {
+      console.log('🔐 User found in database:', {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        is_approved: user.is_approved
+      });
+    }
 
     if (!user.is_approved) {
       console.log('❌ User not approved:', user.id);
@@ -155,11 +175,13 @@ const validateToken = async (req, res, next) => {
     }
 
     req.user = user;
-    console.log('✅ User set in request:', {
-      id: req.user.id,
-      email: req.user.email,
-      role: req.user.role
-    });
+    if (isVerbose) {
+      console.log('✅ User set in request:', {
+        id: req.user.id,
+        email: req.user.email,
+        role: req.user.role
+      });
+    }
     next();
   } catch (err) {
     console.error('❌ validateToken error:', err);

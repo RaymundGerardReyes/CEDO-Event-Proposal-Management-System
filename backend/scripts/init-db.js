@@ -8,6 +8,12 @@ const path = require("path");
 // CEDO MySQL Database Initializer
 // Based on CEDO_ERD_Data_Model.md
 // Production-ready with comprehensive error handling
+// 
+// Recent Changes (2025-07-19):
+// - Added indexes for proposal status transition optimization
+// - Added TransitionProposalStatus stored procedure for status management
+// - Added pending_proposals_for_review view for admin workflow
+// - Enhanced audit logging for status transitions
 // ========================================
 
 console.log("🛠️  CEDO MySQL Database Initializer starting...");
@@ -19,7 +25,11 @@ const dbConfig = {
   user: process.env.DB_USER || process.env.MYSQL_USER || "root",
   password: process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || "",
   charset: "utf8mb4",
+  collation: "utf8mb4_unicode_ci",
   timezone: "+00:00",
+  acquireTimeout: 60000,
+  timeout: 60000,
+  reconnect: true,
   multipleStatements: true
 };
 
@@ -240,6 +250,9 @@ async function initializeDatabase() {
         INDEX idx_status_type (proposal_status, organization_type),
         INDEX idx_active_proposals (is_deleted, proposal_status, created_at),
         INDEX idx_user_status (user_id, proposal_status),
+        INDEX idx_submitted_at (submitted_at),
+        INDEX idx_form_completion (form_completion_percentage),
+        INDEX idx_status_completion (proposal_status, form_completion_percentage),
         
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
         FOREIGN KEY (reviewed_by_admin_id) REFERENCES users(id) ON DELETE SET NULL
@@ -317,6 +330,55 @@ async function initializeDatabase() {
     `);
 
     // ========================================
+    // 3.6 DATABASE MIGRATIONS - Ensure schema compatibility
+    // ========================================
+
+    console.log("\n🔧 Running database migrations...");
+
+    // Migration: Ensure user_id column exists in proposals table
+    try {
+      const [columns] = await connection.query("SHOW COLUMNS FROM proposals LIKE 'user_id'");
+      if (columns.length === 0) {
+        console.log("📝 Adding user_id column to proposals table...");
+        await connection.query("ALTER TABLE proposals ADD COLUMN user_id INT AFTER is_deleted");
+        await connection.query("ALTER TABLE proposals ADD INDEX idx_user_id (user_id)");
+        await connection.query("ALTER TABLE proposals ADD FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL");
+        console.log("✅ user_id column added to proposals table");
+      } else {
+        console.log("ℹ️  user_id column already exists in proposals table");
+      }
+    } catch (error) {
+      console.warn("⚠️  Migration warning (user_id column):", error.message);
+    }
+
+    // Migration: Ensure all required indexes exist
+    try {
+      const requiredIndexes = [
+        { name: 'idx_user_id', definition: '(user_id)' },
+        { name: 'idx_uuid', definition: '(uuid)' },
+        { name: 'idx_proposal_status', definition: '(proposal_status)' },
+        { name: 'idx_organization_type', definition: '(organization_type)' },
+        { name: 'idx_current_section', definition: '(current_section)' },
+        { name: 'idx_form_completion', definition: '(form_completion_percentage)' }
+      ];
+
+      for (const index of requiredIndexes) {
+        try {
+          const [existingIndexes] = await connection.query(`SHOW INDEX FROM proposals WHERE Key_name = '${index.name}'`);
+          if (existingIndexes.length === 0) {
+            console.log(`📝 Adding index ${index.name} to proposals table...`);
+            await connection.query(`CREATE INDEX ${index.name} ON proposals ${index.definition}`);
+            console.log(`✅ Index ${index.name} added to proposals table`);
+          }
+        } catch (indexError) {
+          console.warn(`⚠️  Index creation warning (${index.name}):`, indexError.message);
+        }
+      }
+    } catch (error) {
+      console.warn("⚠️  Index migration warning:", error.message);
+    }
+
+    // ========================================
     // 4. CREATE DATABASE VIEWS FOR COMMON QUERIES
     // ========================================
 
@@ -378,6 +440,39 @@ async function initializeDatabase() {
       LEFT JOIN users u ON a.user_id = u.id
       WHERE a.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
       ORDER BY a.created_at DESC
+    `);
+
+    // 4.4 Pending Proposals for Review View (NEW)
+    await connection.query(`
+      CREATE OR REPLACE VIEW pending_proposals_for_review AS
+      SELECT 
+        p.id,
+        p.uuid,
+        p.organization_name,
+        p.organization_type,
+        p.event_name,
+        p.event_venue,
+        p.event_start_date,
+        p.event_end_date,
+        p.proposal_status,
+        p.form_completion_percentage,
+        p.submitted_at,
+        p.current_section,
+        u.name as submitter_name,
+        u.email as submitter_email,
+        p.created_at,
+        p.updated_at,
+        CASE 
+          WHEN p.organization_type = 'school-based' THEN p.school_event_type
+          WHEN p.organization_type = 'community-based' THEN p.community_event_type
+          ELSE NULL
+        END as event_type
+      FROM proposals p
+      LEFT JOIN users u ON p.user_id = u.id
+      WHERE p.proposal_status = 'pending' 
+        AND p.is_deleted = FALSE
+        AND p.form_completion_percentage >= 100.00
+      ORDER BY p.submitted_at ASC, p.created_at ASC
     `);
 
     // ========================================
@@ -454,7 +549,75 @@ async function initializeDatabase() {
       END
     `);
 
-    // 5.3 Dashboard Statistics Procedure
+    // 5.3 Proposal Status Transition Procedure (NEW)
+    await connection.query(`
+      DROP PROCEDURE IF EXISTS TransitionProposalStatus;
+      
+      CREATE PROCEDURE TransitionProposalStatus(
+        IN p_proposal_id BIGINT,
+        IN p_new_status ENUM('draft', 'pending', 'approved', 'denied', 'revision_requested'),
+        IN p_completion_percentage DECIMAL(5,2),
+        IN p_user_id INT,
+        IN p_user_ip VARCHAR(45)
+      )
+      BEGIN
+        DECLARE current_status VARCHAR(20);
+        DECLARE EXIT HANDLER FOR SQLEXCEPTION
+        BEGIN
+          ROLLBACK;
+          RESIGNAL;
+        END;
+        
+        START TRANSACTION;
+        
+        -- Get current status
+        SELECT proposal_status INTO current_status FROM proposals WHERE id = p_proposal_id;
+        
+        -- Update proposal based on transition type
+        IF p_new_status = 'pending' AND current_status = 'draft' THEN
+          -- Draft to Pending transition
+          UPDATE proposals 
+          SET proposal_status = 'pending',
+              submitted_at = NOW(),
+              form_completion_percentage = p_completion_percentage,
+              updated_at = NOW()
+          WHERE id = p_proposal_id;
+          
+        ELSEIF p_new_status = 'pending' AND current_status = 'pending' THEN
+          -- Already pending, just update completion
+          UPDATE proposals 
+          SET form_completion_percentage = p_completion_percentage,
+              submitted_at = COALESCE(submitted_at, NOW()),
+              updated_at = NOW()
+          WHERE id = p_proposal_id;
+          
+        ELSEIF current_status IN ('approved', 'denied') THEN
+          -- Already reviewed, only update completion
+          UPDATE proposals 
+          SET form_completion_percentage = p_completion_percentage,
+              updated_at = NOW()
+          WHERE id = p_proposal_id;
+          
+        ELSE
+          -- General status update
+          UPDATE proposals 
+          SET proposal_status = p_new_status,
+              form_completion_percentage = p_completion_percentage,
+              updated_at = NOW()
+          WHERE id = p_proposal_id;
+        END IF;
+        
+        -- Log the transition
+        INSERT INTO audit_logs (user_id, action_type, table_name, record_id, ip_address, old_values, new_values)
+        VALUES (p_user_id, 'UPDATE', 'proposals', p_proposal_id, p_user_ip,
+                JSON_OBJECT('old_status', current_status, 'old_completion', (SELECT form_completion_percentage FROM proposals WHERE id = p_proposal_id)),
+                JSON_OBJECT('new_status', p_new_status, 'new_completion', p_completion_percentage, 'transition_at', NOW()));
+        
+        COMMIT;
+      END
+    `);
+
+    // 5.4 Dashboard Statistics Procedure
     await connection.query(`
       DROP PROCEDURE IF EXISTS GetDashboardStats;
       
@@ -708,6 +871,19 @@ async function initializeDatabase() {
         console.log(`✅ Table '${table}' verified`);
       } else {
         console.error(`❌ Table '${table}' missing`);
+      }
+    }
+
+    // Verify views creation
+    const [views] = await connection.query("SHOW FULL TABLES WHERE Table_type = 'VIEW'");
+    const viewNames = views.map(v => Object.values(v)[0]);
+    const expectedViews = ['active_users', 'proposal_summary', 'recent_audit_activity', 'pending_proposals_for_review'];
+
+    for (const view of expectedViews) {
+      if (viewNames.includes(view)) {
+        console.log(`✅ View '${view}' verified`);
+      } else {
+        console.error(`❌ View '${view}' missing`);
       }
     }
 

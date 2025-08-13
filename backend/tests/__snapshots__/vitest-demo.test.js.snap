@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Vitest Superior Error Distinction Demo > Snapshot Testing > should show clear snapshot differences 1`] = `
+{
+  "children": [
+    "Hello World",
+  ],
+  "props": {
+    "className": "container",
+  },
+  "type": "div",
+}
+`;

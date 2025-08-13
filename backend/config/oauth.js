@@ -33,7 +33,10 @@ const validateState = (sessionState, receivedState) => {
 
 // Only initialize Google Strategy if OAuth is properly configured
 if (isOAuthConfigured()) {
-    console.log('✅ Google OAuth configured - initializing strategy');
+    const isVerbose = process.env.OAUTH_VERBOSE === 'true';
+    if (isVerbose) {
+        console.log('✅ Google OAuth configured - initializing strategy');
+    }
 
     // Google OAuth Strategy with comprehensive security
     passport.use(new GoogleStrategy({

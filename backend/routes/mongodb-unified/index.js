@@ -60,12 +60,21 @@ router.use('/', require('./proposal-files.routes'));
 router.use('/', require('./events.routes'));
 
 /**
- * Reports & Accomplishment Tracking
+ * MySQL-Only Reports (Primary)
+ * - MySQL-first proposal status checking
+ * - Independent of MongoDB dependencies
+ * - Handles proposal lookups by draftId/MySQL ID
+ */
+router.use('/', require('./mysql-reports.routes'));
+
+/**
+ * Reports & Accomplishment Tracking (MongoDB Dependent)
  * - Accomplishment report submissions
  * - Progress tracking and analytics
  * - Event completion documentation
+ * - Note: May fail if MongoDB dependencies are not available
  */
-router.use('/', require('./reports.routes'));
+// router.use('/', require('./reports.routes')); // Temporarily disabled due to MongoDB dependency issues
 
 /**
  * Student Dashboard & Profile

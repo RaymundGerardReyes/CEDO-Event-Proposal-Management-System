@@ -1,52 +1,38 @@
-const mongoose = require("mongoose")
-const dotenv = require("dotenv")
+#!/usr/bin/env node
 
-// Load environment variables
-dotenv.config()
+/**
+ * MongoDB Status Check Script
+ * 
+ * Quick script to check MongoDB installation and connection status
+ */
 
-// Get MongoDB URI from environment variables
-const mongoURI = process.env.MONGODB_URI || "mongodb://localhost:27017/partnership-proposals"
+const { checkMongoInstalled, checkMongoService } = require('./setup-mongodb.js');
 
-console.log(`Attempting to connect to MongoDB at: ${mongoURI}`)
+console.log('🔍 MongoDB Status Check');
+console.log('======================');
 
-// Connect to MongoDB
-mongoose
-  .connect(mongoURI)
-  .then(() => {
-    console.log("✅ MongoDB connection successful!")
+// Check installation
+console.log('\n1. Installation Status:');
+if (checkMongoInstalled()) {
+  console.log('✅ MongoDB is installed');
+} else {
+  console.log('❌ MongoDB is not installed');
+  console.log('💡 Run: npm run setup-mongodb');
+  process.exit(1);
+}
 
-    // List all collections
-    mongoose.connection.db
-      .listCollections()
-      .toArray()
-      .then((collections) => {
-        console.log("Available collections:")
-        if (collections.length === 0) {
-          console.log("  No collections found (database may be empty)")
-        } else {
-          collections.forEach((collection) => {
-            console.log(`  - ${collection.name}`)
-          })
-        }
+// Check service
+console.log('\n2. Service Status:');
+if (checkMongoService()) {
+  console.log('✅ MongoDB service is running');
+  console.log('✅ Ready for connections');
+} else {
+  console.log('❌ MongoDB service is not running');
+  console.log('💡 Please start MongoDB service');
+  console.log('💡 Windows: Start MongoDB service in Services');
+  console.log('💡 macOS: brew services start mongodb/brew/mongodb-community');
+  console.log('💡 Linux: sudo systemctl start mongod');
+  process.exit(1);
+}
 
-        // Close connection
-        mongoose.connection.close()
-        console.log("Connection closed")
-      })
-      .catch((err) => {
-        console.error("Error listing collections:", err)
-        mongoose.connection.close()
-      })
-  })
-  .catch((err) => {
-    console.error("❌ MongoDB connection failed:", err.message)
-
-    // Provide troubleshooting tips
-    console.log("\nTroubleshooting tips:")
-    console.log("1. Make sure MongoDB is running")
-    console.log("2. Check if the connection string is correct")
-    console.log("3. Verify network connectivity")
-    console.log("4. Check if authentication credentials are correct (if applicable)")
-
-    process.exit(1)
-  })
+console.log('\n🎉 MongoDB is ready!');

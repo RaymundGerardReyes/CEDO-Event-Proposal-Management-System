@@ -53,8 +53,8 @@ router.get("/me", validateToken, async (req, res) => {
         // Re-map roles to dashboard/permissions for the response if needed (can be done client-side too)
         const roleAccess = { // Define or import roleAccess mapping
             [ROLES.STUDENT]: { dashboard: '/student-dashboard', permissions: ['view_own_profile', 'submit_requests', 'view_own_requests'] },
-            [ROLES.head_admin]: { dashboard: '/admin-dashboard', permissions: ['view_all_users', 'manage_users', 'view_all_requests', 'manage_system', 'approve_students', 'view_all_proposals', 'manage_all_proposals', 'assign_reviewers', 'manage_reviews'] },
-            [ROLES.manager]: { dashboard: '/admin-dashboard', permissions: ['view_student_requests', 'manage_student_requests', 'view_own_profile', 'approve_students', 'view_all_proposals', 'manage_all_proposals', 'assign_reviewers', 'manage_reviews'] },
+            [ROLES.HEAD_ADMIN]: { dashboard: '/admin-dashboard', permissions: ['view_all_users', 'manage_users', 'view_all_requests', 'manage_system', 'approve_students', 'view_all_proposals', 'manage_all_proposals', 'assign_reviewers', 'manage_reviews'] },
+            [ROLES.MANAGER]: { dashboard: '/admin-dashboard', permissions: ['view_student_requests', 'manage_student_requests', 'view_own_profile', 'approve_students', 'view_all_proposals', 'manage_all_proposals', 'assign_reviewers', 'manage_reviews'] },
             [ROLES.PARTNER]: { dashboard: '/student-dashboard', permissions: ['view_own_profile', 'submit_requests', 'view_own_requests'] },
             [ROLES.REVIEWER]: { dashboard: '/admin-dashboard', permissions: ['view_all_proposals', 'view_assigned_proposals', 'submit_reviews'] }
         };

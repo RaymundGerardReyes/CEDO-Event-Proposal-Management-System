@@ -1,313 +1,237 @@
-const express = require("express")
-const router = express.Router()
-const { body, validationResult } = require("express-validator")
-const multer = require("multer")
-const path = require("path")
-const fs = require("fs")
-const Proposal = require("../models/Proposal")
-const User = require("../models/User")
-const { validateToken, validateAdmin } = require("../middleware/auth")
-const checkRole = require("../middleware/checkRole")
-const nodemailer = require("nodemailer")
+// backend/routes/compliance.js
+const express = require("express");
+const router = express.Router();
+const { body, validationResult } = require("express-validator");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+const Proposal = require("../models/Proposal");
+const User = require("../models/User");
+const { validateToken } = require("../middleware/auth");
+const checkRole = require("../middleware/checkRole");
+const nodemailer = require("nodemailer");
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const dir = "uploads/compliance"
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true })
-    }
-    cb(null, dir)
+    const dir = "uploads/compliance";
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
   },
   filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`)
+    cb(null, `${Date.now()}-${file.originalname}`);
   },
-})
+});
 
 const upload = multer({
-  storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = [".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png", ".xlsx", ".xls", ".zip"]
-    const ext = path.extname(file.originalname).toLowerCase()
-    if (!allowedTypes.includes(ext)) {
-      return cb(new Error("Invalid file type. Only PDF, DOC, DOCX, JPG, PNG, XLSX, XLS, and ZIP are allowed."))
-    }
-    cb(null, true)
+    const allowedExtensions = [".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png", ".xlsx", ".xls", ".zip"];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!allowedExtensions.includes(ext)) return cb(new Error("Invalid file type"));
+    cb(null, true);
   },
-})
+});
 
-// Configure nodemailer
+// Email helper
 const transporter = nodemailer.createTransport({
   service: process.env.EMAIL_SERVICE || "gmail",
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASSWORD,
   },
-})
+});
 
-// @route   GET api/compliance
-// @desc    Get all proposals with compliance requirements
-// @access  Private
+const sendMail = (to, subject, text) => {
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to,
+    subject,
+    text,
+  };
+  transporter.sendMail(mailOptions, (err, info) => {
+    if (err) console.error("Email error:", err);
+    else console.log("Email sent:", info.response);
+  });
+};
+
+// GET /api/compliance
 router.get("/", validateToken, async (req, res) => {
   try {
-    const query = { status: "approved" }
-
-    // Filter by compliance status if provided
-    if (req.query.complianceStatus) {
-      query.complianceStatus = req.query.complianceStatus
-    }
-
-    // If user is a partner, only show their proposals
-    if (req.user.role === "partner") {
-      query.submitter = req.user.id
-    }
+    const query = { status: "approved" };
+    if (req.query.complianceStatus) query.complianceStatus = req.query.complianceStatus;
+    if (req.user.role === "partner") query.submitter = req.user.id;
 
     const proposals = await Proposal.find(query)
       .populate("submitter", "name email organization")
-      .sort({ complianceDueDate: 1 })
+      .sort({ complianceDueDate: 1 });
 
-    res.json(proposals)
+    res.json(proposals);
   } catch (err) {
-    console.error(err.message)
-    res.status(500).send("Server error")
+    console.error(err.message);
+    res.status(500).send("Server error");
   }
-})
+});
 
-// @route   POST api/compliance/:proposalId/documents
-// @desc    Submit compliance documents
-// @access  Private
+// POST /api/compliance/:proposalId/documents
 router.post("/:proposalId/documents", [validateToken, upload.array("documents", 5)], async (req, res) => {
   try {
-    const proposal = await Proposal.findById(req.params.proposalId)
+    const proposal = await Proposal.findById(req.params.proposalId);
+    if (!proposal) return res.status(404).json({ msg: "Proposal not found" });
 
-    if (!proposal) {
-      return res.status(404).json({ msg: "Proposal not found" })
+    // Authorization check
+    if (req.user.role === "partner" && proposal.submitter.toString() !== req.user.id.toString()) {
+      return res.status(403).json({ msg: "Not authorized to update this proposal" });
     }
 
-    // Check if user has permission to update this proposal
-    if (req.user.role === "partner" && proposal.submitter.toString() !== req.user.id) {
-      return res.status(403).json({ msg: "Not authorized to update this proposal" })
-    }
-
-    // Check if proposal is approved
     if (proposal.status !== "approved") {
-      return res.status(400).json({ msg: "Only approved proposals can have compliance documents" })
+      return res.status(400).json({ msg: "Only approved proposals can have compliance documents" });
     }
 
-    // Process uploaded files
-    if (req.files && req.files.length > 0) {
-      // Get document types from request
-      const documentTypes = req.body.documentTypes ? JSON.parse(req.body.documentTypes) : []
+    const files = req.files || [];
+    const documentTypes = req.body.documentTypes ? JSON.parse(req.body.documentTypes) : [];
 
-      if (documentTypes.length !== req.files.length) {
-        return res.status(400).json({ msg: "Document types must match the number of uploaded files" })
-      }
-
-      // Update compliance documents
-      req.files.forEach((file, index) => {
-        const docType = documentTypes[index]
-        const docIndex = proposal.complianceDocuments.findIndex((doc) => doc.name === docType)
-
-        if (docIndex !== -1) {
-          // Update existing document
-          proposal.complianceDocuments[docIndex].submitted = true
-          proposal.complianceDocuments[docIndex].submittedAt = Date.now()
-          proposal.complianceDocuments[docIndex].path = file.path
-        } else {
-          // Add new document
-          proposal.complianceDocuments.push({
-            name: docType,
-            path: file.path,
-            required: false,
-            submitted: true,
-            submittedAt: Date.now(),
-          })
-        }
-      })
-
-      // Check if all required documents are submitted
-      const allRequiredSubmitted = proposal.complianceDocuments
-        .filter((doc) => doc.required)
-        .every((doc) => doc.submitted)
-
-      if (allRequiredSubmitted) {
-        proposal.complianceStatus = "compliant"
-      }
-
-      await proposal.save()
-
-      // Notify reviewers
-      const reviewers = await User.find({ role: "reviewer" })
-
-      reviewers.forEach((reviewer) => {
-        const mailOptions = {
-          from: process.env.EMAIL_USER,
-          to: reviewer.email,
-          subject: `Compliance Documents Submitted for "${proposal.title}"`,
-          text: `Hello ${reviewer.name},\n\nCompliance documents have been submitted for the proposal titled "${proposal.title}".\n\nPlease log in to the system to review these documents.\n\nRegards,\nCEDO Team`,
-        }
-
-        transporter.sendMail(mailOptions, (error, info) => {
-          if (error) {
-            console.log("Email error:", error)
-          } else {
-            console.log("Email sent:", info.response)
-          }
-        })
-      })
+    if (documentTypes.length !== files.length) {
+      return res.status(400).json({ msg: "Document types must match the number of uploaded files" });
     }
 
-    res.json(proposal)
+    files.forEach((file, i) => {
+      const docType = documentTypes[i];
+      const idx = proposal.complianceDocuments.findIndex((doc) => doc.name === docType);
+      if (idx !== -1) {
+        proposal.complianceDocuments[idx].submitted = true;
+        proposal.complianceDocuments[idx].submittedAt = new Date();
+        proposal.complianceDocuments[idx].path = file.path;
+      } else {
+        proposal.complianceDocuments.push({
+          name: docType,
+          path: file.path,
+          required: false,
+          submitted: true,
+          submittedAt: new Date(),
+        });
+      }
+    });
+
+    const allSubmitted = proposal.complianceDocuments
+      .filter((doc) => doc.required)
+      .every((doc) => doc.submitted);
+
+    if (allSubmitted) proposal.complianceStatus = "compliant";
+
+    await proposal.save();
+
+    const reviewers = await User.find({ role: "reviewer" }) || [];
+    reviewers.forEach((reviewer) => {
+      sendMail(
+        reviewer.email,
+        `Compliance Documents Submitted for "${proposal.title}"`,
+        `Hello ${reviewer.name},\n\nCompliance documents for "${proposal.title}" have been submitted.\n\nRegards,\nCEDO Team`
+      );
+    });
+
+    res.json(proposal);
   } catch (err) {
-    console.error(err.message)
-    if (err.kind === "ObjectId") {
-      return res.status(404).json({ msg: "Proposal not found" })
-    }
-    res.status(500).send("Server error")
+    console.error(err.message);
+    if (err.kind === "ObjectId") return res.status(404).json({ msg: "Proposal not found" });
+    res.status(500).send("Server error");
   }
-})
+});
 
-// @route   PUT api/compliance/:proposalId/status
-// @desc    Update compliance status
-// @access  Private (Admins and Reviewers only)
+// PUT /api/compliance/:proposalId/status
 router.put(
   "/:proposalId/status",
   [
     validateToken,
     checkRole(["admin", "reviewer"]),
-    [body("status", "Status is required").isIn(["pending", "compliant", "overdue"]), body("comment").optional()],
+    [body("status").isIn(["pending", "compliant", "overdue"]), body("comment").optional()],
   ],
   async (req, res) => {
-    // Validate request
-    const errors = validationResult(req)
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() })
-    }
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
     try {
-      const proposal = await Proposal.findById(req.params.proposalId)
+      const proposal = await Proposal.findById(req.params.proposalId);
+      if (!proposal) return res.status(404).json({ msg: "Proposal not found" });
 
-      if (!proposal) {
-        return res.status(404).json({ msg: "Proposal not found" })
-      }
-
-      // Update compliance status
-      proposal.complianceStatus = req.body.status
-
-      // Add comment if provided
+      proposal.complianceStatus = req.body.status;
       if (req.body.comment) {
         proposal.reviewComments.push({
           reviewer: req.user.id,
           comment: req.body.comment,
           decision: "compliance",
-        })
+        });
       }
 
-      await proposal.save()
+      await proposal.save();
 
-      // Notify submitter
-      const submitter = await User.findById(proposal.submitter)
-
+      const submitter = await User.findById(proposal.submitter);
       if (submitter) {
-        const mailOptions = {
-          from: process.env.EMAIL_USER,
-          to: submitter.email,
-          subject: `Compliance Status Updated for "${proposal.title}"`,
-          text: `Hello ${submitter.name},\n\nThe compliance status for your proposal titled "${proposal.title}" has been updated to "${req.body.status}".\n\n${req.body.comment ? `Reviewer Comment: ${req.body.comment}` : ""}\n\nRegards,\nCEDO Team`,
-        }
-
-        transporter.sendMail(mailOptions, (error, info) => {
-          if (error) {
-            console.log("Email error:", error)
-          } else {
-            console.log("Email sent:", info.response)
-          }
-        })
+        sendMail(
+          submitter.email,
+          `Compliance Status Updated for "${proposal.title}"`,
+          `Hello ${submitter.name},\n\nThe compliance status for "${proposal.title}" has been updated to "${req.body.status}".\n\n${req.body.comment ? "Comment: " + req.body.comment : ""}\n\nRegards,\nCEDO Team`
+        );
       }
 
-      res.json(proposal)
+      res.json(proposal);
     } catch (err) {
-      console.error(err.message)
-      if (err.kind === "ObjectId") {
-        return res.status(404).json({ msg: "Proposal not found" })
-      }
-      res.status(500).send("Server error")
+      console.error(err.message);
+      if (err.kind === "ObjectId") return res.status(404).json({ msg: "Proposal not found" });
+      res.status(500).send("Server error");
     }
-  },
-)
+  }
+);
 
-// @route   GET api/compliance/overdue
-// @desc    Get all overdue compliance proposals
-// @access  Private (Admins and Reviewers only)
+// GET /api/compliance/overdue
 router.get("/overdue", [validateToken, checkRole(["admin", "reviewer"])], async (req, res) => {
   try {
-    const today = new Date()
-
-    // Find proposals where compliance due date has passed but not compliant
+    const today = new Date();
     const proposals = await Proposal.find({
       status: "approved",
       complianceStatus: { $ne: "compliant" },
       complianceDueDate: { $lt: today },
-    })
-      .populate("submitter", "name email organization")
-      .sort({ complianceDueDate: 1 })
+    }).populate("submitter", "name email organization").sort({ complianceDueDate: 1 });
 
-    // Update status to overdue
     for (const proposal of proposals) {
       if (proposal.complianceStatus !== "overdue") {
-        proposal.complianceStatus = "overdue"
-        await proposal.save()
+        proposal.complianceStatus = "overdue";
+        await proposal.save();
 
-        // Notify submitter
-        const submitter = await User.findById(proposal.submitter)
-
+        const submitter = await User.findById(proposal.submitter);
         if (submitter) {
-          const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: submitter.email,
-            subject: `OVERDUE: Compliance Documents for "${proposal.title}"`,
-            text: `Hello ${submitter.name},\n\nThis is a reminder that your compliance documents for the proposal titled "${proposal.title}" are now overdue. Please submit the required documents as soon as possible.\n\nRegards,\nCEDO Team`,
-          }
-
-          transporter.sendMail(mailOptions, (error, info) => {
-            if (error) {
-              console.log("Email error:", error)
-            } else {
-              console.log("Email sent:", info.response)
-            }
-          })
+          sendMail(
+            submitter.email,
+            `OVERDUE: Compliance Documents for "${proposal.title}"`,
+            `Hello ${submitter.name},\n\nYour compliance documents for "${proposal.title}" are now overdue. Please submit them ASAP.\n\nRegards,\nCEDO Team`
+          );
         }
       }
     }
 
-    res.json(proposals)
+    res.json(proposals);
   } catch (err) {
-    console.error(err.message)
-    res.status(500).send("Server error")
+    console.error(err.message);
+    res.status(500).send("Server error");
   }
-})
+});
 
-// @route   GET api/compliance/stats
-// @desc    Get compliance statistics
-// @access  Private (Admins and Reviewers only)
+// GET /api/compliance/stats
 router.get("/stats", [validateToken, checkRole(["admin", "reviewer"])], async (req, res) => {
   try {
-    const stats = {
-      compliant: await Proposal.countDocuments({ complianceStatus: "compliant" }),
-      pending: await Proposal.countDocuments({ complianceStatus: "pending" }),
-      overdue: await Proposal.countDocuments({ complianceStatus: "overdue" }),
-      total: await Proposal.countDocuments({ status: "approved" }),
-    }
-
-    // Calculate compliance rate
-    stats.complianceRate = stats.total > 0 ? ((stats.compliant / stats.total) * 100).toFixed(2) : 0
-
-    res.json(stats)
+    const [compliant, pending, overdue, total] = await Promise.all([
+      Proposal.countDocuments({ complianceStatus: "compliant" }),
+      Proposal.countDocuments({ complianceStatus: "pending" }),
+      Proposal.countDocuments({ complianceStatus: "overdue" }),
+      Proposal.countDocuments({ status: "approved" }),
+    ]);
+    const complianceRate = total > 0 ? ((compliant / total) * 100).toFixed(2) : "0.00";
+    res.json({ compliant, pending, overdue, total, complianceRate });
   } catch (err) {
-    console.error(err.message)
-    res.status(500).send("Server error")
+    console.error(err.message);
+    res.status(500).send("Server error");
   }
-})
+});
 
-module.exports = router
+module.exports = router;

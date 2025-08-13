@@ -2,7 +2,11 @@
 const mysql = require('mysql2/promise');
 require("dotenv").config({ path: './.env' }); // Load from current directory
 
-console.log("Attempting to setup MySQL connection pool...") // Log startup step
+const isVerbose = process.env.DB_VERBOSE === 'true';
+
+if (isVerbose) {
+  console.log("Attempting to setup MySQL connection pool...");
+}
 
 // Determine the correct host. For local development, always use 127.0.0.1.
 // For Docker or other environments, use the environment variable.
@@ -10,24 +14,30 @@ const dbHost = process.env.NODE_ENV === 'development'
   ? '127.0.0.1'
   : (process.env.MYSQL_HOST || 'mysql');
 
-// 🔍 ENHANCED PASSWORD DEBUGGING
-console.log('\n🔍 MYSQL PASSWORD DEBUG:');
-console.log('========================');
-console.log(`DB_PASSWORD env var: ${process.env.DB_PASSWORD ? 'SET (length: ' + process.env.DB_PASSWORD.length + ')' : '❌ UNDEFINED'}`);
-console.log(`MYSQL_PASSWORD env var: ${process.env.MYSQL_PASSWORD ? 'SET (length: ' + process.env.MYSQL_PASSWORD.length + ')' : '❌ UNDEFINED'}`);
-
 const actualPassword = process.env.MYSQL_PASSWORD;
-console.log(`Final password being used: ${actualPassword ? 'SET (length: ' + actualPassword.length + ')' : '❌ NO PASSWORD'}`);
-console.log(`Password starts with: ${actualPassword ? actualPassword.substring(0, 3) + '***' : 'N/A'}`);
-console.log('========================\n');
 
-console.log("Database connection parameters:", {
-  host: dbHost,
-  port: process.env.MYSQL_PORT || '3306',
-  user: process.env.MYSQL_USER || 'root',
-  database: process.env.MYSQL_DATABASE,
-  // Not logging full password for security reasons
-})
+// Only show password debugging if explicitly requested
+if (isVerbose) {
+  console.log('\n🔍 MYSQL PASSWORD DEBUG:');
+  console.log('========================');
+  console.log(`DB_PASSWORD env var: ${process.env.DB_PASSWORD ? 'SET (length: ' + process.env.DB_PASSWORD.length + ')' : '❌ UNDEFINED'}`);
+  console.log(`MYSQL_PASSWORD env var: ${process.env.MYSQL_PASSWORD ? 'SET (length: ' + process.env.MYSQL_PASSWORD.length + ')' : '❌ UNDEFINED'}`);
+  console.log(`Final password being used: ${actualPassword ? 'SET (length: ' + actualPassword.length + ')' : '❌ NO PASSWORD'}`);
+  console.log(`Password starts with: ${actualPassword ? actualPassword.substring(0, 3) + '***' : 'N/A'}`);
+  console.log('========================\n');
+
+  console.log("Database connection parameters:", {
+    host: dbHost,
+    port: process.env.MYSQL_PORT || '3306',
+    user: process.env.MYSQL_USER || 'root',
+    database: process.env.MYSQL_DATABASE,
+  });
+} else {
+  // Just check if we have the essentials
+  if (!actualPassword) {
+    console.error('❌ MySQL password not configured');
+  }
+}
 
 // Enhanced connection pool configuration for production performance
 const poolConfig = {

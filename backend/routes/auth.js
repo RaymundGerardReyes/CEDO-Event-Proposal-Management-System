@@ -98,10 +98,15 @@ router.post('/login', async (req, res, next) => {
   console.log("Received reCAPTCHA token (aliased as 'token' in backend):", token);
 
   try {
-    const isValid = await verifyRecaptchaToken(token, req.ip);
-    if (!isValid) {
-      console.error("Invalid reCAPTCHA token received.");
-      return res.status(400).json({ message: "Invalid reCAPTCHA token." });
+    // Skip reCAPTCHA validation in development if token is not provided
+    if (process.env.NODE_ENV === 'development' && !token) {
+      console.log("Development mode: Skipping reCAPTCHA validation");
+    } else {
+      const isValid = await verifyRecaptchaToken(token, req.ip);
+      if (!isValid) {
+        console.error("Invalid reCAPTCHA token received.");
+        return res.status(400).json({ message: "Invalid reCAPTCHA token." });
+      }
     }
 
     console.log(`Backend [/login]: Attempting to find user by email: ${email}`);
@@ -175,134 +180,163 @@ router.post('/login', async (req, res, next) => {
 
 // --- Google Sign-In Route ---
 router.post("/google", async (req, res, next) => {
-  const idTokenFromFrontend = req.body.token
-
+  // --- Backend /auth/google Endpoint Hit ---
   console.log('\n--- Backend /auth/google Endpoint Hit ---');
   console.log('Timestamp:', new Date().toISOString());
   console.log('Request Body:', JSON.stringify(req.body, null, 2));
-  console.log('Received ID Token from Frontend:', idTokenFromFrontend ? `${idTokenFromFrontend.substring(0, 20)}...` : "NOT PROVIDED");
+  const idTokenFromFrontend = req.body.token;
+  let email = undefined; // for error logging fallback
 
-  if (!idTokenFromFrontend) {
-    console.error('Backend [/google] Error: No ID token received from frontend.');
-    return res.status(400).json({ message: "Google ID token is required" });
+  // 1. Check GOOGLE_CLIENT_ID_BACKEND before any async/await or DB calls
+  if (!process.env.GOOGLE_CLIENT_ID_BACKEND) {
+    console.error("Backend [/google] Error: GOOGLE_CLIENT_ID_BACKEND not set in environment.");
+    return res.status(500).json({ message: "Server configuration error: Google authentication is not properly configured." });
   }
 
   try {
-    const googleClientIdForVerification = process.env.GOOGLE_CLIENT_ID_BACKEND;
-    console.log('Backend [/google]: Verifying with GOOGLE_CLIENT_ID_BACKEND:', googleClientIdForVerification ? `${googleClientIdForVerification.substring(0, 6)}...` : "NOT SET or NOT VISIBLE HERE");
-
-    if (!googleClientIdForVerification) {
-      console.error("Backend [/google] Error: GOOGLE_CLIENT_ID_BACKEND not configured on the server for this route.");
-      return res.status(500).json({
-        message: "Server configuration error: Google authentication is not properly configured."
-      });
+    console.log('Received ID Token from Frontend:', idTokenFromFrontend ? `${idTokenFromFrontend.substring(0, 20)}...` : "NOT PROVIDED");
+    if (!idTokenFromFrontend) {
+      console.error('Backend [/google] Error: No ID token received from frontend.');
+      return res.status(400).json({ message: "Google ID token is required" });
     }
 
     let googlePayload;
     try {
       console.log("Backend [/google]: Attempting to verify Google ID token via verifyGoogleToken util...");
       googlePayload = await verifyGoogleToken(idTokenFromFrontend);
+      email = googlePayload.email;
       console.log(`Backend [/google]: Token successfully verified by util. Email: ${googlePayload.email}`);
     } catch (verifyError) {
       console.error("Backend [/google]: verifyGoogleToken util FAILED. Error:", verifyError.message);
+
+      // Handle specific timing issues
+      if (verifyError.message.includes("Token used too early") || verifyError.message.includes("timing issue")) {
+        console.warn("Backend [/google]: Clock synchronization issue detected. This is usually temporary.");
+        return res.status(401).json({
+          message: "Authentication timing issue. Please try again in a few moments.",
+          reason: "CLOCK_SYNC_ISSUE",
+          details: "Server clock may be ahead of Google servers. This is usually temporary."
+        });
+      }
+
       if (verifyError.message.includes("expired") || verifyError.message.includes("Token used too late")) {
-        return res.status(401).json({ message: verifyError.message, reason: "TOKEN_EXPIRED_OR_USED_LATE" });
+        return res.status(401).json({
+          message: verifyError.message,
+          reason: "TOKEN_EXPIRED_OR_USED_LATE"
+        });
       }
-      if (verifyError.message.includes("audience") || verifyError.message.includes("Client ID mismatch")) {
-        return res.status(401).json({ message: verifyError.message, reason: "AUDIENCE_MISMATCH_OR_CLIENT_ID_ERROR" });
+
+      if (verifyError.message.includes("audience") || verifyError.message.includes("Client ID mismatch") || verifyError.message.includes("Invalid Google client configuration")) {
+        console.error("Backend [/google]: Google Client ID configuration issue detected.");
+        return res.status(401).json({
+          message: "Server configuration error. Please contact administrator.",
+          reason: "AUDIENCE_MISMATCH_OR_CLIENT_ID_ERROR"
+        });
       }
+
+      if (verifyError.message.includes("Invalid issuer")) {
+        return res.status(401).json({
+          message: "Invalid token issuer.",
+          reason: "INVALID_TOKEN_ISSUER"
+        });
+      }
+
+      // Defensive: If verification fails for other reasons, return 401
+      return res.status(401).json({
+        message: verifyError.message,
+        reason: "GOOGLE_TOKEN_INVALID"
+      });
     }
 
-    const { email, name, picture, sub: googleId, email_verified } = googlePayload;
-    console.log(`Backend [/google]: Extracted Payload - Email: ${email}, Name: ${name}, GoogleID: ${googleId}, Verified: ${email_verified}`);
+    const { email: payloadEmail, name, picture, sub: googleId, email_verified } = googlePayload || {};
+    email = payloadEmail; // for error logging
+    console.log(`Backend [/google]: Extracted Payload - Email: ${payloadEmail}, Name: ${name}, GoogleID: ${googleId}, Verified: ${email_verified}`);
+
+    // ✅ ENHANCED: Better logging and more permissive email verification
+    console.log(`Backend [/google]: Email verification check - email_verified: ${email_verified}, REQUIRE_GOOGLE_EMAIL_VERIFIED: ${process.env.REQUIRE_GOOGLE_EMAIL_VERIFIED || 'not set (defaults to false)'}`);
 
     if (!email_verified && process.env.REQUIRE_GOOGLE_EMAIL_VERIFIED === "true") {
-      console.warn(`Backend [/google]: User ${email} attempted sign-in, but Google email not verified (and verification is required).`);
-      return res.status(403).json({ message: "Google email not verified. Please verify your email with Google.", reason: "GOOGLE_EMAIL_NOT_VERIFIED" });
-    }
-
-    try {
-      await pool.query("SELECT 1");
-      console.log(`Backend [/google]: Database connection test successful.`);
-    } catch (dbError) {
-      console.error("Backend [/google] Critical Error: Database connection failed:", dbError.message);
-      return res.status(500).json({
-        message: "Database connection error. Please try again later.",
-        error: process.env.NODE_ENV === "development" ? dbError.message : undefined,
-        reason: "DB_CONNECTION_FAILED"
+      console.warn(`Backend [/google]: User ${payloadEmail} attempted sign-in, but Google email not verified (and verification is required).`);
+      return res.status(403).json({
+        message: "Google email not verified. Please verify your email with Google and try again.",
+        reason: "GOOGLE_EMAIL_NOT_VERIFIED",
+        details: "Your Google account email needs to be verified to sign in to this application."
       });
     }
 
-    try {
-      console.log(`Backend [/google]: Checking for existing user by Google ID: ${googleId}`);
-      let [users] = await pool.query("SELECT * FROM users WHERE google_id = ?", [googleId]);
-      let user = users[0];
-
-      // Step 1: Find user by Google ID or Email
-      if (!user) {
-        console.log(`Backend [/google]: No user found by google_id. Checking by email: ${email}`);
-        let [usersByEmail] = await pool.query("SELECT * FROM users WHERE email = ?", [email]);
-
-        // Step 2: If not found by either, deny access
-        if (usersByEmail.length === 0) {
-          console.warn(`Backend [/google]: User not found by google_id or email. Access denied.`);
-          return res.status(403).json({ reason: "USER_NOT_FOUND", message: "User not found" });
-        }
-
-        // Step 3: If found by email, link Google ID and set as current user
-        user = usersByEmail[0];
-        console.log(`Backend [/google]: Linking google_id ${googleId} to user ${user.id}`);
-        await pool.query("UPDATE users SET google_id = ? WHERE id = ?", [googleId, user.id]);
-        user.google_id = googleId; // Update in-memory object
-      }
-
-      // Step 4: Now that we have a user, check if they are approved
-      if (!user.is_approved) {
-        console.warn(`Backend [/google] Auth Denied: User ${user.id} is not approved.`);
-        return res.status(403).json({ reason: "USER_NOT_APPROVED", message: "User not approved" });
-      }
-
-      // Step 5: Update profile if necessary
-      if (user.name !== name || user.avatar !== picture) {
-        console.log(`Backend [/google]: Profile differences found for user ${user.id}. Updating.`);
-        await pool.query("UPDATE users SET name = ?, avatar = ? WHERE id = ?", [name, picture, user.id]);
-        // Update in-memory user object
-        user.name = name;
-        user.avatar = picture;
-      }
-
-      console.log(`Backend [/google]: User ${user.id} (Email: ${user.email}) IS APPROVED. Generating app token.`);
-      const appToken = sessionManager.generateToken(user);
-      await sessionManager.logAccess(user.id, user.role, "google_login");
-      console.log(`Backend [/google]: User ${user.id} (Email: ${user.email}) successfully authenticated via Google.`);
-
-      res.json({
-        token: appToken,
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          organization: user.organization,
-          organization_type: user.organization_type,
-          avatar: user.avatar,
-          is_approved: Boolean(user.is_approved),
-          google_id: user.google_id,
-          dashboard: roleAccess[user.role]?.dashboard,
-          permissions: roleAccess[user.role]?.permissions,
-        },
-      });
-
-    } catch (dbError) {
-      console.error("Backend [/google] DB Error:", dbError.message);
-      return res.status(500).json({
-        message: "A database error occurred during Google Sign-In.",
-        error: process.env.NODE_ENV === "development" ? dbError.message : undefined,
-      });
+    // ✅ Allow sign-in even with unverified email in development or when not explicitly required
+    if (!email_verified) {
+      console.log(`Backend [/google]: Allowing sign-in with unverified email (${payloadEmail}) - verification not required`);
     }
+
+    // Defensive: Check for required fields
+    if (!payloadEmail || !googleId) {
+      return res.status(400).json({ reason: "INVALID_GOOGLE_PAYLOAD", message: "Missing email or Google ID" });
+    }
+
+    // 1. Try to find user by Google ID
+    let [users] = await pool.query("SELECT * FROM users WHERE google_id = ?", [googleId]);
+    let user = users[0] || null;
+
+    // 2. If not found, try by email
+    if (!user) {
+      let [usersByEmail] = await pool.query("SELECT * FROM users WHERE email = ?", [payloadEmail]);
+      if (!usersByEmail || usersByEmail.length === 0) {
+        // Not found by either
+        console.warn("User not found by google_id or email. Returning 403.");
+        return res.status(403).json({ reason: "USER_NOT_FOUND", message: "User not found" });
+      }
+      user = usersByEmail[0];
+      // Link Google ID
+      await pool.query("UPDATE users SET google_id = ? WHERE id = ?", [googleId, user.id]);
+      user.google_id = googleId;
+    }
+
+    // 3. Defensive: If user is still null, return 403
+    if (!user) {
+      console.warn("User is still null after lookup. Returning 403.");
+      return res.status(403).json({ reason: "USER_NOT_FOUND", message: "User not found" });
+    }
+
+    // 4. Check approval
+    if (!user.is_approved) {
+      console.warn(`User ${user.id} is not approved. Returning 403.`);
+      return res.status(403).json({ reason: "USER_NOT_APPROVED", message: "User not approved" });
+    }
+
+    // Step 5: Update profile if necessary
+    if (user.name !== name || user.avatar !== picture) {
+      console.log(`Backend [/google]: Profile differences found for user ${user.id}. Updating.`);
+      await pool.query("UPDATE users SET name = ?, avatar = ? WHERE id = ?", [name, picture, user.id]);
+      user.name = name;
+      user.avatar = picture;
+    }
+
+    console.log(`Backend [/google]: User ${user.id} (Email: ${user.email}) IS APPROVED. Generating app token.`);
+    const appToken = sessionManager.generateToken(user);
+    await sessionManager.logAccess(user.id, user.role, "google_login");
+    console.log(`Backend [/google]: User ${user.id} (Email: ${user.email}) successfully authenticated via Google.`);
+
+    res.json({
+      token: appToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        organization: user.organization,
+        organization_type: user.organization_type,
+        avatar: user.avatar,
+        is_approved: Boolean(user.is_approved),
+        google_id: user.google_id,
+        dashboard: roleAccess[user.role]?.dashboard,
+        permissions: roleAccess[user.role]?.permissions,
+      },
+    });
 
   } catch (error) {
-    console.error(`Backend [/google] Critical Error: Unhandled exception in Google sign-in for ${email}:`, error);
+    // Defensive: email may be undefined if error occurs before payload extraction
+    console.error(`Backend [/google] Critical Error: Unhandled exception in Google sign-in${email ? ` for ${email}` : ''}:`, error);
     next(error);
   } finally {
     console.log('--- Backend /auth/google Endpoint Finished ---\n');
@@ -313,18 +347,44 @@ router.post("/google", async (req, res, next) => {
  * Logout Endpoint
  * @route POST /auth/logout
  */
-router.post('/logout', authMiddleware.validateToken, async (req, res) => {
+router.post('/logout', async (req, res) => {
   console.log('\n--- Backend /auth/logout Endpoint Hit ---');
   console.log('Timestamp:', new Date().toISOString());
+
   try {
-    const userId = req.user.id;
-    // Perform any server-side logout logic if needed (e.g., invalidating a refresh token)
-    await sessionManager.logAccess(userId, req.user.role, 'logout');
-    console.log(`Backend [/logout]: Logout successful for user ID: ${userId}`);
+    // Check if we have a valid token
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log('Backend [/logout]: No valid authorization header, but allowing logout');
+      return res.status(200).json({ message: 'Logout successful (no token to invalidate)' });
+    }
+
+    const token = authHeader.substring(7);
+    if (!token) {
+      console.log('Backend [/logout]: Empty token, but allowing logout');
+      return res.status(200).json({ message: 'Logout successful (no token to invalidate)' });
+    }
+
+    // Try to validate the token
+    try {
+      const decoded = sessionManager.verifyToken(token);
+      if (decoded && decoded.user) {
+        const userId = decoded.user.id;
+        // Perform server-side logout logic
+        await sessionManager.logAccess(userId, decoded.user.role, 'logout');
+        console.log(`Backend [/logout]: Logout successful for user ID: ${userId}`);
+      } else {
+        console.log('Backend [/logout]: Invalid token, but allowing logout');
+      }
+    } catch (tokenError) {
+      console.log('Backend [/logout]: Token validation failed, but allowing logout:', tokenError.message);
+    }
+
     res.status(200).json({ message: 'Logout successful' });
   } catch (error) {
     console.error(`Backend [/logout] Error:`, error);
-    res.status(500).json({ message: 'Server error during logout' });
+    // Even if there's an error, we should still allow logout
+    res.status(200).json({ message: 'Logout successful' });
   } finally {
     console.log('--- Backend /auth/logout Endpoint Finished ---\n');
   }

@@ -27,6 +27,7 @@ const express = require('express');
 const router = express.Router();
 const { getDb, pool } = require('./helpers');
 const rateLimit = require('express-rate-limit');
+const { validateAdmin, validateToken } = require('../../middleware/auth');
 
 // ==============================
 // Import Admin Services
@@ -56,6 +57,9 @@ const strictLimiter = rateLimit({
 });
 
 router.use(apiLimiter);
+
+// Apply authentication middleware to all admin routes
+router.use(validateToken, validateAdmin);
 
 // ==============================
 // SHARED UTILITY FUNCTIONS
@@ -224,6 +228,128 @@ router.get('/dashboard-stats', strictLimiter, async (req, res) => {
     }
 });
 
+/**
+ * @route GET /api/mongodb-unified/admin/proposals/:id/files
+ * @desc Get files for a specific proposal (admin access)
+ * @access Admin
+ * 
+ * @param {string} id - Proposal ID
+ * 
+ * @returns {Object} File metadata for the proposal
+ */
+router.get('/proposals/:id/files', async (req, res) => {
+    try {
+        const proposalId = req.params.id;
+        console.log(`📁 ADMIN FILES: Fetching files for proposal ID: ${proposalId}`);
+
+        // STEP 1: Verify proposal exists
+        const [proposalRows] = await pool.query(
+            'SELECT id, organization_name FROM proposals WHERE id = ?',
+            [proposalId]
+        );
+
+        if (proposalRows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Proposal not found'
+            });
+        }
+
+        const proposal = proposalRows[0];
+        console.log('📁 ADMIN FILES: Found proposal:', {
+            id: proposal.id,
+            organizationName: proposal.organization_name
+        });
+
+        // STEP 2: Get files from MongoDB
+        const db = await getDb();
+        const files = {};
+
+        // Try section5_files collection first (new Section 5 files)
+        let fileUploads = await db.collection('section5_files')
+            .find({ proposal_id: parseInt(proposalId) })
+            .toArray();
+
+        // If no files in section5_files, try file_uploads collection (legacy)
+        if (fileUploads.length === 0) {
+            fileUploads = await db.collection('file_uploads')
+                .find({ proposal_id: parseInt(proposalId) })
+                .toArray();
+        }
+
+        // Also check for legacy MySQL file fields
+        const mysqlFiles = {};
+        if (proposal.accomplishment_report_file_name) {
+            mysqlFiles.accomplishment_report = {
+                name: proposal.accomplishment_report_file_name,
+                path: proposal.accomplishment_report_file_path,
+                storage: 'mysql'
+            };
+        }
+        if (proposal.pre_registration_file_name) {
+            mysqlFiles.pre_registration = {
+                name: proposal.pre_registration_file_name,
+                path: proposal.pre_registration_file_path,
+                storage: 'mysql'
+            };
+        }
+        if (proposal.final_attendance_file_name) {
+            mysqlFiles.final_attendance = {
+                name: proposal.final_attendance_file_name,
+                path: proposal.final_attendance_file_path,
+                storage: 'mysql'
+            };
+        }
+
+        // Combine MongoDB and MySQL files
+        fileUploads.forEach((file) => {
+            files[file.upload_type] = {
+                id: file._id.toString(),
+                filename: file.filename,
+                originalName: file.originalName,
+                size: file.size,
+                mimetype: file.mimetype,
+                created_at: file.created_at,
+                storage: 'mongodb'
+            };
+        });
+
+        // Merge with MySQL files (MongoDB files take precedence)
+        const allFiles = { ...mysqlFiles, ...files };
+
+        console.log('📁 ADMIN FILES: Found files:', {
+            proposalId: proposalId,
+            fileCount: Object.keys(allFiles).length,
+            fileTypes: Object.keys(allFiles),
+            mongoFiles: Object.keys(files).length,
+            mysqlFiles: Object.keys(mysqlFiles).length
+        });
+
+        res.json({
+            success: true,
+            files: allFiles,
+            proposal: {
+                id: proposal.id,
+                organization_name: proposal.organization_name
+            },
+            source: 'admin_files',
+            metadata: {
+                totalFiles: Object.keys(allFiles).length,
+                mongoFiles: Object.keys(files).length,
+                mysqlFiles: Object.keys(mysqlFiles).length
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ ADMIN FILES: Error fetching files:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            message: 'Failed to fetch proposal files'
+        });
+    }
+});
+
 // ==============================
 // Proposals Management Endpoints
 // ==============================
@@ -261,6 +387,12 @@ router.get('/proposals-hybrid', async (req, res) => {
         );
 
         console.log(`📊 ADMIN: Found ${mysqlProposals.length} proposals from MySQL`);
+
+        // ✅ DEBUG: Log specific proposal ID 4 status
+        const proposal4 = mysqlProposals.find(p => p.id == 4 || p.id == '4');
+        if (proposal4) {
+            console.log(`🔍 ADMIN DEBUG: Proposal ID 4 status = "${proposal4.proposal_status}"`);
+        }
 
         // STEP 3: Connect to MongoDB for files and comments
         const { mongoClient, mongoDb } = await connectToMongoDB();
@@ -303,6 +435,12 @@ router.get('/proposals-hybrid', async (req, res) => {
         const totalCount = countResult[0].total;
 
         console.log(`✅ ADMIN: Successfully processed ${transformedProposals.length} hybrid proposals`);
+
+        // ✅ DEBUG: Log final transformed proposal ID 4 status
+        const transformedProposal4 = transformedProposals.find(p => p.id == 4 || p.id == '4');
+        if (transformedProposal4) {
+            console.log(`🔍 ADMIN DEBUG: Final transformed proposal ID 4 status = "${transformedProposal4.status}"`);
+        }
 
         res.json({
             success: true,
