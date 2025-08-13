@@ -10,9 +10,13 @@ import { Toaster as Sonner } from "sonner"
 const Toaster = ({ ...props }) => { // Removed type annotation ToasterProps
   const { theme = "system" } = useTheme()
 
+  // Debug: log theme value
+  console.log("Toaster theme:", theme);
+
+  // TEMP: Remove theme prop to test for update loop
   return (
     <Sonner
-      theme={theme} // Removed type assertion as ToasterProps["theme"]
+      // theme={theme} // <-- Commented out for debugging
       className="toaster group"
       toastOptions={{
         classNames: {
@@ -31,3 +35,4 @@ const Toaster = ({ ...props }) => { // Removed type annotation ToasterProps
 }
 
 export { Toaster }
+

@@ -3,11 +3,14 @@
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Home } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
 
 export default function NotFound() {
+    const router = useRouter();
+
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
             <div className="text-center space-y-6 p-8 max-w-md mx-auto">
@@ -26,11 +29,9 @@ export default function NotFound() {
                             Go Home
                         </Link>
                     </Button>
-                    <Button asChild variant="outline">
-                        <Link href="javascript:history.back()">
-                            <ArrowLeft className="mr-2 h-4 w-4" />
-                            Go Back
-                        </Link>
+                    <Button variant="outline" onClick={() => router.back()}>
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        Go Back
                     </Button>
                 </div>
             </div>

@@ -1,0 +1,566 @@
+{
+    "info": {
+        "name": "CEDO Partnership Management API",
+        "description": "Comprehensive testing collection for CEDO application",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:5000",
+            "type": "string"
+        },
+        {
+            "key": "frontend_url",
+            "value": "http://localhost:3000",
+            "type": "string"
+        },
+        {
+            "key": "auth_token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "user_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "user_role",
+            "value": "",
+            "type": "string"
+        }
+    ],
+    "item": [
+        {
+            "name": "🏥 Health Checks",
+            "item": [
+                {
+                    "name": "Backend Health",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/health",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "health"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Frontend Config",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/config",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "config"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Frontend Health",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{frontend_url}}/api/health",
+                            "host": [
+                                "{{frontend_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "health"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "🔐 Authentication",
+            "item": [
+                {
+                    "name": "User Registration",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200 || pm.response.code === 201) {",
+                                    "    const response = pm.response.json();",
+                                    "    if (response.user) {",
+                                    "        pm.environment.set('user_id', response.user.id);",
+                                    "        pm.environment.set('user_role', response.user.role);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"test@example.com\",\n  \"password\": \"TestPassword123!\",\n  \"role\": \"student\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/auth/register",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "auth",
+                                "register"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "User Login",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const response = pm.response.json();",
+                                    "    if (response.token) {",
+                                    "        pm.environment.set('auth_token', response.token);",
+                                    "        pm.environment.set('user_id', response.user.id);",
+                                    "        pm.environment.set('user_role', response.user.role);",
+                                    "        console.log('Token saved:', response.token);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"TestPassword123!\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/auth/login",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "auth",
+                                "login"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Google OAuth",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/auth/google",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "auth",
+                                "google"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "🎯 Frontend Routes",
+            "item": [
+                {
+                    "name": "Public Routes",
+                    "item": [
+                        {
+                            "name": "Home Page",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{frontend_url}}/",
+                                    "host": [
+                                        "{{frontend_url}}"
+                                    ],
+                                    "path": [
+                                        ""
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "Sign In",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{frontend_url}}/auth/sign-in",
+                                    "host": [
+                                        "{{frontend_url}}"
+                                    ],
+                                    "path": [
+                                        "auth",
+                                        "sign-in"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "Sign Up",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{frontend_url}}/auth/sign-up",
+                                    "host": [
+                                        "{{frontend_url}}"
+                                    ],
+                                    "path": [
+                                        "auth",
+                                        "sign-up"
+                                    ]
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Protected Routes",
+                    "item": [
+                        {
+                            "name": "Main Route",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Cookie",
+                                        "value": "cedo_token={{auth_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{frontend_url}}/main",
+                                    "host": [
+                                        "{{frontend_url}}"
+                                    ],
+                                    "path": [
+                                        "main"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "Student Dashboard",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Cookie",
+                                        "value": "cedo_token={{auth_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{frontend_url}}/main/student-dashboard",
+                                    "host": [
+                                        "{{frontend_url}}"
+                                    ],
+                                    "path": [
+                                        "main",
+                                        "student-dashboard"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "Admin Dashboard",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Cookie",
+                                        "value": "cedo_token={{auth_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{frontend_url}}/main/admin-dashboard",
+                                    "host": [
+                                        "{{frontend_url}}"
+                                    ],
+                                    "path": [
+                                        "main",
+                                        "admin-dashboard"
+                                    ]
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "📊 Dashboard APIs",
+            "item": [
+                {
+                    "name": "Get Dashboard Stats",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/dashboard/stats",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "dashboard",
+                                "stats"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Recent Events",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/dashboard/recent-events?limit=10",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "dashboard",
+                                "recent-events"
+                            ],
+                            "query": [
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "📝 Proposal Management",
+            "item": [
+                {
+                    "name": "Create Proposal",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"organization_name\": \"Test Organization\",\n  \"organization_type\": \"school\",\n  \"event_name\": \"Test Event\",\n  \"event_venue\": \"Test Venue\",\n  \"event_start_date\": \"2024-02-01\",\n  \"event_end_date\": \"2024-02-01\",\n  \"event_start_time\": \"09:00\",\n  \"event_end_time\": \"17:00\",\n  \"event_mode\": \"in-person\",\n  \"school_event_type\": \"workshop\",\n  \"school_return_service_credit\": 3,\n  \"objectives\": \"Test objectives\",\n  \"budget\": 1000\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/proposals",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "proposals"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Get User Proposals",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/proposals/user",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "proposals",
+                                "user"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Get All Proposals (Admin)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/proposals",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "proposals"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Update Proposal",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{auth_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"proposal_status\": \"approved\",\n  \"reviewed_by_admin_id\": 1\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/proposals/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "proposals",
+                                "1"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "🔍 Error Testing",
+            "item": [
+                {
+                    "name": "Invalid Token",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Cookie",
+                                "value": "cedo_token=invalid_token"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{frontend_url}}/main/student-dashboard",
+                            "host": [
+                                "{{frontend_url}}"
+                            ],
+                            "path": [
+                                "main",
+                                "student-dashboard"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Missing Token",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{frontend_url}}/main/student-dashboard",
+                            "host": [
+                                "{{frontend_url}}"
+                            ],
+                            "path": [
+                                "main",
+                                "student-dashboard"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Wrong Role Access",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Cookie",
+                                "value": "cedo_token=student_token_here"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{frontend_url}}/main/admin-dashboard",
+                            "host": [
+                                "{{frontend_url}}"
+                            ],
+                            "path": [
+                                "main",
+                                "admin-dashboard"
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

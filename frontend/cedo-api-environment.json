@@ -1,0 +1,55 @@
+{
+    "id": "cedo-api-environment",
+    "name": "CEDO API Environment",
+    "values": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:5000",
+            "type": "default",
+            "enabled": true
+        },
+        {
+            "key": "frontendUrl",
+            "value": "http://localhost:3000",
+            "type": "default",
+            "enabled": true
+        },
+        {
+            "key": "token",
+            "value": "",
+            "type": "secret",
+            "enabled": true
+        },
+        {
+            "key": "draftId",
+            "value": "",
+            "type": "default",
+            "enabled": true
+        },
+        {
+            "key": "proposalId",
+            "value": "",
+            "type": "default",
+            "enabled": true
+        },
+        {
+            "key": "userId",
+            "value": "",
+            "type": "default",
+            "enabled": true
+        },
+        {
+            "key": "organizationId",
+            "value": "",
+            "type": "default",
+            "enabled": true
+        },
+        {
+            "key": "adminToken",
+            "value": "",
+            "type": "secret",
+            "enabled": true
+        }
+    ],
+    "_postman_variable_scope": "environment"
+}

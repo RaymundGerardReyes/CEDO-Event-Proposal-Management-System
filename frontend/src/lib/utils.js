@@ -119,6 +119,11 @@ export function getResponsiveColumns(totalItems, maxColumns = 4) {
 // Application configuration management
 let appConfig = null;
 
+// Test helper to reset config (for testing only)
+export function resetAppConfig() {
+    appConfig = null;
+}
+
 // Import centralized API configuration
 
 /**
@@ -126,7 +131,18 @@ let appConfig = null;
  * @returns {Object} - Current configuration with fallbacks
  */
 export function getAppConfig() {
-    return appConfig || {};
+    if (!appConfig) {
+        // Initialize with fallback values
+        let backendUrl = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:5000';
+        // Remove trailing /api if present to prevent double /api/ in URLs
+        if (backendUrl.endsWith('/api')) {
+            backendUrl = backendUrl.replace(/\/api$/, '');
+        }
+        appConfig = {
+            backendUrl: backendUrl
+        };
+    }
+    return appConfig;
 }
 
 /**
@@ -144,32 +160,82 @@ export function setAppConfig(key, value) {
  */
 export async function loadConfig() {
     if (appConfig) return appConfig;
+
+    // 🔧 SCOPE FIX: Move variable declarations outside try block
+    let base = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:5000';
+    let url = '';
+
     try {
         // Use API_URL as base, fallback to BACKEND_URL, then to localhost:5000
-        const base = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:5000';
+        // Remove trailing /api if present to prevent double /api/ in URLs
+        if (base.endsWith('/api')) {
+            base = base.replace(/\/api$/, '');
+        }
         // Ensure no double slash
-        const url = base.endsWith('/') ? base + 'config' : base + '/config';
-        const res = await fetch(url);
-        appConfig = await res.json();
-        // Ensure backendUrl is always set and does NOT end with /api
-        if (!appConfig.backendUrl) {
-            appConfig.backendUrl = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:5000';
+        url = base.endsWith('/') ? base + 'api/config' : base + '/api/config';
+
+        // Enhanced fetch with timeout and retry logic
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+        try {
+            const res = await fetch(url, {
+                signal: controller.signal,
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            }
+
+            appConfig = await res.json();
+
+            // Ensure backendUrl is always set and does NOT end with /api
+            if (!appConfig.backendUrl) {
+                appConfig.backendUrl = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:5000';
+            }
+            // Remove trailing /api if present
+            if (appConfig.backendUrl.endsWith('/api')) {
+                appConfig.backendUrl = appConfig.backendUrl.replace(/\/api$/, '');
+            }
+            console.log('✅ Loaded config:', appConfig); // Debug log
+            return appConfig;
+
+        } catch (fetchError) {
+            clearTimeout(timeoutId);
+            throw fetchError;
         }
-        // Remove trailing /api if present
-        if (appConfig.backendUrl.endsWith('/api')) {
-            appConfig.backendUrl = appConfig.backendUrl.replace(/\/api$/, '');
-        }
-        console.log('Loaded config:', appConfig); // Debug log
-        return appConfig;
+
     } catch (err) {
-        console.error('Failed to load config:', err);
-        appConfig = {
-            backendUrl: process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:5000'
+        // Enhanced error logging with detailed information
+        const errorDetails = {
+            message: err.message || 'Unknown error',
+            name: err.name || 'Error',
+            stack: err.stack,
+            url: url,
+            baseUrl: base,
+            timestamp: new Date().toISOString()
         };
-        // Remove trailing /api if present
-        if (appConfig.backendUrl.endsWith('/api')) {
-            appConfig.backendUrl = appConfig.backendUrl.replace(/\/api$/, '');
+
+        console.error('❌ Failed to load config:', errorDetails);
+
+        // Create fallback config
+        let backendUrl = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:5000';
+        // Remove trailing /api if present to prevent double /api/ in URLs
+        if (backendUrl.endsWith('/api')) {
+            backendUrl = backendUrl.replace(/\/api$/, '');
         }
+        appConfig = {
+            backendUrl: backendUrl,
+            error: errorDetails.message,
+            fallback: true,
+            timestamp: Date.now()
+        };
+        console.log('🔄 Using fallback config:', appConfig);
         return appConfig;
     }
 }

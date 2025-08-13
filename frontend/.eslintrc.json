@@ -1,0 +1,46 @@
+{
+    "extends": [
+        "next/core-web-vitals",
+        "next/typescript"
+    ],
+    "rules": {
+        // Prevent common syntax errors
+        "no-unexpected-multiline": "error",
+        "no-unreachable": "error",
+        "no-undef": "error",
+        // String consistency
+        "quotes": [
+            "error",
+            "double",
+            {
+                "avoidEscape": true
+            }
+        ],
+        "jsx-quotes": [
+            "error",
+            "prefer-double"
+        ],
+        // Import/export consistency
+        "import/no-unresolved": "error",
+        "import/named": "error",
+        // React specific
+        "react/jsx-no-undef": "error",
+        "react/jsx-uses-react": "error",
+        "react/jsx-uses-vars": "error",
+        // Next.js specific
+        "react/no-unescaped-entities": "warn",
+        "@next/next/no-img-element": "warn"
+    },
+    "env": {
+        "browser": true,
+        "es2022": true,
+        "node": true
+    },
+    "parserOptions": {
+        "ecmaVersion": 2022,
+        "sourceType": "module",
+        "ecmaFeatures": {
+            "jsx": true
+        }
+    }
+}

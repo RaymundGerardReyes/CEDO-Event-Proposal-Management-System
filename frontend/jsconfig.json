@@ -19,6 +19,12 @@
       ],
       "@contexts/*": [
         "./src/contexts/*"
+      ],
+      "@reporting/*": [
+        "./src/app/main/student-dashboard/submit-event/draftId/reporting/*"
+      ],
+      "@community-event/*": [
+        "./src/app/main/student-dashboard/submit-event/draftId/community-event/*"
       ]
     },
     "jsx": "react-jsx",
@@ -46,7 +52,10 @@
     "**/*.jsx",
     ".next/types/**/*.ts",
     ".babel.config.js",
-    "vitest.config.js"
+    "vitest.config.js",
+    "--jestxx234/js",
+    "jest.setup/js",
+    "jest=setup=js"
   ],
   "exclude": [
     "node_modules",

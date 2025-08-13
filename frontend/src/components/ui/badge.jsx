@@ -26,9 +26,16 @@ const badgeVariants = cva(
 
 // Removed: export interface BadgeProps ...
 
-function Badge({ className, variant, ...props }) { // Removed: BadgeProps type
+function Badge({ className, variant, children, ...props }) { // Removed: BadgeProps type
+  // Safety check: ensure children is never NaN
+  const safeChildren = children !== undefined && children !== null && !isNaN(children) 
+    ? children 
+    : '';
+
   return (
-    <div className={cn(badgeVariants({ variant }), className)} {...props} />
+    <div className={cn(badgeVariants({ variant }), className)} {...props}>
+      {safeChildren}
+    </div>
   )
 }
 

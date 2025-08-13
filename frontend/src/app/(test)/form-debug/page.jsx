@@ -1,4 +1,4 @@
-import SubmitEventFlow from "@/app/(main)/student-dashboard/submit-event/SubmitEventFlow"
+import SubmitEventFlow from '@/app/student-dashboard/submit-event/[draftId]/components/SubmitEventFlow';
 
 export default function FormDebugPage() {
     return (

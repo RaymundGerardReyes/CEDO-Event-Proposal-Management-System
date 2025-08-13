@@ -6,19 +6,169 @@ import axios from "axios";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
-const API_URL = process.env.API_URL || "http://localhost:5000/api";
+// ✅ ENHANCED: Better environment variable handling
+const getEnvironmentConfig = () => {
+  const config = {
+    API_URL: process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || "http://localhost:5000",
+    BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || "http://localhost:5000",
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+    NODE_ENV: process.env.NODE_ENV || "development"
+  };
 
-// Safely parse the session timeout duration, providing a sensible default.
-const sessionTimeoutMinutes = parseInt(process.env.SESSION_TIMEOUT_MINUTES, 10);
-const SESSION_TIMEOUT_DURATION = (isNaN(sessionTimeoutMinutes) ? 30 : sessionTimeoutMinutes) * 60 * 1000;
+  console.log("🔧 AuthContext: Environment config loaded:", {
+    API_URL: config.API_URL,
+    BACKEND_URL: config.BACKEND_URL,
+    hasGoogleClientId: !!config.GOOGLE_CLIENT_ID,
+    NODE_ENV: config.NODE_ENV
+  });
 
-const internalApi = axios.create({
-  baseURL: API_URL,
-  headers: {
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  },
-});
+  return config;
+};
+
+// --- SESSION TIMEOUT DURATION ---
+// Use env var (ms), fallback to 30 min
+export const SESSION_TIMEOUT_DURATION =
+  (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_SESSION_TIMEOUT_DURATION
+    ? parseInt(process.env.NEXT_PUBLIC_SESSION_TIMEOUT_DURATION, 10)
+    : 30 * 60 * 1000);
+
+// Dependency injection for testability
+let _internalApi = null;
+let _baseURL = null;
+
+function getInternalApi() {
+  // ✅ ENHANCED: Use environment config
+  const envConfig = getEnvironmentConfig();
+  const baseURL = _baseURL || envConfig.API_URL;
+  console.log("🔧 AuthContext: Creating API client with baseURL:", baseURL);
+
+  if (
+    !_internalApi ||
+    (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test') ||
+    (_internalApi && _internalApi.defaults && _internalApi.defaults.baseURL !== baseURL)
+  ) {
+    console.log("🔄 AuthContext: Creating new axios instance");
+    _internalApi = axios.create({
+      baseURL,
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      timeout: 30000, // 30 second timeout
+    });
+
+    // Add request interceptor for debugging
+    _internalApi.interceptors.request.use(
+      (config) => {
+        // ✅ FIX: Ensure auth endpoints use the correct path
+        if (config.url && config.url.startsWith('/auth/') && !config.url.startsWith('/api/auth/')) {
+          config.url = config.url.replace('/auth/', '/api/auth/');
+          console.log("🔧 AuthContext: Fixed auth endpoint URL:", config.url);
+        }
+
+        console.log("📤 AuthContext: API Request:", {
+          method: config.method,
+          url: config.url,
+          baseURL: config.baseURL,
+          hasAuth: !!config.headers?.Authorization
+        });
+        return config;
+      },
+      (error) => {
+        console.error("❌ AuthContext: API Request Error:", error);
+        return Promise.reject(error);
+      }
+    );
+
+    // Add response interceptor for debugging
+    _internalApi.interceptors.response.use(
+      (response) => {
+        console.log("📥 AuthContext: API Response:", {
+          status: response.status,
+          url: response.config.url,
+          hasData: !!response.data
+        });
+        return response;
+      },
+      (error) => {
+        // Only log unexpected errors, not authentication failures
+        const isExpectedError =
+          error.response?.status === 401 || // Invalid credentials - expected
+          error.response?.status === 403 || // Forbidden - expected
+          error.response?.status === 400;   // Bad request - expected
+
+        if (!isExpectedError) {
+          console.error("❌ AuthContext: Unexpected API Error:", {
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            message: error.message,
+            url: error.config?.url,
+            method: error.config?.method
+          });
+        } else {
+          // Log authentication errors quietly - these are expected user errors
+          if (typeof window !== 'undefined' && window.console && window.console.debug) {
+            window.console.debug("🔐 AuthContext: Authentication response:", {
+              status: error.response?.status,
+              message: error.response?.data?.message || error.message,
+              url: error.config?.url
+            });
+          }
+        }
+
+        // ✅ ENHANCED: Specific handling for Google email verification errors
+        if (error.response?.status === 403 && error.response?.data?.reason === 'GOOGLE_EMAIL_NOT_VERIFIED') {
+          console.warn("📧 AuthContext: Google email verification required");
+          // This will be handled by the calling function to show user-friendly message
+        }
+
+        // Additional context for network errors
+        if (error.code === "NETWORK_ERROR" || error.message.includes("Network Error")) {
+          console.error("🌐 AuthContext: Network error detected - check backend connectivity");
+        }
+
+        // Additional context for timeout errors
+        if (error.code === "ECONNABORTED" || error.message.includes("timeout")) {
+          console.error("⏰ AuthContext: Request timeout - backend may be slow or unresponsive");
+        }
+
+        // ✅ REDUCED: Only log full error details for unexpected errors
+        if (process.env.NODE_ENV === 'development') {
+          // Don't log full details for expected errors (401, 403 auth errors)
+          const isExpectedError = error.response?.status === 401 ||
+            error.response?.status === 403 ||
+            error.response?.status === 400;
+
+          if (!isExpectedError) {
+            console.error("🔍 AuthContext: Full error details:", error);
+          } else {
+            console.log("🔍 AuthContext: Expected error:", {
+              status: error.response?.status,
+              message: error.response?.data?.message || error.message,
+              reason: error.response?.data?.reason
+            });
+          }
+        }
+
+        return Promise.reject(error);
+      }
+    );
+  }
+
+  return _internalApi;
+}
+
+// For test injection
+export function _setInternalApiForTests(mockApi, baseURL) {
+  _internalApi = mockApi;
+  _baseURL = baseURL;
+}
+
+// Simple error handler without health checks
+export async function handleAuthError(error, context = "Authentication") {
+  console.error(`❌ ${context} Error:`, error);
+  return error;
+}
 
 export const ROLES = {
   HEAD_ADMIN: 'head_admin',
@@ -28,21 +178,144 @@ export const ROLES = {
   REVIEWER: 'reviewer',
 };
 
-const AuthContext = createContext(null);
+const AuthContext = createContext(undefined); // Use undefined for strict provider check
 
-let sessionTimeoutId;
+// REMOVE global sessionTimeoutId; use sessionTimeoutIdRef in provider and helpers
 let gsiClientInitialized = false;
 
+// --- TEST STATE SINGLETON FOR TEST HELPERS ---
+const _testState = {
+  user: null,
+  isLoading: true,
+  isInitialized: false,
+  googleError: null,
+  router: null,
+  pathname: null,
+  toast: null,
+};
+
+// --- TEST HELPERS ALWAYS AVAILABLE ---
+const _testHelpers = {
+  // State accessors
+  getUser: () => _testState.user,
+  getIsLoading: () => _testState.isLoading,
+  getIsInitialized: () => _testState.isInitialized,
+  getGoogleError: () => _testState.googleError,
+  // State mutators
+  setUser: (val) => { _testState.user = val; },
+  setIsLoading: (val) => { _testState.isLoading = val; },
+  setIsInitialized: (val) => { _testState.isInitialized = val; },
+  setGoogleError: (val) => { _testState.googleError = val; },
+  // Reset all state
+  resetAll: () => {
+    _testState.user = null;
+    _testState.isLoading = true;
+    _testState.isInitialized = false;
+    _testState.googleError = null;
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('cedo_user');
+      document.cookie = 'cedo_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure';
+    }
+    if (sessionTimeoutId) clearTimeout(sessionTimeoutId);
+  },
+  // Inject mock router, pathname, toast
+  injectRouter: (mockRouter) => { _testState.router = mockRouter; },
+  injectPathname: (mockPathname) => { _testState.pathname = mockPathname; },
+  injectToast: (mockToast) => { _testState.toast = mockToast; },
+  // Simulate session timeout
+  simulateSessionTimeout: () => {
+    if (sessionTimeoutId) clearTimeout(sessionTimeoutId);
+    sessionTimeoutId = setTimeout(() => { }, 0);
+  },
+  // Simulate localStorage/cookie state
+  setLocalStorageUser: (val) => {
+    if (typeof window !== 'undefined') localStorage.setItem('cedo_user', JSON.stringify(val));
+  },
+  setCookieToken: (val) => {
+    if (typeof window !== 'undefined') document.cookie = `cedo_token=${val}`;
+  },
+  // Simulate API errors/success
+  simulateApiError: (fn, error) => {
+    try { fn(); } catch (e) { return error; }
+  },
+  simulateApiSuccess: (fn, result) => {
+    try { return fn(); } catch (e) { return result; }
+  },
+  // Simulate user roles
+  setUserRole: (role) => {
+    _testState.user = { ...(_testState.user || {}), role };
+  },
+  // Simulate redirect
+  simulateRedirect: (target) => {
+    if (_testState.router && _testState.router.replace) _testState.router.replace(target);
+  },
+  // Simulate Google Sign-In
+  simulateGoogleSignIn: (credential) => {
+    handleGoogleCredentialResponse({ credential });
+  },
+  // Simulate fetchAllUsers/updateUserApproval
+  simulateFetchAllUsers: () => fetchAllUsers(),
+  simulateUpdateUserApproval: (id, status) => updateUserApproval(id, status),
+  // Simulate clearAuthCache
+  simulateClearAuthCache: () => clearAuthCache(),
+  // Simulate verifyCurrentUser
+  simulateVerifyCurrentUser: () => verifyCurrentUser(),
+  // Simulate signIn/signOut
+  simulateSignIn: (email, password, rememberMe, captchaToken) => signIn(email, password, rememberMe, captchaToken),
+  simulateSignOut: () => signOut(),
+  // Simulate signInWithGoogleAuth
+  simulateSignInWithGoogleAuth: (elOrOpts) => signInWithGoogleAuth(elOrOpts),
+  // Simulate handleGoogleCredentialResponse
+  simulateHandleGoogleCredentialResponse: (resp) => handleGoogleCredentialResponse(resp),
+  // Simulate loadGoogleScript
+  simulateLoadGoogleScript: () => loadGoogleScript(),
+  // Simulate showErrorToast/showSuccessToast
+  simulateShowErrorToast: (title, desc, variant) => showErrorToast(title, desc, variant),
+  simulateShowSuccessToast: (title, desc) => showSuccessToast(title, desc),
+  // Simulate handleAuthError
+  simulateHandleAuthError: (err, ctx) => handleAuthError(err, ctx),
+  // Simulate performRedirect
+  simulatePerformRedirect: (user) => performRedirect(user),
+  // Simulate getDefaultDashboardForRole
+  simulateGetDefaultDashboardForRole: (role) => getDefaultDashboardForRole(role),
+  // Simulate resetSessionTimeout
+  simulateResetSessionTimeout: () => resetSessionTimeout(),
+  // Simulate safeDeleteAuthHeader
+  simulateSafeDeleteAuthHeader: () => safeDeleteAuthHeader(),
+  // Simulate commonSignOutLogicWithDependencies
+  simulateCommonSignOutLogicWithDependencies: (redirect, path) => commonSignOutLogicWithDependencies(redirect, path),
+  // Simulate commonSignInSuccess
+  simulateCommonSignInSuccess: (token, user, rememberMe) => commonSignInSuccess(token, user, rememberMe),
+};
+export { _testHelpers };
+
+
 export function AuthProvider({ children }) {
+  // Use a ref for session timeout to avoid closure issues and timer leaks
+  const sessionTimeoutIdRef = useRef(null);
   const router = useRouter();
   const pathname = usePathname();
   const currentSearchParamsHook = useSearchParams();
   const { toast } = useToast();
 
+  // --- Initial state: isLoading true, isInitialized false ---
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Initial state: isInitialized false until verifyCurrentUser completes
   const [isInitialized, setIsInitialized] = useState(false);
   const [googleError, setGoogleError] = useState(null);
+
+  // --- Always create axios instance on mount for testability ---
+  // Move this outside useEffect so it's always called on first render
+  getInternalApi();
+
+  // Expose setUser for test injection (sync for test reliability)
+  if (typeof window !== 'undefined') {
+    window.__setAuthUserForTest = (u) => {
+      setUser(u);
+    };
+    window.__getAuthUserForTest = () => user;
+  }
 
   // For Google Sign-In promise management
   const currentGoogleSignInPromiseActions = useRef(null);
@@ -221,34 +494,65 @@ export function AuthProvider({ children }) {
 
   const resetSessionTimeout = useCallback(() => {
     if (typeof window === "undefined") return;
-
-    clearTimeout(sessionTimeoutId);
-
+    if (sessionTimeoutIdRef.current) {
+      clearTimeout(sessionTimeoutIdRef.current);
+      sessionTimeoutIdRef.current = null;
+    }
     // Only set a new timeout if there is an active user session.
     if (user) {
-      sessionTimeoutId = setTimeout(() => {
+      sessionTimeoutIdRef.current = setTimeout(() => {
         console.log(`Session timed out due to inactivity (${SESSION_TIMEOUT_DURATION / 1000} seconds).`);
-        // The signOut function will construct the correct redirect path.
         if (commonSignOutLogicWithDependencies) {
           commonSignOutLogicWithDependencies(true, `/sign-in?reason=session_timeout_activity&redirect=${encodeURIComponent(pathname)}`);
         }
       }, SESSION_TIMEOUT_DURATION);
     }
-  }, [user, pathname]); // Add pathname to ensure the redirect URL is always current
+  }, [user, pathname]);
 
+  // Defensive: ensure internalApi.defaults and .headers exist before use
+  const safeDeleteAuthHeader = () => {
+    const internalApi = getInternalApi();
+    if (
+      internalApi &&
+      internalApi.defaults &&
+      internalApi.defaults.headers &&
+      internalApi.defaults.headers.common
+    ) {
+      delete internalApi.defaults.headers.common["Authorization"];
+    }
+  };
 
   commonSignOutLogicWithDependencies = useCallback(
     async (redirect = true, redirectPath = "/sign-in") => {
       console.log("🚪 AuthContext: Starting sign-out process. Redirect:", redirect, "Path:", redirectPath);
       setIsLoading(true);
-      clearTimeout(sessionTimeoutId);
+      if (sessionTimeoutIdRef.current) {
+        clearTimeout(sessionTimeoutIdRef.current);
+        sessionTimeoutIdRef.current = null;
+      }
+      const internalApi = getInternalApi();
 
       try {
-        // Always use internalApi (which uses API_URL as base)
-        await internalApi.post("/auth/logout");
-        console.log("✅ AuthContext: Backend logout successful");
+        // Check if we have a valid token before making the logout call
+        let hasValidToken = false;
+        if (typeof document !== "undefined") {
+          const cookieValue = document.cookie.split("; ").find((row) => row.startsWith("cedo_token="));
+          if (cookieValue) {
+            const token = cookieValue.split("=")[1];
+            hasValidToken = token && token.length > 0;
+          }
+        }
+
+        if (hasValidToken && internalApi && internalApi.post) {
+          console.log("🔐 AuthContext: Valid token found, calling backend logout");
+          await internalApi.post("/auth/logout");
+          console.log("✅ AuthContext: Backend logout successful");
+        } else {
+          console.log("⚠️ AuthContext: No valid token found, skipping backend logout call");
+        }
       } catch (error) {
         console.error("❌ AuthProvider [signOut]: Error during backend logout:", error);
+        // Don't throw the error, just log it and continue with local cleanup
       } finally {
         if (typeof window !== "undefined") {
           // Clear localStorage and cookies
@@ -309,8 +613,8 @@ export function AuthProvider({ children }) {
           }
         }
 
-        // Clear API authorization header
-        delete internalApi.defaults.headers.common["Authorization"];
+        // Defensive: clear API authorization header safely
+        safeDeleteAuthHeader();
         console.log("🧹 AuthContext: Cleared API authorization header");
 
         // Set user to null
@@ -346,30 +650,51 @@ export function AuthProvider({ children }) {
     [commonSignOutLogicWithDependencies]
   );
 
+  // --- Session timeout effect: set timer only when user is present ---
   useEffect(() => {
-    if (typeof window === "undefined" || !user) {
-      if (typeof window !== "undefined") { // Ensure window exists before removing listeners
-        window.removeEventListener("mousemove", resetSessionTimeout);
-        window.removeEventListener("keypress", resetSessionTimeout);
-      }
-      clearTimeout(sessionTimeoutId);
-      return;
+    if (typeof window === "undefined") return;
+    // Always clear timer and listeners first
+    window.removeEventListener("mousemove", resetSessionTimeout);
+    window.removeEventListener("keypress", resetSessionTimeout);
+    if (sessionTimeoutIdRef.current) {
+      clearTimeout(sessionTimeoutIdRef.current);
+      sessionTimeoutIdRef.current = null;
     }
-
+    if (!user) return;
     resetSessionTimeout();
-
     window.addEventListener("mousemove", resetSessionTimeout);
     window.addEventListener("keypress", resetSessionTimeout);
-
     return () => {
       window.removeEventListener("mousemove", resetSessionTimeout);
       window.removeEventListener("keypress", resetSessionTimeout);
-      clearTimeout(sessionTimeoutId);
+      if (sessionTimeoutIdRef.current) {
+        clearTimeout(sessionTimeoutIdRef.current);
+        sessionTimeoutIdRef.current = null;
+      }
     };
   }, [user, resetSessionTimeout]);
 
+  // --- Cleanup all timers on unmount (for test reliability) ---
+  useEffect(() => {
+    return () => {
+      if (sessionTimeoutIdRef.current) {
+        clearTimeout(sessionTimeoutIdRef.current);
+        sessionTimeoutIdRef.current = null;
+      }
+      window.removeEventListener("mousemove", resetSessionTimeout);
+      window.removeEventListener("keypress", resetSessionTimeout);
+    };
+  }, []);
+
   const commonSignInSuccess = useCallback(
     (token, userData, rememberMe = false) => {
+      console.log("🎉 AuthContext: commonSignInSuccess called with:", {
+        hasToken: !!token,
+        hasUserData: !!userData,
+        userRole: userData?.role,
+        rememberMe
+      });
+
       if (typeof document !== "undefined") {
         let cookieOptions = "path=/; SameSite=Lax; Secure";
         if (rememberMe) {
@@ -379,10 +704,20 @@ export function AuthProvider({ children }) {
         }
         document.cookie = `cedo_token=${token}; ${cookieOptions}`;
         localStorage.setItem("cedo_user", JSON.stringify(userData));
+        console.log("💾 AuthContext: Token and user data stored in browser");
       }
-      internalApi.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
+      const internalApi = getInternalApi();
+      if (internalApi && internalApi.defaults && internalApi.defaults.headers) {
+        internalApi.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+        console.log("🔑 AuthContext: Authorization header set");
+      }
+
+      console.log("👤 AuthContext: Setting user state to:", userData);
       setUser(userData);
       setIsLoading(false);
+
+      console.log("🔄 AuthContext: Calling performRedirect with user data");
       performRedirect(userData);
       return userData;
     },
@@ -390,7 +725,6 @@ export function AuthProvider({ children }) {
   );
 
   const verifyCurrentUser = useCallback(async () => {
-    console.log("🔍 verifyCurrentUser: Starting user verification...");
     setIsLoading(true);
     try {
       let token = null;
@@ -398,94 +732,191 @@ export function AuthProvider({ children }) {
         const cookieValue = document.cookie.split("; ").find((row) => row.startsWith("cedo_token="));
         if (cookieValue) token = cookieValue.split("=")[1];
       }
-
-      console.log("🔍 verifyCurrentUser: Token found:", token ? "Yes" : "No");
-
       if (token) {
-        internalApi.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+        const internalApi = getInternalApi();
+        if (internalApi && internalApi.defaults && internalApi.defaults.headers) {
+          internalApi.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+        }
         const storedUser = localStorage.getItem("cedo_user");
-        console.log("🔍 verifyCurrentUser: Stored user in localStorage:", storedUser ? "Yes" : "No");
-
         let currentUserData = null;
         if (storedUser) {
           currentUserData = JSON.parse(storedUser);
-          console.log("🔍 verifyCurrentUser: Using cached user data:", JSON.stringify(currentUserData, null, 2));
         } else {
-          console.log("🔍 verifyCurrentUser: Fetching user data from /auth/me...");
-          const { data: meData } = await internalApi.get("/auth/me");
-          if (meData && meData.user) {
-            currentUserData = meData.user;
-            localStorage.setItem("cedo_user", JSON.stringify(meData.user));
-            console.log("🔍 verifyCurrentUser: Fresh user data from API:", JSON.stringify(currentUserData, null, 2));
-          } else {
-            throw new Error("No user data from /auth/me despite having a token.");
+          if (internalApi && internalApi.get) {
+            const { data: meData } = await internalApi.get("/auth/me");
+            if (meData && meData.user) {
+              currentUserData = meData.user;
+              localStorage.setItem("cedo_user", JSON.stringify(meData.user));
+            } else {
+              throw new Error("No user data from /auth/me despite having a token.");
+            }
           }
         }
-
-        console.log("✅ verifyCurrentUser: Setting user data with role:", currentUserData?.role);
         setUser(currentUserData);
-
-        // CRITICAL FIX: Call performRedirect for existing authenticated users
-        console.log("🚀 verifyCurrentUser: Calling performRedirect for authenticated user");
         performRedirect(currentUserData);
       } else {
-        console.log("❌ verifyCurrentUser: No token found, setting user to null");
         setUser(null);
       }
     } catch (error) {
-      // Only show error toasts for non-authentication related errors
-      // Token expiration and invalid tokens are normal and shouldn't show error messages
-      console.error("🔍 verifyCurrentUser: Error during verification:", error.message);
-      if (process.env.NODE_ENV === 'development') {
-        console.warn("AuthContext [verifyCurrentUser]: Error verifying current user or token invalid.", error.message);
-      }
-
-      // Don't show error toast for normal token expiration/invalid token scenarios
-      // These are expected behaviors when tokens expire or are invalid
-
-      console.log("🧹 verifyCurrentUser: Cleaning up localStorage and cookies due to error");
       if (typeof window !== "undefined") {
         localStorage.removeItem("cedo_user");
         document.cookie = "cedo_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
       }
-      delete internalApi.defaults.headers.common["Authorization"];
+      safeDeleteAuthHeader();
       setUser(null);
     } finally {
       setIsLoading(false);
-      setIsInitialized(true);
+      // Do not set isInitialized here; let the effect below do it after verifyCurrentUser completes
     }
   }, []);
 
+  // --- Only set isInitialized after verifyCurrentUser completes ---
+  // Only set isInitialized after verifyCurrentUser completes
   useEffect(() => {
+    let didCancel = false;
     if (!isInitialized) {
-      verifyCurrentUser();
+      (async () => {
+        await verifyCurrentUser();
+        if (!didCancel) setIsInitialized(true);
+      })();
     }
+    return () => { didCancel = true; };
   }, [isInitialized, verifyCurrentUser]);
 
 
   const signIn = useCallback(
     async (email, password, rememberMe = false, captchaToken = null) => {
+      console.log("🚀 AuthContext: signIn called with email:", email);
       setIsLoading(true);
       try {
         const payload = { email, password };
         if (captchaToken) payload.captchaToken = captchaToken;
-        // Always use internalApi (which uses API_URL as base)
-        const response = await internalApi.post("/auth/login", payload);
+        console.log("📤 AuthContext: Sending payload:", { ...payload, password: '[HIDDEN]' });
+
+        const internalApi = getInternalApi();
+        let response = null;
+
+        // ✅ ENHANCED: Better error handling and debugging
+        if (!internalApi || !internalApi.post) {
+          const error = new Error("API client not available - check backend connectivity");
+          console.log("🔧 AuthContext: API client not available:", error.message);
+          throw error;
+        }
+
+        console.log("🔗 AuthContext: Making request to /api/auth/login");
+        response = await internalApi.post("/api/auth/login", payload);
+
+        console.log("✅ AuthContext: Backend response received:", {
+          status: response.status,
+          hasData: !!response.data,
+          hasToken: !!response.data?.token,
+          hasUser: !!response.data?.user
+        });
+
         const { token, user: userData } = response.data;
+        console.log("🔍 AuthContext: Extracted data:", {
+          hasToken: !!token,
+          hasUserData: !!userData,
+          userRole: userData?.role
+        });
+
         if (token && userData) {
+          console.log("✅ AuthContext: Valid token and user data found, calling commonSignInSuccess");
           showSuccessToast("Sign-In Successful", `Welcome back, ${userData.name}!`);
           return commonSignInSuccess(token, userData, rememberMe);
         }
+        console.log("🔐 AuthContext: Invalid response - missing token or user data");
         throw new Error("Login failed: No token or user data received from server.");
       } catch (error) {
-        // Use the new error handling system
+        // ✅ ENHANCED: Comprehensive error logging with structured data
+        const errorDetails = {
+          message: error.message || "Unknown error",
+          name: error.name || "Error",
+          stack: error.stack,
+          response: {
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            data: error.response?.data,
+            headers: error.response?.headers
+          },
+          request: {
+            url: error.config?.url,
+            method: error.config?.method,
+            baseURL: error.config?.baseURL,
+            headers: error.config?.headers
+          },
+          code: error.code,
+          isAxiosError: error.isAxiosError,
+          isNetworkError: error.code === "NETWORK_ERROR" || error.message.includes("Network Error"),
+          isTimeoutError: error.code === "ECONNABORTED" || error.message.includes("timeout")
+        };
+
+        // Only log unexpected errors verbosely
+        if (error.response?.status === 500 || error.code === "NETWORK_ERROR" || error.code === "ECONNABORTED") {
+          console.error("❌ AuthContext: Unexpected error in signIn:", {
+            status: error.response?.status,
+            message: error.message,
+            code: error.code,
+            url: error.config?.url
+          });
+        } else {
+          console.log("🔐 AuthContext: Sign-in failed:", error.response?.data?.message || error.message);
+        }
+
+        // ✅ ENHANCED: More specific error messages and handling
+        let errorMessage = "Sign-in failed. Please try again.";
+
+        if (error.response?.status === 400) {
+          const errorText = error.response?.data?.message || '';
+          if (errorText.includes('reCAPTCHA')) {
+            errorMessage = "reCAPTCHA validation failed. Please refresh the page and try again.";
+          } else if (errorText.includes('Email and password are required')) {
+            errorMessage = "Please provide both email and password.";
+          } else {
+            errorMessage = errorText || "Invalid request. Please check your input.";
+          }
+        } else if (error.response?.status === 401) {
+          const errorText = error.response?.data?.message || '';
+          if (errorText.includes('User account not found') || errorText.includes('USER_NOT_FOUND')) {
+            errorMessage = "Your account was not found. Please sign in again.";
+            // Clear invalid authentication data and redirect
+            await commonSignOutLogicWithDependencies(true, "/sign-in");
+            setIsLoading(false);
+            throw new Error(errorMessage);
+          } else if (errorText.includes('Invalid credentials')) {
+            errorMessage = "Invalid email or password. Please check your credentials.";
+          } else {
+            errorMessage = "Authentication failed. Please check your credentials.";
+          }
+        } else if (error.response?.status === 403) {
+          const errorText = error.response?.data?.message || '';
+          if (errorText.includes('pending approval')) {
+            errorMessage = "Account pending approval. Please contact an administrator.";
+          } else {
+            errorMessage = errorText || "Access denied. Please contact an administrator.";
+          }
+        } else if (error.response?.status === 500) {
+          errorMessage = "Server error. Please try again later.";
+        } else if (error.isNetworkError) {
+          errorMessage = "Network error. Please check your connection and try again.";
+        } else if (error.isTimeoutError) {
+          errorMessage = "Request timeout. Please try again.";
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+
         const errorInfo = handleAuthError(error, "Sign-In");
         await commonSignOutLogicWithDependencies(false);
         setIsLoading(false);
-        throw new Error(errorInfo.description);
+
+        // ✅ ENHANCED: Throw a structured error with all details
+        const structuredError = new Error(errorMessage);
+        structuredError.originalError = error;
+        structuredError.details = errorDetails;
+        throw structuredError;
       }
     },
-    [commonSignInSuccess, commonSignOutLogicWithDependencies, handleAuthError, showSuccessToast],
+    [commonSignInSuccess, commonSignOutLogicWithDependencies, handleAuthError, showSuccessToast]
   );
 
   const loadGoogleScript = useCallback(() => {
@@ -544,9 +975,16 @@ export function AuthProvider({ children }) {
     });
   }, []);
 
-  // Corrected handleGoogleCredentialResponse (similar to your original full version)
+  // Enhanced handleGoogleCredentialResponse with better error handling
   const handleGoogleCredentialResponse = useCallback(
     async (googleResponse) => {
+      console.log("🚀 AuthContext: handleGoogleCredentialResponse called with:", {
+        hasError: !!googleResponse.error,
+        hasCredential: !!googleResponse?.credential,
+        errorType: googleResponse.error,
+        errorDescription: googleResponse.error_description
+      });
+
       try {
         if (googleResponse.error || !googleResponse?.credential) {
           let errMsg = "Google Sign-In failed or was cancelled by the user.";
@@ -557,18 +995,68 @@ export function AuthProvider({ children }) {
           }
           throw new Error(errMsg);
         }
-        // Always use internalApi (which uses API_URL as base)
-        const backendResponse = await internalApi.post("/auth/google", { token: googleResponse.credential });
-        const { token, user: userDataFromBackend } = backendResponse.data;
+
+        console.log("🔑 AuthContext: Google credential received, calling backend...");
+        const internalApi = getInternalApi();
+
+        if (!internalApi || !internalApi.post) {
+          throw new Error("API client not available");
+        }
+
+        const backendUrl = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || 'http://localhost:5000';
+        console.log("🌐 AuthContext: Backend URL:", backendUrl);
+
+        const response = await internalApi.post("/api/auth/google", {
+          token: googleResponse.credential
+        });
+
+        console.log("✅ AuthContext: Backend response received:", {
+          status: response.status,
+          hasData: !!response.data,
+          hasToken: !!response.data?.token,
+          hasUser: !!response.data?.user
+        });
+
+        const { token, user: userDataFromBackend } = response.data;
+
         if (token && userDataFromBackend) {
+          console.log("🎉 AuthContext: Valid response, calling commonSignInSuccess");
           commonSignInSuccess(token, userDataFromBackend, false);
           showSuccessToast("Sign-In Successful", `Welcome back, ${userDataFromBackend.name}!`);
         } else {
           throw new Error("Google Sign-In failed: No valid token or user data received from backend server.");
         }
       } catch (error) {
-        const errorInfo = handleAuthError(error, "Google Sign-In");
-        setGoogleError(errorInfo);
+        console.error("❌ AuthContext: Google Sign-In error:", {
+          message: error.message,
+          name: error.name,
+          stack: error.stack,
+          response: error.response?.data,
+          status: error.response?.status
+        });
+
+        // ✅ ENHANCED: Specific error handling for Google authentication
+        if (error.response?.status === 403) {
+          const reason = error.response.data?.reason;
+          if (reason === "GOOGLE_EMAIL_NOT_VERIFIED") {
+            showErrorToast("Email Verification Required", "Please verify your email address with Google and try again. Check your Google account settings to verify your email.");
+          } else if (reason === "USER_NOT_FOUND") {
+            showErrorToast("Account Not Found", "Your account was not found. Please contact an administrator to create your account.");
+          } else if (reason === "USER_NOT_APPROVED") {
+            showErrorToast("Account Pending Approval", "Your account is pending approval. Please contact an administrator.");
+          } else {
+            showErrorToast("Access Denied", error.response.data?.message || "You don't have permission to access this resource.");
+          }
+        } else if (error.response?.status === 401) {
+          showErrorToast("Authentication Failed", "Invalid Google credentials. Please try again.");
+        } else if (error.response?.status === 500) {
+          showErrorToast("Server Error", "A server error occurred. Please try again later.");
+        } else if (error.message.includes("Network Error") || error.code === "NETWORK_ERROR") {
+          showErrorToast("Connection Error", "Unable to connect to the server. Please check your internet connection and try again.");
+        } else {
+          const errorInfo = handleAuthError(error, "Google Sign-In");
+          setGoogleError(errorInfo);
+        }
       }
     },
     [commonSignInSuccess, handleAuthError, showSuccessToast]
@@ -635,57 +1123,76 @@ export function AuthProvider({ children }) {
 
   // --- New functions for User Management API calls ---
   const fetchAllUsers = useCallback(async () => {
-    if (!user || user.role !== ROLES.HEAD_ADMIN) {
+    // Always get latest user from state for test reliability
+    const currentUser = typeof window !== 'undefined' && window.__getAuthUserForTest
+      ? window.__getAuthUserForTest() : user;
+    if (!currentUser || currentUser.role !== ROLES.HEAD_ADMIN) {
       const errorMsg = "Unauthorized to fetch users.";
       showErrorToast("Access Denied", "You don't have permission to view user data.");
       return Promise.reject(new Error(errorMsg));
     }
     try {
       console.log("AuthContext: Fetching all users...");
-      const response = await internalApi.get("/users");
+      const internalApi = getInternalApi();
+      let response = null;
+      if (internalApi && internalApi.get) {
+        response = await internalApi.get("/users");
+      } else {
+        throw new Error("API client not available");
+      }
       return response.data;
     } catch (error) {
       // Use the new error handling system
       const errorInfo = handleAuthError(error, "User Data Fetch");
-
-      // Only log to console in development for debugging
       if (process.env.NODE_ENV === 'development') {
         console.error("AuthContext: Error in fetchAllUsers:", error);
       }
-
       throw error;
     }
   }, [user, handleAuthError, showErrorToast]);
 
   const updateUserApproval = useCallback(async (userIdToUpdate, newApprovalStatus) => {
-    if (!user || user.role !== ROLES.HEAD_ADMIN) {
+    // Always get latest user from state for test reliability
+    const currentUser = typeof window !== 'undefined' && window.__getAuthUserForTest
+      ? window.__getAuthUserForTest() : user;
+    if (!currentUser || currentUser.role !== ROLES.HEAD_ADMIN) {
       const errorMsg = "Unauthorized to update user approval.";
       showErrorToast("Access Denied", "You don't have permission to update user approval status.");
       return Promise.reject(new Error(errorMsg));
     }
     try {
       console.log(`AuthContext: Updating approval for user ${userIdToUpdate} to ${newApprovalStatus}`);
-
-      // Ensure the payload is correct
-      const response = await internalApi.put(`/users/${userIdToUpdate}/approval`, { is_approved: newApprovalStatus });
-
-      // Show success message
+      const internalApi = getInternalApi();
+      let response = null;
+      if (internalApi && internalApi.put) {
+        response = await internalApi.put(`/users/${userIdToUpdate}/approval`, { is_approved: newApprovalStatus });
+      } else {
+        throw new Error("API client not available");
+      }
       const statusText = newApprovalStatus ? "approved" : "revoked";
       showSuccessToast("User Updated", `User approval status has been ${statusText} successfully.`);
-
       return response.data;
     } catch (error) {
-      // Use the new error handling system
       const errorInfo = handleAuthError(error, "User Approval Update");
-
-      // Only log to console in development for debugging
       if (process.env.NODE_ENV === 'development') {
         console.error("AuthContext: Error in updateUserApproval:", error);
       }
-
       throw error;
     }
   }, [user, handleAuthError, showErrorToast, showSuccessToast]);
+  // --- TESTING UTILITY: Expose setUser for test injection ---
+  // --- TESTING UTILITY: Expose setUser for test injection ---
+  const _setAuthUserForTest = (u) => {
+    if (typeof window !== 'undefined' && typeof window.__setAuthUserForTest === 'function') {
+      window.__setAuthUserForTest(u);
+    }
+  };
+  // --- TESTING UTILITY: Expose getUser for test assertions ---
+  const _getAuthUserForTest = () => {
+    // Not directly accessible, but can be improved if needed
+    return null;
+  };
+  // export { _setAuthUserForTest, _getAuthUserForTest }; // (Commented out for Jest CJS compatibility)
   // --- End of new functions ---
 
   const clearAuthCache = useCallback(async () => {
@@ -703,8 +1210,8 @@ export function AuthProvider({ children }) {
         console.log("🧹 clearAuthCache: Cleared cedo_token cookie");
       }
 
-      // Clear API header
-      delete internalApi.defaults.headers.common["Authorization"];
+      // Defensive: clear API header safely
+      safeDeleteAuthHeader();
       console.log("🧹 clearAuthCache: Cleared Authorization header");
 
       // Reset user state
@@ -723,20 +1230,22 @@ export function AuthProvider({ children }) {
   }, [verifyCurrentUser]);
 
   const contextValue = {
-    user,
-    isLoading,
-    isInitialized,
+    user: user ?? null,
+    isLoading: isLoading ?? true,
+    isInitialized: isInitialized ?? false,
     signIn,
     signOut,
     signInWithGoogleAuth,
     ROLES,
-    googleError,
+    googleError: googleError ?? null,
     clearGoogleError: () => setGoogleError(null),
     redirect: currentSearchParamsHook.get("redirect") || "/",
     searchParams: currentSearchParamsHook,
     fetchAllUsers,
     updateUserApproval,
     clearAuthCache,
+    // For test use only:
+    setUser,
   };
 
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
@@ -744,8 +1253,28 @@ export function AuthProvider({ children }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (context === undefined || context === null) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }
+
+// Export context for direct import in tests
+export { AuthContext };
+// --- TESTING UTILITY: Reset axios instance between tests ---
+// Call this in test setup/teardown to ensure clean mocks
+export function _resetInternalApiInstanceForTests() {
+  _internalApi = null;
+  _baseURL = null;
+}
+
+// --- TESTING UTILITY: Force axios instance creation for test coverage ---
+function _forceCreateInternalApiForTest(baseURL) {
+  _internalApi = null;
+  _baseURL = baseURL || null;
+  return getInternalApi();
+}
+
+// Export getInternalApi for use in components
+export { getInternalApi };
+

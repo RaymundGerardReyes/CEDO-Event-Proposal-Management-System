@@ -1,11 +1,21 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { ErrorBoundary } from 'react-error-boundary'
+import { useEffect, useState } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 
 // Router hooks error fallback
 function RouterErrorFallback({ error, resetErrorBoundary }) {
-    console.error('Router hooks error:', error)
+    // ✅ FIX: Proper error logging with detailed information
+    const errorDetails = {
+        message: error?.message || 'Unknown router error',
+        name: error?.name || 'Error',
+        stack: error?.stack || 'No stack trace',
+        type: typeof error,
+        stringified: error?.toString() || 'Cannot convert to string'
+    };
+
+    console.error('Router hooks error:', errorDetails);
+    console.error('Raw error object:', error);
 
     useEffect(() => {
         // Auto-recovery for hooks-related errors
@@ -59,11 +69,19 @@ export default function RouterStabilizer({ children }) {
         <ErrorBoundary
             FallbackComponent={RouterErrorFallback}
             onError={(error, errorInfo) => {
-                console.error('RouterStabilizer caught error:', {
-                    error: error.message,
-                    isHooksError: error.message.includes('hook'),
-                    componentStack: errorInfo.componentStack
-                })
+                // ✅ FIX: Enhanced error logging with complete details
+                const errorDetails = {
+                    message: error?.message || 'Unknown error',
+                    name: error?.name || 'Error',
+                    stack: error?.stack || 'No stack trace',
+                    isHooksError: error?.message?.includes('hook') || false,
+                    isRenderError: error?.message?.includes('render') || false,
+                    componentStack: errorInfo?.componentStack || 'No component stack'
+                };
+
+                console.error('RouterStabilizer caught error:', errorDetails);
+                console.error('Raw error object:', error);
+                console.error('Error info:', errorInfo);
             }}
             onReset={() => {
                 console.log('RouterStabilizer reset - attempting recovery')

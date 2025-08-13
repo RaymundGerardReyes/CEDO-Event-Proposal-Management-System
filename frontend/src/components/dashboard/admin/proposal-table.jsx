@@ -3,6 +3,32 @@
 // Force dynamic rendering to prevent SSG issues
 export const dynamic = 'force-dynamic';
 
+// Utility function to safely get file count
+const getSafeFileCount = (files) => {
+  // Handle null, undefined, or non-object values
+  if (!files) return 0;
+
+  // Handle arrays
+  if (Array.isArray(files)) {
+    return files.length;
+  }
+
+  // Handle objects
+  if (typeof files === 'object') {
+    const count = Object.keys(files).length;
+    return isNaN(count) ? 0 : count;
+  }
+
+  // Handle other types (strings, numbers, etc.)
+  return 0;
+};
+
+// Utility function to safely format file count for display
+const formatFileCount = (files) => {
+  const count = getSafeFileCount(files);
+  return count === 0 ? 'No files' : `${count} file${count === 1 ? '' : 's'}`;
+};
+
 // Safe DOM className utility functions
 const safeClassCheck = (element, className) => {
   try {
@@ -125,6 +151,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { getAppConfig } from "@/lib/utils";
+import { robustFetch } from '@/utils/api';
 import {
   Calendar,
   CheckCircle,
@@ -186,6 +213,60 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
   useEffect(() => {
     toastRef.current = toast
   }, [toast])
+
+  // ✅ Test function to verify backend connection and API endpoints
+  const testBackendConnection = async () => {
+    try {
+      const backendUrl = getAppConfig().backendUrl
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('cedo_token='))
+        ?.split('=')[1];
+
+      console.log('🧪 Testing backend connection...')
+      console.log('📡 Backend URL:', backendUrl)
+      console.log('🔑 Token exists:', !!token)
+
+      // Test basic connectivity
+      const healthResponse = await fetch(`${backendUrl}/api/health`)
+      console.log('❤️ Health check:', healthResponse.status, healthResponse.statusText)
+
+      if (token) {
+        // Test auth endpoint
+        const authResponse = await fetch(`${backendUrl}/api/auth/me`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        console.log('🔐 Auth check:', authResponse.status, authResponse.statusText)
+
+        // Test proposals endpoint
+        const proposalsResponse = await fetch(`${backendUrl}/api/admin/proposals?limit=1`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        console.log('📋 Proposals endpoint:', proposalsResponse.status, proposalsResponse.statusText)
+
+        if (proposalsResponse.ok) {
+          const data = await proposalsResponse.json()
+          console.log('📋 Sample proposal data:', data.proposals?.[0])
+        }
+      }
+
+      toast({
+        title: "Backend Connection Test",
+        description: "Check console for detailed results",
+        variant: "default"
+      })
+    } catch (error) {
+      console.error('❌ Backend connection test failed:', error)
+      toast({
+        title: "Connection Test Failed",
+        description: error.message,
+        variant: "destructive"
+      })
+    }
+  }
 
   // ✅ Ref to track if component is mounted (prevent state updates after unmount)
   const isMountedRef = useRef(true);
@@ -277,13 +358,17 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
       console.log('📊 Fetching proposals from hybrid API:', apiUrl)
       console.log('📊 Query params:', { currentPage, statusFilter, debouncedSearchTerm })
 
-      const response = await fetch(apiUrl, {
+      const response = await robustFetch(apiUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-      })
+      }, {
+        toastMessage: 'Failed to fetch proposals.',
+        toast: toastRef.current, // or your toast instance
+        sentryContext: { feature: 'AdminProposalTable' }
+      });
 
       console.log('📡 Frontend API response:', response.status, response.statusText)
 
@@ -315,12 +400,45 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
       console.log('📊 Raw API response data:', result)
 
       if (result.success) {
-        const proposals = result.proposals || []
+        const rawProposals = result.proposals || []
         const pagination = result.pagination || {}
-        setProposals(proposals)
+
+        // ✅ Normalize proposal data to ensure consistent field mapping
+        const normalizedProposals = rawProposals.map(proposal => ({
+          ...proposal,
+          // Ensure status field consistency (backend uses 'proposal_status', frontend expects 'status')
+          status: proposal.status || proposal.proposal_status || 'pending',
+          proposal_status: proposal.proposal_status || proposal.status || 'pending',
+          // Ensure admin comments field consistency
+          adminComments: proposal.adminComments || proposal.admin_comments || '',
+          admin_comments: proposal.admin_comments || proposal.adminComments || '',
+          // Normalize other common fields
+          eventName: proposal.eventName || proposal.event_name || proposal.event_title || '',
+          contactPerson: proposal.contactPerson || proposal.contact_person || proposal.contact_name || '',
+          contactEmail: proposal.contactEmail || proposal.contact_email || '',
+          contactPhone: proposal.contactPhone || proposal.contact_phone || '',
+          organizationType: proposal.organizationType || proposal.organization_type || '',
+          venue: proposal.venue || '',
+          startDate: proposal.startDate || proposal.start_date || proposal.event_start_date || '',
+          endDate: proposal.endDate || proposal.end_date || proposal.event_end_date || '',
+          timeStart: proposal.timeStart || proposal.time_start || proposal.event_start_time || '',
+          timeEnd: proposal.timeEnd || proposal.time_end || proposal.event_end_time || '',
+          eventType: proposal.eventType || proposal.event_type || '',
+          eventMode: proposal.eventMode || proposal.event_mode || '',
+          submittedAt: proposal.submittedAt || proposal.submitted_at || proposal.created_at || '',
+          updatedAt: proposal.updatedAt || proposal.updated_at || '',
+          // Check if proposal has files
+          hasFiles: !!(proposal.files && Object.keys(proposal.files).length > 0) ||
+            !!(proposal.school_gpoa_file_name || proposal.school_proposal_file_name ||
+              proposal.community_gpoa_file_name || proposal.community_proposal_file_name ||
+              proposal.accomplishment_report_file_name || proposal.pre_registration_file_name ||
+              proposal.final_attendance_file_name)
+        }))
+
+        setProposals(normalizedProposals)
         setPagination(pagination)
-        console.log('✅ Proposals fetched successfully:', proposals.length)
-        console.log('📊 Sample proposal data:', proposals[0])
+        console.log('✅ Proposals fetched successfully:', normalizedProposals.length)
+        console.log('📊 Sample normalized proposal data:', normalizedProposals[0])
         console.log('📊 Pagination data:', pagination)
       } else {
         console.error('❌ Error fetching proposals:', result.error)
@@ -371,11 +489,23 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
     debouncedFetchProposals()
   }, [debouncedFetchProposals])
 
-  // ✅ Enhanced proposal status update with comment support
+  // ✅ Enhanced proposal status update with comment support and improved error handling
   const updateProposalStatus = async (proposalId, newStatus, adminComments = '') => {
+    if (!proposalId) {
+      toast({
+        title: "Error",
+        description: "Invalid proposal ID",
+        variant: "destructive"
+      })
+      return
+    }
+
     setActionLoading(true)
+    console.log(`🔄 Updating proposal ${proposalId} status to: ${newStatus}`, { adminComments })
+
     try {
       const backendUrl = getAppConfig().backendUrl
+      console.log(`📡 Backend URL: ${backendUrl}`)
 
       // Get authentication token from cookies
       const token = document.cookie
@@ -387,54 +517,109 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
         throw new Error('Authentication token not found. Please sign in again.');
       }
 
+      // Prepare the request payload
+      const payload = {
+        status: newStatus,
+        adminComments: adminComments || null
+      }
+
+      console.log(`📤 Sending PATCH request to: ${backendUrl}/api/admin/proposals/${proposalId}/status`)
+      console.log(`📤 Payload:`, payload)
+
       const response = await fetch(`${backendUrl}/api/admin/proposals/${proposalId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          status: newStatus,
-          adminComments
-        })
+        body: JSON.stringify(payload)
       })
 
+      console.log(`📡 Response status: ${response.status} ${response.statusText}`)
+
+      // Handle different response scenarios
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorData.message || errorMessage
+          console.error('❌ Server error response:', errorData)
+        } catch (parseError) {
+          console.error('❌ Could not parse error response:', parseError)
+          const textError = await response.text()
+          console.error('❌ Raw error response:', textError)
+          errorMessage = textError || errorMessage
+        }
+        throw new Error(errorMessage)
+      }
+
       const data = await response.json()
+      console.log('✅ Success response:', data)
 
       if (data.success) {
         toast({
           title: "Success",
-          description: data.message,
+          description: data.message || `Proposal ${newStatus} successfully`,
           variant: "default"
         })
 
-        // ✅ Immediately update selectedProposal with the new status and comments
-        if (selectedProposal && adminComments) {
+        // ✅ Update the proposals list immediately with optimistic update
+        setProposals(prevProposals =>
+          prevProposals.map(proposal =>
+            proposal.id === parseInt(proposalId) || proposal.id === proposalId
+              ? {
+                ...proposal,
+                proposal_status: newStatus,
+                status: newStatus,
+                admin_comments: adminComments,
+                adminComments: adminComments,
+                updated_at: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              }
+              : proposal
+          )
+        )
+
+        // ✅ Update selectedProposal if it's the one being updated
+        if (selectedProposal && (selectedProposal.id === parseInt(proposalId) || selectedProposal.id === proposalId)) {
           setSelectedProposal(prev => ({
             ...prev,
+            proposal_status: newStatus,
             status: newStatus,
+            admin_comments: adminComments,
             adminComments: adminComments,
+            updated_at: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           }))
         }
 
-        // ✅ Fetch updated proposal data to show comments from server
-        await fetchUpdatedProposalDetails(proposalId)
+        // ✅ Fetch updated proposal data to ensure consistency
+        setTimeout(() => {
+          fetchUpdatedProposalDetails(proposalId)
+          fetchProposals()
+        }, 1000)
 
-        // Refresh the proposals list
-        fetchProposals()
-
-        // ✅ Close comment dialog and reset state (but keep details dialog open to show comments)
+        // ✅ Close comment dialog and reset state
         setShowCommentDialog(false)
         setRejectionComment('')
       } else {
-        throw new Error(data.error || 'Failed to update proposal')
+        throw new Error(data.error || data.message || 'Failed to update proposal - server returned success: false')
       }
     } catch (error) {
       console.error('❌ Error updating proposal:', error)
+
+      // Enhanced error logging for debugging
+      console.error('❌ Error details:', {
+        proposalId,
+        newStatus,
+        adminComments,
+        errorMessage: error.message,
+        errorStack: error.stack
+      })
+
       toast({
         title: "Error",
-        description: error.message || "Failed to update proposal",
+        description: error.message || "Failed to update proposal. Please check the console for details.",
         variant: "destructive"
       })
     } finally {
@@ -648,18 +833,34 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
                   aria-label="Search proposals"
                 />
               </div>
-              <Button
-                onClick={fetchProposals}
-                variant="outline"
-                disabled={loading}
-                className="w-full @sm:w-auto @sm:min-w-[100px] px-3 py-2 border-gray-300 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 rounded-lg flex items-center justify-center"
-                aria-label="Refresh proposals list"
-              >
-                <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span className="whitespace-nowrap">Refresh</span>
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={fetchProposals}
+                  variant="outline"
+                  disabled={loading}
+                  className="@sm:min-w-[100px] px-3 py-2 border-gray-300 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 rounded-lg flex items-center justify-center"
+                  aria-label="Refresh proposals list"
+                >
+                  <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span className="whitespace-nowrap">Refresh</span>
+                </Button>
+                <Button
+                  onClick={testBackendConnection}
+                  variant="outline"
+                  disabled={loading}
+                  className="@sm:min-w-[100px] px-3 py-2 border-orange-300 hover:border-orange-500 hover:bg-orange-50 transition-all duration-200 rounded-lg flex items-center justify-center text-orange-600"
+                  aria-label="Test backend connection"
+                  title="Test API connection and endpoints"
+                >
+                  <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="whitespace-nowrap hidden @sm:inline">Test API</span>
+                  <span className="whitespace-nowrap @sm:hidden">Test</span>
+                </Button>
+              </div>
             </div>
             {searchTerm && (
               <div className="mt-3 text-sm text-gray-600">
@@ -780,7 +981,7 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
                                       <FileText className="h-3 w-3 text-green-600" />
                                     </div>
                                     <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                                      {Object.keys(proposal.files || {}).length} files
+                                      {formatFileCount(proposal.files) || 'Files'}
                                     </Badge>
                                   </div>
                                 ) : (
@@ -903,7 +1104,7 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
                               {proposal.hasFiles ? (
                                 <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
                                   <FileText className="h-3 w-3 mr-1" />
-                                  {Object.keys(proposal.files || {}).length} files
+                                  {formatFileCount(proposal.files) || 'Files'}
                                 </Badge>
                               ) : (
                                 <Badge variant="outline" className="text-xs bg-gray-50 text-gray-500 border-gray-200">
@@ -1251,12 +1452,12 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
                         variant={selectedProposal.hasFiles ? "default" : "secondary"}
                         className="text-xs"
                       >
-                        {selectedProposal.hasFiles ? `${Object.keys(selectedProposal.files || {}).length} files` : 'No files'}
+                        {formatFileCount(selectedProposal.files) || 'Files'}
                       </Badge>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 @sm:p-6">
-                    {selectedProposal.hasFiles && selectedProposal.files && Object.keys(selectedProposal.files).length > 0 ? (
+                    {selectedProposal.hasFiles && selectedProposal.files && getSafeFileCount(selectedProposal.files) > 0 ? (
                       // Show actual files when they exist
                       <div className="grid grid-cols-1 @md:grid-cols-2 gap-3 @sm:gap-4">
                         {Object.entries(selectedProposal.files).map(([fileType, fileInfo]) => (

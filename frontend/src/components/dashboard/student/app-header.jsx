@@ -3,6 +3,7 @@
 import { Bell, Check, ChevronDown, Clock, LogOut, Settings, User, X } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
+import { getSafeImageUrl } from "@/utils/image-utils"
 
 // Sample notifications data
 const sampleNotifications = [
@@ -69,7 +70,12 @@ function Avatar({ className = "", children }) {
 }
 
 function AvatarImage({ src, alt }) {
-  return <img className="aspect-square h-full w-full" src={src || "/placeholder.svg"} alt={alt} />
+  const safeSrc = getSafeImageUrl(src);
+  return <img className="aspect-square h-full w-full" src={safeSrc} alt={alt} onError={(e) => {
+    if (e.target.src !== getSafeImageUrl()) {
+      e.target.src = getSafeImageUrl();
+    }
+  }} />
 }
 
 function AvatarFallback({ className = "", children }) {

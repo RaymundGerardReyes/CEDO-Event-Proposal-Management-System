@@ -26,7 +26,7 @@ export async function GET(request) {
         // Connect to hybrid API (MySQL + MongoDB)
         const config = getAppConfig();
         const backendUrl = config.backendUrl || process.env.BACKEND_URL || 'http://localhost:5000';
-        const apiUrl = `${backendUrl}/api/mongodb-proposals/admin/proposals-hybrid`
+        const apiUrl = `${backendUrl}/api/mongodb-unified/admin/proposals-hybrid`
 
         // Build query parameters for backend
         const queryParams = new URLSearchParams()
@@ -38,16 +38,16 @@ export async function GET(request) {
         console.log('🌐 Calling backend API:', finalUrl)
 
         // Test backend connectivity first
-        try {
-            const healthCheck = await fetch(`${backendUrl}/health`, {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' }
-            })
-            console.log('🏥 Backend health check:', healthCheck.status, healthCheck.ok)
-        } catch (healthError) {
-            console.error('❌ Backend health check failed:', healthError.message)
-            throw new Error(`Backend server not reachable at ${backendUrl}. Please ensure backend is running.`)
-        }
+     //   try {
+         //   const healthCheck = await fetch(`${backendUrl}/health`, {
+         //       method: 'GET',
+        //        headers: { 'Content-Type': 'application/json' }
+       //     })
+      //      console.log('🏥 Backend health check:', healthCheck.status, healthCheck.ok)
+     //   } catch (healthError) {
+     //       console.error('❌ Backend health check failed:', healthError.message)
+    //        throw new Error(`Backend server not reachable at ${backendUrl}. Please ensure backend is running.`)
+   //     }
 
         const response = await fetch(finalUrl, {
             method: 'GET',

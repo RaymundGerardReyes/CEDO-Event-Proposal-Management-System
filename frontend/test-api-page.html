@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test</title>
+</head>
+
+<body>
+    <h1>API Test Page</h1>
+    <button onclick="testApi()">Test API Call</button>
+    <div id="result"></div>
+
+    <script>
+        async function testApi() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing...';
+
+            try {
+                const backendUrl = 'http://localhost:5000';
+                const apiUrl = `${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?limit=5`;
+
+                console.log('📍 URL:', apiUrl);
+
+                const response = await fetch(apiUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                });
+
+                console.log('📊 Response status:', response.status);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('❌ Response error:', errorText);
+                    resultDiv.innerHTML = `Error: ${response.status} - ${response.statusText}`;
+                    return;
+                }
+
+                const data = await response.json();
+                console.log('✅ Response data:', data);
+
+                const transformedProposals = data.proposals.map(proposal => ({
+                    id: proposal.id,
+                    title: proposal.eventName || proposal.event_name || 'Untitled Event',
+                    organization: proposal.organizationName || proposal.organization_name || 'Unknown Organization',
+                    submittedOn: proposal.submittedAt || proposal.created_at || new Date().toISOString().split('T')[0],
+                    status: proposal.status || proposal.proposal_status || 'pending',
+                    assignedTo: proposal.assignedTo || 'Unassigned',
+                }));
+
+                console.log('🔄 Transformed proposals:', transformedProposals);
+
+                resultDiv.innerHTML = `
+                    <h3>Success!</h3>
+                    <p>Found ${transformedProposals.length} proposals</p>
+                    <ul>
+                        ${transformedProposals.map(p => `
+                            <li><strong>${p.title}</strong> - ${p.organization} (${p.status})</li>
+                        `).join('')}
+                    </ul>
+                `;
+
+            } catch (error) {
+                console.error('❌ Test failed:', error);
+                resultDiv.innerHTML = `Error: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+
+</html>

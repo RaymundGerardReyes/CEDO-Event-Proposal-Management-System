@@ -1,3 +1,8 @@
+// File: next.config.js
+// Purpose: Next.js configuration for CEDO partnership management frontend with Turbopack optimization.
+// Key approaches: Stable Turbopack configuration, production optimizations, Windows compatibility fixes.
+// Refactor: Migrated from deprecated experimental.turbo to stable turbopack configuration.
+
 const isTurbopack = process.env.TURBOPACK === '1' || process.env.NEXT_PRIVATE_TURBOPACK === '1'
 
 /** @type {import('next').NextConfig} */
@@ -16,16 +21,10 @@ const baseConfig = {
   poweredByHeader: false, // Remove X-Powered-By header for security
   generateEtags: true, // Enable ETags for better caching
 
-  // Experimental features (Windows-optimized for stable builds)
+  // Experimental features (simplified for Next.js 15 stability)
   experimental: {
-    // WINDOWS FIX: Disable problematic experimental features that cause hangs
-    // Only enable essential features for production stability
-
     // Enable scroll restoration (stable)
     scrollRestoration: true,
-
-    // WINDOWS FIX: Disable package import optimization that causes build hangs
-    // optimizePackageImports: [], // Disabled for Windows stability
 
     // Server Actions optimization (simplified)
     serverActions: {
@@ -33,24 +32,9 @@ const baseConfig = {
       bodySizeLimit: "2mb",
     },
 
-    // WINDOWS FIX: Disable optimistic client cache (can cause issues)
-    // optimisticClientCache: false,
-
-    // PRODUCTION: Enable CSS optimization only when stable
-    optimizeCss: process.env.NODE_ENV === "production",
-
-    // WINDOWS FIX: Disable webpack build worker (causes hangs on Windows)
-    // webpackBuildWorker: false,
-
-    // WINDOWS FIX: Disable parallel processing (causes Windows build issues)
-    // parallelServerBuildTraces: false,
-    // parallelServerCompiles: false,
-
-    // WINDOWS FIX: Disable server components HMR cache
-    // serverComponentsHmrCache: false,
-
-    // WINDOWS FIX: Use loose CSS chunking instead of strict
-    cssChunking: true,
+    // Disable problematic features that cause SSR issues
+    optimizeCss: false,
+    cssChunking: false,
   },
 
   // ENHANCED Image optimization
@@ -174,22 +158,23 @@ const baseConfig = {
   },
 }
 
-// ✅ TURBOPACK CONFIGURATION
-// Configure Turbopack when it's being used
-if (isTurbopack) {
-  baseConfig.experimental = {
-    ...baseConfig.experimental,
-    // Turbopack specific optimizations
-    turbo: {
-      rules: {
-        '*.svg': {
-          loaders: ['@svgr/webpack'],
-          as: '*.js',
-        },
-      },
-    },
-  }
-}
+// ✅ SIMPLIFIED TURBOPACK CONFIGURATION
+// Disable Turbopack for now to fix SSR runtime issues
+// if (isTurbopack) {
+//   baseConfig.turbopack = {
+//     // Turbopack-specific optimizations
+//     // Note: SVG files are handled as static assets, no special loader needed
+//     // The codebase uses SVG files as src attributes, not as React components
+
+//     // Optional: Configure resolve extensions if needed
+//     resolveExtensions: ['.jsx', '.js', '.json'],
+
+//     // Optional: Configure aliases if needed
+//     resolveAlias: {
+//       // Add any module aliases here if needed
+//     },
+//   }
+// }
 
 // Simplified compiler configuration to prevent RSC conflicts
 if (!isTurbopack && process.env.NODE_ENV !== "production") {

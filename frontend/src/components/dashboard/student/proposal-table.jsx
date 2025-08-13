@@ -13,7 +13,7 @@ import { useMemo, useState } from "react"; // Added useMemo
 const proposalsData = [ // Renamed to avoid conflict if proposals is used as state/variable
   {
     id: "PROP-1001",
-    title: "Sports Festival",
+    title: "Sports Festivalasdasd",
     organization: "USTP Organization",
     submittedOn: "2023-05-15",
     status: "pending",
@@ -21,7 +21,7 @@ const proposalsData = [ // Renamed to avoid conflict if proposals is used as sta
   },
   {
     id: "PROP-1002",
-    title: "HIV And Awareness Month",
+    title: "HIV And Awareness Month hcucucuc",
     organization: "XU Organization",
     submittedOn: "2023-05-12",
     status: "approved",
@@ -45,7 +45,7 @@ const proposalsData = [ // Renamed to avoid conflict if proposals is used as sta
   },
   {
     id: "PROP-1005",
-    title: "KSB",
+    title: "KSBasdasd",
     organization: "CSO Organization",
     submittedOn: "2023-05-05",
     status: "pending",

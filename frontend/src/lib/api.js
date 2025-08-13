@@ -9,8 +9,13 @@ import axios from 'axios';
 // CONFIGURATION
 // ============================================================================
 
-// Base API URL with fallback
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || 'http://localhost:5000';
+// Base API URL with fallback - ensure no trailing /api
+let baseUrl = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || 'http://localhost:5000';
+// Remove trailing /api if present to prevent double /api/ in URLs
+if (baseUrl.endsWith('/api')) {
+  baseUrl = baseUrl.replace(/\/api$/, '');
+}
+export const API_BASE_URL = baseUrl;
 
 // API endpoints configuration
 export const API_ENDPOINTS = {
@@ -232,19 +237,7 @@ export async function loadApiConfig() {
   }
 }
 
-/**
- * Check if backend is available
- * @returns {Promise<boolean>} True if backend is healthy
- */
-export async function checkBackendHealth() {
-  try {
-    const health = await apiGet(API_ENDPOINTS.HEALTH);
-    return health.status === 'ok';
-  } catch (error) {
-    console.error('❌ Backend health check failed:', error);
-    return false;
-  }
-}
+
 
 /**
  * Get API base URL for debugging
@@ -278,7 +271,6 @@ export default {
   apiPut,
   apiDelete,
   loadApiConfig,
-  checkBackendHealth,
   getApiBaseUrl,
   createApiUrl,
 };

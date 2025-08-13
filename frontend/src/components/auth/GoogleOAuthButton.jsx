@@ -4,6 +4,11 @@ import { useAuth } from '@/contexts/auth-context';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
+// Configuration object for API endpoints
+const config = {
+    backendUrl: process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || 'http://localhost:5000'
+};
+
 /**
  * Google OAuth Button Component
  * Implements secure OAuth 2.0 flow with the backend server

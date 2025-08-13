@@ -436,7 +436,10 @@ export function EventList({ filter = "all", initialSearchTerm = "", initialCateg
             <>
               <DialogHeader>
                 <DialogTitle className="text-cedo-blue">{selectedEvent.title}</DialogTitle>
-                <DialogDescription>
+                <div className="flex items-center gap-2">
+                  <DialogDescription className="text-sm text-muted-foreground">
+                    Event Category:
+                  </DialogDescription>
                   <Badge
                     className={
                       selectedEvent.category === "academic"
@@ -452,7 +455,7 @@ export function EventList({ filter = "all", initialSearchTerm = "", initialCateg
                   >
                     {selectedEvent.category.charAt(0).toUpperCase() + selectedEvent.category.slice(1)}
                   </Badge>
-                </DialogDescription>
+                </div>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
