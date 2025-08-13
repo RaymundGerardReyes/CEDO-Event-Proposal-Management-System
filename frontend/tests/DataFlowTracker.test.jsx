@@ -30,7 +30,7 @@ Object.defineProperty(window, 'sessionStorage', {
 global.fetch = vi.fn();
 
 // Import the component
-import { DataFlowTracker } from '../src/app/main/student-dashboard/submit-event/[draftId]/debug/DataFlowTracker';
+import DataFlowTracker from '../src/app/main/student-dashboard/submit-event/[draftId]/debug/DataFlowTracker';
 
 describe('DataFlowTracker Component', () => {
     beforeEach(() => {
