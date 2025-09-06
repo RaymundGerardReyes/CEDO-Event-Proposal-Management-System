@@ -1,40 +1,43 @@
 // File: next.config.js
-// Purpose: Next.js configuration for CEDO partnership management frontend with Turbopack optimization.
-// Key approaches: Stable Turbopack configuration, production optimizations, Windows compatibility fixes.
-// Refactor: Migrated from deprecated experimental.turbo to stable turbopack configuration.
-
-const isTurbopack = process.env.TURBOPACK === '1' || process.env.NEXT_PRIVATE_TURBOPACK === '1'
+// Purpose: Next.js configuration for CEDO partnership management frontend with stable development setup.
+// Key approaches: Simplified configuration, Windows compatibility, fallback options for Turbopack issues.
+// Refactor: Fixed font loading issues, disabled problematic Turbopack features, added stable font handling.
 
 /** @type {import('next').NextConfig} */
-const baseConfig = {
+const nextConfig = {
   // React strict mode - enabled for production optimization
   reactStrictMode: true,
 
   // Enable compression for better performance
   compress: true,
 
-  // Server external packages (moved from experimental)
+  // Server external packages
   serverExternalPackages: ["axios", "jose", "react-google-recaptcha"],
 
   // PRODUCTION OPTIMIZATIONS
-  productionBrowserSourceMaps: false, // Disable source maps in production for smaller bundles
-  poweredByHeader: false, // Remove X-Powered-By header for security
-  generateEtags: true, // Enable ETags for better caching
+  productionBrowserSourceMaps: false,
+  poweredByHeader: false,
+  generateEtags: true,
 
-  // Experimental features (simplified for Next.js 15 stability)
+  // ✅ FIXED: Simplified experimental features - removed problematic font handling
   experimental: {
-    // Enable scroll restoration (stable)
+    // Only enable stable features
     scrollRestoration: true,
 
-    // Server Actions optimization (simplified)
-    serverActions: {
-      allowedOrigins: ["localhost:3000", "127.0.0.1:3000"],
-      bodySizeLimit: "2mb",
-    },
-
-    // Disable problematic features that cause SSR issues
+    // ✅ CRITICAL: Disable problematic features that cause font loading issues
     optimizeCss: false,
     cssChunking: false,
+  },
+
+  // ✅ FIXED: Moved Turbopack configuration to the correct location
+  turbopack: {
+    // Minimal Turbopack configuration without font handling
+    rules: {
+      '*.svg': {
+        loaders: ['@svgr/webpack'],
+        as: '*.js',
+      },
+    },
   },
 
   // ENHANCED Image optimization
@@ -52,20 +55,30 @@ const baseConfig = {
         port: '',
         pathname: '/**',
       },
+      // ✅ ADDED: Allow Google Fonts domains
+      {
+        protocol: 'https',
+        hostname: 'fonts.gstatic.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'fonts.googleapis.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
     formats: ["image/webp", "image/avif"],
-    minimumCacheTTL: 31536000, // 1 year cache for images
+    minimumCacheTTL: 31536000,
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
 
-  // Page extensions (optimized for JavaScript)
+  // Page extensions
   pageExtensions: ["js", "jsx"],
-
-  // Build output optimization
-  // output: "standalone", // Not needed for simple container
 
   // ESLint configuration
   eslint: {
@@ -78,7 +91,7 @@ const baseConfig = {
     ignoreBuildErrors: process.env.NODE_ENV === "production",
   },
 
-  // Environment variables - Critical for middleware
+  // Environment variables
   env: {
     APP_ENV: process.env.NODE_ENV || "development",
     BACKEND_URL: process.env.BACKEND_URL || "http://localhost:5000",
@@ -87,20 +100,17 @@ const baseConfig = {
     RECAPTCHA_SITE_KEY: process.env.RECAPTCHA_SITE_KEY,
     JWT_SECRET_DEV: process.env.JWT_SECRET_DEV,
     JWT_SECRET: process.env.JWT_SECRET,
-    // Session timeout mapping
     SESSION_TIMEOUT_MINUTES: (() => {
       const raw = process.env.SESSION_TIMEOUT_MINUTES;
       const parsed = parseInt(raw, 10);
       return String(
         Number.isInteger(parsed) && parsed > 0
           ? parsed
-          : 30  // fallback default
+          : 30
       );
     })(),
     DISABLE_GOOGLE_SIGNIN_IN_DEV: process.env.NODE_ENV === 'development' ? 'true' : 'false',
     ENABLE_DOM_ERROR_RECOVERY: 'true',
-    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
-    SESSION_TIMEOUT_MINUTES: process.env.SESSION_TIMEOUT_MINUTES || '30',
   },
 
   // Build directory
@@ -114,7 +124,7 @@ const baseConfig = {
     position: "bottom-right",
   },
 
-  // PRODUCTION: Headers for performance and security
+  // ✅ ENHANCED: Headers for performance, security, and font loading
   headers: async () => [
     {
       source: '/(.*)',
@@ -129,7 +139,7 @@ const baseConfig = {
         },
         {
           key: 'Server',
-          value: 'CEDO' // Custom server header
+          value: 'CEDO'
         }
       ]
     },
@@ -142,9 +152,23 @@ const baseConfig = {
         },
       ],
     },
+    // ✅ ADDED: Font preload headers for better performance
+    {
+      source: '/_next/static/fonts/(.*)',
+      headers: [
+        {
+          key: 'Cache-Control',
+          value: 'public, max-age=31536000, immutable',
+        },
+        {
+          key: 'Access-Control-Allow-Origin',
+          value: '*',
+        },
+      ],
+    },
   ],
 
-  // PRODUCTION: Webpack optimizations (simplified to fix exports error)
+  // ✅ ENHANCED: Webpack configuration with font handling
   webpack: (config, { dev, isServer }) => {
     // Optimize bundle size
     config.resolve.fallback = {
@@ -154,33 +178,23 @@ const baseConfig = {
       tls: false,
     };
 
+    // Handle SVG files properly
+    config.module.rules.push({
+      test: /\.svg$/,
+      use: ['@svgr/webpack'],
+    });
+
+    // ✅ ADDED: Font file handling
+    config.module.rules.push({
+      test: /\.(woff|woff2|eot|ttf|otf)$/,
+      type: 'asset/resource',
+      generator: {
+        filename: 'static/fonts/[name][ext]',
+      },
+    });
+
     return config;
   },
-}
+};
 
-// ✅ SIMPLIFIED TURBOPACK CONFIGURATION
-// Disable Turbopack for now to fix SSR runtime issues
-// if (isTurbopack) {
-//   baseConfig.turbopack = {
-//     // Turbopack-specific optimizations
-//     // Note: SVG files are handled as static assets, no special loader needed
-//     // The codebase uses SVG files as src attributes, not as React components
-
-//     // Optional: Configure resolve extensions if needed
-//     resolveExtensions: ['.jsx', '.js', '.json'],
-
-//     // Optional: Configure aliases if needed
-//     resolveAlias: {
-//       // Add any module aliases here if needed
-//     },
-//   }
-// }
-
-// Simplified compiler configuration to prevent RSC conflicts
-if (!isTurbopack && process.env.NODE_ENV !== "production") {
-  baseConfig.compiler = {
-    styledComponents: true,
-  }
-}
-
-export default baseConfig;
+export default nextConfig;

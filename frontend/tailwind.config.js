@@ -64,6 +64,21 @@ export default {
         '9xl': '96rem',
         '10xl': '104rem',
       },
+      // ✅ ADDED: Font family configuration
+      fontFamily: {
+        'inter': ['var(--font-inter)', 'Inter', 'sans-serif'],
+        'sans': [
+          'var(--font-inter)',
+          'Inter',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          'Roboto',
+          '"Helvetica Neue"',
+          'Arial',
+          'sans-serif'
+        ],
+      },
       // Custom boxShadow definitions
       boxShadow: {
         'card-hover': '0 4px 10px rgba(0, 0, 0, 0.1)',

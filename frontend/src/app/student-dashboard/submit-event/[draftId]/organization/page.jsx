@@ -2,7 +2,7 @@
 
 import SubmitEventFlow from '../components/SubmitEventFlow';
 
-export default function OrganizationPage({ params }) {
+export default function OrgInfoPage({ params }) {
     // The SubmitEventFlow component handles all the logic including:
     // - useDraft hook integration
     // - OrganizationSection rendering

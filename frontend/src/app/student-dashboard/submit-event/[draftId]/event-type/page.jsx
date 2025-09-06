@@ -4,8 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import { saveEventTypeSelection } from '@/lib/draft-api';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
-
-import EventTypeDebugger from '../debug/EventTypeDebugger.jsx';
+import { EventTypeDebugger } from '../debug';
 import EventTypeSelection from './EventTypeSelection.jsx';
 
 export default function EventTypePage() {

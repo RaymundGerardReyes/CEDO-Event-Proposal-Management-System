@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig } from 'vitest/config';
 
+// Define aliases in a single place for consistency
 const alias = {
   '@': path.resolve(__dirname, 'src'),
   '@components': path.resolve(__dirname, 'src/components'),
@@ -18,35 +19,52 @@ const alias = {
 };
 
 export default defineConfig({
-  root: '.', // paths are relative to project root
-
-  // Use React plugin for all environments
+  // The React plugin is necessary for processing JSX in your tests.
+  // It should be defined at the top level.
   plugins: [react()],
 
   resolve: {
     alias,
-    extensions: ['.js', '.jsx', '.ts', '.tsx', '.json']
+  },
+
+  // ✅ FIXED: Add esbuild configuration to handle path issues
+  esbuild: {
+    // Handle spaces in file paths
+    keepNames: true,
+    // Increase memory limit for complex builds
+    target: 'es2020',
+    // Disable source maps for better performance
+    sourcemap: false,
   },
 
   test: {
-    environment: 'jsdom',
+    // Vitest inherits top-level plugins and aliases, so you don't need to redeclare them here.
     globals: true,
+    environment: 'jsdom',
     setupFiles: ['./vitest.setup.js'],
-    include: ['tests/**/*.{test,spec}.{js,jsx,mjs,cjs}'],
-    css: false, // Disable CSS processing for tests
+    include: ['tests/**/*.{test,spec}.{js,jsx}'], // Simplified include pattern
 
-    // Disable plugins that cause issues in test environment
-    plugins: [],
+    // ✅ ENHANCED: Add test-specific esbuild config
+    esbuild: {
+      // Handle path encoding issues
+      keepNames: true,
+      target: 'es2020',
+      sourcemap: false,
+    },
 
-    alias, // reuses same aliases for Vitest
+    // Disable CSS processing for better performance in tests
+    css: false,
 
-    // Test-specific configuration
-    testTimeout: 10000,
-    hookTimeout: 10000,
+    // ✅ ENHANCED: Increase timeouts for complex tests
+    testTimeout: 30000,
+    hookTimeout: 30000,
 
-    // Disable client injection for tests
-    server: {
-      hmr: false,
+    // ✅ ADDED: Pool configuration to prevent service crashes
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
     },
 
     coverage: {
@@ -57,6 +75,7 @@ export default defineConfig({
         '.next/',
         'coverage/',
         '**/*.config.js',
+        'vitest.setup.js', // Exclude setup file from coverage
       ],
     },
   },

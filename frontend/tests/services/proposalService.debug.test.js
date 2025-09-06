@@ -1,40 +1,20 @@
 /**
- * Proposal Service Debug Test
- * Tests the debug info handling with proper HTML response detection
- * 
- * Key approaches: TDD, HTML response handling, JSON parsing safety,
- * error classification, and fallback mechanisms
+ * Proposal Service Debug Tests
+ * Purpose: Test debug functionality with fallback handling
+ * Key approaches: Vitest mocks, error handling, fallback scenarios
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Mock fetch
-global.fetch = vi.fn();
-
-// Mock localStorage
-const localStorageMock = {
-    getItem: vi.fn(),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-    clear: vi.fn()
-};
-Object.defineProperty(window, 'localStorage', {
-    value: localStorageMock
-});
-
-// Create mock getToken function
+// Mock dependencies
 const mockGetToken = vi.fn();
+const mockSafeJsonParse = vi.fn();
 
-// Mock auth utils with a simple mock
 vi.mock('@/utils/auth-utils', () => ({
     getToken: mockGetToken
 }));
 
-// Create a mock safeJsonParse function
-const mockSafeJsonParse = vi.fn();
-
-// Mock the utils module to avoid path alias issues
-vi.mock('../../src/app/student-dashboard/submit-event/[draftId]/utils/index.js', () => ({
+vi.mock('@/app/student-dashboard/submit-event/[draftId]/utils', () => ({
     safeJsonParse: mockSafeJsonParse
 }));
 
@@ -52,10 +32,44 @@ describe('Proposal Service Debug Functions', () => {
         const proposalService = await import('../../src/app/student-dashboard/submit-event/[draftId]/reporting/services/proposalService.js');
         getDebugInfo = proposalService.getDebugInfo;
         addDebugLog = proposalService.addDebugLog;
+
+        // Mock localStorage
+        Object.defineProperty(window, 'localStorage', {
+            value: {
+                getItem: vi.fn(),
+                setItem: vi.fn(),
+                removeItem: vi.fn(),
+            },
+            writable: true,
+        });
+
+        // Mock fetch
+        global.fetch = vi.fn();
+    });
+
+    afterEach(() => {
+        vi.clearAllMocks();
     });
 
     describe('getDebugInfo Function', () => {
-        it('should handle HTML error responses gracefully', async () => {
+        it('should return fallback debug info when no token is available', async () => {
+            mockGetToken.mockReturnValue(null);
+
+            const result = await getDebugInfo('test-uuid-123');
+
+            expect(result).toEqual({
+                mysql_record: null,
+                audit_logs: [],
+                debug_logs: [],
+                status_match: true,
+                fallback: true,
+                local_data: null,
+                timestamp: expect.any(String),
+                message: 'Using fallback debug info - backend endpoint unavailable'
+            });
+        });
+
+        it('should return fallback debug info when endpoint returns 404', async () => {
             const htmlErrorResponse = `
                 <!DOCTYPE html>
                 <html>
@@ -77,16 +91,21 @@ describe('Proposal Service Debug Functions', () => {
 
             global.fetch.mockResolvedValueOnce(mockResponse);
 
-            // Mock safeJsonParse to throw an error for HTML responses
-            mockSafeJsonParse.mockRejectedValueOnce(new Error('Server returned HTML error page (404 Not Found)'));
+            const result = await getDebugInfo('test-uuid-123');
 
-            const uuid = 'test-uuid-123';
+            expect(result).toEqual({
+                mysql_record: null,
+                audit_logs: [],
+                debug_logs: [],
+                status_match: true,
+                fallback: true,
+                local_data: null,
+                timestamp: expect.any(String),
+                message: 'Using fallback debug info - backend endpoint unavailable'
+            });
 
-            await expect(getDebugInfo(uuid)).rejects.toThrow('Server returned HTML error page (404 Not Found)');
-
-            // Verify fetch was called with correct parameters
             expect(global.fetch).toHaveBeenCalledWith(
-                `/api/proposals/${uuid}/debug`,
+                '/api/proposals/test-uuid-123/debug',
                 expect.objectContaining({
                     method: 'GET',
                     headers: {
@@ -94,17 +113,93 @@ describe('Proposal Service Debug Functions', () => {
                     }
                 })
             );
-
-            // Verify safeJsonParse was called
-            expect(mockSafeJsonParse).toHaveBeenCalledWith(mockResponse, 'debug-info-error', { uuid });
         });
 
-        it('should handle JSON error responses correctly', async () => {
-            const jsonErrorResponse = {
-                error: 'Proposal not found',
-                status: 404
+        it('should handle successful JSON responses', async () => {
+            const successResponse = {
+                mysql_record: { id: 1, uuid: 'test-uuid-123' },
+                audit_logs: [],
+                debug_logs: [],
+                status_match: true
             };
 
+            const mockResponse = {
+                ok: true,
+                status: 200
+            };
+
+            global.fetch.mockResolvedValueOnce(mockResponse);
+            mockSafeJsonParse.mockResolvedValueOnce(successResponse);
+
+            const result = await getDebugInfo('test-uuid-123');
+
+            expect(result).toEqual(successResponse);
+            expect(mockSafeJsonParse).toHaveBeenCalledWith(mockResponse, 'debug-info', { uuid: 'test-uuid-123' });
+        });
+
+        it('should handle network errors gracefully', async () => {
+            global.fetch.mockRejectedValueOnce(new Error('Network error'));
+
+            const result = await getDebugInfo('test-uuid-123');
+
+            expect(result).toEqual({
+                mysql_record: null,
+                audit_logs: [],
+                debug_logs: [],
+                status_match: true,
+                fallback: true,
+                local_data: null,
+                timestamp: expect.any(String),
+                message: 'Using fallback debug info - backend endpoint unavailable'
+            });
+        });
+
+        it('should handle other HTTP errors with fallback', async () => {
+            const mockResponse = {
+                ok: false,
+                status: 500,
+                statusText: 'Internal Server Error'
+            };
+
+            global.fetch.mockResolvedValueOnce(mockResponse);
+            mockSafeJsonParse.mockRejectedValueOnce(new Error('Server error'));
+
+            const result = await getDebugInfo('test-uuid-123');
+
+            expect(result).toEqual({
+                mysql_record: null,
+                audit_logs: [],
+                debug_logs: [],
+                status_match: true,
+                fallback: true,
+                local_data: null,
+                timestamp: expect.any(String),
+                message: 'Using fallback debug info - backend endpoint unavailable'
+            });
+        });
+    });
+
+    describe('addDebugLog Function', () => {
+        it('should add local debug log when no token is available', async () => {
+            mockGetToken.mockReturnValue(null);
+
+            const result = await addDebugLog('test-uuid-123', 'frontend', 'Test message', { test: true });
+
+            expect(result).toEqual({
+                id: expect.any(Number),
+                source: 'frontend',
+                message: 'Test message',
+                meta: { test: true },
+                local: true
+            });
+
+            expect(window.localStorage.setItem).toHaveBeenCalledWith(
+                'local_debug_logs',
+                expect.any(String)
+            );
+        });
+
+        it('should add local debug log when endpoint returns 404', async () => {
             const mockResponse = {
                 ok: false,
                 status: 404,
@@ -113,212 +208,148 @@ describe('Proposal Service Debug Functions', () => {
 
             global.fetch.mockResolvedValueOnce(mockResponse);
 
-            // Mock safeJsonParse to return the error response
-            mockSafeJsonParse.mockResolvedValueOnce(jsonErrorResponse);
+            const result = await addDebugLog('test-uuid-123', 'frontend', 'Test message');
 
-            const uuid = 'test-uuid-123';
+            expect(result).toEqual({
+                id: expect.any(Number),
+                source: 'frontend',
+                message: 'Test message',
+                meta: null,
+                local: true
+            });
 
-            await expect(getDebugInfo(uuid)).rejects.toThrow('Proposal not found');
-
-            // Verify safeJsonParse was called
-            expect(mockSafeJsonParse).toHaveBeenCalledWith(mockResponse, 'debug-info-error', { uuid });
+            expect(window.localStorage.setItem).toHaveBeenCalledWith(
+                'local_debug_logs',
+                expect.any(String)
+            );
         });
 
-        it('should handle successful JSON responses', async () => {
+        it('should handle successful backend debug log creation', async () => {
             const successResponse = {
-                uuid: 'test-uuid-123',
-                status: 'draft',
-                debugInfo: {
-                    sections: ['overview', 'organization'],
-                    lastUpdated: '2024-01-01T00:00:00Z'
-                }
+                id: 1,
+                proposal_uuid: 'test-uuid-123',
+                source: 'frontend',
+                message: 'Test message',
+                meta: { test: true },
+                created_at: '2024-01-01T00:00:00.000Z'
             };
 
             const mockResponse = {
                 ok: true,
-                status: 200
+                status: 201
             };
 
             global.fetch.mockResolvedValueOnce(mockResponse);
-
-            // Mock safeJsonParse to return the success response
             mockSafeJsonParse.mockResolvedValueOnce(successResponse);
 
-            const uuid = 'test-uuid-123';
-            const result = await getDebugInfo(uuid);
+            const result = await addDebugLog('test-uuid-123', 'frontend', 'Test message', { test: true });
 
             expect(result).toEqual(successResponse);
-
-            // Verify safeJsonParse was called
-            expect(mockSafeJsonParse).toHaveBeenCalledWith(mockResponse, 'debug-info', { uuid });
-        });
-
-        it('should handle network errors', async () => {
-            global.fetch.mockRejectedValueOnce(new Error('Network error'));
-
-            const uuid = 'test-uuid-123';
-
-            await expect(getDebugInfo(uuid)).rejects.toThrow('Network error');
-        });
-
-        it('should handle missing authentication token', async () => {
-            mockGetToken.mockReturnValue(null);
-
-            const uuid = 'test-uuid-123';
-
-            await expect(getDebugInfo(uuid)).rejects.toThrow('Authentication required');
-        });
-
-        it('should handle malformed JSON responses', async () => {
-            const mockResponse = {
-                ok: true,
-                status: 200
-            };
-
-            global.fetch.mockResolvedValueOnce(mockResponse);
-
-            // Mock safeJsonParse to throw an error for malformed JSON
-            mockSafeJsonParse.mockRejectedValueOnce(new Error('Server returned malformed response (200 OK)'));
-
-            const uuid = 'test-uuid-123';
-
-            await expect(getDebugInfo(uuid)).rejects.toThrow('Server returned malformed response (200 OK)');
-
-            // Verify safeJsonParse was called
-            expect(mockSafeJsonParse).toHaveBeenCalledWith(mockResponse, 'debug-info', { uuid });
-        });
-    });
-
-    describe('addDebugLog Function', () => {
-        it('should handle HTML error responses gracefully', async () => {
-            const htmlErrorResponse = `
-                <!DOCTYPE html>
-                <html>
-                <head><title>500 Internal Server Error</title></head>
-                <body>
-                    <h1>500 Internal Server Error</h1>
-                    <p>Something went wrong on the server.</p>
-                </body>
-                </html>
-            `;
-
-            const mockResponse = {
-                ok: false,
-                status: 500,
-                statusText: 'Internal Server Error',
-                json: vi.fn().mockRejectedValue(new Error('Unexpected token <')),
-                text: vi.fn().mockResolvedValue(htmlErrorResponse)
-            };
-
-            global.fetch.mockResolvedValueOnce(mockResponse);
-
-            // Mock safeJsonParse to throw an error for HTML responses
-            mockSafeJsonParse.mockRejectedValueOnce(new Error('Server returned HTML error page (500 Internal Server Error)'));
-
-            const uuid = 'test-uuid-123';
-            const source = 'frontend';
-            const message = 'Test debug log';
-
-            await expect(addDebugLog(uuid, source, message)).rejects.toThrow('Server returned HTML error page (500 Internal Server Error)');
-
-            // Verify fetch was called with correct parameters
             expect(global.fetch).toHaveBeenCalledWith(
-                `/api/proposals/${uuid}/debug/logs`,
+                '/api/proposals/test-uuid-123/debug/logs',
                 expect.objectContaining({
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': 'Bearer mock-token-123'
                     },
-                    body: JSON.stringify({ source, message, meta: null })
+                    body: JSON.stringify({
+                        source: 'frontend',
+                        message: 'Test message',
+                        meta: { test: true }
+                    })
                 })
             );
-
-            // Verify safeJsonParse was called
-            expect(mockSafeJsonParse).toHaveBeenCalledWith(mockResponse, 'debug-log-error', { uuid, source });
         });
 
-        it('should handle successful debug log creation', async () => {
-            const successResponse = {
-                id: 'log-123',
-                uuid: 'test-uuid-123',
+        it('should handle network errors with local fallback', async () => {
+            global.fetch.mockRejectedValueOnce(new Error('Network error'));
+
+            const result = await addDebugLog('test-uuid-123', 'frontend', 'Test message');
+
+            expect(result).toEqual({
+                id: expect.any(Number),
                 source: 'frontend',
-                message: 'Test debug log',
-                timestamp: '2024-01-01T00:00:00Z'
-            };
+                message: 'Test message',
+                meta: null,
+                local: true
+            });
 
-            const mockResponse = {
-                ok: true,
-                status: 200
-            };
-
-            global.fetch.mockResolvedValueOnce(mockResponse);
-
-            // Mock safeJsonParse to return the success response
-            mockSafeJsonParse.mockResolvedValueOnce(successResponse);
-
-            const uuid = 'test-uuid-123';
-            const source = 'frontend';
-            const message = 'Test debug log';
-            const meta = { test: 'data' };
-
-            const result = await addDebugLog(uuid, source, message, meta);
-
-            expect(result).toEqual(successResponse);
-
-            // Verify safeJsonParse was called
-            expect(mockSafeJsonParse).toHaveBeenCalledWith(mockResponse, 'debug-log', { uuid, source });
+            expect(window.localStorage.setItem).toHaveBeenCalledWith(
+                'local_debug_logs',
+                expect.any(String)
+            );
         });
 
-        it('should handle missing authentication token', async () => {
+        it('should limit local debug logs to 50 entries', async () => {
             mockGetToken.mockReturnValue(null);
 
-            const uuid = 'test-uuid-123';
-            const source = 'frontend';
-            const message = 'Test debug log';
+            // Mock existing logs (51 entries)
+            const existingLogs = Array.from({ length: 51 }, (_, i) => ({
+                id: i,
+                proposal_uuid: 'test-uuid-123',
+                source: 'frontend',
+                message: `Old message ${i}`,
+                created_at: '2024-01-01T00:00:00.000Z',
+                local: true
+            }));
 
-            await expect(addDebugLog(uuid, source, message)).rejects.toThrow('Authentication required');
+            window.localStorage.getItem.mockReturnValue(JSON.stringify(existingLogs));
+
+            await addDebugLog('test-uuid-123', 'frontend', 'New message');
+
+            expect(window.localStorage.setItem).toHaveBeenCalledWith(
+                'local_debug_logs',
+                expect.any(String)
+            );
+
+            const savedLogs = JSON.parse(window.localStorage.setItem.mock.calls[0][1]);
+            expect(savedLogs).toHaveLength(50);
+            expect(savedLogs[49].message).toBe('New message');
         });
     });
 
-    describe('Error Response Classification', () => {
-        it('should classify HTML responses as parsing errors', async () => {
-            const mockResponse = {
-                ok: false,
-                status: 404
-            };
-
-            global.fetch.mockResolvedValueOnce(mockResponse);
-
-            // Mock safeJsonParse to throw an error for HTML responses
-            mockSafeJsonParse.mockRejectedValueOnce(new Error('Server returned HTML error page (404 Not Found)'));
-
-            const uuid = 'test-uuid-123';
-
-            try {
-                await getDebugInfo(uuid);
-            } catch (error) {
-                expect(error.message).toContain('Server returned HTML error page');
-            }
-
-            // Verify safeJsonParse was called
-            expect(mockSafeJsonParse).toHaveBeenCalledWith(mockResponse, 'debug-info-error', { uuid });
-        });
-
-        it('should classify network errors appropriately', async () => {
-            global.fetch.mockRejectedValueOnce(new Error('Failed to fetch'));
-
-            const uuid = 'test-uuid-123';
-
-            await expect(getDebugInfo(uuid)).rejects.toThrow('Failed to fetch');
-        });
-
-        it('should classify authentication errors appropriately', async () => {
+    describe('Fallback Debug Info', () => {
+        it('should include local data in fallback debug info', async () => {
             mockGetToken.mockReturnValue(null);
 
-            const uuid = 'test-uuid-123';
+            // Mock localStorage data
+            window.localStorage.getItem
+                .mockReturnValueOnce('test-uuid-123') // proposal_uuid
+                .mockReturnValueOnce('pending') // current_proposal_status
+                .mockReturnValueOnce('community-event') // current_section
+                .mockReturnValueOnce('456') // current_mysql_proposal_id
+                .mockReturnValueOnce('2024-01-01T00:00:00.000Z'); // submission_timestamp
 
-            await expect(getDebugInfo(uuid)).rejects.toThrow('Authentication required');
+            const result = await getDebugInfo('test-uuid-123');
+
+            expect(result.local_data).toEqual({
+                uuid: 'test-uuid-123',
+                status: 'pending',
+                section: 'community-event',
+                mysqlId: '456',
+                lastUpdated: '2024-01-01T00:00:00.000Z'
+            });
+        });
+
+        it('should handle localStorage errors gracefully in fallback', async () => {
+            mockGetToken.mockReturnValue(null);
+            window.localStorage.getItem.mockImplementation(() => {
+                throw new Error('localStorage error');
+            });
+
+            const result = await getDebugInfo('test-uuid-123');
+
+            expect(result).toEqual({
+                mysql_record: null,
+                audit_logs: [],
+                debug_logs: [],
+                status_match: false,
+                fallback: true,
+                error: 'localStorage error',
+                timestamp: expect.any(String),
+                message: 'Failed to generate fallback debug info'
+            });
         });
     });
 });

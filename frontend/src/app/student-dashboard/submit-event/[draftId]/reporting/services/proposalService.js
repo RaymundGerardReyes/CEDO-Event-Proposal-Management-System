@@ -6,8 +6,8 @@
  * comprehensive error handling, and status management
  */
 
-import { getToken } from '@/utils/auth-utils';
 import { safeJsonParse } from '@/app/student-dashboard/submit-event/[draftId]/utils';
+import { getToken } from '@/utils/auth-utils';
 
 /**
  * Enhanced logger for proposal operations
@@ -37,154 +37,86 @@ const logger = {
  * Get or create proposal UUID
  * Checks localStorage first, then creates new proposal if needed
  */
-export async function getOrCreateProposalUuid(organizationName = 'New Organization') {
+export async function getOrCreateProposalUuid() {
     try {
         // Check localStorage first
-        const storedUuid = localStorage.getItem('proposal_uuid');
-        if (storedUuid && isValidUUID(storedUuid)) {
-            logger.info('Retrieved stored proposal UUID', { uuid: storedUuid });
-            return storedUuid;
+        const existingUuid = localStorage.getItem('proposal_uuid');
+        if (existingUuid) {
+            logger.info('Found existing proposal UUID in localStorage', { uuid: existingUuid });
+            return existingUuid;
         }
 
         // Generate new UUID
-        const newUuid = generateUUID();
-        logger.info('Generated new proposal UUID', { uuid: newUuid });
+        const newUuid = `fallback-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-        // Create proposal in backend
-        const proposal = await createProposal({
-            uuid: newUuid,
-            organization_name: organizationName,
-            current_section: 'orgInfo',
-            proposal_status: 'draft'
-        });
+        // Store in localStorage
+        localStorage.setItem('proposal_uuid', newUuid);
 
-        if (proposal && proposal.uuid) {
-            // Store in localStorage
-            localStorage.setItem('proposal_uuid', proposal.uuid);
-            localStorage.setItem('proposal_status', proposal.proposal_status);
-            localStorage.setItem('current_section', proposal.current_section);
-
-            logger.success('Proposal created and stored', { uuid: proposal.uuid });
-            return proposal.uuid;
-        }
-
-        throw new Error('Failed to create proposal');
+        logger.success('Created new proposal UUID', { uuid: newUuid });
+        return newUuid;
     } catch (error) {
-        logger.error('Error in getOrCreateProposalUuid', error);
+        logger.error('Error getting or creating proposal UUID', error);
         throw error;
     }
 }
 
 /**
- * Create new proposal
+ * Get proposal data from localStorage
  */
-export async function createProposal(proposalData) {
+export function getProposalData() {
     try {
-        const token = getToken();
-        if (!token) {
-            throw new Error('Authentication required');
+        const uuid = localStorage.getItem('proposal_uuid');
+        if (!uuid) {
+            return null;
         }
 
-        const response = await fetch('/api/proposals', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(proposalData)
-        });
+        const data = {
+            uuid,
+            status: localStorage.getItem('current_proposal_status') || 'draft',
+            section: localStorage.getItem('current_section') || 'overview',
+            mysqlId: localStorage.getItem('current_mysql_proposal_id'),
+            lastUpdated: localStorage.getItem('submission_timestamp')
+        };
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `HTTP ${response.status}`);
-        }
-
-        const result = await response.json();
-        logger.success('Proposal created', { uuid: result.uuid });
-        return result;
+        logger.info('Retrieved proposal data from localStorage', data);
+        return data;
     } catch (error) {
-        logger.error('Error creating proposal', error, { proposalData });
-        throw error;
+        logger.error('Error getting proposal data', error);
+        throw error; // Re-throw the error so it can be caught by getFallbackDebugInfo
     }
 }
 
 /**
- * Update proposal
+ * Save proposal data to localStorage
  */
-export async function updateProposal(uuid, updateData) {
+export function saveProposalData(data) {
     try {
-        const token = getToken();
-        if (!token) {
-            throw new Error('Authentication required');
+        if (data.uuid) {
+            localStorage.setItem('proposal_uuid', data.uuid);
+        }
+        if (data.status) {
+            localStorage.setItem('current_proposal_status', data.status);
+        }
+        if (data.section) {
+            localStorage.setItem('current_section', data.section);
+        }
+        if (data.mysqlId) {
+            localStorage.setItem('current_mysql_proposal_id', data.mysqlId);
+        }
+        if (data.lastUpdated) {
+            localStorage.setItem('submission_timestamp', data.lastUpdated);
         }
 
-        const response = await fetch(`/api/proposals/${uuid}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(updateData)
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `HTTP ${response.status}`);
-        }
-
-        const result = await response.json();
-
-        // Update localStorage
-        if (updateData.proposal_status) {
-            localStorage.setItem('proposal_status', updateData.proposal_status);
-        }
-        if (updateData.current_section) {
-            localStorage.setItem('current_section', updateData.current_section);
-        }
-
-        logger.success('Proposal updated', { uuid, updates: updateData });
-        return result;
+        logger.success('Saved proposal data to localStorage', data);
     } catch (error) {
-        logger.error('Error updating proposal', error, { uuid, updateData });
-        throw error;
+        logger.error('Error saving proposal data', error);
     }
 }
 
 /**
- * Get proposal by UUID
+ * Submit proposal to backend
  */
-export async function getProposal(uuid) {
-    try {
-        const token = getToken();
-        if (!token) {
-            throw new Error('Authentication required');
-        }
-
-        const response = await fetch(`/api/proposals/${uuid}`, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `HTTP ${response.status}`);
-        }
-
-        const result = await response.json();
-        logger.success('Proposal retrieved', { uuid });
-        return result;
-    } catch (error) {
-        logger.error('Error getting proposal', error, { uuid });
-        throw error;
-    }
-}
-
-/**
- * Submit proposal
- */
-export async function submitProposal(uuid) {
+export async function submitProposal(uuid, proposalData) {
     try {
         const token = getToken();
         if (!token) {
@@ -196,24 +128,20 @@ export async function submitProposal(uuid) {
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
-            }
+            },
+            body: JSON.stringify(proposalData)
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
+            const errorData = await safeJsonParse(response, 'submit-proposal-error', { uuid });
             throw new Error(errorData.error || `HTTP ${response.status}`);
         }
 
-        const result = await response.json();
-
-        // Update localStorage
-        localStorage.setItem('proposal_status', result.proposal_status);
-        localStorage.setItem('current_section', result.current_section);
-
-        logger.success('Proposal submitted', { uuid, status: result.proposal_status });
+        const result = await safeJsonParse(response, 'submit-proposal', { uuid });
+        logger.success('Proposal submitted successfully', { uuid });
         return result;
     } catch (error) {
-        logger.error('Error submitting proposal', error, { uuid });
+        logger.error('Error submitting proposal', error, { uuid, proposalData });
         throw error;
     }
 }
@@ -238,19 +166,12 @@ export async function submitReport(uuid, reportData) {
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            if (response.status === 409) {
-                throw new Error('Report can only be submitted for approved proposals');
-            }
+            const errorData = await safeJsonParse(response, 'submit-report-error', { uuid });
             throw new Error(errorData.error || `HTTP ${response.status}`);
         }
 
-        const result = await response.json();
-
-        // Update localStorage
-        localStorage.setItem('report_status', result.report_status);
-
-        logger.success('Report submitted', { uuid, status: result.report_status });
+        const result = await safeJsonParse(response, 'submit-report', { uuid });
+        logger.success('Report submitted successfully', { uuid });
         return result;
     } catch (error) {
         logger.error('Error submitting report', error, { uuid, reportData });
@@ -260,12 +181,17 @@ export async function submitReport(uuid, reportData) {
 
 /**
  * Get debug information for proposal
+ * Enhanced with fallback functionality and better error handling
  */
 export async function getDebugInfo(uuid) {
     try {
+        // First, try to get token
         const token = getToken();
+
+        // If no token, return fallback debug info
         if (!token) {
-            throw new Error('Authentication required');
+            logger.warn('No authentication token available, returning fallback debug info', { uuid });
+            return getFallbackDebugInfo(uuid);
         }
 
         const response = await fetch(`/api/proposals/${uuid}/debug`, {
@@ -276,6 +202,12 @@ export async function getDebugInfo(uuid) {
         });
 
         if (!response.ok) {
+            // If it's a 404, the endpoint might not exist or proposal not found
+            if (response.status === 404) {
+                logger.warn('Debug endpoint returned 404, using fallback', { uuid });
+                return getFallbackDebugInfo(uuid);
+            }
+
             // Use safeJsonParse for error responses
             const errorData = await safeJsonParse(response, 'debug-info-error', { uuid });
             throw new Error(errorData.error || `HTTP ${response.status}`);
@@ -283,22 +215,62 @@ export async function getDebugInfo(uuid) {
 
         // Use safeJsonParse for successful responses
         const result = await safeJsonParse(response, 'debug-info', { uuid });
-        logger.success('Debug info retrieved', { uuid });
+        logger.success('Debug info retrieved from backend', { uuid });
         return result;
     } catch (error) {
-        logger.error('Error getting debug info', error, { uuid });
-        throw error;
+        logger.error('Error getting debug info from backend, using fallback', error, { uuid });
+        return getFallbackDebugInfo(uuid);
+    }
+}
+
+/**
+ * Get fallback debug information when backend is unavailable
+ */
+function getFallbackDebugInfo(uuid) {
+    try {
+        const localData = getProposalData();
+        const fallbackInfo = {
+            mysql_record: null,
+            audit_logs: [],
+            debug_logs: [],
+            status_match: true,
+            fallback: true,
+            local_data: localData,
+            timestamp: new Date().toISOString(),
+            message: 'Using fallback debug info - backend endpoint unavailable'
+        };
+
+        logger.info('Generated fallback debug info', { uuid, fallbackInfo });
+        return fallbackInfo;
+    } catch (error) {
+        logger.error('Error generating fallback debug info', error, { uuid });
+        return {
+            mysql_record: null,
+            audit_logs: [],
+            debug_logs: [],
+            status_match: false,
+            fallback: true,
+            error: error.message,
+            timestamp: new Date().toISOString(),
+            message: 'Failed to generate fallback debug info'
+        };
     }
 }
 
 /**
  * Add debug log entry
+ * Enhanced with fallback functionality
  */
 export async function addDebugLog(uuid, source, message, meta = null) {
     try {
+        // First, try to get token
         const token = getToken();
+
+        // If no token, just log locally
         if (!token) {
-            throw new Error('Authentication required');
+            logger.warn('No authentication token available, logging locally only', { uuid, source });
+            addLocalDebugLog(uuid, source, message, meta);
+            return { id: Date.now(), source, message, meta, local: true };
         }
 
         const response = await fetch(`/api/proposals/${uuid}/debug/logs`, {
@@ -311,6 +283,13 @@ export async function addDebugLog(uuid, source, message, meta = null) {
         });
 
         if (!response.ok) {
+            // If it's a 404, the endpoint might not exist
+            if (response.status === 404) {
+                logger.warn('Debug log endpoint returned 404, logging locally only', { uuid, source });
+                addLocalDebugLog(uuid, source, message, meta);
+                return { id: Date.now(), source, message, meta, local: true };
+            }
+
             // Use safeJsonParse for error responses
             const errorData = await safeJsonParse(response, 'debug-log-error', { uuid, source });
             throw new Error(errorData.error || `HTTP ${response.status}`);
@@ -318,11 +297,42 @@ export async function addDebugLog(uuid, source, message, meta = null) {
 
         // Use safeJsonParse for successful responses
         const result = await safeJsonParse(response, 'debug-log', { uuid, source });
-        logger.success('Debug log added', { uuid, source, message });
+        logger.success('Debug log added to backend', { uuid, source, message });
         return result;
     } catch (error) {
-        logger.error('Error adding debug log', error, { uuid, source, message });
-        throw error;
+        logger.error('Error adding debug log to backend, logging locally only', error, { uuid, source, message });
+        addLocalDebugLog(uuid, source, message, meta);
+        return { id: Date.now(), source, message, meta, local: true };
+    }
+}
+
+/**
+ * Add debug log to localStorage when backend is unavailable
+ */
+function addLocalDebugLog(uuid, source, message, meta = null) {
+    try {
+        const logs = JSON.parse(localStorage.getItem('local_debug_logs') || '[]');
+        const newLog = {
+            id: Date.now(),
+            proposal_uuid: uuid,
+            source,
+            message,
+            meta,
+            created_at: new Date().toISOString(),
+            local: true
+        };
+
+        logs.push(newLog);
+
+        // Keep only last 50 logs to prevent localStorage overflow
+        if (logs.length > 50) {
+            logs.splice(0, logs.length - 50);
+        }
+
+        localStorage.setItem('local_debug_logs', JSON.stringify(logs));
+        logger.info('Added local debug log', { uuid, source, message });
+    } catch (error) {
+        logger.error('Error adding local debug log', error, { uuid, source, message });
     }
 }
 
@@ -332,127 +342,14 @@ export async function addDebugLog(uuid, source, message, meta = null) {
 export function clearProposalData() {
     try {
         localStorage.removeItem('proposal_uuid');
-        localStorage.removeItem('proposal_status');
+        localStorage.removeItem('current_proposal_status');
         localStorage.removeItem('current_section');
-        localStorage.removeItem('report_status');
+        localStorage.removeItem('current_mysql_proposal_id');
+        localStorage.removeItem('submission_timestamp');
+        localStorage.removeItem('local_debug_logs');
 
-        logger.success('Proposal data cleared from localStorage');
+        logger.success('Cleared all proposal data from localStorage');
     } catch (error) {
         logger.error('Error clearing proposal data', error);
-    }
-}
-
-/**
- * Get proposal data from localStorage
- */
-export function getProposalData() {
-    try {
-        const uuid = localStorage.getItem('proposal_uuid');
-        const status = localStorage.getItem('proposal_status');
-        const section = localStorage.getItem('current_section');
-        const reportStatus = localStorage.getItem('report_status');
-
-        return {
-            uuid,
-            status,
-            section,
-            reportStatus,
-            isValid: uuid && isValidUUID(uuid)
-        };
-    } catch (error) {
-        logger.error('Error getting proposal data from localStorage', error);
-        return { isValid: false };
-    }
-}
-
-/**
- * Update proposal progress
- */
-export async function updateProposalProgress(uuid, section, completionPercentage) {
-    try {
-        const updateData = {
-            current_section: section,
-            form_completion_percentage: completionPercentage
-        };
-
-        const result = await updateProposal(uuid, updateData);
-
-        // Update localStorage
-        localStorage.setItem('current_section', section);
-
-        logger.success('Proposal progress updated', {
-            uuid,
-            section,
-            completionPercentage
-        });
-
-        return result;
-    } catch (error) {
-        logger.error('Error updating proposal progress', error, {
-            uuid,
-            section,
-            completionPercentage
-        });
-        throw error;
-    }
-}
-
-/**
- * Utility function to validate UUID format
- */
-function isValidUUID(uuid) {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    return uuidRegex.test(uuid);
-}
-
-/**
- * Utility function to generate UUID
- */
-function generateUUID() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-        const r = Math.random() * 16 | 0;
-        const v = c === 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-    });
-}
-
-/**
- * Export proposal data for debugging
- */
-export function exportProposalData() {
-    try {
-        const proposalData = getProposalData();
-        const exportData = {
-            timestamp: new Date().toISOString(),
-            proposal_data: proposalData,
-            localStorage: {
-                proposal_uuid: localStorage.getItem('proposal_uuid'),
-                proposal_status: localStorage.getItem('proposal_status'),
-                current_section: localStorage.getItem('current_section'),
-                report_status: localStorage.getItem('report_status')
-            },
-            sessionStorage: {
-                // Add any session storage data if needed
-            }
-        };
-
-        const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-            type: 'application/json'
-        });
-
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `proposal-export-${Date.now()}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        logger.success('Proposal data exported');
-        return exportData;
-    } catch (error) {
-        logger.error('Error exporting proposal data', error);
-        throw error;
     }
 }

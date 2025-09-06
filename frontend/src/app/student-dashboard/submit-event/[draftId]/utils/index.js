@@ -1,34 +1,26 @@
 /**
- * Minimal Utils Index for Event Submission Flow
- * Purpose: Re-export essential functions after cleanup
- * Approach: Import from existing utilities and re-export for compatibility
+ * Utils Index for Event Submission Flow - Refactored
+ * Purpose: Re-export from shared utilities to eliminate redundancy
+ * Approach: Single source of truth from shared utilities
  */
 
-// Re-export step configuration functions
+// Re-export all utilities from shared location
 export {
-    getCurrentStepIndex, getNextStep,
-    getPreviousStep, getProgressPercentage, getStepByIndex,
-    getStepByPath, isStepComplete, STEPS
-} from './stepConfig';
 
-// Re-export error handling functions
-export {
-    createErrorBoundaryConfig, handleHookError, resolveParams, safeFetch, safeJsonParse, withHookErrorHandling
-} from './errorHandling';
+    // Error handling
+    createErrorBoundaryConfig, createFallbackProposalData,
+    // Fallback utilities
+    createFallbackState, generateFallbackUuid,
+    // Step configuration
+    getCurrentStepIndex, getNextStep, getPreviousStep, getProgressPercentage,
+    getStepByIndex, getStepByPath, handleHookError, isStepComplete, resolveParams, safeFetch, safeJsonParse, STEP_CONFIG, STEPS
+} from '../../shared/utils';
 
-// Re-export error handling functions from main utils
-export { withErrorLogging } from '@/utils/logger';
+// Re-export logger for direct access
+export { default as logger } from '@/utils/logger';
 
-// Simple error boundary config creator
-export const createEventSubmissionErrorBoundaryConfig = (componentName) => ({
-    onError: (error, errorInfo) => {
-        console.error(`❌ ${componentName} Error Boundary caught error:`, error);
-        console.error('Error Info:', errorInfo);
-    },
-    onReset: () => {
-        console.log(`🔄 ${componentName} Error Boundary reset`);
-    }
-});
+// Legacy compatibility - redirect to shared utilities
+export const createEventSubmissionErrorBoundaryConfig = createErrorBoundaryConfig;
 
 
 

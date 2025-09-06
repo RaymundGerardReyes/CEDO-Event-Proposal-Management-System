@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { createFallbackProposalData, generateFallbackUuid } from '../../shared/utils';
 import { getOrCreateProposalUuid, getProposalData } from '../reporting/services/proposalService';
 
 export function useProposalFlow(draftId) {
@@ -15,7 +16,7 @@ export function useProposalFlow(draftId) {
     const [error, setError] = useState(null);
     const [proposalData, setProposalData] = useState(null);
 
-    // Initialize proposal UUID
+    // Initialize proposal UUID with enhanced error handling
     const initializeProposal = useCallback(async () => {
         try {
             setLoading(true);
@@ -26,29 +27,48 @@ export function useProposalFlow(draftId) {
                 setProposalUuid(draftId);
                 console.log('✅ Using existing draft ID as UUID:', draftId);
             } else {
-                // Create new proposal UUID
-                const uuid = await getOrCreateProposalUuid();
-                setProposalUuid(uuid);
-                console.log('✅ Created new proposal UUID:', uuid);
+                // Create new proposal UUID with error handling
+                try {
+                    const uuid = await getOrCreateProposalUuid();
+                    setProposalUuid(uuid);
+                    console.log('✅ Created new proposal UUID:', uuid);
+                } catch (uuidError) {
+                    console.error('❌ Error creating proposal UUID:', uuidError);
+                    // Fallback to a simple UUID using shared utility
+                    const fallbackUuid = generateFallbackUuid();
+                    setProposalUuid(fallbackUuid);
+                    console.log('✅ Using fallback UUID:', fallbackUuid);
+                }
             }
 
-            // Load proposal data
-            const data = getProposalData();
-            setProposalData(data);
+            // Load proposal data with error handling
+            try {
+                const data = getProposalData();
+                setProposalData(data);
+            } catch (dataError) {
+                console.error('❌ Error loading proposal data:', dataError);
+                // Set minimal data structure using shared utility
+                setProposalData(createFallbackProposalData());
+            }
 
         } catch (error) {
             console.error('❌ Error initializing proposal:', error);
-            setError(error.message);
+            setError(error.message || 'Failed to initialize proposal');
         } finally {
             setLoading(false);
         }
     }, [draftId]);
 
-    // Handle proposal UUID update
+    // Handle proposal UUID update with error handling
     const handleProposalUpdate = useCallback((newUuid) => {
-        setProposalUuid(newUuid);
-        const data = getProposalData();
-        setProposalData(data);
+        try {
+            setProposalUuid(newUuid);
+            const data = getProposalData();
+            setProposalData(data);
+        } catch (error) {
+            console.error('❌ Error updating proposal:', error);
+            setError(error.message || 'Failed to update proposal');
+        }
     }, []);
 
     // Initialize on mount
