@@ -20,14 +20,17 @@
 import {
     CheckCircle,
     FileText,
+    Info,
     Lightbulb,
     Plus,
     Target
 } from 'lucide-react';
 import { useState } from 'react';
+import { useEventForm } from '../contexts/EventFormContext';
 
 export default function Overview({ onPathSelect }) {
     const [selectedPath, setSelectedPath] = useState(null);
+    const { generateEventUuid, eventUuid, isUuidGenerated, getShortUuid, getFormAge } = useEventForm();
 
     const handlePathSelect = (path) => {
         setSelectedPath(path);
@@ -38,6 +41,7 @@ export default function Overview({ onPathSelect }) {
 
     const handleEventProposalClick = () => {
         // Redirect to Organization.jsx (Step 2 of the event proposal flow)
+        // UUID will be generated and added to URL by the parent component
         handlePathSelect('organization');
     };
 
@@ -168,6 +172,27 @@ export default function Overview({ onPathSelect }) {
                         <p className="text-xs text-gray-500 text-center mt-3">
                             Use this for events that have already occurred
                         </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Information Section */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 max-w-4xl mx-auto">
+                <div className="flex items-start space-x-3">
+                    <Info className="h-6 w-6 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                        <h3 className="font-semibold text-blue-900 mb-2">How It Works</h3>
+                        <div className="text-sm text-blue-800 space-y-2">
+                            <p>
+                                When you click "Start Event Proposal", a unique identifier will be generated and added to your browser's address bar.
+                            </p>
+                            <p>
+                                This unique identifier will be used throughout your event proposal process and can be referenced for support or tracking.
+                            </p>
+                            <p className="text-xs text-blue-700 mt-3">
+                                <strong>Example URL:</strong> <code className="bg-blue-100 px-2 py-1 rounded text-blue-900 font-mono text-xs">/student-dashboard/submit-event/550e8400-e29b-41d4-a716-446655440000</code>
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>

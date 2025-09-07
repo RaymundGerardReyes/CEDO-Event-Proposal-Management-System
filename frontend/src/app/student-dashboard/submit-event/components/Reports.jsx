@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useFormContext } from 'react-hook-form';
+import { useEventForm } from '../contexts/EventFormContext';
 
 const ORGANIZATION_TYPES = [
     { value: 'school-based', label: 'School-based' },
@@ -38,6 +39,7 @@ const ORGANIZATION_TYPES = [
 
 export default function Reports({ methods, onNext, onPrevious, isLastStep, onReportsSubmitted }) {
     const { register, formState: { errors }, watch, setValue } = useFormContext();
+    const { eventUuid, getShortUuid, getFormAge, updateFormStatus } = useEventForm();
     const [uploadedFiles, setUploadedFiles] = useState({
         accomplishmentReport: [],
         eventPhotos: [],
@@ -112,6 +114,7 @@ export default function Reports({ methods, onNext, onPrevious, isLastStep, onRep
 
             // Mark as submitted
             setIsSubmitted(true);
+            updateFormStatus('submitted');
 
             // Notify parent component that reports have been submitted
             if (onReportsSubmitted) {
@@ -247,6 +250,16 @@ export default function Reports({ methods, onNext, onPrevious, isLastStep, onRep
                 <p className="text-lg text-gray-600 max-w-2xl mx-auto">
                     Complete the post-event documentation and upload required reports and materials
                 </p>
+
+                {/* UUID Display */}
+                {eventUuid && (
+                    <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg max-w-md mx-auto">
+                        <p className="text-sm text-blue-800">
+                            <strong>Event ID:</strong> <code className="bg-blue-100 px-2 py-1 rounded text-blue-900 font-mono text-xs">{getShortUuid()}</code>
+                        </p>
+                        <p className="text-xs text-blue-600 mt-1">Created {getFormAge()}</p>
+                    </div>
+                )}
             </div>
 
             {/* 1. Core Event Details */}

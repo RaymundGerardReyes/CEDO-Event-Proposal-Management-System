@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useFormContext } from 'react-hook-form';
+import { useEventForm } from '../contexts/EventFormContext';
 
 const EVENT_TYPES = [
     { value: 'academic-enhancement', label: 'Academic Enhancement' },
@@ -54,6 +55,7 @@ const SDP_CREDITS = [
 
 export default function StepLogistics({ methods, onNext, onPrevious, isLastStep }) {
     const { register, formState: { errors }, watch, setValue, trigger } = useFormContext();
+    const { eventUuid, getShortUuid, getFormAge } = useEventForm();
     const [gpoaFile, setGpoaFile] = useState(null);
     const [projectProposalFile, setProjectProposalFile] = useState(null);
     const [selectedTargetAudiences, setSelectedTargetAudiences] = useState([]);
@@ -154,6 +156,16 @@ export default function StepLogistics({ methods, onNext, onPrevious, isLastStep 
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">Event Information</h2>
                 <p className="text-gray-600">Provide event details and required documentation</p>
+
+                {/* UUID Display */}
+                {eventUuid && (
+                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-sm text-blue-800">
+                            <strong>Event ID:</strong> <code className="bg-blue-100 px-2 py-1 rounded text-blue-900 font-mono text-xs">{getShortUuid()}</code>
+                            <span className="ml-2 text-blue-600">• Created {getFormAge()}</span>
+                        </p>
+                    </div>
+                )}
             </div>
 
             {/* Form Fields */}

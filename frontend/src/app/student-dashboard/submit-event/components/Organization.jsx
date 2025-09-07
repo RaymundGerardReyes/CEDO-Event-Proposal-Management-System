@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useFormContext } from 'react-hook-form';
+import { useEventForm } from '../contexts/EventFormContext';
 
 // Mock organization data - in real app, this would come from API
 const MOCK_ORGANIZATIONS = [
@@ -34,6 +35,7 @@ const MOCK_ORGANIZATIONS = [
 
 export default function StepOrganizer({ methods, onNext, onPrevious, isLastStep }) {
     const { register, formState: { errors }, watch, setValue, trigger } = useFormContext();
+    const { eventUuid, getShortUuid, getFormAge } = useEventForm();
     const [organizationSuggestions, setOrganizationSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [selectedOrganization, setSelectedOrganization] = useState(null);
@@ -76,6 +78,16 @@ export default function StepOrganizer({ methods, onNext, onPrevious, isLastStep 
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">Organizer & Contact</h2>
                 <p className="text-gray-600">Provide organization and contact information</p>
+
+                {/* UUID Display */}
+                {eventUuid && (
+                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-sm text-blue-800">
+                            <strong>Event ID:</strong> <code className="bg-blue-100 px-2 py-1 rounded text-blue-900 font-mono text-xs">{getShortUuid()}</code>
+                            <span className="ml-2 text-blue-600">• Created {getFormAge()}</span>
+                        </p>
+                    </div>
+                )}
             </div>
 
             {/* Form Fields */}

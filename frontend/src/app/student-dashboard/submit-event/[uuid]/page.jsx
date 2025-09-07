@@ -1,8 +1,12 @@
 /**
- * Enhanced Submit Event Page - Production Ready
- * Modern Event Approval Form SPA with advanced features
+ * UUID-based Submit Event Page
+ * Dynamic route: /student-dashboard/submit-event/[uuid]
  * 
- * Key approaches: react-hook-form + zod validation, code splitting, enhanced UX
+ * 🎯 Purpose:
+ * - Handles UUID-based URLs for event proposal forms
+ * - Displays UUID in the browser address bar
+ * - Enables direct linking to specific event proposals
+ * - Supports deep-linking with step parameters
  */
 
 "use client";
@@ -21,34 +25,34 @@ import {
     Users
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { EventFormProvider } from './contexts/EventFormContext';
+import { EventFormProvider } from '../contexts/EventFormContext';
 
 // Dynamic imports for code splitting
-const Overview = dynamic(() => import('./components/Overview'), {
+const Overview = dynamic(() => import('../components/Overview'), {
     loading: () => <div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>
 });
 
-const Organization = dynamic(() => import('./components/Organization'), {
+const Organization = dynamic(() => import('../components/Organization'), {
     loading: () => <div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>
 });
 
-const EventInformation = dynamic(() => import('./components/EventInformation'), {
+const EventInformation = dynamic(() => import('../components/EventInformation'), {
     loading: () => <div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>
 });
 
-const Program = dynamic(() => import('./components/Program'), {
+const Program = dynamic(() => import('../components/Program'), {
     loading: () => <div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>
 });
 
-const Reports = dynamic(() => import('./components/Reports'), {
+const Reports = dynamic(() => import('../components/Reports'), {
     loading: () => <div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>
 });
 
-const PostEventReport = dynamic(() => import('./components/PostEventReport'), {
+const PostEventReport = dynamic(() => import('../components/PostEventReport'), {
     loading: () => <div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>
 });
 
@@ -138,14 +142,12 @@ const steps = [
         name: 'Organization',
         description: 'Organization details',
         icon: Users
-
     },
     {
         id: 3,
         name: 'Event Information',
         description: 'Date, venue, and logistics',
         icon: MapPin
-
     },
     {
         id: 4,
@@ -158,18 +160,23 @@ const steps = [
         name: 'Reports',
         description: 'Accomplishment Reports and Documentation',
         icon: Shield
-
     }
 ];
 
-export default function EnhancedSubmitEventPage() {
+export default function UUIDSubmitEventPage() {
+    const params = useParams();
     const router = useRouter();
-    const [currentStep, setCurrentStep] = useState(1);
+    const searchParams = useSearchParams();
+
+    const uuid = params.uuid;
+    const stepParam = searchParams.get('step');
+
+    const [currentStep, setCurrentStep] = useState(stepParam ? parseInt(stepParam) : 1);
     const [completedSteps, setCompletedSteps] = useState([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [lastSaved, setLastSaved] = useState(null);
     const [showPreview, setShowPreview] = useState(false);
-    const [selectedPath, setSelectedPath] = useState(null); // 'event-proposal' or 'post-event-report'
+    const [selectedPath, setSelectedPath] = useState(null);
     const [isReportsSubmitted, setIsReportsSubmitted] = useState(false);
 
     // Enhanced form setup with react-hook-form
@@ -197,20 +204,21 @@ export default function EnhancedSubmitEventPage() {
     const { handleSubmit, formState: { errors, isValid, isDirty }, watch, trigger } = methods;
     const watchedValues = watch();
 
+    // Update URL when step changes
+    const updateURL = useCallback((step) => {
+        const newUrl = `/student-dashboard/submit-event/${uuid}?step=${step}`;
+        router.replace(newUrl, { scroll: false });
+    }, [uuid, router]);
+
     // Handle path selection from Overview component
     const handlePathSelect = (path) => {
         setSelectedPath(path);
         if (path === 'organization') {
-            // Start Event Proposal path - generate UUID and redirect to UUID-based URL
-            const { v4: uuidv4 } = require('uuid');
-            const newUuid = uuidv4();
-            console.log('🎯 Redirecting to UUID-based URL:', newUuid);
-
-            // Redirect to UUID-based URL with step parameter
-            router.push(`/student-dashboard/submit-event/${newUuid}?step=2`);
+            setCurrentStep(2);
+            updateURL(2);
+            setCompletedSteps(prev => [...new Set([...prev, 1])]);
         } else if (path === 'post-event-report') {
-            // Post Event Report path - show PostEventReport component
-            setCurrentStep(0); // Special step for post-event report
+            setCurrentStep(0);
         }
     };
 
@@ -218,10 +226,8 @@ export default function EnhancedSubmitEventPage() {
     const handleReportsSubmitted = (isSubmitted) => {
         setIsReportsSubmitted(isSubmitted);
         if (isSubmitted) {
-            // Mark Reports step (step 5) as completed when submitted
             setCompletedSteps(prev => [...new Set([...prev, 5])]);
         } else {
-            // Remove Reports step from completed when reset
             setCompletedSteps(prev => prev.filter(id => id !== 5));
         }
     };
@@ -232,7 +238,6 @@ export default function EnhancedSubmitEventPage() {
 
         const timeoutId = setTimeout(async () => {
             try {
-                // Simulate auto-save API call
                 await new Promise(resolve => setTimeout(resolve, 500));
                 setLastSaved(new Date());
                 console.log('Auto-saved at:', new Date().toLocaleTimeString());
@@ -249,7 +254,6 @@ export default function EnhancedSubmitEventPage() {
         const step = steps.find(s => s.id === stepId);
         if (!step) return false;
 
-        // Skip validation for steps without fields (like Overview)
         if (!step.fields || step.fields.length === 0) {
             setCompletedSteps(prev => [...new Set([...prev, stepId])]);
             return true;
@@ -271,24 +275,23 @@ export default function EnhancedSubmitEventPage() {
     const goToStep = useCallback(async (stepId) => {
         if (stepId < currentStep) {
             setCurrentStep(stepId);
+            updateURL(stepId);
             return;
         }
 
-        // Validate current step before proceeding
         const isCurrentStepValid = await validateStep(currentStep);
         if (isCurrentStepValid || stepId <= currentStep) {
             setCurrentStep(stepId);
+            updateURL(stepId);
         } else {
-            // Show validation errors
             console.log('Please complete current step before proceeding');
         }
-    }, [currentStep, validateStep]);
+    }, [currentStep, validateStep, updateURL]);
 
     // Enhanced form submission
     const onSubmit = async (data) => {
         setIsSubmitting(true);
         try {
-            // Simulate API submission
             await new Promise(resolve => setTimeout(resolve, 2000));
             console.log('Form submitted:', data);
             alert('Event submitted successfully!');
@@ -302,7 +305,6 @@ export default function EnhancedSubmitEventPage() {
 
     // Render current step component
     const renderCurrentStep = () => {
-        // Handle post-event report path
         if (currentStep === 0) {
             return (
                 <Suspense fallback={<div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>}>
@@ -310,13 +312,13 @@ export default function EnhancedSubmitEventPage() {
                         onBack={() => {
                             setSelectedPath(null);
                             setCurrentStep(1);
+                            updateURL(1);
                         }}
                     />
                 </Suspense>
             );
         }
 
-        // Handle event proposal stepper path
         const StepComponent = {
             1: Overview,
             2: Organization,
@@ -343,8 +345,6 @@ export default function EnhancedSubmitEventPage() {
 
     // Calculate overall progress
     const progress = (completedSteps.length / steps.length) * 100;
-
-    // Ensure we show progress for event proposal path (currentStep > 0)
     const showProgress = currentStep > 0;
 
     return (
@@ -352,7 +352,7 @@ export default function EnhancedSubmitEventPage() {
             <FormProvider {...methods}>
                 <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                        {/* Enhanced Header with Progress - Only show for event proposal path */}
+                        {/* Enhanced Header with Progress and UUID Display */}
                         {showProgress && (
                             <div className="mb-8">
                                 <div className="flex items-center justify-between">
@@ -361,6 +361,15 @@ export default function EnhancedSubmitEventPage() {
                                         <p className="mt-2 text-gray-600">
                                             Complete all sections to submit your event for approval
                                         </p>
+                                        {/* UUID Display in Header */}
+                                        <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg inline-block">
+                                            <p className="text-sm text-blue-800">
+                                                <strong>Event ID:</strong>
+                                                <code className="bg-blue-100 px-2 py-1 rounded text-blue-900 font-mono text-xs ml-1">
+                                                    {uuid}
+                                                </code>
+                                            </p>
+                                        </div>
                                     </div>
                                     <div className="text-right">
                                         <div className="text-sm text-gray-500">Progress</div>
@@ -378,13 +387,11 @@ export default function EnhancedSubmitEventPage() {
                             </div>
                         )}
 
-                        {/* Main content with enhanced layout */}
+                        {/* Main content */}
                         <div>
-
-                            {/* Enhanced Main Form Area */}
                             <main className="lg:col-span-3">
                                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                                    {/* Enhanced Stepper - Only show for event proposal path */}
+                                    {/* Enhanced Stepper */}
                                     {showProgress && (
                                         <div className="p-6 border-b border-gray-200 bg-gray-50">
                                             <nav aria-label="Event submission progress">
@@ -397,7 +404,6 @@ export default function EnhancedSubmitEventPage() {
 
                                                         return (
                                                             <li key={step.id} className="flex-1 relative">
-                                                                {/* Connection line */}
                                                                 {index < steps.length - 1 && (
                                                                     <div className="absolute top-4 left-1/2 w-full h-0.5 bg-gray-200 -translate-y-1/2">
                                                                         <div className={`h-full transition-all duration-300 ${isCompleted ? 'bg-blue-600' : 'bg-gray-200'}`}
@@ -405,7 +411,6 @@ export default function EnhancedSubmitEventPage() {
                                                                     </div>
                                                                 )}
 
-                                                                {/* Step button */}
                                                                 <button
                                                                     type="button"
                                                                     className={`relative flex flex-col items-center p-2 rounded-lg transition-all duration-200 ${isCurrent
@@ -446,7 +451,7 @@ export default function EnhancedSubmitEventPage() {
                                         {renderCurrentStep()}
                                     </div>
 
-                                    {/* Enhanced Action Buttons - Only show for event proposal path, hide on Overview step, and hide when Reports is submitted */}
+                                    {/* Enhanced Action Buttons */}
                                     {showProgress && currentStep !== 1 && !isReportsSubmitted && (
                                         <div className="flex justify-between items-center p-6 border-t border-gray-200 bg-gray-50">
                                             <button
@@ -477,7 +482,6 @@ export default function EnhancedSubmitEventPage() {
                                                     Preview
                                                 </button>
 
-                                                {/* Hide Next/Complete button only on Reports step (step 5) */}
                                                 {currentStep !== 5 && (
                                                     <button
                                                         type="button"

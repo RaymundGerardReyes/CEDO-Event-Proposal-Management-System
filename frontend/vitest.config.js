@@ -42,7 +42,7 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.js'],
-    include: ['tests/**/*.{test,spec}.{js,jsx}'], // Simplified include pattern
+    include: ['tests/**/*.{test,spec}.{js,jsx}', 'src/**/*.{test,spec}.{js,jsx}'], // Include both tests and src directories
 
     // ✅ ENHANCED: Add test-specific esbuild config
     esbuild: {

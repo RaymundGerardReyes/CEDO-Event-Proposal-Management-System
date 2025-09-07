@@ -88,6 +88,11 @@ const routeConfig = {
     "/student-dashboard/submit-event"
   ],
 
+  // UUID-based submit event routes (should be accessible to students)
+  uuidSubmitEventRoutes: [
+    "/student-dashboard/submit-event/[uuid]"
+  ],
+
   // Legacy routes that should be redirected
   legacyRoutes: [
     "/student-dashboard"
@@ -130,6 +135,11 @@ function hasRouteAccess(pathname, userRole) {
 
   // Submit event routes - students, partners, and reviewers can access
   if (routeConfig.submitEventRoutes.some(route => pathname.startsWith(route))) {
+    return [UserRoles.STUDENT, UserRoles.PARTNER, UserRoles.REVIEWER].includes(userRole);
+  }
+
+  // UUID-based submit event routes - students, partners, and reviewers can access
+  if (pathname.match(/^\/student-dashboard\/submit-event\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)) {
     return [UserRoles.STUDENT, UserRoles.PARTNER, UserRoles.REVIEWER].includes(userRole);
   }
 
@@ -183,8 +193,9 @@ export default async function middleware(request) {
   console.log(`Middleware: ${pathname} | Auth: ${isAuthenticated} | Role: ${userRole}`);
 
   // ✅ ENHANCED: Allow submit-event routes in development
-  if (isDevelopment && pathname.startsWith("/student-dashboard/submit-event")) {
-    console.log('🔄 Development: Allowing access to submit-event routes');
+  if (isDevelopment && (pathname.startsWith("/student-dashboard/submit-event") ||
+    pathname.match(/^\/student-dashboard\/submit-event\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i))) {
+    console.log('🔄 Development: Allowing access to submit-event routes (including UUID-based)');
     const response = NextResponse.next();
     response.headers.set("x-middleware-cache", "no-cache");
     return response;
