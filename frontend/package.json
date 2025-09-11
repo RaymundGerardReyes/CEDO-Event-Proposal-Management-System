@@ -15,7 +15,7 @@
         "build": "next build",
         "build:analyze": "ANALYZE=true next build",
         "build:profile": "next build --profile",
-        "start": "next start -p 3000",
+        "start": "node -e \"const p=process.env.PORT||3000; require('child_process').spawn(process.execPath,['node_modules/next/dist/bin/next','start','-p',String(p)],{stdio:'inherit'})\"",
         "lint": "next lint --cache",
         "lint:fix": "next lint --fix --cache",
         "lint:check": "eslint . --ext .js,.jsx --cache",

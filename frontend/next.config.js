@@ -89,8 +89,8 @@ const nextConfig = {
   // Environment variables
   env: {
     APP_ENV: process.env.NODE_ENV || "development",
-    BACKEND_URL: process.env.BACKEND_URL || "http://localhost:5000",
-    API_URL: process.env.API_URL || "http://localhost:5000/api",
+    BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || "http://localhost:5000",
+    API_URL: process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || "http://localhost:5000/api",
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
     RECAPTCHA_SITE_KEY: process.env.RECAPTCHA_SITE_KEY,
     JWT_SECRET_DEV: process.env.JWT_SECRET_DEV,
