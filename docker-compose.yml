@@ -1,0 +1,50 @@
+version: '3.9'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cedo-backend
+    env_file:
+      - ./backend/.env
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+    ports:
+      - "5000:5000"
+    volumes:
+      - backend-logs:/app/logs
+      - backend-uploads:/app/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cedo-frontend
+    environment:
+      - NODE_ENV=production
+      - BACKEND_URL=http://backend:5000
+      - API_URL=http://backend:5000/api
+      - NEXT_TELEMETRY_DISABLED=1
+      - PORT=3000
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+
+volumes:
+  backend-logs:
+  backend-uploads:
+
+networks:
+  default:
+    name: cedo-network
+

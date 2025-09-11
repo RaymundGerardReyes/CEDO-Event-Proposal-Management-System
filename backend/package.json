@@ -26,7 +26,7 @@
         "dev": "nodemon server.js",
         "dev:minimal": "nodemon server-minimal.js",
         "dev:cluster": "nodemon cluster.js",
-        "build": "tsc",
+        "build": "node -e \"console.log('No backend build step; JS runtime only')\"",
         "init-db": "node scripts/init-db.js",
         "init-mongodb": "node scripts/init-mongodb.js",
         "init-databases": "npm run init-db && npm run init-mongodb",
