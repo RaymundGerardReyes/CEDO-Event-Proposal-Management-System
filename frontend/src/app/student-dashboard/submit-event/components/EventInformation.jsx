@@ -26,7 +26,7 @@ import {
     Upload,
     X
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { useEventForm } from '../contexts/EventFormContext';
 
@@ -54,10 +54,12 @@ const SDP_CREDITS = [
 ];
 
 export default function StepLogistics({ methods, onNext, onPrevious, isLastStep }) {
-    const { register, formState: { errors }, watch, setValue, trigger } = useFormContext();
+    const { register, formState: { errors }, watch, setValue, trigger, reset } = useFormContext();
     const { eventUuid, getShortUuid, getFormAge } = useEventForm();
     const [gpoaFile, setGpoaFile] = useState(null);
     const [projectProposalFile, setProjectProposalFile] = useState(null);
+    const [gpoaDataUrl, setGpoaDataUrl] = useState(null);
+    const [projectProposalDataUrl, setProjectProposalDataUrl] = useState(null);
     const [selectedTargetAudiences, setSelectedTargetAudiences] = useState([]);
 
     const watchedValues = watch();
@@ -78,6 +80,9 @@ export default function StepLogistics({ methods, onNext, onPrevious, isLastStep 
         if (file) {
             setGpoaFile(file);
             setValue('gpoaFile', file);
+            const reader = new FileReader();
+            reader.onload = () => setGpoaDataUrl(reader.result);
+            reader.readAsDataURL(file);
         }
     };
 
@@ -87,6 +92,9 @@ export default function StepLogistics({ methods, onNext, onPrevious, isLastStep 
         if (file) {
             setProjectProposalFile(file);
             setValue('projectProposalFile', file);
+            const reader = new FileReader();
+            reader.onload = () => setProjectProposalDataUrl(reader.result);
+            reader.readAsDataURL(file);
         }
     };
 
@@ -94,11 +102,13 @@ export default function StepLogistics({ methods, onNext, onPrevious, isLastStep 
     const removeGpoaFile = () => {
         setGpoaFile(null);
         setValue('gpoaFile', null);
+        setGpoaDataUrl(null);
     };
 
     const removeProjectProposalFile = () => {
         setProjectProposalFile(null);
         setValue('projectProposalFile', null);
+        setProjectProposalDataUrl(null);
     };
 
     // Format file size
@@ -131,6 +141,106 @@ export default function StepLogistics({ methods, onNext, onPrevious, isLastStep 
     };
 
     const dateError = validateDates();
+
+    // ------- LocalStorage Auto-save & Restore -------
+    const storageKey = useMemo(() => eventUuid ? `eventForm:${eventUuid}:eventInformation` : null, [eventUuid]);
+
+    // Load saved data on mount or when UUID changes
+    useEffect(() => {
+        if (!storageKey) return;
+        try {
+            const raw = localStorage.getItem(storageKey);
+            if (!raw) return;
+            const saved = JSON.parse(raw);
+
+            // Restore basic fields
+            const {
+                values = {},
+                selectedTargetAudiences: savedAud = [],
+                gpoa,
+                projectProposal
+            } = saved;
+
+            reset({
+                ...watch(),
+                ...values
+            });
+
+            setSelectedTargetAudiences(savedAud);
+            if (Array.isArray(savedAud)) setValue('targetAudience', savedAud);
+
+            // Restore files from data URLs
+            const reviveFile = async (f) => {
+                if (!f?.dataUrl) return null;
+                const res = await fetch(f.dataUrl);
+                const blob = await res.blob();
+                return new File([blob], f.name || 'file', { type: f.type || blob.type });
+            };
+
+            (async () => {
+                if (gpoa?.dataUrl) {
+                    const file = await reviveFile(gpoa);
+                    if (file) {
+                        setGpoaFile(file);
+                        setGpoaDataUrl(gpoa.dataUrl);
+                        setValue('gpoaFile', file);
+                    }
+                }
+                if (projectProposal?.dataUrl) {
+                    const file = await reviveFile(projectProposal);
+                    if (file) {
+                        setProjectProposalFile(file);
+                        setProjectProposalDataUrl(projectProposal.dataUrl);
+                        setValue('projectProposalFile', file);
+                    }
+                }
+            })();
+        } catch (e) {
+            console.warn('Failed to load saved Event Information:', e);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [storageKey]);
+
+    // Debounced save
+    useEffect(() => {
+        if (!storageKey) return;
+        const timeout = setTimeout(() => {
+            try {
+                const valuesToSave = {
+                    eventName: watchedValues.eventName || '',
+                    venue: watchedValues.venue || '',
+                    startDate: watchedValues.startDate || '',
+                    endDate: watchedValues.endDate || '',
+                    startTime: watchedValues.startTime || '',
+                    endTime: watchedValues.endTime || '',
+                    eventType: watchedValues.eventType || '',
+                    sdpCredits: watchedValues.sdpCredits || null,
+                };
+
+                const payload = {
+                    values: valuesToSave,
+                    selectedTargetAudiences,
+                    gpoa: gpoaFile && gpoaDataUrl ? {
+                        name: gpoaFile.name,
+                        size: gpoaFile.size,
+                        type: gpoaFile.type,
+                        dataUrl: gpoaDataUrl
+                    } : null,
+                    projectProposal: projectProposalFile && projectProposalDataUrl ? {
+                        name: projectProposalFile.name,
+                        size: projectProposalFile.size,
+                        type: projectProposalFile.type,
+                        dataUrl: projectProposalDataUrl
+                    } : null
+                };
+                localStorage.setItem(storageKey, JSON.stringify(payload));
+            } catch (e) {
+                console.warn('Failed to save Event Information:', e);
+            }
+        }, 500);
+        return () => clearTimeout(timeout);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [storageKey, watchedValues, selectedTargetAudiences, gpoaFile, projectProposalFile, gpoaDataUrl, projectProposalDataUrl]);
 
     const isStepValid = () => {
         return watchedValues.eventName &&

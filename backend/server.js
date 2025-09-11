@@ -82,6 +82,9 @@ const configRouter = require('./routes/config'); // Public-facing config route
 // Initialize express app
 const app = express()
 
+// Enable trust proxy so secure cookies work behind Render/Proxies
+app.set('trust proxy', 1)
+
 // ==============================
 // Server Configuration
 // ==============================
@@ -107,12 +110,37 @@ console.log(`- RECAPTCHA_SECRET_KEY: ${process.env.RECAPTCHA_SECRET_KEY ? "set" 
 // CORS Configuration
 // ==============================
 // ✅ ENHANCED CORS CONFIGURATION FOR GOOGLE OAUTH
+// Support comma-separated multiple origins via ALLOWED_ORIGINS or fallback FRONTEND_URL or localhost:3000
+const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || process.env.FRONTEND_URL || 'http://localhost:3000'
+const allowedOrigins = allowedOriginsEnv.split(',').map(s => s.trim()).filter(Boolean)
+console.log(`- ALLOWED_ORIGINS: ${allowedOrigins.join(', ')}`)
+
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
+  origin: (origin, callback) => {
+    // Allow non-browser or same-origin requests
+    if (!origin) return callback(null, true)
+    // Match exact origin or wildcard "*"
+    if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      return callback(null, true)
+    }
+    // Also allow http->https downgrade for local testing if schemes differ
+    const normalized = origin.replace('https://', 'http://').replace('http://', 'https://')
+    if (allowedOrigins.includes(normalized)) {
+      return callback(null, true)
+    }
+    console.warn(`CORS blocked origin: ${origin}`)
+    callback(new Error('Not allowed by CORS'))
+  },
+  credentials: true,
+  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  optionsSuccessStatus: 204
 };
 
 app.use(cors(corsOptions));
+
+// Handle preflight early
+app.options('*', cors(corsOptions))
 
 // ✅ Additional headers for Google OAuth compatibility
 // Request logging moved to optimized logger
@@ -140,6 +168,11 @@ app.use(cookieSession({
   sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
   signed: true
 }));
+
+// Lightweight connectivity ping for frontend readiness checks
+app.get('/api/ping', (req, res) => {
+  res.status(200).json({ ok: true, ts: Date.now() })
+})
 
 // ✅ FIXED: Session error handling middleware
 // Request logging moved to optimized logger
@@ -566,9 +599,9 @@ async function startServer() {
 
     // Add request logging middleware
     // Request logging moved to optimized logger
-app.use(require('./config/logging').logger.request);
+    app.use(require('./config/logging').logger.request);
 
-app.use((req, res, next) => {
+    app.use((req, res, next) => {
       const start = Date.now();
       console.log(`📥 ${req.method} ${req.path} - ${new Date().toISOString()}`);
 

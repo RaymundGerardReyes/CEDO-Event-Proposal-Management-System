@@ -158,16 +158,45 @@ async function uploadFile(fileBuffer, filename, metadata = {}) {
             }
         });
 
-        // Write file to stream
+
+        // Write file to stream with robust error handling
+        let streamEnded = false;
+        function safeEnd() {
+            if (!streamEnded) {
+                try {
+                    uploadStream.end();
+                    streamEnded = true;
+                    console.log('📁 (GridFS Utility) Stream ended safely');
+                } catch (err) {
+                    console.error('❌ (GridFS Utility) Error ending stream:', err.message);
+                }
+            }
+        }
+
         if (Buffer.isBuffer(fileBuffer)) {
-            console.log('📁 (GridFS Utility) Writing buffer to stream...');
-            uploadStream.write(fileBuffer);
-            // 🔧 CRITICAL FIX: End the stream after writing buffer
-            uploadStream.end();
-            console.log('📁 (GridFS Utility) Buffer written and stream ended');
+            try {
+                console.log('📁 (GridFS Utility) Writing buffer to stream...');
+                uploadStream.write(fileBuffer);
+                safeEnd();
+                console.log('📁 (GridFS Utility) Buffer written and stream ended');
+            } catch (err) {
+                console.error('❌ (GridFS Utility) Error writing buffer to stream:', err.message);
+                safeEnd();
+                throw err;
+            }
         } else {
             // Handle readable stream
             console.log('📁 (GridFS Utility) Piping stream to upload...');
+            fileBuffer.on('error', (err) => {
+                console.error('❌ (GridFS Utility) Readable stream error:', err.message);
+                safeEnd();
+            });
+            uploadStream.on('error', (err) => {
+                if (!streamEnded) {
+                    console.error('❌ (GridFS Utility) Upload stream error (pipe):', err.message);
+                    safeEnd();
+                }
+            });
             fileBuffer.pipe(uploadStream);
         }
 

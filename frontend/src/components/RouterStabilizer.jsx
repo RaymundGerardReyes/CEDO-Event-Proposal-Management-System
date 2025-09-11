@@ -3,6 +3,29 @@
 import { useEffect, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
+// Safe serializer to avoid circular JSON errors and DOM nodes
+function safeSerialize(value) {
+    try {
+        const seen = new WeakSet();
+        const replacer = (_key, val) => {
+            if (typeof val === 'function') return '[Function]';
+            if (typeof Element !== 'undefined' && val instanceof Element) return '[DOM Element]';
+            if (val && typeof val === 'object') {
+                if (seen.has(val)) return '[Circular]';
+                seen.add(val);
+            }
+            return val;
+        };
+        return JSON.stringify(value, replacer);
+    } catch (_) {
+        try {
+            return String(value);
+        } catch (__) {
+            return '[Unserializable]';
+        }
+    }
+}
+
 // Router hooks error fallback
 function RouterErrorFallback({ error, resetErrorBoundary }) {
     // ✅ FIX: Proper error logging with detailed information
@@ -14,8 +37,8 @@ function RouterErrorFallback({ error, resetErrorBoundary }) {
         stringified: error?.toString() || 'Cannot convert to string'
     };
 
-    console.error('Router hooks error:', errorDetails);
-    console.error('Raw error object:', error);
+    console.error('Router hooks error:', safeSerialize(errorDetails));
+    console.error('Raw error message:', errorDetails.message);
 
     useEffect(() => {
         // Auto-recovery for hooks-related errors
@@ -79,9 +102,12 @@ export default function RouterStabilizer({ children }) {
                     componentStack: errorInfo?.componentStack || 'No component stack'
                 };
 
-                console.error('RouterStabilizer caught error:', errorDetails);
-                console.error('Raw error object:', error);
-                console.error('Error info:', errorInfo);
+                console.error('RouterStabilizer caught error:', safeSerialize(errorDetails));
+                console.error('Raw error message:', error?.message || String(error));
+                // Only log the component stack string to avoid circular structures
+                if (errorInfo?.componentStack) {
+                    console.error('Component stack:', errorInfo.componentStack);
+                }
             }}
             onReset={() => {
                 console.log('RouterStabilizer reset - attempting recovery')

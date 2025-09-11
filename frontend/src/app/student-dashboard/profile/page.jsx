@@ -66,6 +66,18 @@ function ProfilePageContent() {
   const [phoneError, setPhoneError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  // Robust error serializer for console/debug
+  const serializeError = useCallback((err) => {
+    if (!err) return 'Unknown error';
+    if (typeof err === 'string') return err;
+    if (err instanceof Error) return `${err.name}: ${err.message}`;
+    try {
+      return JSON.stringify(err);
+    } catch (_) {
+      return String(err);
+    }
+  }, []);
+
   // Helper function to get cached token
   const getCachedToken = useCallback(() => {
     if (typeof document !== "undefined") {
@@ -158,11 +170,18 @@ function ProfilePageContent() {
       const userEmail = user?.email || user?.contactEmail || user?.contact_email;
       console.log(`👤 Profile: Fetching latest data for user ${user.id} (${userEmail})`);
 
-      // Use centralized API utility
-      const data = await api.profile.get();
+      // Choose profile provider (fallback to fetch if api.profile.get is missing)
+      const fetchViaApi = api?.profile?.get;
+      const fetchViaHttp = async () => {
+        const res = await fetch('/api/profile', { credentials: 'include' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      };
+      const getProfile = fetchViaApi || fetchViaHttp;
+      const data = await getProfile();
       console.log('👤 Profile: Raw API response:', data);
 
-      if (data.success && data.user) {
+      if (data && data.success && data.user) {
         // Merge Google OAuth data with database data
         const enhancedUserData = {
           ...data.user,
@@ -198,15 +217,20 @@ function ProfilePageContent() {
           availableKeys: Object.keys(enhancedUserData)
         });
       } else {
-        throw new Error('Invalid profile response format');
+        const apiMsg = data?.error || data?.message || 'Invalid profile response format';
+        // Surface friendly error for UI
+        setError(apiMsg);
+        // Throw for logging path
+        throw new Error(apiMsg);
       }
     } catch (err) {
-      console.error('👤 Profile: Error fetching profile data:', err);
-      setError(err.message);
+      console.error('👤 Profile: Error fetching profile data:', serializeError(err));
+      const friendly = (err && err.message) ? err.message : 'Failed to load profile. Please try again.';
+      setError(friendly);
     } finally {
       if (showLoadingState) setIsRefreshing(false);
     }
-  }, [user?.id, user?.user_metadata, user?.raw_user_meta_data, user?.app_metadata, user?.identities, getOptimizedProfilePicture, getUserDisplayName, isGoogleAccount]);
+  }, [user?.id, user?.user_metadata, user?.raw_user_meta_data, user?.app_metadata, user?.identities, getOptimizedProfilePicture, getUserDisplayName, isGoogleAccount, serializeError]);
 
   // Initial data load and sync with auth context
   useEffect(() => {
@@ -280,8 +304,26 @@ function ProfilePageContent() {
     setError(null);
 
     try {
-      // Use centralized API utility
-      const data = await api.profile.updateOrganization(organizationDescription);
+      // Prefer centralized API utility, fallback to HTTP
+      const updateViaApi = api?.profile?.updateOrganization;
+      const updateViaHttp = async () => {
+        const res = await fetch('/api/profile', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ organizationDescription })
+        });
+        let json;
+        try { json = await res.json(); } catch (_) { json = null; }
+        if (!res.ok) {
+          const msg = json?.error || json?.message || `HTTP ${res.status}`;
+          throw new Error(msg);
+        }
+        return json || { success: true };
+      };
+
+      const updater = updateViaApi || updateViaHttp;
+      const data = await updater(organizationDescription);
 
       if (data.success) {
         setIsEditingOrg(false);
@@ -300,8 +342,9 @@ function ProfilePageContent() {
         throw new Error(data.error || 'Failed to save organization description');
       }
     } catch (err) {
-      console.error('👤 Profile: Failed to save organization description:', err);
-      setError(err.message);
+      console.error('👤 Profile: Failed to save organization description:', serializeError(err));
+      const friendly = (err && err.message) ? err.message : 'Failed to save organization. Please try again.';
+      setError(friendly);
     } finally {
       setIsSaving(false);
     }
@@ -316,8 +359,26 @@ function ProfilePageContent() {
     setPhoneError(''); // Clear previous errors before trying
 
     try {
-      // Use centralized API utility
-      const data = await api.profile.updatePhone(phoneNumber);
+      // Prefer centralized API utility, fallback to HTTP
+      const updateViaApi = api?.profile?.updatePhone;
+      const updateViaHttp = async () => {
+        const res = await fetch('/api/profile/phone', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ phoneNumber })
+        });
+        let json;
+        try { json = await res.json(); } catch (_) { json = null; }
+        if (!res.ok) {
+          const msg = json?.error || json?.message || `HTTP ${res.status}`;
+          return { success: false, error: msg };
+        }
+        return json || { success: true };
+      };
+
+      const updater = updateViaApi || updateViaHttp;
+      const data = await updater(phoneNumber);
 
       if (!data.success) {
         setPhoneError(data.error || 'An unexpected error occurred.');
@@ -341,7 +402,7 @@ function ProfilePageContent() {
 
     } catch (err) {
       // This now only catches UNEXPECTED errors (e.g., network failure)
-      console.error('👤 Profile: A network or server error occurred:', err);
+      console.error('👤 Profile: A network or server error occurred:', serializeError(err));
       setPhoneError('Could not connect to the server. Please try again.');
     } finally {
       setIsSaving(false); // Ensure the button is re-enabled on error or success

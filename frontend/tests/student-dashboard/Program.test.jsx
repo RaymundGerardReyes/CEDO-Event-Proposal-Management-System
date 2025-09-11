@@ -13,7 +13,7 @@ import { render, screen } from '@testing-library/react';
 import { FormProvider, useForm } from 'react-hook-form';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import Program from '../../src/app/student-dashboard/submit-event/components/Program';
+import Program from '../../src/app/student-dashboard/submit-event/components/Review';
 import { EventFormProvider } from '../../src/app/student-dashboard/submit-event/contexts/EventFormContext';
 
 // Mock the EventFormContext

@@ -40,7 +40,7 @@ const EventInformation = dynamic(() => import('./components/EventInformation'), 
     loading: () => <div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>
 });
 
-const Program = dynamic(() => import('./components/Program'), {
+const Review = dynamic(() => import('./components/Review'), {
     loading: () => <div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>
 });
 
@@ -226,6 +226,24 @@ export default function EnhancedSubmitEventPage() {
         }
     };
 
+    // Handle form reset for "Submit Another Report"
+    const handleResetForm = (newUuid) => {
+        // Reset all progress tracking
+        setCompletedSteps([]);
+        setCurrentStep(1);
+        setIsReportsSubmitted(false);
+        setLastSaved(null);
+        setShowPreview(false);
+
+        // Reset form data
+        methods.reset();
+
+        // Redirect to new UUID-based URL
+        router.push(`/student-dashboard/submit-event/${newUuid}?step=1`);
+
+        console.log('🔄 Form reset for new event proposal with UUID:', newUuid);
+    };
+
     // Auto-save functionality with debouncing
     useEffect(() => {
         if (!isDirty) return;
@@ -321,7 +339,7 @@ export default function EnhancedSubmitEventPage() {
             1: Overview,
             2: Organization,
             3: EventInformation,
-            4: Program,
+            4: Review,
             5: Reports
         }[currentStep];
 
@@ -336,6 +354,7 @@ export default function EnhancedSubmitEventPage() {
                     isLastStep={currentStep === steps.length}
                     onPathSelect={handlePathSelect}
                     onReportsSubmitted={handleReportsSubmitted}
+                    onResetForm={handleResetForm}
                 />
             </Suspense>
         );

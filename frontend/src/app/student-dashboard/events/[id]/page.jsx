@@ -3,7 +3,6 @@
 "use client"
 
 import { useParams } from 'next/navigation';
-import React from 'react';
 
 // Force dynamic rendering to prevent SSG issues
 export const dynamic = 'force-dynamic';
@@ -75,7 +74,7 @@ const events = [
 ]
 
 export default function EventDetailPage() {
-  const params = React.use(useParams());
+  const params = useParams();
   const eventId = params.id;
   const router = useRouter()
 

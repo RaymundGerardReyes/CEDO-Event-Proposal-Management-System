@@ -102,6 +102,18 @@ export const EventFormProvider = ({ children }) => {
         console.log('🗑️ Event UUID Cleared');
     }, []);
 
+    // Reset and generate new UUID (for "Submit Another Report")
+    const resetAndGenerateNewUuid = useCallback(() => {
+        // Clear existing UUID
+        clearEventUuid();
+
+        // Generate new UUID
+        const newUuid = generateEventUuid();
+
+        console.log('🔄 Reset and Generated New UUID:', newUuid);
+        return newUuid;
+    }, [clearEventUuid, generateEventUuid]);
+
     // Initialize UUID on component mount
     useEffect(() => {
         loadExistingUuid();
@@ -127,6 +139,7 @@ export const EventFormProvider = ({ children }) => {
         generateEventUuid,
         loadExistingUuid,
         clearEventUuid,
+        resetAndGenerateNewUuid,
         updateFormStatus,
 
         // Utility functions

@@ -152,201 +152,209 @@ function buildUrl(path, origin) {
 }
 
 export default async function middleware(request) {
-  // Skip authentication logic for Link-prefetch and build manifests
-  const isPrefetch =
-    request.headers.get("purpose") === "prefetch" ||
-    request.headers.get("x-middleware-prefetch") === "1";
+  try {
+    // Skip authentication logic for Link-prefetch and build manifests
+    const isPrefetch =
+      request.headers.get("purpose") === "prefetch" ||
+      request.headers.get("x-middleware-prefetch") === "1";
 
-  if (isPrefetch) {
-    const response = NextResponse.next();
-    response.headers.set("x-middleware-cache", "no-cache");
-    return response;
-  }
-
-  const { pathname, origin } = request.nextUrl;
-
-  // Skip middleware for static assets and Next.js internals
-  const isPublicAsset = pathname.startsWith("/_next") ||
-    pathname.startsWith("/static") ||
-    pathname.startsWith("/favicon") ||
-    pathname.includes("."); // Files with extensions
-
-  if (isPublicAsset) {
-    const response = NextResponse.next();
-    response.headers.set("x-middleware-cache", "no-cache");
-    return response;
-  }
-
-  // ✅ ENHANCED: Better development environment handling
-  const isDevelopment = process.env.NODE_ENV === 'development';
-
-  // Get token from cookies
-  const token = request.cookies.get("cedo_token")?.value;
-
-  console.log(`Middleware Cookie Debug: ${pathname} | Token exists: ${!!token}`);
-
-  // Extract user data from token (without verification)
-  const userData = extractJWTPayload(token);
-  const isAuthenticated = !!userData;
-  const userRole = userData?.role;
-
-  console.log(`Middleware: ${pathname} | Auth: ${isAuthenticated} | Role: ${userRole}`);
-
-  // ✅ ENHANCED: Allow submit-event routes in development
-  if (isDevelopment && (pathname.startsWith("/student-dashboard/submit-event") ||
-    pathname.match(/^\/student-dashboard\/submit-event\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i))) {
-    console.log('🔄 Development: Allowing access to submit-event routes (including UUID-based)');
-    const response = NextResponse.next();
-    response.headers.set("x-middleware-cache", "no-cache");
-    return response;
-  }
-
-  // ✅ SECURITY: No development bypasses for dashboard routes
-  // Dashboard routes require proper authentication in all environments
-
-  // Redirect old auth paths to new auth paths (legacy support)
-  if (pathname === "/sign-in") {
-    console.log(`Redirecting old path ${pathname} to new path /auth/sign-in`);
-    const response = NextResponse.redirect(buildUrl("/auth/sign-in", origin), { status: 303 });
-    response.headers.set("x-middleware-cache", "no-cache");
-    return response;
-  }
-
-  if (pathname === "/sign-up") {
-    console.log(`Redirecting old path ${pathname} to new path /auth/sign-up`);
-    const response = NextResponse.redirect(buildUrl("/auth/sign-up", origin), { status: 303 });
-    response.headers.set("x-middleware-cache", "no-cache");
-    return response;
-  }
-
-  if (pathname === "/login") {
-    console.log(`Redirecting old path ${pathname} to new path /auth/sign-in`);
-    const response = NextResponse.redirect(buildUrl("/auth/sign-in", origin), { status: 303 });
-    response.headers.set("x-middleware-cache", "no-cache");
-    return response;
-  }
-
-  if (pathname === "/signup") {
-    console.log(`Redirecting old path ${pathname} to new path /auth/sign-up`);
-    const response = NextResponse.redirect(buildUrl("/auth/sign-up", origin), { status: 303 });
-    response.headers.set("x-middleware-cache", "no-cache");
-    return response;
-  }
-
-  // Remove legacy redirect - we now use clean paths directly
-
-  // ✅ ENHANCED: Development mode authentication check with warning
-  if (isDevelopment && !isAuthenticated && (pathname.startsWith("/student-dashboard") || pathname.startsWith("/admin-dashboard"))) {
-    console.warn('⚠️  Development: Unauthenticated dashboard access detected. This should not happen in production!');
-    console.warn(`⚠️  Redirecting ${pathname} to sign-in for proper authentication flow`);
-
-    // Even in development, require authentication for dashboard routes
-    const response = NextResponse.redirect(buildUrl("/auth/sign-in", origin), { status: 303 });
-    response.headers.set("x-middleware-cache", "no-cache");
-    return response;
-  }
-
-  // Handle authenticated users
-  if (isAuthenticated && userRole) {
-    const correctDashboard = getDashboardForRole(userRole);
-
-    console.log(`🔍 Middleware: User role ${userRole}, correct dashboard: ${correctDashboard}`);
-
-    // Redirect away from auth-only routes when authenticated
-    if (routeConfig.authOnlyRoutes.includes(pathname)) {
-      console.log(`Redirecting authenticated user from ${pathname} to ${correctDashboard}`);
-      const response = NextResponse.redirect(buildUrl(correctDashboard, origin), { status: 303 });
-      response.headers.set("x-middleware-cache", "no-cache");
-      return response;
-    }
-
-    // Redirect from root to appropriate dashboard
-    if (pathname === "/") {
-      console.log(`Redirecting from root to ${correctDashboard} for role ${userRole}`);
-      const response = NextResponse.redirect(buildUrl(correctDashboard, origin), { status: 303 });
-      response.headers.set("x-middleware-cache", "no-cache");
-      return response;
-    }
-
-
-
-    // ✅ ENHANCED: Allow admin dashboard access for authenticated admins
-    if (pathname.startsWith("/admin-dashboard")) {
-      if (userRole === UserRoles.HEAD_ADMIN || userRole === UserRoles.MANAGER) {
-        console.log(`✅ Allowing access to admin dashboard: ${pathname} for role ${userRole}`);
-        const response = NextResponse.next();
-        response.headers.set("x-middleware-cache", "no-cache");
-        return response;
-      } else {
-        console.log(`❌ Access denied to admin dashboard for role ${userRole}. Redirecting to ${correctDashboard}`);
-        const response = NextResponse.redirect(buildUrl(correctDashboard, origin), { status: 303 });
-        response.headers.set("x-middleware-cache", "no-cache");
-        return response;
-      }
-    }
-
-    // Check role-based access control
-    if (!hasRouteAccess(pathname, userRole)) {
-      console.log(`Access denied to ${pathname} for role ${userRole}. Redirecting to ${correctDashboard}`);
-      const response = NextResponse.redirect(buildUrl(correctDashboard, origin), { status: 303 });
-      response.headers.set("x-middleware-cache", "no-cache");
-      return response;
-    }
-
-    // Add user context to API requests
-    if (pathname.startsWith("/api/")) {
-      const requestHeaders = new Headers(request.headers);
-      requestHeaders.set("x-user-id", userData.id);
-      requestHeaders.set("x-user-role", userData.role);
-
-      const response = NextResponse.next({
-        request: {
-          headers: requestHeaders,
-        },
-      });
-      response.headers.set("x-middleware-cache", "no-cache");
-      return response;
-    }
-
-    // Allow access to protected routes
-    const response = NextResponse.next();
-    response.headers.set("x-middleware-cache", "no-cache");
-    return response;
-  }
-
-  // ✅ ENHANCED: Better handling for unauthenticated users
-  if (!isAuthenticated) {
-    // Allow access to public routes
-    if (routeConfig.publicRoutes.includes(pathname)) {
+    if (isPrefetch) {
       const response = NextResponse.next();
       response.headers.set("x-middleware-cache", "no-cache");
       return response;
     }
 
-    // Check if this is a protected route that requires authentication
-    const isProtectedRoute =
-      routeConfig.adminRoutes.some(route => pathname.startsWith(route)) ||
-      routeConfig.studentRoutes.some(route => pathname.startsWith(route)) ||
-      routeConfig.protectedApiRoutes.some(route => pathname.startsWith(route));
+    const { pathname, origin } = request.nextUrl;
 
-    if (isProtectedRoute) {
-      console.log(`🔒 Access denied: Unauthenticated user trying to access protected route ${pathname}`);
+    // Skip middleware for static assets and Next.js internals
+    const isPublicAsset = pathname.startsWith("/_next") ||
+      pathname.startsWith("/static") ||
+      pathname.startsWith("/favicon") ||
+      pathname.includes("."); // Files with extensions
+
+    if (isPublicAsset) {
+      const response = NextResponse.next();
+      response.headers.set("x-middleware-cache", "no-cache");
+      return response;
+    }
+
+    // ✅ ENHANCED: Better development environment handling
+    const isDevelopment = process.env.NODE_ENV === 'development';
+
+    // Get token from cookies
+    const token = request.cookies.get("cedo_token")?.value;
+
+    console.log(`Middleware Cookie Debug: ${pathname} | Token exists: ${!!token}`);
+
+    // Extract user data from token (without verification)
+    const userData = extractJWTPayload(token);
+    const isAuthenticated = !!userData;
+    const userRole = userData?.role;
+
+    console.log(`Middleware: ${pathname} | Auth: ${isAuthenticated} | Role: ${userRole}`);
+
+    // ✅ ENHANCED: Allow submit-event routes in development
+    if (isDevelopment && (pathname.startsWith("/student-dashboard/submit-event") ||
+      pathname.match(/^\/student-dashboard\/submit-event\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i))) {
+      console.log('🔄 Development: Allowing access to submit-event routes (including UUID-based)');
+      const response = NextResponse.next();
+      response.headers.set("x-middleware-cache", "no-cache");
+      return response;
+    }
+
+    // ✅ SECURITY: No development bypasses for dashboard routes
+    // Dashboard routes require proper authentication in all environments
+
+    // Redirect old auth paths to new auth paths (legacy support)
+    if (pathname === "/sign-in") {
+      console.log(`Redirecting old path ${pathname} to new path /auth/sign-in`);
       const response = NextResponse.redirect(buildUrl("/auth/sign-in", origin), { status: 303 });
       response.headers.set("x-middleware-cache", "no-cache");
       return response;
     }
 
-    // For other routes, redirect to sign-in as well (secure by default)
-    console.log(`Redirecting unauthenticated user from ${pathname} to /auth/sign-in`);
-    const response = NextResponse.redirect(buildUrl("/auth/sign-in", origin), { status: 303 });
+    if (pathname === "/sign-up") {
+      console.log(`Redirecting old path ${pathname} to new path /auth/sign-up`);
+      const response = NextResponse.redirect(buildUrl("/auth/sign-up", origin), { status: 303 });
+      response.headers.set("x-middleware-cache", "no-cache");
+      return response;
+    }
+
+    if (pathname === "/login") {
+      console.log(`Redirecting old path ${pathname} to new path /auth/sign-in`);
+      const response = NextResponse.redirect(buildUrl("/auth/sign-in", origin), { status: 303 });
+      response.headers.set("x-middleware-cache", "no-cache");
+      return response;
+    }
+
+    if (pathname === "/signup") {
+      console.log(`Redirecting old path ${pathname} to new path /auth/sign-up`);
+      const response = NextResponse.redirect(buildUrl("/auth/sign-up", origin), { status: 303 });
+      response.headers.set("x-middleware-cache", "no-cache");
+      return response;
+    }
+
+    // Remove legacy redirect - we now use clean paths directly
+
+    // ✅ ENHANCED: Development mode authentication check with warning
+    if (isDevelopment && !isAuthenticated && (pathname.startsWith("/student-dashboard") || pathname.startsWith("/admin-dashboard"))) {
+      console.warn('⚠️  Development: Unauthenticated dashboard access detected. This should not happen in production!');
+      console.warn(`⚠️  Redirecting ${pathname} to sign-in for proper authentication flow`);
+
+      // Even in development, require authentication for dashboard routes
+      const response = NextResponse.redirect(buildUrl("/auth/sign-in", origin), { status: 303 });
+      response.headers.set("x-middleware-cache", "no-cache");
+      return response;
+    }
+
+    // Handle authenticated users
+    if (isAuthenticated && userRole) {
+      const correctDashboard = getDashboardForRole(userRole);
+
+      console.log(`🔍 Middleware: User role ${userRole}, correct dashboard: ${correctDashboard}`);
+
+      // Redirect away from auth-only routes when authenticated
+      if (routeConfig.authOnlyRoutes.includes(pathname)) {
+        console.log(`Redirecting authenticated user from ${pathname} to ${correctDashboard}`);
+        const response = NextResponse.redirect(buildUrl(correctDashboard, origin), { status: 303 });
+        response.headers.set("x-middleware-cache", "no-cache");
+        return response;
+      }
+
+      // Redirect from root to appropriate dashboard
+      if (pathname === "/") {
+        console.log(`Redirecting from root to ${correctDashboard} for role ${userRole}`);
+        const response = NextResponse.redirect(buildUrl(correctDashboard, origin), { status: 303 });
+        response.headers.set("x-middleware-cache", "no-cache");
+        return response;
+      }
+
+
+
+      // ✅ ENHANCED: Allow admin dashboard access for authenticated admins
+      if (pathname.startsWith("/admin-dashboard")) {
+        if (userRole === UserRoles.HEAD_ADMIN || userRole === UserRoles.MANAGER) {
+          console.log(`✅ Allowing access to admin dashboard: ${pathname} for role ${userRole}`);
+          const response = NextResponse.next();
+          response.headers.set("x-middleware-cache", "no-cache");
+          return response;
+        } else {
+          console.log(`❌ Access denied to admin dashboard for role ${userRole}. Redirecting to ${correctDashboard}`);
+          const response = NextResponse.redirect(buildUrl(correctDashboard, origin), { status: 303 });
+          response.headers.set("x-middleware-cache", "no-cache");
+          return response;
+        }
+      }
+
+      // Check role-based access control
+      if (!hasRouteAccess(pathname, userRole)) {
+        console.log(`Access denied to ${pathname} for role ${userRole}. Redirecting to ${correctDashboard}`);
+        const response = NextResponse.redirect(buildUrl(correctDashboard, origin), { status: 303 });
+        response.headers.set("x-middleware-cache", "no-cache");
+        return response;
+      }
+
+      // Add user context to API requests
+      if (pathname.startsWith("/api/")) {
+        const requestHeaders = new Headers(request.headers);
+        requestHeaders.set("x-user-id", userData.id);
+        requestHeaders.set("x-user-role", userData.role);
+
+        const response = NextResponse.next({
+          request: {
+            headers: requestHeaders,
+          },
+        });
+        response.headers.set("x-middleware-cache", "no-cache");
+        return response;
+      }
+
+      // Allow access to protected routes
+      const response = NextResponse.next();
+      response.headers.set("x-middleware-cache", "no-cache");
+      return response;
+    }
+
+    // ✅ ENHANCED: Better handling for unauthenticated users
+    if (!isAuthenticated) {
+      // Allow access to public routes
+      if (routeConfig.publicRoutes.includes(pathname)) {
+        const response = NextResponse.next();
+        response.headers.set("x-middleware-cache", "no-cache");
+        return response;
+      }
+
+      // Check if this is a protected route that requires authentication
+      const isProtectedRoute =
+        routeConfig.adminRoutes.some(route => pathname.startsWith(route)) ||
+        routeConfig.studentRoutes.some(route => pathname.startsWith(route)) ||
+        routeConfig.protectedApiRoutes.some(route => pathname.startsWith(route));
+
+      if (isProtectedRoute) {
+        console.log(`🔒 Access denied: Unauthenticated user trying to access protected route ${pathname}`);
+        const response = NextResponse.redirect(buildUrl("/auth/sign-in", origin), { status: 303 });
+        response.headers.set("x-middleware-cache", "no-cache");
+        return response;
+      }
+
+      // For other routes, redirect to sign-in as well (secure by default)
+      console.log(`Redirecting unauthenticated user from ${pathname} to /auth/sign-in`);
+      const response = NextResponse.redirect(buildUrl("/auth/sign-in", origin), { status: 303 });
+      response.headers.set("x-middleware-cache", "no-cache");
+      return response;
+    }
+
+    // Default: allow the request to proceed (only for authenticated users)
+    const response = NextResponse.next();
+    response.headers.set("x-middleware-cache", "no-cache");
+    return response;
+  } catch (err) {
+    console.error('❌ Middleware error:', err);
+    // Optionally, redirect to a generic error page or sign-in
+    const response = NextResponse.redirect('/auth/sign-in', { status: 303 });
     response.headers.set("x-middleware-cache", "no-cache");
     return response;
   }
-
-  // Default: allow the request to proceed (only for authenticated users)
-  const response = NextResponse.next();
-  response.headers.set("x-middleware-cache", "no-cache");
-  return response;
 }
 
 // Configure which routes the middleware should run on

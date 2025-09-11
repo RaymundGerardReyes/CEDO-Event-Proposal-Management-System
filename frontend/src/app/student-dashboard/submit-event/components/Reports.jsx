@@ -28,7 +28,7 @@ import {
     Users,
     X
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { useEventForm } from '../contexts/EventFormContext';
 
@@ -37,9 +37,9 @@ const ORGANIZATION_TYPES = [
     { value: 'community-based', label: 'Community-based' }
 ];
 
-export default function Reports({ methods, onNext, onPrevious, isLastStep, onReportsSubmitted }) {
-    const { register, formState: { errors }, watch, setValue } = useFormContext();
-    const { eventUuid, getShortUuid, getFormAge, updateFormStatus } = useEventForm();
+export default function Reports({ methods, onNext, onPrevious, isLastStep, onReportsSubmitted, onResetForm }) {
+    const { register, formState: { errors }, watch, setValue, reset } = useFormContext();
+    const { eventUuid, getShortUuid, getFormAge, updateFormStatus, resetAndGenerateNewUuid } = useEventForm();
     const [uploadedFiles, setUploadedFiles] = useState({
         accomplishmentReport: [],
         eventPhotos: [],
@@ -50,22 +50,30 @@ export default function Reports({ methods, onNext, onPrevious, isLastStep, onRep
 
     const watchedValues = watch();
 
-    // File upload handlers
+    // File upload handlers (persist dataUrl for autosave)
     const handleFileUpload = (category, event) => {
         const files = Array.from(event.target.files);
-        const newFiles = files.map(file => ({
-            id: Date.now() + Math.random(),
-            name: file.name,
-            size: file.size,
-            type: file.type,
-            file: file,
-            uploadDate: new Date().toISOString()
+        const readers = files.map(file => new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onload = () => resolve({ file, dataUrl: reader.result });
+            reader.readAsDataURL(file);
         }));
 
-        setUploadedFiles(prev => ({
-            ...prev,
-            [category]: [...prev[category], ...newFiles]
-        }));
+        Promise.all(readers).then(results => {
+            const newFiles = results.map(({ file, dataUrl }) => ({
+                id: Date.now() + Math.random(),
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                file,
+                dataUrl,
+                uploadDate: new Date().toISOString()
+            }));
+            setUploadedFiles(prev => ({
+                ...prev,
+                [category]: [...prev[category], ...newFiles]
+            }));
+        });
     };
 
     const removeFile = (category, fileId) => {
@@ -93,7 +101,6 @@ export default function Reports({ methods, onNext, onPrevious, isLastStep, onRep
             watchedValues.endTime &&
             watchedValues.registeredParticipants &&
             watchedValues.actualParticipants &&
-            watchedValues.organizationType &&
             uploadedFiles.accomplishmentReport.length > 0 &&
             uploadedFiles.eventPhotos.length > 0 &&
             uploadedFiles.attendanceSheet.length > 0;
@@ -134,6 +141,93 @@ export default function Reports({ methods, onNext, onPrevious, isLastStep, onRep
             setIsSubmitting(false);
         }
     };
+
+    // ------- LocalStorage Auto-save & Restore -------
+    const storageKey = useMemo(() => eventUuid ? `eventForm:${eventUuid}:reports` : null, [eventUuid]);
+
+    // Load from storage on mount/uuid change
+    useEffect(() => {
+        if (!storageKey) return;
+        try {
+            const raw = localStorage.getItem(storageKey);
+            if (!raw) return;
+            const saved = JSON.parse(raw);
+
+            const { values = {}, uploads = {} } = saved || {};
+            if (values && Object.keys(values).length) {
+                reset({
+                    ...watch(),
+                    ...values
+                });
+            }
+
+            const reviveList = async (list) => {
+                if (!Array.isArray(list)) return [];
+                return Promise.all(list.map(async (f) => {
+                    if (f?.dataUrl && !f.file) {
+                        const res = await fetch(f.dataUrl);
+                        const blob = await res.blob();
+                        f.file = new File([blob], f.name || 'file', { type: f.type || blob.type });
+                    }
+                    return f;
+                }));
+            };
+
+            (async () => {
+                const accomplishmentReport = await reviveList(uploads.accomplishmentReport);
+                const eventPhotos = await reviveList(uploads.eventPhotos);
+                const attendanceSheet = await reviveList(uploads.attendanceSheet);
+                setUploadedFiles({ accomplishmentReport, eventPhotos, attendanceSheet });
+            })();
+        } catch (e) {
+            console.warn('Failed to load saved Reports:', e);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [storageKey]);
+
+    // Debounced save
+    useEffect(() => {
+        if (!storageKey) return;
+        const timeout = setTimeout(() => {
+            try {
+                const valuesToSave = {
+                    organizationName: watchedValues.organizationName || '',
+                    eventName: watchedValues.eventName || '',
+                    venue: watchedValues.venue || '',
+                    startDate: watchedValues.startDate || '',
+                    startTime: watchedValues.startTime || '',
+                    endDate: watchedValues.endDate || '',
+                    endTime: watchedValues.endTime || '',
+                    registeredParticipants: watchedValues.registeredParticipants ?? '',
+                    actualParticipants: watchedValues.actualParticipants ?? '',
+                    description: watchedValues.description || ''
+                };
+
+                const serializeList = (list) => (Array.isArray(list) ? list.map(f => ({
+                    id: f.id,
+                    name: f.name,
+                    size: f.size,
+                    type: f.type,
+                    dataUrl: f.dataUrl || null,
+                    uploadDate: f.uploadDate
+                })) : []);
+
+                const payload = {
+                    values: valuesToSave,
+                    uploads: {
+                        accomplishmentReport: serializeList(uploadedFiles.accomplishmentReport),
+                        eventPhotos: serializeList(uploadedFiles.eventPhotos),
+                        attendanceSheet: serializeList(uploadedFiles.attendanceSheet)
+                    }
+                };
+                localStorage.setItem(storageKey, JSON.stringify(payload));
+            } catch (e) {
+                console.warn('Failed to save Reports:', e);
+            }
+        }, 500);
+        return () => clearTimeout(timeout);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [storageKey, watchedValues, uploadedFiles]);
 
     // Show success message if submitted
     if (isSubmitted) {
@@ -216,7 +310,27 @@ export default function Reports({ methods, onNext, onPrevious, isLastStep, onRep
                         <div className="flex flex-col sm:flex-row gap-4 justify-center">
                             <button
                                 onClick={() => {
+                                    // Reset the submitted state
                                     setIsSubmitted(false);
+
+                                    // Reset uploaded files
+                                    setUploadedFiles({
+                                        accomplishmentReport: [],
+                                        eventPhotos: [],
+                                        attendanceSheet: []
+                                    });
+
+                                    // Reset form data
+                                    reset();
+
+                                    // Generate new UUID and reset form
+                                    const newUuid = resetAndGenerateNewUuid();
+
+                                    // Notify parent component to reset progress and navigate
+                                    if (onResetForm) {
+                                        onResetForm(newUuid);
+                                    }
+
                                     // Notify parent component that reports submission is reset
                                     if (onReportsSubmitted) {
                                         onReportsSubmitted(false);

@@ -17,24 +17,12 @@ import {
     User,
     Users
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { useEventForm } from '../contexts/EventFormContext';
 
-// Mock organization data - in real app, this would come from API
-const MOCK_ORGANIZATIONS = [
-    { name: 'SLP Scholars Association', type: 'Student Organization', verified: true },
-    { name: 'Community Health Initiative', type: 'NGO', verified: true },
-    { name: 'Student Leadership Council', type: 'Student Government', verified: true },
-    { name: 'Environmental Awareness Group', type: 'Student Organization', verified: true },
-    { name: 'Cultural Heritage Society', type: 'Cultural Organization', verified: true },
-    { name: 'Technology Innovation Club', type: 'Student Organization', verified: false },
-    { name: 'Sports and Recreation Committee', type: 'Student Organization', verified: true },
-    { name: 'Academic Excellence Society', type: 'Student Organization', verified: true }
-];
-
 export default function StepOrganizer({ methods, onNext, onPrevious, isLastStep }) {
-    const { register, formState: { errors }, watch, setValue, trigger } = useFormContext();
+    const { register, formState: { errors }, watch, setValue, trigger, reset } = useFormContext();
     const { eventUuid, getShortUuid, getFormAge } = useEventForm();
     const [organizationSuggestions, setOrganizationSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -68,6 +56,59 @@ export default function StepOrganizer({ methods, onNext, onPrevious, isLastStep 
             watchedValues.contactPerson &&
             watchedValues.contactEmail;
     };
+
+    // ------- LocalStorage Auto-save & Restore -------
+    const storageKey = useMemo(() => eventUuid ? `eventForm:${eventUuid}:organization` : null, [eventUuid]);
+
+    // Load saved values on mount/uuid change
+    useEffect(() => {
+        if (!storageKey) return;
+        try {
+            const raw = localStorage.getItem(storageKey);
+            if (!raw) return;
+            const saved = JSON.parse(raw);
+            const { values = {}, selectedOrg = null } = saved || {};
+
+            if (values && Object.keys(values).length) {
+                reset({
+                    ...watch(),
+                    ...values
+                });
+            }
+
+            if (selectedOrg) {
+                setSelectedOrganization(selectedOrg);
+            }
+        } catch (e) {
+            console.warn('Failed to load saved Organization:', e);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [storageKey]);
+
+    // Debounced save on changes
+    useEffect(() => {
+        if (!storageKey) return;
+        const timeout = setTimeout(() => {
+            try {
+                const valuesToSave = {
+                    organizationName: watchedValues.organizationName || '',
+                    contactPerson: watchedValues.contactPerson || '',
+                    contactEmail: watchedValues.contactEmail || '',
+                    contactPhone: watchedValues.contactPhone || '',
+                    organizationRegistrationNo: watchedValues.organizationRegistrationNo || ''
+                };
+                const payload = {
+                    values: valuesToSave,
+                    selectedOrg: selectedOrganization
+                };
+                localStorage.setItem(storageKey, JSON.stringify(payload));
+            } catch (e) {
+                console.warn('Failed to save Organization:', e);
+            }
+        }, 500);
+        return () => clearTimeout(timeout);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [storageKey, watchedValues, selectedOrganization]);
 
     return (
         <div className="space-y-8">
@@ -232,37 +273,10 @@ export default function StepOrganizer({ methods, onNext, onPrevious, isLastStep 
                             {errors.contactPhone.message}
                         </div>
                     )}
-                    <p className="text-sm text-gray-500">
-                        Optional: Provide phone number for urgent communications
-                    </p>
+                
                 </div>
 
-                {/* Organization Registration Number */}
-                <div className="space-y-2">
-                    <label htmlFor="organizationRegistrationNo" className="block text-sm font-semibold text-gray-700">
-                        Organization Registration Number
-                    </label>
-                    <div className="relative">
-                        <input
-                            id="organizationRegistrationNo"
-                            type="text"
-                            {...register('organizationRegistrationNo')}
-                            placeholder="Registration number (if applicable)"
-                            className={`w-full px-4 py-3 pl-10 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.organizationRegistrationNo ? 'border-red-500' : 'border-gray-300'
-                                }`}
-                        />
-                        <FileText className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                    </div>
-                    {errors.organizationRegistrationNo && (
-                        <div className="flex items-center text-red-600 text-sm">
-                            <AlertCircle className="h-4 w-4 mr-1" />
-                            {errors.organizationRegistrationNo.message}
-                        </div>
-                    )}
-                    <p className="text-sm text-gray-500">
-                        Optional: Provide if your organization is officially registered with government agencies
-                    </p>
-                </div>
+              
             </div>
 
             {/* Step Validation Status */}
