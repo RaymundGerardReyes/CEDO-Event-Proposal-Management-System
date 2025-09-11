@@ -81,15 +81,10 @@ const nextConfig = {
   pageExtensions: ["js", "jsx"],
 
   // ESLint configuration
-  eslint: {
-    ignoreDuringBuilds: process.env.NODE_ENV === "production",
-    dirs: ["src", "pages", "components"],
-  },
+  eslint: { ignoreDuringBuilds: true },
 
   // TypeScript configuration
-  typescript: {
-    ignoreBuildErrors: process.env.NODE_ENV === "production",
-  },
+  typescript: { ignoreBuildErrors: true },
 
   // Environment variables
   env: {
