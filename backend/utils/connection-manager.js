@@ -4,56 +4,45 @@
  * Key approaches: Connection pooling, health monitoring, retry logic, fallback strategies
  */
 
-const mysql = require('mysql2/promise');
 const { MongoClient } = require('mongodb');
+const { pool, getDatabaseType, healthCheck } = require('../config/database');
 
 class ConnectionManager {
     constructor() {
-        this.mysqlPool = null;
+        this.databasePool = pool;
         this.mongoClient = null;
-        this.isMysqlConnected = false;
+        this.isDatabaseConnected = false;
         this.isMongoConnected = false;
         this.connectionAttempts = {
-            mysql: 0,
+            database: 0,
             mongo: 0
         };
         this.maxRetries = 3;
     }
 
     /**
-     * Initialize MySQL connection with fallback
+     * Initialize Database connection (MySQL or PostgreSQL)
      */
-    async initializeMySQL() {
+    async initializeDatabase() {
         try {
-            console.log('🔗 Initializing MySQL connection...');
+            console.log(`🔗 Initializing ${getDatabaseType()} connection...`);
 
-            const pool = mysql.createPool({
-                host: process.env.MYSQL_HOST || '127.0.0.1',
-                port: process.env.MYSQL_PORT || 3306,
-                user: process.env.MYSQL_USER || 'root',
-                password: process.env.MYSQL_PASSWORD || process.env.DB_PASSWORD,
-                database: process.env.MYSQL_DATABASE || 'cedo_auth',
-                waitForConnections: true,
-                connectionLimit: 10,
-                queueLimit: 0,
-                acquireTimeout: 10000,
-                timeout: 10000,
-                reconnect: true
-            });
+            // Test the connection using our universal database manager
+            const healthResult = await healthCheck();
 
-            // Test the connection
-            await pool.query('SELECT 1');
+            if (healthResult.status === 'healthy') {
+                this.isDatabaseConnected = true;
+                this.connectionAttempts.database = 0;
 
-            this.mysqlPool = pool;
-            this.isMysqlConnected = true;
-            this.connectionAttempts.mysql = 0;
-
-            console.log('✅ MySQL connection established');
-            return true;
+                console.log(`✅ ${getDatabaseType()} connection established`);
+                return true;
+            } else {
+                throw new Error(healthResult.error || 'Database health check failed');
+            }
         } catch (error) {
-            console.warn('⚠️ MySQL connection failed:', error.message);
-            this.isMysqlConnected = false;
-            this.connectionAttempts.mysql++;
+            console.warn(`⚠️ ${getDatabaseType()} connection failed:`, error.message);
+            this.isDatabaseConnected = false;
+            this.connectionAttempts.database++;
             return false;
         }
     }
@@ -112,7 +101,7 @@ class ConnectionManager {
         } catch (error) {
             console.warn('⚠️ MySQL health check failed, attempting reconnection...');
             this.isMysqlConnected = false;
-            await this.initializeMySQL();
+            await this.initializeDatabase();
 
             if (this.isMysqlConnected) {
                 return this.mysqlPool;
@@ -175,29 +164,32 @@ class ConnectionManager {
             services: {}
         };
 
-        // Check MySQL
+        // Check Database (MySQL or PostgreSQL)
         try {
-            if (this.isMysqlConnected && this.mysqlPool) {
+            if (this.isDatabaseConnected && this.databasePool) {
                 const startTime = Date.now();
-                await this.mysqlPool.query('SELECT 1');
+                const healthResult = await healthCheck();
                 const responseTime = Date.now() - startTime;
-                status.services.mysql = {
-                    status: 'healthy',
-                    message: 'MySQL is responding',
-                    responseTime: responseTime
+                status.services.database = {
+                    status: healthResult.status,
+                    message: healthResult.status === 'healthy' ? `${getDatabaseType()} is responding` : healthResult.error,
+                    responseTime: responseTime,
+                    databaseType: getDatabaseType()
                 };
             } else {
-                status.services.mysql = {
+                status.services.database = {
                     status: 'disconnected',
-                    message: 'MySQL not connected',
-                    responseTime: 0
+                    message: `${getDatabaseType()} not connected`,
+                    responseTime: 0,
+                    databaseType: getDatabaseType()
                 };
             }
         } catch (error) {
-            status.services.mysql = {
+            status.services.database = {
                 status: 'error',
                 message: error.message,
-                responseTime: 0
+                responseTime: 0,
+                databaseType: getDatabaseType()
             };
         }
 
@@ -264,7 +256,7 @@ class ConnectionManager {
         console.log('🚀 Initializing all connections...');
 
         const results = await Promise.allSettled([
-            this.initializeMySQL(),
+            this.initializeDatabase(),
             this.initializeMongoDB()
         ]);
 

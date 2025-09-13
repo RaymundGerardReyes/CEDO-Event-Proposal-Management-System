@@ -4,7 +4,7 @@
  * Key approaches: Single responsibility, comprehensive validation, unified error responses
  */
 
-const { pool } = require('../../config/db');
+const { pool, query } = require('../../config/database');
 const { v4: uuidv4 } = require('uuid');
 
 // ===================================================================

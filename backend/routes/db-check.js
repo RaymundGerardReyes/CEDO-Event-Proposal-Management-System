@@ -1,6 +1,6 @@
 const express = require("express")
 const router = express.Router()
-const { pool } = require("../config/db")
+const { pool, query } = require("../config/database")
 
 // Simple health check endpoint
 router.get("/db-check", async (req, res) => {

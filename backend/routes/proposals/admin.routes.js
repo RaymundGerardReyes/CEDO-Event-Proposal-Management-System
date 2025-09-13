@@ -24,7 +24,7 @@ router.get(
 // NEW: Update proposal status – matches frontend path PATCH /api/proposals/admin/proposals/:id/status
 // This re-implements the logic found in mongodb-unified-api.js so that the
 // admin dashboard can hit the expected endpoint without 404.
-const { pool } = require('../../config/db');
+const { pool, query } = require('../../config/database');
 
 router.patch('/proposals/:id/status', async (req, res) => {
     try {

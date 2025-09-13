@@ -1,7 +1,7 @@
 // middleware/auth.middleware.js
 
 const jwt = require("jsonwebtoken");
-const { pool } = require("../config/db");
+const { pool, query } = require("../config/database");
 const logger = require("../utils/logger");
 
 /**
@@ -132,19 +132,19 @@ const validateToken = async (req, res, next) => {
       console.log('🔐 Querying database for user ID:', userId);
     }
 
-    const [users] = await pool.query(
-      "SELECT id, email, role, name, organization, organization_type, avatar, is_approved FROM users WHERE id = ?",
+    const usersResult = await query(
+      "SELECT id, email, role, name, organization, organization_type, avatar, is_approved FROM users WHERE id = $1",
       [userId]
     );
 
-    if (!users.length) {
+    if (!usersResult.rows.length) {
       console.log('❌ User not found in database for ID:', userId);
 
       if (isVerbose) {
         console.log('🔍 Available user IDs in database:');
         try {
-          const [allUsers] = await pool.query("SELECT id, email, name, role FROM users ORDER BY id");
-          allUsers.forEach(user => {
+          const allUsersResult = await query("SELECT id, email, name, role FROM users ORDER BY id");
+          allUsersResult.rows.forEach(user => {
             console.log(`  - ID: ${user.id}, Email: ${user.email}, Name: ${user.name}, Role: ${user.role}`);
           });
         } catch (dbError) {
@@ -159,7 +159,7 @@ const validateToken = async (req, res, next) => {
       return next(error);
     }
 
-    const user = users[0];
+    const user = usersResult.rows[0];
     if (isVerbose) {
       console.log('🔐 User found in database:', {
         id: user.id,

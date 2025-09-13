@@ -11,8 +11,6 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 10000
       - key: MONGODB_URI
         sync: false
       - key: MYSQL_HOST
@@ -30,7 +28,7 @@ services:
       - key: GOOGLE_CLIENT_SECRET
         sync: false
       - key: ALLOWED_ORIGINS
-        value: ttps://cedo-event-proposal-ms.onrender.com/
+        value: https://cedo-event-proposal-ms.onrender.com
 
   - type: web
     name: cedo-frontend
@@ -44,10 +42,10 @@ services:
       - key: NODE_ENV
         value: production
       - key: NEXT_PUBLIC_BACKEND_URL
-        value: https://cedo-event-proposal-ms.onrender.com/
+        value: https://ceproposal-ms.onrender.com
       - key: NEXT_PUBLIC_API_URL
-        value: https://cedo-event-proposal-ms.onrender.com//api
+        value: https://ceproposal-ms.onrender.com/api
       - key: BACKEND_URL
-        value: https://cedo-event-proposal-ms.onrender.com
+        value: https://ceproposal-ms.onrender.com
       - key: API_URL
-        value: hhttps://cedo-event-proposal-ms.onrender.com//api
+        value: https://ceproposal-ms.onrender.com/api

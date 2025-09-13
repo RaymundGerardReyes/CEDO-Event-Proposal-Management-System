@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { pool } = require("../config/db");
+const { pool, query } = require("../config/database");
 const { validateToken } = require("../middleware/auth");
 
 // ===============================================

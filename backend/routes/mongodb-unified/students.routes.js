@@ -23,7 +23,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { getDb, pool } = require('./helpers');
+const { getDb, pool, query } = require('./helpers');
 
 // =============================================
 // SHARED UTILITY FUNCTIONS
@@ -208,11 +208,12 @@ router.get('/proposals/drafts/:email', async (req, res) => {
             SELECT id, organization_name, contact_email, organization_type, 
                    updated_at, created_at, proposal_status
             FROM proposals
-            WHERE contact_email = ? AND proposal_status = 'draft'
+            WHERE contact_email = $1 AND proposal_status = 'draft'
             ORDER BY updated_at DESC
         `;
 
-        const [rows] = await pool.query(query, [contactEmail]);
+        const result = await query(query, [contactEmail]);
+        const rows = result.rows;
 
         // Normalize draft data for frontend
         const drafts = rows.map(normalizeDraftData);
@@ -269,11 +270,12 @@ router.get('/proposals/status/:email', async (req, res) => {
         const statusQuery = `
             SELECT proposal_status, COUNT(*) as count
             FROM proposals
-            WHERE contact_email = ?
+            WHERE contact_email = $1
             GROUP BY proposal_status
         `;
 
-        const [statusRows] = await pool.query(statusQuery, [contactEmail]);
+        const statusResult = await query(statusQuery, [contactEmail]);
+        const statusRows = statusResult.rows;
 
         // Calculate status summary
         const statusSummary = {

@@ -2,7 +2,7 @@ const proposalService = require('../services/proposal.service');
 const fileService = require('../services/file.service');
 const { validationResult } = require("express-validator");
 const fs = require("fs");
-const { pool } = require('../config/db');
+const { pool, query } = require('../config/database');
 
 const saveSection2Data = async (req, res) => {
     try {

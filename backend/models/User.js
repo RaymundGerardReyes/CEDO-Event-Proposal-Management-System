@@ -1,14 +1,15 @@
-const { pool } = require("../config/db")
+const { pool, query } = require("../config/database")
 const bcrypt = require("bcryptjs")
 
 const User = {
   // Find user by ID
   findById: async (id) => {
     try {
-      const [rows] = await pool.query(
-        "SELECT id, name, email, role, organization, organization_type, avatar, created_at, updated_at, is_approved, approved_by, approved_at, google_id FROM users WHERE id = ?",
+      const result = await query(
+        "SELECT id, name, email, role, organization, organization_type, avatar, created_at, updated_at, is_approved, approved_by, approved_at, google_id FROM users WHERE id = $1",
         [id],
       )
+      const rows = result.rows;
       return rows[0]
     } catch (error) {
       throw error
@@ -18,7 +19,8 @@ const User = {
   // Find user by email
   findByEmail: async (email) => {
     try {
-      const [rows] = await pool.query("SELECT * FROM users WHERE email = ?", [email])
+      const result = await query("SELECT * FROM users WHERE email = $1", [email])
+      const rows = result.rows;
       return rows[0]
     } catch (error) {
       throw error
@@ -28,7 +30,8 @@ const User = {
   // Find user by Google ID
   findByGoogleId: async (googleId) => {
     try {
-      const [rows] = await pool.query("SELECT * FROM users WHERE google_id = ?", [googleId])
+      const result = await query("SELECT * FROM users WHERE google_id = $1", [googleId])
+      const rows = result.rows;
       return rows[0]
     } catch (error) {
       throw error
@@ -45,9 +48,9 @@ const User = {
         hashedPassword = await bcrypt.hash(userData.password, salt);
       }
 
-      const [result] = await pool.query(
+      const result = await query(
         `INSERT INTO users (name, email, password, role, organization, organization_type, google_id, avatar, is_approved, created_at, updated_at) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, // Ensure created_at and updated_at are set
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, // Ensure created_at and updated_at are set
         [
           userData.name,
           userData.email,
@@ -64,7 +67,7 @@ const User = {
       // Return the newly created user's ID and other non-sensitive data
       // Exclude password from the returned object
       const { password, ...newUser } = userData;
-      return { id: result.insertId, ...newUser, is_approved: userData.is_approved || false, googleId: userData.googleId || null, avatar: userData.avatar || null };
+      return { id: result.rows[0].id, ...newUser, is_approved: userData.is_approved || false, googleId: userData.googleId || null, avatar: userData.avatar || null };
 
     } catch (error) {
       // Check for duplicate email error (ER_DUP_ENTRY)
@@ -156,7 +159,7 @@ const User = {
         // Still, we should fetch and return the user to reflect any potential background changes
         // or simply return the input data if no actual update was needed.
         // For now, let's fetch the user data to be safe.
-        const [currentUser] = await pool.query("SELECT * FROM users WHERE id = ?", [id]);
+        const [currentUser] = await query("SELECT * FROM users WHERE id = ?", [id]);
         if (currentUser.length > 0) {
           // Exclude password before returning
           const { password, ...userWithoutPassword } = currentUser[0];
@@ -171,11 +174,11 @@ const User = {
       query += updateFields.join(", ") + " WHERE id = ?";
       values.push(id);
 
-      await pool.query(query, values);
+      await query(query, values);
 
       // Fetch and return the updated user data to confirm changes
       // This ensures all fields, including those set by DB triggers or CURRENT_TIMESTAMP, are fresh
-      const [updatedRows] = await pool.query("SELECT * FROM users WHERE id = ?", [id]);
+      const [updatedRows] = await query("SELECT * FROM users WHERE id = ?", [id]);
       if (updatedRows.length > 0) {
         // Exclude password before returning
         const { password, ...userWithoutPassword } = updatedRows[0];
@@ -197,7 +200,7 @@ const User = {
   // Delete user
   delete: async (id) => {
     try {
-      await pool.query("DELETE FROM users WHERE id = ?", [id])
+      await query("DELETE FROM users WHERE id = ?", [id])
       return { id }
     } catch (error) {
       throw error
@@ -207,9 +210,10 @@ const User = {
   // Get all users
   getAll: async () => {
     try {
-      const [rows] = await pool.query(
+      const result = await query(
         "SELECT id, name, email, role, is_approved, created_at, organization, organization_type, avatar, approved_by, approved_at, google_id, updated_at FROM users",
       )
+      const rows = result.rows;
       // Convert is_approved to boolean if it's stored as TINYINT(1)
       return rows.map(user => ({
         ...user,

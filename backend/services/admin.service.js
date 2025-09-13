@@ -12,7 +12,7 @@
  * @version 1.0.0
  */
 
-const { pool } = require('../config/db');
+const { pool, query } = require('../config/database');
 
 /**
  * =============================================

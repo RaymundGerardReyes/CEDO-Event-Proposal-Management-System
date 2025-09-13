@@ -10,7 +10,7 @@ jest.mock('../config/db', () => {
     return { pool: mPool };
 });
 
-const { pool } = require('../../config/db');
+const { pool, query } = require('../../config/database');
 
 describe('POST /create (organizations)', () => {
     let app;

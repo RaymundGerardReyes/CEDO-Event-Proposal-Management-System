@@ -21,7 +21,7 @@
  * - Export capabilities
  */
 
-const { pool } = require('../config/db');
+const { pool, query } = require('../config/database');
 const { getDb } = require('../utils/db');
 
 // =============================================

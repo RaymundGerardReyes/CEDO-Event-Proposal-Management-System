@@ -14,7 +14,7 @@ const express = require('express');
 const router = express.Router();
 const logger = require('../../utils/logger');
 const mongoose = require('mongoose');
-const { pool } = require('../../config/db');
+const { pool, query } = require('../../config/database');
 const { validateAdmin, validateToken } = require('../../middleware/auth');
 
 // ===============================================
@@ -38,19 +38,19 @@ router.get("/", async (req, res) => {
 
         // Check MySQL connection and get table info
         try {
-            await pool.query("SELECT 1");
-            const [tables] = await pool.query("SHOW TABLES");
-            mysqlTableCount = tables.length;
+            await query("SELECT 1");
+            const tablesResult = await query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'");
+            mysqlTableCount = tablesResult.rows.length;
             mysqlStatus = "Connected";
 
             // Get table details with row counts
-            for (const tableRow of tables) {
-                const tableName = Object.values(tableRow)[0];
+            for (const tableRow of tablesResult.rows) {
+                const tableName = tableRow.table_name;
                 try {
-                    const [countResult] = await pool.query(`SELECT COUNT(*) as count FROM ??`, [tableName]);
+                    const countResult = await query(`SELECT COUNT(*) as count FROM ${tableName}`);
                     mysqlTables.push({
                         name: tableName,
-                        count: countResult[0].count
+                        count: countResult.rows[0].count
                     });
                 } catch (error) {
                     mysqlTables.push({
@@ -740,7 +740,7 @@ router.get("/dashboard/stats", validateToken, validateAdmin, async (req, res, ne
         console.log('🔍 [Dashboard Stats] Fetching proposal statistics...');
 
         // Get proposal statistics using correct column names
-        const [proposalStats] = await pool.query(`
+        const proposalStatsResult = await query(`
             SELECT
                 COUNT(*) as total,
                 SUM(CASE WHEN proposal_status = 'pending' THEN 1 ELSE 0 END) as pending,
@@ -749,22 +749,22 @@ router.get("/dashboard/stats", validateToken, validateAdmin, async (req, res, ne
             FROM proposals
         `);
 
-        // Get yesterday's total for growth calculation (using DATE_SUB for better compatibility)
-        const [yesterdayStats] = await pool.query(`
+        // Get yesterday's total for growth calculation
+        const yesterdayStatsResult = await query(`
             SELECT COUNT(*) as yesterdayTotal
             FROM proposals 
-            WHERE created_at < DATE_SUB(CURDATE(), INTERVAL 0 DAY)
+            WHERE created_at < CURRENT_DATE
         `);
 
         // Get new proposals since yesterday
-        const [newTodayStats] = await pool.query(`
+        const newTodayStatsResult = await query(`
             SELECT COUNT(*) as newSinceYesterday
             FROM proposals 
-            WHERE created_at >= CURDATE()
+            WHERE created_at >= CURRENT_DATE
         `);
 
         // Get user statistics (check if columns exist first)
-        const [userStats] = await pool.query(`
+        const userStatsResult = await query(`
             SELECT
                 COUNT(*) as total,
                 SUM(CASE WHEN role = 'student' THEN 1 ELSE 0 END) as students,
@@ -774,7 +774,7 @@ router.get("/dashboard/stats", validateToken, validateAdmin, async (req, res, ne
         `);
 
         // Get recent proposals with correct column names
-        const [recentProposals] = await pool.query(`
+        const recentProposalsResult = await query(`
             SELECT 
                 id, 
                 event_name as eventName, 
@@ -788,7 +788,7 @@ router.get("/dashboard/stats", validateToken, validateAdmin, async (req, res, ne
         `);
 
         // Get event type distribution
-        const [eventTypes] = await pool.query(`
+        const eventTypesResult = await query(`
             SELECT 
                 COALESCE(school_event_type, community_event_type, 'other') as eventType, 
                 COUNT(*) as count
@@ -799,24 +799,24 @@ router.get("/dashboard/stats", validateToken, validateAdmin, async (req, res, ne
         `);
 
         // Calculate metrics safely
-        const currentTotal = proposalStats[0]?.total || 0;
-        const yesterdayTotal = yesterdayStats[0]?.yesterdayTotal || 0;
-        const newSinceYesterday = newTodayStats[0]?.newSinceYesterday || 0;
+        const currentTotal = proposalStatsResult.rows[0]?.total || 0;
+        const yesterdayTotal = yesterdayStatsResult.rows[0]?.yesterdayTotal || 0;
+        const newSinceYesterday = newTodayStatsResult.rows[0]?.newSinceYesterday || 0;
 
         const dayOverDayChange = yesterdayTotal > 0
             ? ((currentTotal - yesterdayTotal) / yesterdayTotal * 100).toFixed(1)
             : 0;
 
-        const approved = proposalStats[0]?.approved || 0;
+        const approved = proposalStatsResult.rows[0]?.approved || 0;
         const approvalRate = currentTotal > 0
             ? ((approved / currentTotal) * 100).toFixed(0)
             : 0;
 
         console.log('✅ [Dashboard Stats] Statistics calculated:', {
             total: currentTotal,
-            pending: proposalStats[0]?.pending || 0,
+            pending: proposalStatsResult.rows[0]?.pending || 0,
             approved: approved,
-            rejected: proposalStats[0]?.rejected || 0,
+            rejected: proposalStatsResult.rows[0]?.rejected || 0,
             newSinceYesterday,
             approvalRate
         });
@@ -825,15 +825,15 @@ router.get("/dashboard/stats", validateToken, validateAdmin, async (req, res, ne
             success: true,
             stats: {
                 proposals: {
-                    ...proposalStats[0],
+                    ...proposalStatsResult.rows[0],
                     newSinceYesterday,
                     dayOverDayChange: parseFloat(dayOverDayChange),
                     approvalRate: parseInt(approvalRate),
                     yesterdayTotal
                 },
-                users: userStats[0] || { total: 0, students: 0, admins: 0, faculty: 0 },
-                recentProposals: recentProposals || [],
-                eventTypes: eventTypes || [],
+                users: userStatsResult.rows[0] || { total: 0, students: 0, admins: 0, faculty: 0 },
+                recentProposals: recentProposalsResult.rows || [],
+                eventTypes: eventTypesResult.rows || [],
             },
         });
     } catch (error) {
@@ -851,24 +851,24 @@ router.get('/stats', validateToken, validateAdmin, async (req, res) => {
         console.log('Admin stats endpoint hit by user:', req.user?.id);
 
         // Get various statistics from the database
-        const [userStats] = await pool.query('SELECT COUNT(*) as total FROM users');
-        const [proposalStats] = await pool.query('SELECT COUNT(*) as total FROM proposals');
-        const [pendingApprovals] = await pool.query('SELECT COUNT(*) as total FROM users WHERE is_approved = 0');
+        const userStatsResult = await query('SELECT COUNT(*) as total FROM users');
+        const proposalStatsResult = await query('SELECT COUNT(*) as total FROM proposals');
+        const pendingApprovalsResult = await query('SELECT COUNT(*) as total FROM users WHERE is_approved = FALSE');
 
         // Get recent activity (last 30 days)
-        const [recentUsers] = await pool.query(
-            'SELECT COUNT(*) as total FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)'
+        const recentUsersResult = await query(
+            'SELECT COUNT(*) as total FROM users WHERE created_at >= (CURRENT_TIMESTAMP - INTERVAL \'30 days\')'
         );
 
         // Get approved vs pending users
-        const [approvedUsers] = await pool.query('SELECT COUNT(*) as total FROM users WHERE is_approved = 1');
+        const approvedUsersResult = await query('SELECT COUNT(*) as total FROM users WHERE is_approved = TRUE');
 
         const stats = {
-            totalUsers: userStats[0].total,
-            totalProposals: proposalStats[0].total,
-            pendingApprovals: pendingApprovals[0].total,
-            approvedUsers: approvedUsers[0].total,
-            recentUsers: recentUsers[0].total,
+            totalUsers: userStatsResult.rows[0].total,
+            totalProposals: proposalStatsResult.rows[0].total,
+            pendingApprovals: pendingApprovalsResult.rows[0].total,
+            approvedUsers: approvedUsersResult.rows[0].total,
+            recentUsers: recentUsersResult.rows[0].total,
             timestamp: new Date().toISOString()
         };
 

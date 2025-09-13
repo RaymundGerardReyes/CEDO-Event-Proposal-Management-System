@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { pool } = require('../../config/db');
+const { pool, query } = require('../../config/database');
 const { validateAdmin, validateToken } = require('../../middleware/auth');
 const { handleErrors } = require('./middleware');
 
@@ -18,13 +18,14 @@ router.use(validateToken, validateAdmin);
  */
 router.get('/', async (req, res) => {
     try {
-        const [users] = await pool.query(`
+        const result = await query(`
             SELECT 
                 id, name, email, role, organization, organization_type, 
                 is_approved, created_at, last_login 
             FROM users 
             ORDER BY created_at DESC
         `);
+        const users = result.rows;
 
         res.json({
             success: true,
@@ -60,10 +61,11 @@ router.post('/', async (req, res) => {
         }
 
         // Check if user already exists
-        const [existingUsers] = await pool.query(
-            'SELECT id FROM users WHERE email = ?',
+        const existingResult = await query(
+            'SELECT id FROM users WHERE email = $1',
             [email]
         );
+        const existingUsers = existingResult.rows;
 
         if (existingUsers.length > 0) {
             return res.status(409).json({
@@ -98,17 +100,18 @@ router.post('/', async (req, res) => {
         }
 
         // Insert new user
-        const [result] = await pool.query(`
+        const result = await query(`
             INSERT INTO users (name, email, role, organization, organization_type, password, is_approved, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, 1, NOW())
+            VALUES ($1, $2, $3, $4, $5, $6, true, NOW())
         `, [name, email, role, organization || null, organization_type || null, hashedPassword]);
 
         // Get the created user
-        const [newUser] = await pool.query(`
+        const newUserResult = await query(`
             SELECT id, name, email, role, organization, organization_type, 
                    is_approved, created_at, last_login 
-            FROM users WHERE id = ?
-        `, [result.insertId]);
+            FROM users WHERE id = $1
+        `, [result.rows[0].id]);
+        const newUser = newUserResult.rows;
 
         console.log('Admin created new user:', newUser[0]);
 
@@ -149,7 +152,7 @@ router.put('/:id', async (req, res) => {
         const { name, email, role, organization, organization_type, is_approved } = req.body;
 
         // Check if user exists
-        const [existingUser] = await pool.query(
+        const [existingUser] = await query(
             'SELECT id FROM users WHERE id = ?',
             [userId]
         );
@@ -163,14 +166,14 @@ router.put('/:id', async (req, res) => {
         }
 
         // Update user
-        await pool.query(`
+        await query(`
             UPDATE users 
             SET name = ?, email = ?, role = ?, organization = ?, organization_type = ?, is_approved = ?
             WHERE id = ?
         `, [name, email, role, organization, organization_type, is_approved, userId]);
 
         // Get updated user
-        const [updatedUser] = await pool.query(`
+        const [updatedUser] = await query(`
             SELECT id, name, email, role, organization, organization_type, 
                    is_approved, created_at, last_login 
             FROM users WHERE id = ?
@@ -204,7 +207,7 @@ router.delete('/:id', async (req, res) => {
         const userId = req.params.id;
 
         // Check if user exists
-        const [existingUser] = await pool.query(
+        const [existingUser] = await query(
             'SELECT id FROM users WHERE id = ?',
             [userId]
         );
@@ -218,7 +221,7 @@ router.delete('/:id', async (req, res) => {
         }
 
         // Delete user
-        await pool.query('DELETE FROM users WHERE id = ?', [userId]);
+        await query('DELETE FROM users WHERE id = ?', [userId]);
 
         console.log('Admin deleted user:', userId);
 
@@ -248,17 +251,17 @@ router.get('/stats', async (req, res) => {
         console.log('Admin user stats endpoint hit by user:', req.user?.id);
 
         // Get various user statistics from the database
-        const [userStats] = await pool.query('SELECT COUNT(*) as total FROM users');
-        const [proposalStats] = await pool.query('SELECT COUNT(*) as total FROM proposals');
-        const [pendingApprovals] = await pool.query('SELECT COUNT(*) as total FROM users WHERE is_approved = 0');
+        const [userStats] = await query('SELECT COUNT(*) as total FROM users');
+        const [proposalStats] = await query('SELECT COUNT(*) as total FROM proposals');
+        const [pendingApprovals] = await query('SELECT COUNT(*) as total FROM users WHERE is_approved = 0');
 
         // Get recent activity (last 30 days)
-        const [recentUsers] = await pool.query(
+        const [recentUsers] = await query(
             'SELECT COUNT(*) as total FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)'
         );
 
         // Get approved vs pending users
-        const [approvedUsers] = await pool.query('SELECT COUNT(*) as total FROM users WHERE is_approved = 1');
+        const [approvedUsers] = await query('SELECT COUNT(*) as total FROM users WHERE is_approved = 1');
 
         const stats = {
             totalUsers: userStats[0].total,

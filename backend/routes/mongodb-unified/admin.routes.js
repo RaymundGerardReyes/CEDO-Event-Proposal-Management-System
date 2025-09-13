@@ -25,7 +25,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { getDb, pool } = require('./helpers');
+const { getDb, pool, query } = require('./helpers');
 const rateLimit = require('express-rate-limit');
 const { validateAdmin, validateToken } = require('../../middleware/auth');
 
@@ -243,12 +243,12 @@ router.get('/proposals/:id/files', async (req, res) => {
         console.log(`📁 ADMIN FILES: Fetching files for proposal ID: ${proposalId}`);
 
         // STEP 1: Verify proposal exists
-        const [proposalRows] = await pool.query(
-            'SELECT id, organization_name FROM proposals WHERE id = ?',
+        const proposalRowsResult = await query(
+            'SELECT id, organization_name FROM proposals WHERE id = $1',
             [proposalId]
         );
 
-        if (proposalRows.length === 0) {
+        if (proposalRowsResult.rows.length === 0) {
             return res.status(404).json({
                 success: false,
                 error: 'Proposal not found'
@@ -376,20 +376,20 @@ router.get('/proposals-hybrid', async (req, res) => {
         const limitNum = parseInt(limit);
         const offset = (pageNum - 1) * limitNum;
 
-        // STEP 2: Get MySQL proposals
-        const [mysqlProposals] = await pool.query(
+        // STEP 2: Get PostgreSQL proposals
+        const mysqlProposalsResult = await query(
             `SELECT id, organization_name, organization_type, contact_name, contact_email, contact_phone,
                     event_name, event_venue, event_mode, event_start_date, event_end_date, 
                     event_start_time, event_end_time, school_event_type, community_event_type,
                     proposal_status, created_at, updated_at, submitted_at
-             FROM proposals ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+             FROM proposals ${where} ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
             [...params, limitNum, offset]
         );
 
-        console.log(`📊 ADMIN: Found ${mysqlProposals.length} proposals from MySQL`);
+        console.log(`📊 ADMIN: Found ${mysqlProposalsResult.rows.length} proposals from PostgreSQL`);
 
         // ✅ DEBUG: Log specific proposal ID 4 status
-        const proposal4 = mysqlProposals.find(p => p.id == 4 || p.id == '4');
+        const proposal4 = mysqlProposalsResult.rows.find(p => p.id == 4 || p.id == '4');
         if (proposal4) {
             console.log(`🔍 ADMIN DEBUG: Proposal ID 4 status = "${proposal4.proposal_status}"`);
         }
@@ -399,7 +399,7 @@ router.get('/proposals-hybrid', async (req, res) => {
 
         // STEP 4: Enrich proposals with MongoDB data
         const hybrid = await Promise.all(
-            mysqlProposals.map(async (proposal) => {
+            mysqlProposalsResult.rows.map(async (proposal) => {
                 const files = await getMongoFileMetadata(proposal.id, mongoDb);
                 const adminComments = await getAdminComments(proposal.id, mongoDb);
 
@@ -428,11 +428,11 @@ router.get('/proposals-hybrid', async (req, res) => {
         });
 
         // STEP 7: Get total count for pagination
-        const [countResult] = await pool.query(
+        const countResult = await query(
             `SELECT COUNT(*) as total FROM proposals ${where}`,
             params
         );
-        const totalCount = countResult[0].total;
+        const totalCount = countResult.rows[0].total;
 
         console.log(`✅ ADMIN: Successfully processed ${transformedProposals.length} hybrid proposals`);
 
@@ -480,17 +480,17 @@ router.get('/proposals/:id', async (req, res) => {
         const proposalId = req.params.id;
         console.log(`🔍 ADMIN: Fetching detailed proposal for ID: ${proposalId}`);
 
-        // STEP 1: Get MySQL proposal data
-        const [mysqlRows] = await pool.query(
+        // STEP 1: Get PostgreSQL proposal data
+        const mysqlRowsResult = await query(
             `SELECT id, organization_name, organization_type, contact_name, contact_email, contact_phone,
                     event_name, event_venue, event_mode, event_start_date, event_end_date, 
                     event_start_time, event_end_time, school_event_type, community_event_type,
                     proposal_status, created_at, updated_at, submitted_at
-             FROM proposals WHERE id = ?`,
+             FROM proposals WHERE id = $1`,
             [proposalId]
         );
 
-        if (mysqlRows.length === 0) {
+        if (mysqlRowsResult.rows.length === 0) {
             // STEP 2: Fallback to MongoDB-only proposals (legacy)
             const db = await getDb();
             const { ObjectId } = require('mongodb');
@@ -512,7 +512,7 @@ router.get('/proposals/:id', async (req, res) => {
             }
         }
 
-        const proposal = mysqlRows[0];
+        const proposal = mysqlRowsResult.rows[0];
 
         // STEP 3: Connect to MongoDB for files and comments
         const { mongoClient, mongoDb } = await connectToMongoDB();

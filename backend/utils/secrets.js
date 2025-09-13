@@ -45,11 +45,11 @@ function readSecret(secretName) {
  */
 function getDatabaseConfig() {
     return {
-        host: process.env.MYSQL_HOST || '127.0.0.1',
-        port: process.env.MYSQL_PORT || 3306,
-        user: process.env.MYSQL_USER || 'root',
-        password: readSecret('MYSQL_PASSWORD') || '',
-        database: process.env.MYSQL_DATABASE || 'cedo_auth',
+        host: process.env.MYSQL_HOST || process.env.POSTGRES_HOST,
+        port: process.env.MYSQL_PORT || process.env.POSTGRES_PORT,
+        user: process.env.MYSQL_USER ||  process.env.POSTGRES_USER,
+        password: readSecret('MYSQL_PASSWORD') || process.env.POSTGRES_PASSWORD,
+        database: process.env.MYSQL_DATABASE || process.env.POSTGRES_DATABASE,
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,

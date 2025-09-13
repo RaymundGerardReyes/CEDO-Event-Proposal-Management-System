@@ -32,7 +32,7 @@ const { getDb } = require('../../config/mongodb');
  * MySQL database connection pool
  * @type {Object}
  */
-const { pool } = require('../../config/db');
+const { pool, query } = require('../../config/database');
 
 // =============================================
 // FILE UPLOAD UTILITIES
@@ -183,6 +183,7 @@ module.exports = {
     // Database connections
     getDb,
     pool,
+    query,
 
     // File upload utilities
     getBucket,

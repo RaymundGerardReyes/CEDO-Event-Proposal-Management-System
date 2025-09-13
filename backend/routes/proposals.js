@@ -7,7 +7,7 @@
  */
 
 const express = require('express');
-const { pool } = require('../config/db.js');
+const { pool, query } = require('../config/database');
 const { validateToken, validateAdmin } = require('../middleware/auth.js');
 const { createAuditLog } = require('../services/audit.service.js');
 const { validateProposal, validateReportData, validateReviewAction } = require('../validators/proposal.validator.js');

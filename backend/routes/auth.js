@@ -4,7 +4,7 @@ const express = require("express")
 const router = express.Router()
 const bcrypt = require("bcryptjs")
 // const jwt = require("jsonwebtoken") // Not directly used here for /google route
-const { pool } = require("../config/db")
+const { pool, query } = require("../config/database")
 const authMiddleware = require("../middleware/auth")
 // const checkRole = require("../middleware/roles") // Not directly used here for /google route
 // const axios = require("axios") // Not directly used here for /google route
@@ -110,8 +110,8 @@ router.post('/login', async (req, res, next) => {
     }
 
     console.log(`Backend [/login]: Attempting to find user by email: ${email}`);
-    const [users] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
-    const user = users[0];
+    const result = await query('SELECT * FROM users WHERE email = $1', [email]);
+    const user = result.rows[0];
 
     if (!user) {
       console.warn(`Backend [/login]: No user found with email: ${email}`);
@@ -275,20 +275,20 @@ router.post("/google", async (req, res, next) => {
     }
 
     // 1. Try to find user by Google ID
-    let [users] = await pool.query("SELECT * FROM users WHERE google_id = ?", [googleId]);
-    let user = users[0] || null;
+    let result = await query("SELECT * FROM users WHERE google_id = $1", [googleId]);
+    let user = result.rows[0] || null;
 
     // 2. If not found, try by email
     if (!user) {
-      let [usersByEmail] = await pool.query("SELECT * FROM users WHERE email = ?", [payloadEmail]);
-      if (!usersByEmail || usersByEmail.length === 0) {
+      let resultByEmail = await query("SELECT * FROM users WHERE email = $1", [payloadEmail]);
+      if (!resultByEmail.rows || resultByEmail.rows.length === 0) {
         // Not found by either
         console.warn("User not found by google_id or email. Returning 403.");
         return res.status(403).json({ reason: "USER_NOT_FOUND", message: "User not found" });
       }
-      user = usersByEmail[0];
+      user = resultByEmail.rows[0];
       // Link Google ID
-      await pool.query("UPDATE users SET google_id = ? WHERE id = ?", [googleId, user.id]);
+      await query("UPDATE users SET google_id = $1 WHERE id = $2", [googleId, user.id]);
       user.google_id = googleId;
     }
 
@@ -307,7 +307,7 @@ router.post("/google", async (req, res, next) => {
     // Step 5: Update profile if necessary
     if (user.name !== name || user.avatar !== picture) {
       console.log(`Backend [/google]: Profile differences found for user ${user.id}. Updating.`);
-      await pool.query("UPDATE users SET name = ?, avatar = ? WHERE id = ?", [name, picture, user.id]);
+      await query("UPDATE users SET name = $1, avatar = $2 WHERE id = $3", [name, picture, user.id]);
       user.name = name;
       user.avatar = picture;
     }
@@ -411,8 +411,8 @@ router.get('/me', async (req, res, next) => {
     }
 
     // Get fresh user data from database
-    const [users] = await pool.query('SELECT * FROM users WHERE id = ?', [decoded.user.id]);
-    const user = users[0];
+    const result = await query('SELECT * FROM users WHERE id = $1', [decoded.user.id]);
+    const user = result.rows[0];
 
     if (!user) {
       return res.status(401).json({ message: 'User not found' });

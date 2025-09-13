@@ -45,7 +45,7 @@ const path = require("path")
 const cookieParser = require("cookie-parser")
 const cookieSession = require("cookie-session")
 const morgan = require("morgan")
-const mysql = require('mysql2/promise')
+// MySQL import removed - using universal database manager
 const bodyParser = require('body-parser')
 
 // Import OAuth configuration
@@ -54,7 +54,8 @@ const { passport } = require('./config/oauth')
 // ==============================
 // Database & Configuration Imports
 // ==============================
-const { pool } = require("./config/db")
+// Use the universal database manager that supports both MySQL and PostgreSQL
+const { pool, getDatabaseType } = require("./config/database")
 const { connectToMongo } = require('./config/mongodb')
 const connectionManager = require('./utils/connection-manager')
 
@@ -265,10 +266,11 @@ app.get("/health", async (req, res) => {
       timestamp: new Date().toISOString(),
       env: process.env.NODE_ENV,
       services: {
-        mysql: {
-          status: healthStatus.services.mysql.status,
-          message: healthStatus.services.mysql.message,
-          responseTime: healthStatus.services.mysql.responseTime || 0
+        database: {
+          type: getDatabaseType(),
+          status: healthStatus.services.database?.status || 'unknown',
+          message: healthStatus.services.database?.message || 'Database service not available',
+          responseTime: healthStatus.services.database?.responseTime || 0
         },
         mongodb: {
           status: healthStatus.services.mongodb.status,
@@ -284,7 +286,7 @@ app.get("/health", async (req, res) => {
     };
 
     // Determine overall health status
-    const allServicesHealthy = healthStatus.services.mysql.status === 'healthy' || healthStatus.services.mongodb.status === 'healthy';
+    const allServicesHealthy = healthStatus.services.database?.status === 'healthy' || healthStatus.services.mongodb.status === 'healthy';
     const statusCode = allServicesHealthy ? 200 : 503; // 503 if no databases available
 
     res.status(statusCode).json(healthInfo);
@@ -303,20 +305,22 @@ app.get("/health", async (req, res) => {
 app.get("/api/db-check", async (req, res) => {
   try {
     const healthStatus = await connectionManager.healthCheck();
-    const mysqlStatus = healthStatus.services.mysql;
+    const databaseStatus = healthStatus.services.database;
 
-    if (mysqlStatus.status === 'healthy') {
+    if (databaseStatus?.status === 'healthy') {
       res.status(200).json({
         status: "connected",
         message: "Database connection successful",
+        databaseType: getDatabaseType(),
         timestamp: new Date().toISOString(),
-        responseTime: mysqlStatus.responseTime || 0
+        responseTime: databaseStatus.responseTime || 0
       });
     } else {
       res.status(500).json({
         status: "error",
         message: "Database connection failed",
-        error: mysqlStatus.message,
+        databaseType: getDatabaseType(),
+        error: databaseStatus?.message || 'Database service not available',
         timestamp: new Date().toISOString(),
       });
     }
@@ -524,11 +528,11 @@ async function startServer() {
   console.log('📋 Step 1: Initializing database connections...');
   try {
     await connectionManager.initialize();
-    isDbConnected = connectionManager.isMysqlConnected;
+    isDbConnected = connectionManager.isDatabaseConnected;
     isMongoConnected = connectionManager.isMongoConnected;
 
     console.log('✅ Connection initialization complete');
-    console.log(`   MySQL: ${isDbConnected ? '✅ Connected' : '❌ Disconnected'}`);
+    console.log(`   ${getDatabaseType()}: ${isDbConnected ? '✅ Connected' : '❌ Disconnected'}`);
     console.log(`   MongoDB: ${isMongoConnected ? '✅ Connected' : '❌ Disconnected'}`);
   } catch (error) {
     console.warn('⚠️ Connection initialization failed:', error.message);
@@ -541,7 +545,7 @@ async function startServer() {
   console.log('📋 Step 3: Initializing dependent services...');
 
   // Initialize data-sync service only if databases are available
-  if (connectionManager.isMysqlConnected || connectionManager.isMongoConnected) {
+  if (connectionManager.isDatabaseConnected || connectionManager.isMongoConnected) {
     try {
       const dataSyncService = require('./services/data-sync.service');
       if (typeof dataSyncService.initialize === 'function') {
@@ -560,7 +564,7 @@ async function startServer() {
 
   // Step 4: Check database tables ONLY if connected
   console.log('📋 Step 4: Checking database tables...');
-  if (connectionManager.isMysqlConnected) {
+  if (connectionManager.isDatabaseConnected) {
     try {
       await ensureTablesExist();
       console.log('✅ Database tables verified.');
@@ -583,7 +587,7 @@ async function startServer() {
 
       // Log service status
       console.log('\n📊 Service Status:');
-      console.log(`   MySQL: ${connectionManager.isMysqlConnected ? '✅ Connected' : '❌ Disconnected'}`);
+      console.log(`   ${getDatabaseType()}: ${connectionManager.isDatabaseConnected ? '✅ Connected' : '❌ Disconnected'}`);
       console.log(`   MongoDB: ${connectionManager.isMongoConnected ? '✅ Connected' : '❌ Disconnected'}`);
       console.log(`   Health Check: http://localhost:${actualPort}/health`);
       console.log(`   API Health: http://localhost:${actualPort}/api/health`);

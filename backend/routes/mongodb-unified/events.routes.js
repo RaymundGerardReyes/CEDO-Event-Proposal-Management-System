@@ -34,7 +34,8 @@ const {
     validateProposalId,
     createErrorResponse,
     createSuccessResponse,
-    uploadFile
+    uploadFile,
+    query
 } = require('./helpers');
 
 // Add MySQL integration at the top
@@ -118,7 +119,7 @@ const saveToMySQLProposals = async (eventData, files, eventType, userId = null) 
         });
 
         // Insert into MySQL proposals table
-        const [result] = await pool.query(`
+        const result = await query(`
             INSERT INTO proposals (
                 uuid, organization_name, organization_type, organization_description,
                 contact_name, contact_email, contact_phone, event_name, event_venue,
@@ -222,22 +223,23 @@ const getOrCreateMySQLProposal = async (reqBody, orgName, eventType) => {
             let query, queryParams;
             if (isUuid) {
                 // Look up by UUID
-                query = 'SELECT id, proposal_status, current_section FROM proposals WHERE uuid = ?';
+                query = 'SELECT id, proposal_status, current_section FROM proposals WHERE uuid = $1';
                 queryParams = [proposalId];
             } else {
                 // Look up by numeric ID
-                query = 'SELECT id, proposal_status, current_section FROM proposals WHERE id = ?';
+                query = 'SELECT id, proposal_status, current_section FROM proposals WHERE id = $1';
                 queryParams = [proposalId];
             }
 
             // Verify the proposal exists and update status if needed
-            const [existingProposal] = await pool.query(query, queryParams);
+            const existingResult = await query(query, queryParams);
+            const existingProposal = existingResult.rows[0];
 
-            if (existingProposal.length === 0) {
+            if (!existingProposal) {
                 throw new Error(`Proposal with ${isUuid ? 'UUID' : 'ID'} ${proposalId} not found`);
             }
 
-            const currentProposal = existingProposal[0];
+            const currentProposal = existingProposal;
             console.log('✅ Found existing proposal:', {
                 id: currentProposal.id,
                 currentStatus: currentProposal.proposal_status,
@@ -247,7 +249,7 @@ const getOrCreateMySQLProposal = async (reqBody, orgName, eventType) => {
             // ✅ FIX: Update status to 'pending' if currently 'draft' and form is being completed
             if (currentProposal.proposal_status === 'draft') {
                 console.log('🔄 Updating proposal status from draft to pending');
-                await pool.query(
+                await query(
                     'UPDATE proposals SET proposal_status = ?, report_status = ?, submitted_at = NOW(), form_completion_percentage = ?, updated_at = NOW() WHERE id = ?',
                     ['pending', 'pending', 100.00, currentProposal.id]
                 );
@@ -255,7 +257,7 @@ const getOrCreateMySQLProposal = async (reqBody, orgName, eventType) => {
             } else if (currentProposal.proposal_status === 'pending') {
                 // ✅ FIX: Update form completion percentage even if already pending
                 console.log('🔄 Updating form completion percentage for pending proposal');
-                await pool.query(
+                await query(
                     'UPDATE proposals SET form_completion_percentage = ?, report_status = ?, submitted_at = COALESCE(submitted_at, NOW()), updated_at = NOW() WHERE id = ?',
                     [100.00, 'pending', currentProposal.id]
                 );
@@ -263,7 +265,7 @@ const getOrCreateMySQLProposal = async (reqBody, orgName, eventType) => {
             } else if (currentProposal.proposal_status === 'approved') {
                 // ✅ FIX: Don't change status if approved, just update completion
                 console.log('🔄 Proposal already approved, updating completion percentage only');
-                await pool.query(
+                await query(
                     'UPDATE proposals SET form_completion_percentage = ?, report_status = ?, updated_at = NOW() WHERE id = ?',
                     [100.00, 'pending', currentProposal.id]
                 );
@@ -403,14 +405,14 @@ const getOrCreateMySQLProposal = async (reqBody, orgName, eventType) => {
             mysqlProposalData.form_completion_percentage
         ];
 
-        const [mysqlResult] = await pool.query(insertQuery, insertValues);
-        const newProposalId = mysqlResult.insertId;
+        const mysqlResult = await query(insertQuery, insertValues);
+        const newProposalId = mysqlResult.rows[0].id;
         console.log('✅ New MySQL proposal created with ID:', newProposalId);
 
         // ✅ FIX: Update status to 'pending' for new proposals since form is complete
         console.log('🔄 Updating new proposal status from draft to pending');
-        await pool.query(
-            'UPDATE proposals SET proposal_status = ?, submitted_at = NOW(), form_completion_percentage = ?, updated_at = NOW() WHERE id = ?',
+        await query(
+            'UPDATE proposals SET proposal_status = $1, submitted_at = NOW(), form_completion_percentage = $2, updated_at = NOW() WHERE id = $3',
             ['pending', 100.00, newProposalId]
         );
         console.log('✅ New proposal status updated to pending with 100% completion');

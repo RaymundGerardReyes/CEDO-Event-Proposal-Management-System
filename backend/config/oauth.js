@@ -1,6 +1,6 @@
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const { pool } = require('./db');
+const { pool, query } = require('./database');
 const crypto = require('crypto');
 
 // Check if OAuth is properly configured
@@ -83,25 +83,25 @@ if (isOAuthConfigured()) {
             }
 
             // Check for existing user by Google ID
-            let [users] = await pool.query('SELECT * FROM users WHERE google_id = ?', [googleId]);
-            let user = users[0];
+            let result = await query('SELECT * FROM users WHERE google_id = $1', [googleId]);
+            let user = result.rows[0];
 
             if (!user) {
                 // Check for existing user by email
-                [users] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
-                user = users[0];
+                result = await query('SELECT * FROM users WHERE email = $1', [email]);
+                user = result.rows[0];
 
                 if (user) {
                     // Link Google ID to existing user
                     console.log(`Linking Google ID ${googleId} to existing user ${user.id}`);
-                    await pool.query(
-                        'UPDATE users SET google_id = ?, name = COALESCE(?, name), avatar = COALESCE(?, avatar), updated_at = NOW() WHERE id = ?',
+                    await query(
+                        'UPDATE users SET google_id = $1, name = COALESCE($2, name), avatar = COALESCE($3, avatar), updated_at = NOW() WHERE id = $4',
                         [googleId, name, picture, user.id]
                     );
 
                     // Fetch updated user
-                    [users] = await pool.query('SELECT * FROM users WHERE id = ?', [user.id]);
-                    user = users[0];
+                    result = await query('SELECT * FROM users WHERE id = $1', [user.id]);
+                    user = result.rows[0];
                 } else {
                     // Security: Only allow pre-approved users to sign in
                     // Do not create new users automatically
@@ -114,14 +114,14 @@ if (isOAuthConfigured()) {
 
                 if (needsUpdate) {
                     console.log(`Updating profile for user ${user.id}`);
-                    await pool.query(
-                        'UPDATE users SET name = COALESCE(?, name), avatar = COALESCE(?, avatar), updated_at = NOW() WHERE id = ?',
+                    await query(
+                        'UPDATE users SET name = COALESCE($1, name), avatar = COALESCE($2, avatar), updated_at = NOW() WHERE id = $3',
                         [name, picture, user.id]
                     );
 
                     // Fetch updated user
-                    [users] = await pool.query('SELECT * FROM users WHERE id = ?', [user.id]);
-                    user = users[0];
+                    result = await query('SELECT * FROM users WHERE id = $1', [user.id]);
+                    user = result.rows[0];
                 }
             }
 
@@ -156,8 +156,8 @@ passport.serializeUser((user, done) => {
 passport.deserializeUser(async (id, done) => {
     try {
         console.log('Deserializing user:', id);
-        const [users] = await pool.query('SELECT * FROM users WHERE id = ?', [id]);
-        const user = users[0];
+        const result = await query('SELECT * FROM users WHERE id = $1', [id]);
+        const user = result.rows[0];
 
         if (!user) {
             return done(new Error('User not found'), null);

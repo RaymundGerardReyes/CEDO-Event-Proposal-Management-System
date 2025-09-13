@@ -1,6 +1,6 @@
 const express = require("express")
 const router = express.Router()
-const { pool } = require("../config/db") // MySQL connection pool
+const { pool, query } = require("../config/database") // Universal database connection
 const { validateToken, validateAdmin } = require("../middleware/auth") // Updated JWT authentication middleware
 
 // ===============================================

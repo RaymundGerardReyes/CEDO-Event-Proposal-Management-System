@@ -6,7 +6,7 @@
  * and comprehensive audit trail management
  */
 
-const { pool } = require('../config/db.js');
+const { pool, query } = require('../config/database');
 
 /**
  * Create audit log entry

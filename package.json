@@ -31,7 +31,7 @@
     "lint:frontend": "cd frontend && npm run lint",
     "lint:backend": "cd backend && npm run lint",
     "setup": "npm run install:all && npm run setup:databases",
-    "setup:databases": "cd backend && npm run init-databases",
+    "setup:databases": "cd backend && npm run init-postgres",
     "health": "concurrently \"npm run health:backend\" \"npm run health:frontend\"",
     "health:backend": "cd backend && npm run health",
     "health:frontend": "curl -f http://localhost:3000 || echo 'Frontend not running'"

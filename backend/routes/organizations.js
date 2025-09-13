@@ -1,7 +1,7 @@
 // backend/routes/organizations.js
 const express = require('express');
 const router = express.Router();
-const { pool } = require('../config/db'); // Properly destructure pool from the db config
+const { pool, query } = require('../config/database'); // Universal database connection
 
 router.post('/create', async (req, res) => {
   const {

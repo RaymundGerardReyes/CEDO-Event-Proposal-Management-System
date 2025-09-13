@@ -23,7 +23,7 @@ const router = express.Router();
  * MySQL database connection pool (primary data source)
  * @type {Object}
  */
-const { pool } = require('../../config/db');
+const { pool, query } = require('../../config/database');
 
 /**
  * Authentication middleware for protected routes
@@ -131,14 +131,14 @@ router.get('/find-proposal-by-draftid/:draftId', validateToken, async (req, res)
 
         // STEP 1: Try to find any proposal that might match this draftId
         // Since MongoDB draftId doesn't directly map to MySQL, we'll search user's proposals
-        const [userProposals] = await connection.query(
-            'SELECT * FROM proposals WHERE user_id = ? ORDER BY created_at DESC',
+        const userProposalsResult = await query(
+            'SELECT * FROM proposals WHERE user_id = $1 ORDER BY created_at DESC',
             [user.id]
         );
 
-        console.log('🔍 DRAFT ID LOOKUP: Found', userProposals.length, 'proposals for user', user.id);
+        console.log('🔍 DRAFT ID LOOKUP: Found', userProposalsResult.rows.length, 'proposals for user', user.id);
 
-        if (userProposals.length === 0) {
+        if (userProposalsResult.rows.length === 0) {
             return res.json({
                 success: false,
                 error: 'No proposals found for current user',
@@ -151,8 +151,8 @@ router.get('/find-proposal-by-draftid/:draftId', validateToken, async (req, res)
         }
 
         // STEP 2: If only one proposal exists, assume it's the one they want
-        if (userProposals.length === 1) {
-            const proposal = userProposals[0];
+        if (userProposalsResult.rows.length === 1) {
+            const proposal = userProposalsResult.rows[0];
             console.log('🔍 DRAFT ID LOOKUP: Single proposal found, returning it:', proposal.uuid);
 
             return res.json({
@@ -181,7 +181,7 @@ router.get('/find-proposal-by-draftid/:draftId', validateToken, async (req, res)
         }
 
         // STEP 3: Multiple proposals - return the most recent one or let user choose
-        const latestProposal = userProposals[0]; // Already ordered by created_at DESC
+        const latestProposal = userProposalsResult.rows[0]; // Already ordered by created_at DESC
 
         return res.json({
             success: true,
@@ -257,13 +257,13 @@ router.get('/student-proposal/:id', async (req, res) => {
 
         if (isNumericId) {
             // If it's a numeric ID, query directly by ID
-            proposalQuery = 'SELECT * FROM proposals WHERE id = ?';
+            proposalQuery = 'SELECT * FROM proposals WHERE id = $1';
             queryParams = [parseInt(proposalId)];
         } else {
-            // If it's not numeric, try to find by UUID (draftId maps to uuid in MySQL)
+            // If it's not numeric, try to find by UUID (draftId maps to uuid in PostgreSQL)
             proposalQuery = `
                 SELECT * FROM proposals 
-                WHERE uuid = ? OR id = ?
+                WHERE uuid = $1 OR id = $2
                 ORDER BY created_at DESC 
                 LIMIT 1
             `;
@@ -275,14 +275,14 @@ router.get('/student-proposal/:id', async (req, res) => {
         //     params: queryParams
         // });
 
-        const [rows] = await connection.query(proposalQuery, queryParams);
+        const rowsResult = await query(proposalQuery, queryParams);
 
-        if (rows.length === 0) {
+        if (rowsResult.rows.length === 0) {
             // console.log('📋 MYSQL STUDENT PROPOSAL: No proposal found for ID:', proposalId);
 
             // DEBUGGING: Show available proposals
             try {
-                const [allProposals] = await connection.query(
+                const allProposalsResult = await query(
                     'SELECT id, uuid, organization_name, proposal_status FROM proposals ORDER BY created_at DESC LIMIT 10'
                 );
                 // console.log('📋 MYSQL STUDENT PROPOSAL: Available proposals (last 10):', allProposals);
@@ -304,7 +304,7 @@ router.get('/student-proposal/:id', async (req, res) => {
             });
         }
 
-        const proposal = rows[0];
+        const proposal = rowsResult.rows[0];
         console.log('✅ MYSQL STUDENT PROPOSAL: Found proposal:', {
             id: proposal.id,
             uuid: proposal.uuid,
@@ -417,8 +417,8 @@ router.get('/user-proposals', validateToken, async (req, res) => {
         const connection = await pool.getConnection();
 
         try {
-            // Fetch proposals from MySQL for the current user
-            const [proposals] = await connection.execute(
+            // Fetch proposals from PostgreSQL for the current user
+            const proposalsResult = await query(
                 `SELECT 
                     id as mysql_id,
                     uuid,
@@ -437,21 +437,21 @@ router.get('/user-proposals', validateToken, async (req, res) => {
                     budget,
                     attendance_count
                 FROM proposals 
-                WHERE user_id = ? 
+                WHERE user_id = $1 
                 ORDER BY created_at DESC`,
                 [user.id]
             );
 
-            console.log('✅ MYSQL USER PROPOSALS: Successfully fetched proposals:', {
+            console.log('✅ POSTGRESQL USER PROPOSALS: Successfully fetched proposals:', {
                 userId: user.id,
-                proposalCount: proposals.length
+                proposalCount: proposalsResult.rows.length
             });
 
             res.json({
                 success: true,
-                proposals: proposals,
+                proposals: proposalsResult.rows,
                 userId: user.id,
-                totalCount: proposals.length,
+                totalCount: proposalsResult.rows.length,
                 data_source: 'MySQL only',
                 mongodb_status: 'optional (not used)'
             });

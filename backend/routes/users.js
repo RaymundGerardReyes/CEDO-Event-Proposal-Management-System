@@ -1,7 +1,7 @@
 const express = require("express")
 const router = express.Router()
 const bcrypt = require("bcryptjs")
-const { pool } = require("../config/db") // MySQL connection pool
+const { pool, query } = require("../config/database") // Universal database connection
 const { validateToken, validateAdmin, validateFaculty } = require("../middleware/auth") // Updated authentication middleware
 const checkRole = require("../middleware/roles") // Custom role checking middleware
 const User = require("../models/User") // Corrected User model import

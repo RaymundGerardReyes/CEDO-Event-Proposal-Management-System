@@ -4,7 +4,7 @@
 const request = require('supertest');
 const express = require('express');
 const dbCheckRouter = require('../../routes/db-check');
-const { pool } = require('../../config/db');
+const { pool, query } = require('../../config/database');
 
 jest.mock('../config/db');
 

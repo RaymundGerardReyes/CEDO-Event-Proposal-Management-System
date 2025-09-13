@@ -22,7 +22,7 @@
  * - Event type classification
  */
 
-const { pool } = require('../config/db');
+const { pool, query } = require('../config/database');
 const { getDb } = require('../utils/db');
 const { Binary } = require('mongodb');
 const path = require("path");

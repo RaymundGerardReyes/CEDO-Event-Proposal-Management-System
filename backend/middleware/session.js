@@ -1,6 +1,6 @@
 // backend/middleware/session.js
 const jwt = require('jsonwebtoken');
-const { pool } = require('../config/db');
+const { pool, query } = require('../config/database');
 const logger = require('../config/logger');
 
 let testSecretOverride = null;
@@ -31,8 +31,8 @@ const sessionManager = {
 
   refreshToken: async (token) => {
     const decoded = sessionManager.verifyToken(token);
-    const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [decoded.id]);
-    const user = rows[0];
+    const rowsResult = await query('SELECT * FROM users WHERE id = $1', [decoded.id]);
+    const user = rowsResult.rows[0];
 
     if (!user) throw new Error('User not found for refresh token');
 
@@ -53,8 +53,8 @@ const sessionManager = {
     if (!action) return logger.warn('Missing action in logAccess');
 
     try {
-      await pool.query(
-        'INSERT INTO access_logs (user_id, role, action, timestamp) VALUES (?, ?, ?, NOW())',
+      await query(
+        'INSERT INTO access_logs (user_id, role, action, timestamp) VALUES ($1, $2, $3, CURRENT_TIMESTAMP)',
         [userId, role, action]
       );
     } catch (e) {

@@ -33,6 +33,7 @@ const {
     fsPromises,
     uploadsDir,
     pool,
+    query,
     validateProposalId,
     createErrorResponse,
     createSuccessResponse
@@ -62,7 +63,7 @@ const validateFileUpload = (reqBody, files) => {
 
     const validFileTypes = ['gpoaFile', 'proposalFile', 'accomplishmentReport'];
     const uploadedTypes = Object.keys(files || {});
-    
+
     for (const fileType of uploadedTypes) {
         if (!validFileTypes.includes(fileType)) {
             errors.push(`Invalid file type: ${fileType}`);
@@ -125,7 +126,7 @@ const processFileUploads = async (files, organizationName, proposalId) => {
  */
 const createFileMetadataRecord = async (proposalId, organizationName, fileMetadata) => {
     const db = await getDb();
-    
+
     const record = {
         proposalId: proposalId,
         organizationName: organizationName,
@@ -195,17 +196,17 @@ router.post(
             }
 
             // STEP 2: Verify proposal exists
-            const [proposal] = await pool.query(
-                'SELECT id, organization_name FROM proposals WHERE id = ?',
+            const proposalResult = await query(
+                'SELECT id, organization_name FROM proposals WHERE id = $1',
                 [proposalId]
             );
 
-            if (proposal.length === 0) {
+            if (proposalResult.rows.length === 0) {
                 const errorResponse = createErrorResponse(`Proposal with ID ${proposalId} not found`, 404);
                 return res.status(404).json(errorResponse);
             }
 
-            const organizationName = req.body.organization_name || proposal[0].organization_name || 'Unknown';
+            const organizationName = req.body.organization_name || proposalResult.rows[0].organization_name || 'Unknown';
             console.log('📁 FILE UPLOAD: Processing files for proposal:', {
                 proposalId: proposalId,
                 organizationName: organizationName,
@@ -322,7 +323,7 @@ router.get('/proposals/download/:proposalId/:fileType', async (req, res) => {
         const bucket = await getBucket();
 
         const downloadStream = bucket.openDownloadStream(fileInfo.gridFsId);
-        
+
         // Set proper headers
         res.setHeader('Content-Type', fileInfo.mimeType || 'application/octet-stream');
         res.setHeader('Content-Disposition', `attachment; filename="${fileInfo.originalName || fileInfo.filename}"`);
@@ -345,7 +346,7 @@ router.get('/proposals/download/:proposalId/:fileType', async (req, res) => {
 
     } catch (error) {
         console.error('❌ FILE DOWNLOAD: Error downloading file:', error);
-        
+
         if (!res.headersSent) {
             const errorResponse = createErrorResponse(
                 error.message,
@@ -420,7 +421,7 @@ router.get('/proposals/files/:proposalId', async (req, res) => {
 
     } catch (error) {
         console.error('❌ FILE METADATA: Error getting file metadata:', error);
-        
+
         const errorResponse = createErrorResponse(
             error.message,
             500,
@@ -482,7 +483,7 @@ router.get('/proposals/file-info/:proposalId/:fileType', async (req, res) => {
 
     } catch (error) {
         console.error('❌ FILE INFO: Error getting file info:', error);
-        
+
         const errorResponse = createErrorResponse(
             error.message,
             500,
