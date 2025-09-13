@@ -1,0 +1,19 @@
+# Render configuration for Frontend Service
+services:
+  - type: web
+    name: cedo-frontend
+    env: node
+    plan: free
+    buildCommand: cd frontend && npm install && npm run build
+    startCommand: cd frontend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: NEXT_PUBLIC_API_URL
+        value: https://your-backend-service.onrender.com
+      - key: NEXT_PUBLIC_BACKEND_URL
+        value: https://your-backend-service.onrender.com
+      - key: NEXT_PUBLIC_GOOGLE_CLIENT_ID
+        value: your_google_client_id

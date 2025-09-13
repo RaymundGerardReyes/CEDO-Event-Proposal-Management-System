@@ -1,51 +1,65 @@
 services:
+  # Backend Service
   - type: web
     name: cedo-backend
     env: node
-    rootDir: backend
     plan: free
-    autoDeploy: true
-    buildCommand: npm install
-    startCommand: node server.js
-    healthCheckPath: /health
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm start
     envVars:
       - key: NODE_ENV
         value: production
-      - key: MONGODB_URI
-        sync: false
-      - key: MYSQL_HOST
-        sync: false
-      - key: MYSQL_USER
-        sync: false
-      - key: MYSQL_PASSWORD
-        sync: false
-      - key: MYSQL_DATABASE
-        sync: false
-      - key: JWT_SECRET
-        sync: false
-      - key: GOOGLE_CLIENT_ID
-        sync: false
-      - key: GOOGLE_CLIENT_SECRET
-        sync: false
-      - key: ALLOWED_ORIGINS
-        value: https://cedo-event-proposal-ms.onrender.com
+      - key: PORT
+        value: 5000
+      - key: DB_TYPE
+        value: postgresql
+      # Add your database and other environment variables here
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: cedo-postgres
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: cedo-postgres
+          property: port
+      - key: POSTGRES_DATABASE
+        fromDatabase:
+          name: cedo-postgres
+          property: database
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: cedo-postgres
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: cedo-postgres
+          property: password
 
+  # Frontend Service
   - type: web
     name: cedo-frontend
     env: node
-    rootDir: frontend
     plan: free
-    autoDeploy: true
-    buildCommand: npm install && npm run build
-    startCommand: npm run start
+    buildCommand: cd frontend && npm install && npm run build
+    startCommand: cd frontend && npm start
     envVars:
       - key: NODE_ENV
         value: production
-      - key: NEXT_PUBLIC_BACKEND_URL
-        value: https://ceproposal-ms.onrender.com
+      - key: PORT
+        value: 3000
       - key: NEXT_PUBLIC_API_URL
-        value: https://ceproposal-ms.onrender.com/api
-      - key: BACKEND_URL
-        value: https://ceproposal-ms.onrender.com
-      - key: API_URL
-        value: https://ceproposal-ms.onrender.com/api
+        fromService:
+          type: web
+          name: cedo-backend
+          property: host
+      - key: NEXT_PUBLIC_BACKEND_URL
+        fromService:
+          type: web
+          name: cedo-backend
+          property: host
+
+databases:
+  - name: cedo-postgres
+    plan: free
+    databaseName: cedo_auth
+    user: cedo_user
