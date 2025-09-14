@@ -39,6 +39,15 @@ if (isVerbose) {
     }
 }
 
+// Debug: Log the final connection configuration
+console.log('\n🔍 PostgreSQL Connection Configuration:');
+console.log(`Host: ${process.env.DB_HOST || process.env.POSTGRES_HOST || process.env.POSTGRES_HOSTNAME || 'localhost'}`);
+console.log(`Port: ${process.env.DB_PORT || process.env.POSTGRES_PORT || 5432}`);
+console.log(`User: ${process.env.DB_USER || process.env.POSTGRES_USER || process.env.POSTGRES_USERNAME || 'postgres'}`);
+console.log(`Database: ${process.env.DB_NAME || process.env.POSTGRES_DATABASE || process.env.POSTGRES_DB || 'cedo_auth'}`);
+console.log(`Password: ${process.env.POSTGRES_PASSWORD || process.env.DB_PASSWORD ? 'SET' : 'NOT_SET'}`);
+console.log(`SSL: ${process.env.NODE_ENV === 'production' ? 'enabled' : 'disabled'}\n`);
+
 // Enhanced connection pool configuration for production performance
 const poolConfig = {
     host: process.env.DB_HOST || process.env.POSTGRES_HOST || process.env.POSTGRES_HOSTNAME || 'localhost',

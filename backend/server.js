@@ -34,7 +34,21 @@ console.log(`🔑 GOOGLE_CLIENT_ID: ${process.env.GOOGLE_CLIENT_ID ? 'SET ✓' :
 console.log(`🔑 JWT_SECRET: ${process.env.JWT_SECRET ? 'SET ✓' : '❌ MISSING'}`);
 console.log(`🔑 NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
 console.log(`🔑 MONGODB_URI: ${process.env.MONGODB_URI ? 'SET ✓' : '❌ MISSING'}`);
-console.log(`🔍 MONGODB_URI (masked): ${process.env.MONGODB_URI ? process.env.MONGODB_URI.replace(/\/\/.*@/, '//***:***@') : 'NOT_SET'}\n`);
+console.log(`🔍 MONGODB_URI (masked): ${process.env.MONGODB_URI ? process.env.MONGODB_URI.replace(/\/\/.*@/, '//***:***@') : 'NOT_SET'}`);
+
+// Database environment variables debugging
+console.log('\n🔍 Database Environment Variables:');
+console.log(`🔑 DB_HOST: ${process.env.DB_HOST || 'NOT_SET'}`);
+console.log(`🔑 POSTGRES_HOST: ${process.env.POSTGRES_HOST || 'NOT_SET'}`);
+console.log(`🔑 POSTGRES_HOSTNAME: ${process.env.POSTGRES_HOSTNAME || 'NOT_SET'}`);
+console.log(`🔑 DB_USER: ${process.env.DB_USER || 'NOT_SET'}`);
+console.log(`🔑 POSTGRES_USER: ${process.env.POSTGRES_USER || 'NOT_SET'}`);
+console.log(`🔑 POSTGRES_USERNAME: ${process.env.POSTGRES_USERNAME || 'NOT_SET'}`);
+console.log(`🔑 DB_NAME: ${process.env.DB_NAME || 'NOT_SET'}`);
+console.log(`🔑 POSTGRES_DATABASE: ${process.env.POSTGRES_DATABASE || 'NOT_SET'}`);
+console.log(`🔑 POSTGRES_DB: ${process.env.POSTGRES_DB || 'NOT_SET'}`);
+console.log(`🔑 POSTGRES_PASSWORD: ${process.env.POSTGRES_PASSWORD ? 'SET ✓' : '❌ MISSING'}`);
+console.log(`🔑 DB_PASSWORD: ${process.env.DB_PASSWORD ? 'SET ✓' : '❌ MISSING'}\n`);
 
 // ==============================
 // Core Dependencies & Imports
@@ -91,6 +105,7 @@ app.set('trust proxy', 1)
 // ==============================
 // FIXED: Ensure PORT is not the same as MySQL port (3306)
 // Use a different port like 5000 for your Express server
+// On Render, use the PORT environment variable, otherwise use 5000
 const PORT = process.env.NODE_ENV === 'test' ? 0 : (process.env.PORT || 5000); // Use random port for tests
 
 // ==============================
