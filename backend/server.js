@@ -119,8 +119,8 @@ app.set('trust proxy', 1)
 // On Render, use the PORT environment variable, otherwise use 5000
 const PORT = process.env.NODE_ENV === 'test' ? 0 : (process.env.PORT || 5000); // Use random port for tests
 
-// Force PORT to 10000 for Render if not set
-if (process.env.RENDER === 'true' && !process.env.PORT) {
+// Force PORT to 10000 for Render if not set or if it's 1000
+if (process.env.RENDER === 'true' && (!process.env.PORT || process.env.PORT === '1000')) {
   process.env.PORT = '10000';
   console.log('🔧 Render detected: Setting PORT to 10000');
 }

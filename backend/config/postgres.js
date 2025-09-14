@@ -60,7 +60,7 @@ console.log(`NODE_ENV: ${process.env.NODE_ENV}\n`);
 
 let poolConfig;
 
-if (dbUrl) {
+if (dbUrl && dbUrl.trim() !== '') {
     // Use full connection string if provided (preferred for Render)
     console.log('🔗 Using DATABASE_URL for PostgreSQL connection');
 
