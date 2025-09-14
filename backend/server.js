@@ -488,8 +488,8 @@ app.use((error, req, res, next) => {
     });
   } else {
     // Non-API routes return HTML or redirect
-    if (process.env.NODE_ENV === 'production') {
-      // In production, serve the frontend for SPA routing
+    if (process.env.NODE_ENV === 'production' && process.env.RENDER !== "true") {
+      // Local production - serve the frontend for SPA routing
       res.status(status);
       if (status === 404) {
         res.sendFile(path.resolve(__dirname, "../frontend", "build", "index.html"));
@@ -497,8 +497,12 @@ app.use((error, req, res, next) => {
         res.send(`<h1>${status} - ${message}</h1>`);
       }
     } else {
-      // In development, return simple error page
-      res.status(status).send(`<h1>${status} - ${message}</h1>`);
+      // Render deployment or development - return JSON for API errors
+      res.status(status).json({
+        error: message,
+        status: status,
+        timestamp: new Date().toISOString()
+      });
     }
   }
 });
@@ -506,15 +510,19 @@ app.use((error, req, res, next) => {
 // ==============================
 // Production Static File Serving
 // ==============================
-// Serve static assets in production
-// Assumes 'backend' and 'frontend' are sibling directories
-if (process.env.NODE_ENV === "production") {
-  // Serve the frontend's build folder
-  app.use(express.static(path.join(__dirname, "../frontend/build"))) // Path from backend/ to frontend/build
+// NOTE: In Render deployment, frontend and backend are separate services
+// Backend should NOT serve frontend files - this causes 404 errors
+// Frontend is served by a separate Render service
+if (process.env.NODE_ENV === "production" && process.env.RENDER === "true") {
+  // Render deployment - backend only serves API
+  console.log("🚀 Render deployment detected - backend serving API only");
+} else if (process.env.NODE_ENV === "production") {
+  // Local production build - serve frontend files
+  console.log("🏠 Local production build - serving frontend files");
+  app.use(express.static(path.join(__dirname, "../frontend/build")))
 
-  // For any other GET request not handled by the API, serve the frontend's index.html
   app.get("*", (req, res) => {
-    res.sendFile(path.resolve(__dirname, "../frontend", "build", "index.html")) // Path from backend/ to index.html
+    res.sendFile(path.resolve(__dirname, "../frontend", "build", "index.html"))
   })
 }
 

@@ -9,11 +9,13 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: RENDER
+        value: "true"
       - key: PORT
-        value: 5000
+        value: 10000
       - key: DB_TYPE
         value: postgresql
-      # Add your database and other environment variables here
+      # PostgreSQL Database Configuration
       - key: POSTGRES_HOST
         fromDatabase:
           name: cedo-postgres
@@ -34,6 +36,29 @@ services:
         fromDatabase:
           name: cedo-postgres
           property: password
+      # MongoDB Configuration (Replace with your Atlas URI)
+      - key: MONGODB_URI
+        value: mongodb+srv://username:password@cluster.mongodb.net/cedo_db?retryWrites=true&w=majority
+      # Application Secrets (Replace with your actual values)
+      - key: JWT_SECRET
+        value: your-super-secret-jwt-key-here
+      - key: GOOGLE_CLIENT_ID
+        value: your-google-client-id
+      - key: GOOGLE_CLIENT_SECRET
+        value: your-google-client-secret
+      - key: RECAPTCHA_SECRET_KEY
+        value: your-recaptcha-secret-key
+      # Frontend URLs (Auto-populated from frontend service)
+      - key: FRONTEND_URL
+        fromService:
+          type: web
+          name: cedo-frontend
+          property: host
+      - key: ALLOWED_ORIGINS
+        fromService:
+          type: web
+          name: cedo-frontend
+          property: host
 
   # Frontend Service
   - type: web
@@ -47,6 +72,7 @@ services:
         value: production
       - key: PORT
         value: 3000
+      # Backend API URLs (Auto-populated from backend service)
       - key: NEXT_PUBLIC_API_URL
         fromService:
           type: web
@@ -57,9 +83,12 @@ services:
           type: web
           name: cedo-backend
           property: host
+      # Google OAuth Configuration
+      - key: NEXT_PUBLIC_GOOGLE_CLIENT_ID
+        value: your-google-client-id
 
 databases:
   - name: cedo-postgres
     plan: free
     databaseName: cedo_auth
-    user: cedo_user
+    user: cedo_auth_user
