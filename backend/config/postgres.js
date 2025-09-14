@@ -39,43 +39,93 @@ if (isVerbose) {
     }
 }
 
+// Enhanced connection pool configuration for production performance
+// Prefer DATABASE_URL first, then POSTGRES_* variables, then DB_* variables
+const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_CONNECTION_URL || process.env.POSTGRES_URL;
+
 // Debug: Log the final connection configuration
 console.log('\n🔍 PostgreSQL Connection Configuration:');
-console.log(`Host: ${process.env.DB_HOST || process.env.POSTGRES_HOST || process.env.POSTGRES_HOSTNAME || 'localhost'}`);
-console.log(`Port: ${process.env.DB_PORT || process.env.POSTGRES_PORT || 5432}`);
-console.log(`User: ${process.env.DB_USER || process.env.POSTGRES_USER || process.env.POSTGRES_USERNAME || 'postgres'}`);
-console.log(`Database: ${process.env.DB_NAME || process.env.POSTGRES_DATABASE || process.env.POSTGRES_DB || 'cedo_auth'}`);
-console.log(`Password: ${process.env.POSTGRES_PASSWORD || process.env.DB_PASSWORD ? 'SET' : 'NOT_SET'}`);
-console.log(`SSL: ${process.env.NODE_ENV === 'production' ? 'enabled' : 'disabled'}\n`);
+if (dbUrl) {
+    console.log(`Using DATABASE_URL: ${dbUrl.replace(/\/\/.*@/, '//***:***@')}`);
+    console.log(`SSL from URL: ${/sslmode=require/i.test(dbUrl) ? 'required' : 'not required'}`);
+} else {
+    console.log(`Host: ${process.env.POSTGRES_HOST || process.env.POSTGRES_HOSTNAME || process.env.DB_HOST || 'localhost'}`);
+    console.log(`Port: ${process.env.POSTGRES_PORT || process.env.DB_PORT || 5432}`);
+    console.log(`User: ${process.env.POSTGRES_USER || process.env.POSTGRES_USERNAME || process.env.DB_USER || 'postgres'}`);
+    console.log(`Database: ${process.env.POSTGRES_DATABASE || process.env.POSTGRES_DB || process.env.DB_NAME || 'cedo_auth'}`);
+    console.log(`Password: ${process.env.POSTGRES_PASSWORD || process.env.DB_PASSWORD ? 'SET' : 'NOT_SET'}`);
+    console.log(`SSL: ${(process.env.POSTGRES_SSL === 'true' || process.env.PGSSLMODE === 'require' || process.env.NODE_ENV === 'production') ? 'enabled' : 'disabled'}`);
+}
+console.log(`NODE_ENV: ${process.env.NODE_ENV}\n`);
 
-// Enhanced connection pool configuration for production performance
-const poolConfig = {
-    host: process.env.DB_HOST || process.env.POSTGRES_HOST || process.env.POSTGRES_HOSTNAME || 'localhost',
-    port: process.env.DB_PORT || process.env.POSTGRES_PORT || 5432,
-    user: process.env.DB_USER || process.env.POSTGRES_USER || process.env.POSTGRES_USERNAME || 'postgres',
-    password: process.env.POSTGRES_PASSWORD || process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || process.env.POSTGRES_DATABASE || process.env.POSTGRES_DB || 'cedo_auth',
+let poolConfig;
 
-    // PRODUCTION CONNECTION POOLING
-    max: process.env.NODE_ENV === 'production' ? 50 : 10, // Maximum number of clients in the pool
-    min: 2, // Minimum number of clients in the pool
-    idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-    connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection could not be established
+if (dbUrl) {
+    // Use full connection string if provided (preferred for Render)
+    console.log('🔗 Using DATABASE_URL for PostgreSQL connection');
 
-    // SSL configuration for production
-    ssl: process.env.NODE_ENV === 'production' ? {
-        rejectUnauthorized: false
-    } : false,
+    // For Render PostgreSQL, ensure SSL is enabled
+    let connectionString = dbUrl;
+    if (!connectionString.includes('sslmode=')) {
+        connectionString += (connectionString.includes('?') ? '&' : '?') + 'sslmode=require';
+    }
 
-    // Query optimizations
-    statement_timeout: 30000, // 30 seconds
-    query_timeout: 30000, // 30 seconds
-    application_name: 'cedo-backend',
+    poolConfig = {
+        connectionString: connectionString,
+        // Enable SSL for Render PostgreSQL (required for external connections)
+        ssl: { rejectUnauthorized: false },
 
-    // Connection management
-    keepAlive: true,
-    keepAliveInitialDelayMillis: 10000,
-};
+        // PRODUCTION CONNECTION POOLING
+        max: process.env.NODE_ENV === 'production' ? 50 : 10,
+        min: 2,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000, // Increased timeout for external connections
+
+        // Query optimizations
+        statement_timeout: 30000,
+        query_timeout: 30000,
+        application_name: 'cedo-backend',
+
+        // Connection management
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10000,
+    };
+} else {
+    // Fallback to individual variables - prefer POSTGRES_* over DB_*
+    console.log('🔗 Using individual environment variables for PostgreSQL connection');
+
+    // URL encode password if it contains special characters
+    const password = process.env.POSTGRES_PASSWORD || process.env.DB_PASSWORD || '';
+    const encodedPassword = encodeURIComponent(password);
+
+    poolConfig = {
+        host: process.env.POSTGRES_HOST || process.env.POSTGRES_HOSTNAME || process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.POSTGRES_PORT || process.env.DB_PORT || 5432, 10),
+        user: process.env.POSTGRES_USER || process.env.POSTGRES_USERNAME || process.env.DB_USER || 'postgres',
+        password: password, // Use original password, not encoded
+        database: process.env.POSTGRES_DATABASE || process.env.POSTGRES_DB || process.env.DB_NAME || 'cedo_auth',
+
+        // PRODUCTION CONNECTION POOLING
+        max: process.env.NODE_ENV === 'production' ? 50 : 10,
+        min: 2,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000, // Increased timeout for external connections
+
+        // SSL configuration - enable for Render PostgreSQL
+        ssl: (process.env.POSTGRES_SSL === 'true' || process.env.PGSSLMODE === 'require' || process.env.NODE_ENV === 'production') ? {
+            rejectUnauthorized: false
+        } : false,
+
+        // Query optimizations
+        statement_timeout: 30000,
+        query_timeout: 30000,
+        application_name: 'cedo-backend',
+
+        // Connection management
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10000,
+    };
+}
 
 // Create connection pool
 const pool = new Pool(poolConfig);
