@@ -4,27 +4,29 @@
   "description": "CEDO Google Auth - Full Stack Application",
   "private": true,
   "scripts": {
-    "install": "npm install && cd frontend && npm install && cd ../backend && npm install",
-
-    "dev": "concurrently \"cd frontend && npm run dev\" \"cd backend && npm run dev\"",
-
-    "start": "concurrently \"cd frontend && npm start\" \"cd backend && npm start\"",
-
-    "build": "cd frontend && npm run build && cd ../backend && npm run build",
-
-    "test": "concurrently \"cd frontend && npm test\" \"cd backend && npm test\"",
-
+    "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\"",
+    "dev:debug": "concurrently \"cd backend && node --inspect=9229 server.js\" \"cd frontend && npm run dev\"",
+    "dev:full-debug": "concurrently \"cd backend && node --inspect=9229 server.js\" \"cd frontend && npm run dev:debug\"",
+    "start": "concurrently \"cd backend && npm run start\" \"cd frontend && npm run start\"",
+    "build": "npm run install:all && concurrently \"cd frontend && npm run build\" \"cd backend && npm run build\"",
+    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
+    "clean": "concurrently \"cd frontend && npm run clean\" \"cd backend && npm run clean\"",
+    "test": "concurrently \"cd backend && npm run test\" \"cd frontend && npm run test\"",
     "lint": "concurrently \"cd frontend && npm run lint\" \"cd backend && npm run lint\"",
-
-    "clean": "cd frontend && npm run clean && cd ../backend && npm run clean",
-
-    "health": "concurrently \"cd frontend && npm run health\" \"cd backend && npm run health\""
+    "setup": "npm run install:all && npm run setup:databases",
+    "setup:databases": "cd backend && npm run init-databases",
+    "health": "concurrently \"cd backend && npm run health\" \"curl -f http://localhost:3000 || echo 'Frontend not running'\"",
+    "setup:postgres": "cd backend && npm run setup-postgres",
+    "init:postgres": "cd backend && npm run init-postgres",
+    "create:database": "cd backend && npm run create-database"
   },
   "dependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "@sentry/browser": "^9.40.0",
+    "@sentry/tracing": "^7.120.3"
   },
   "engines": {
-    "node": ">=18.20.8",
-    "npm": ">=10.9.3"
+    "node": ">=18.17.0",
+    "npm": ">=8.0.0"
   }
 }
