@@ -73,7 +73,10 @@ if (dbUrl) {
     poolConfig = {
         connectionString: connectionString,
         // Enable SSL for Render PostgreSQL (required for external connections)
-        ssl: { rejectUnauthorized: false },
+        ssl: {
+            rejectUnauthorized: false,
+            checkServerIdentity: () => undefined // Disable hostname verification for self-signed certs
+        },
 
         // PRODUCTION CONNECTION POOLING
         max: process.env.NODE_ENV === 'production' ? 50 : 10,
@@ -113,7 +116,8 @@ if (dbUrl) {
 
         // SSL configuration - enable for Render PostgreSQL
         ssl: (process.env.POSTGRES_SSL === 'true' || process.env.PGSSLMODE === 'require' || process.env.NODE_ENV === 'production') ? {
-            rejectUnauthorized: false
+            rejectUnauthorized: false,
+            checkServerIdentity: () => undefined // Disable hostname verification for self-signed certs
         } : false,
 
         // Query optimizations

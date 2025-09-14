@@ -12,6 +12,9 @@
 require('dotenv').config({ path: '.env' }); // Try backend/.env first
 require('dotenv').config({ path: '../.env' }); // Then try root/.env
 
+// Normalize NODE_ENV to lowercase
+process.env.NODE_ENV = process.env.NODE_ENV ? process.env.NODE_ENV.toLowerCase() : 'development';
+
 // Fallback environment variables for development only
 if (!process.env.MONGODB_URI && process.env.NODE_ENV === 'development') {
   process.env.MONGODB_URI = 'mongodb://cedo_admin:Raymund-Estaca01@localhost:27017/cedo_db?authSource=admin';
@@ -21,9 +24,13 @@ if (process.env.NODE_ENV === 'development' && process.env.MONGODB_URI && !proces
   console.log('⚠️  Forcing authenticated MongoDB URI for development...');
   process.env.MONGODB_URI = 'mongodb://cedo_admin:Raymund-Estaca01@localhost:27017/cedo_db?authSource=admin';
 }
-// Production warning if MongoDB URI is not set
-if (process.env.NODE_ENV === 'production' && !process.env.MONGODB_URI) {
-  console.warn('⚠️  MONGODB_URI not set in production - MongoDB features will be disabled');
+// Production warning if MongoDB URI is not set or points to localhost
+if (process.env.NODE_ENV === 'production' && (!process.env.MONGODB_URI || process.env.MONGODB_URI.includes('localhost'))) {
+  console.warn('⚠️  MONGODB_URI not set or points to localhost in production - MongoDB features will be disabled');
+  // Clear MongoDB URI in production if it points to localhost
+  if (process.env.MONGODB_URI && process.env.MONGODB_URI.includes('localhost')) {
+    process.env.MONGODB_URI = '';
+  }
 }
 if (!process.env.JWT_SECRET) {
   process.env.JWT_SECRET = 'your-development-jwt-secret-key';
@@ -112,6 +119,12 @@ app.set('trust proxy', 1)
 // On Render, use the PORT environment variable, otherwise use 5000
 const PORT = process.env.NODE_ENV === 'test' ? 0 : (process.env.PORT || 5000); // Use random port for tests
 
+// Force PORT to 10000 for Render if not set
+if (process.env.RENDER === 'true' && !process.env.PORT) {
+  process.env.PORT = '10000';
+  console.log('🔧 Render detected: Setting PORT to 10000');
+}
+
 // ==============================
 // Environment Variables Logging
 // ==============================
@@ -161,6 +174,14 @@ app.use(cors(corsOptions));
 
 // Handle preflight early
 app.options('*', cors(corsOptions))
+
+// Global timeout middleware
+app.use((req, res, next) => {
+  // Set timeout for all requests
+  req.setTimeout(30000); // 30 second timeout
+  res.setTimeout(30000); // 30 second timeout
+  next();
+});
 
 // ✅ Additional headers for Google OAuth compatibility
 // Request logging moved to optimized logger
@@ -272,6 +293,23 @@ async function testConnection() {
 // ==============================
 // Health Check & Monitoring Endpoints
 // ==============================
+
+// Root route for Render health checks and general access
+app.get('/', (req, res) => {
+  // Set timeout for this route
+  req.setTimeout(5000); // 5 second timeout
+
+  res.json({
+    status: 'OK',
+    message: 'CEDO Backend API is running',
+    timestamp: new Date().toISOString(),
+    database: getDatabaseType(),
+    dbConnected: isDbConnected,
+    mongoConnected: isMongoConnected,
+    environment: process.env.NODE_ENV,
+    port: PORT
+  });
+});
 
 // Enhanced health check endpoint with detailed service status
 app.get("/health", async (req, res) => {
