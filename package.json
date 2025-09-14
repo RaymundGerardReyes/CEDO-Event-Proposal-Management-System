@@ -4,43 +4,23 @@
   "description": "CEDO Google Auth - Full Stack Application",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:frontend": "cd frontend && npm run dev",
-    "dev:backend": "cd backend && npm run dev",
-    "dev:debug": "concurrently \"npm run dev:backend:debug\" \"npm run dev:frontend\"",
-    "dev:backend:debug": "cd backend && node --inspect=9229 server.js",
-    "dev:frontend:debug": "cd frontend && npm run dev:debug",
-    "dev:full-debug": "concurrently \"npm run dev:backend:debug\" \"npm run dev:frontend:debug\"",
-    "debug:backend-only": "cd backend && node --inspect=9229 server.js",
-    "debug:backend-wait": "cd backend && node --inspect=9229 --inspect-brk server.js",
-    "debug:frontend-only": "cd frontend && npm run dev:debug",
-    "start": "npm run start:backend",
-    "start:full": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
-    "start:render": "npm run start:backend",
-    "start:frontend": "cd frontend && npm run start",
-    "start:backend": "cd backend && npm run start",
-    "build": "npm run install:all && npm run build:frontend && npm run build:backend",
-    "build:frontend": "cd frontend && npm run build",
-    "build:backend": "cd backend && npm run build",
-    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
-    "clean": "npm run clean:frontend && npm run clean:backend",
-    "clean:frontend": "cd frontend && npm run clean",
-    "clean:backend": "cd backend && npm run clean",
-    "test": "concurrently \"npm run test:backend\" \"npm run test:frontend\"",
-    "test:frontend": "cd frontend && npm run test",
-    "test:backend": "cd backend && npm run test",
-    "lint": "concurrently \"npm run lint:frontend\" \"npm run lint:backend\"",
-    "lint:frontend": "cd frontend && npm run lint",
-    "lint:backend": "cd backend && npm run lint",
-    "setup": "npm run install:all && npm run setup:databases",
-    "setup:databases": "cd backend && npm run init-postgres",
-    "health": "concurrently \"npm run health:backend\" \"npm run health:frontend\"",
-    "health:backend": "cd backend && npm run health",
-    "health:frontend": "curl -f http://localhost:3000 || echo 'Frontend not running'"
+    "install": "npm install && cd frontend && npm install && cd ../backend && npm install",
+
+    "dev": "concurrently \"cd frontend && npm run dev\" \"cd backend && npm run dev\"",
+
+    "start": "concurrently \"cd frontend && npm start\" \"cd backend && npm start\"",
+
+    "build": "cd frontend && npm run build && cd ../backend && npm run build",
+
+    "test": "concurrently \"cd frontend && npm test\" \"cd backend && npm test\"",
+
+    "lint": "concurrently \"cd frontend && npm run lint\" \"cd backend && npm run lint\"",
+
+    "clean": "cd frontend && npm run clean && cd ../backend && npm run clean",
+
+    "health": "concurrently \"cd frontend && npm run health\" \"cd backend && npm run health\""
   },
   "dependencies": {
-    "@sentry/browser": "^9.40.0",
-    "@sentry/tracing": "^7.120.3",
     "concurrently": "^8.2.2"
   },
   "engines": {
