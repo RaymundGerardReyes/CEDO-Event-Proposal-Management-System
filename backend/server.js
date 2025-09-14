@@ -492,7 +492,7 @@ app.use((error, req, res, next) => {
       // Local production - serve the frontend for SPA routing
       res.status(status);
       if (status === 404) {
-        res.sendFile(path.resolve(__dirname, "../frontend", "build", "index.html"));
+        res.sendFile(path.resolve(__dirname, "../frontend", ".next", "index.html"));
       } else {
         res.send(`<h1>${status} - ${message}</h1>`);
       }
@@ -519,10 +519,10 @@ if (process.env.NODE_ENV === "production" && process.env.RENDER === "true") {
 } else if (process.env.NODE_ENV === "production") {
   // Local production build - serve frontend files
   console.log("🏠 Local production build - serving frontend files");
-  app.use(express.static(path.join(__dirname, "../frontend/build")))
+  app.use(express.static(path.join(__dirname, "../frontend/.next")))
 
   app.get("*", (req, res) => {
-    res.sendFile(path.resolve(__dirname, "../frontend", "build", "index.html"))
+    res.sendFile(path.resolve(__dirname, "../frontend", ".next", "index.html"))
   })
 }
 

@@ -41,11 +41,11 @@ if (isVerbose) {
 
 // Enhanced connection pool configuration for production performance
 const poolConfig = {
-    host: process.env.DB_HOST || process.env.POSTGRES_HOST || 'localhost',
+    host: process.env.DB_HOST || process.env.POSTGRES_HOST || process.env.POSTGRES_HOSTNAME || 'localhost',
     port: process.env.DB_PORT || process.env.POSTGRES_PORT || 5432,
-    user: process.env.DB_USER || process.env.POSTGRES_USER || 'postgres',
+    user: process.env.DB_USER || process.env.POSTGRES_USER || process.env.POSTGRES_USERNAME || 'postgres',
     password: process.env.POSTGRES_PASSWORD || process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || process.env.POSTGRES_DATABASE || 'cedo_auth',
+    database: process.env.DB_NAME || process.env.POSTGRES_DATABASE || process.env.POSTGRES_DB || 'cedo_auth',
 
     // PRODUCTION CONNECTION POOLING
     max: process.env.NODE_ENV === 'production' ? 50 : 10, // Maximum number of clients in the pool
