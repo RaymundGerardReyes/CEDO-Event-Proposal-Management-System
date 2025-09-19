@@ -12,7 +12,6 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Calendar, ClockIcon, FileText, TrendingDown, TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
-import ProposalsHeaderControls from "./ProposalsHeaderControls";
 
 /**
  * @typedef {Object} DashboardStats
@@ -452,9 +451,7 @@ export default function DashboardPage() {
   const [expandedProposalId, setExpandedProposalId] = useState(null)
   const [showDebug, setShowDebug] = useState(false) // Add debug toggle
 
-  // State for proposals controls
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("All")
+  // Removed unused search and filter state
 
   // Fetch dashboard statistics
   const { stats, loading: statsLoading, error: statsError, refetch: refetchStats } = useDashboardStats();
@@ -472,23 +469,11 @@ export default function DashboardPage() {
     previousPage
   } = useRecentProposals();
 
-  // Handlers for proposals controls
-  const handleSearchChange = useCallback((searchTerm) => {
-    setSearchTerm(searchTerm);
-    console.log('Search term changed:', searchTerm);
-    // TODO: Implement search filtering logic
-  }, []);
-
+  // Export handler for proposals
   const handleExport = useCallback(() => {
     console.log('Exporting proposals...');
     // TODO: Implement export functionality
     alert('Export functionality would trigger here');
-  }, []);
-
-  const handleStatusChange = useCallback((status) => {
-    setStatusFilter(status);
-    console.log('Status filter changed:', status);
-    // TODO: Implement status filtering logic
   }, []);
 
   const toggleExpandProposal = (id) => {
@@ -577,8 +562,6 @@ export default function DashboardPage() {
                 <div>Pagination Loading: {paginationLoading ? 'Yes' : 'No'}</div>
                 <div>Error: {proposalsError || 'None'}</div>
                 <div>Data: {recentProposals.length} proposals</div>
-                <div>Search Term: "{searchTerm}"</div>
-                <div>Status Filter: {statusFilter}</div>
                 <div>Current Page: {pagination.currentPage} of {pagination.totalPages}</div>
                 <div>Total Count: {pagination.totalCount}</div>
                 <div>Has Next: {pagination.hasNextPage ? 'Yes' : 'No'}</div>
@@ -683,13 +666,31 @@ export default function DashboardPage() {
         <section className="proposals-section lg:col-span-2" aria-labelledby="proposals-heading">
           <Card className="cedo-card">
             <CardContent className="p-6">
-              <ProposalsHeaderControls
-                onSearchChange={handleSearchChange}
-                onExport={handleExport}
-                onStatusChange={handleStatusChange}
-                initialSearchTerm={searchTerm}
-                initialStatus={statusFilter}
-              />
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Proposals</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Latest proposal submissions and reviews</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExport}
+                    className="text-cedo-blue hover:bg-cedo-blue/5"
+                  >
+                    Export
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={refetchProposals}
+                    disabled={proposalsLoading}
+                    className="text-cedo-blue hover:bg-cedo-blue/5"
+                  >
+                    {proposalsLoading ? "Refreshing..." : "Refresh"}
+                  </Button>
+                </div>
+              </div>
 
               <div className="overflow-x-auto">
                 {proposalsLoading ? (

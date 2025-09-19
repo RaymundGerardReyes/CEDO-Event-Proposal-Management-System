@@ -1,4 +1,4 @@
-// frontend/src/app/admin-dashboard/profile/loading.jsx
+// frontend/src/app/student-dashboard/profile/loading.jsx
 
 export default function Loading() {
   return (

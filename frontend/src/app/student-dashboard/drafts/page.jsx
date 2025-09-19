@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/contexts/auth-context"
 import { AlertCircle, CheckCircle2, Clock, Database, FileEdit, Filter, RefreshCcw, Trash2, XCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 // Force dynamic rendering to prevent SSG issues
 export const dynamic = 'force-dynamic';
@@ -118,6 +118,10 @@ function DraftsContent() {
   const mountedRef = useRef(true)
   const fetchControllerRef = useRef(null)
   const refreshIntervalRef = useRef(null)
+  // Prevent duplicate/rapid requests
+  const isFetchingRef = useRef(false)
+  const lastFetchTimeRef = useRef(0)
+  const visibilityDebounceRef = useRef(null)
 
   // Memoized backend URL and token
   const backendConfig = useMemo(() => ({
@@ -164,58 +168,36 @@ function DraftsContent() {
 
   // Enhanced fetch function with better error handling and race condition prevention
   const fetchProposals = useCallback(async () => {
-    // Prevent multiple simultaneous requests
-    if (fetchControllerRef.current) {
-      fetchControllerRef.current.abort();
+    // Cooldown: avoid bursts within 1.5s
+    const now = Date.now()
+    if (isFetchingRef.current || now - lastFetchTimeRef.current < 1500) {
+      return
     }
 
     if (!user?.email || !mountedRef.current) {
-      //       console.log('👤 No user email or component unmounted, skipping fetch');
-      setState(prev => ({ ...prev, proposals: [], loading: false }));
-      return;
+      setState(prev => ({ ...prev, proposals: [], loading: false }))
+      return
     }
 
-    // Create new AbortController for this request
-    fetchControllerRef.current = new AbortController();
-    const signal = fetchControllerRef.current.signal;
+    // Abort any previous in-flight request and start a fresh one
+    if (fetchControllerRef.current) {
+      fetchControllerRef.current.abort()
+    }
+    fetchControllerRef.current = new AbortController()
+    const signal = fetchControllerRef.current.signal
 
     try {
-      setState(prev => ({ ...prev, loading: true, error: null }));
+      isFetchingRef.current = true
+      setState(prev => ({ ...prev, loading: true, error: null }))
 
-      const { backend, getToken } = backendConfig;
-      const token = getToken();
+      const { backend, getToken } = backendConfig
+      const token = getToken()
+      if (!token) throw new Error('Authentication token not found. Please sign in again.')
 
-      if (!token) {
-        throw new Error('Authentication token not found. Please sign in again.');
-      }
+      const endpoint = `${backend}/api/proposals/drafts-and-rejected`
+      const queryParams = new URLSearchParams({ includeRejected: 'true', limit: '100', offset: '0' })
 
-      const endpoint = `${backend}/api/proposals/drafts-and-rejected`;
-      const queryParams = new URLSearchParams({
-        includeRejected: 'true',
-        limit: '100',
-        offset: '0'
-      });
-
-      //       console.log('📡 Fetching proposals from:', `${endpoint}?${queryParams}`);
-
-      // Test backend connectivity with timeout
-      try {
-        const healthCheck = await fetch(`${backend}/api/health`, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          signal: AbortSignal.timeout(5000) // 5 second timeout for health check
-        });
-
-        if (!healthCheck.ok) {
-          console.warn('⚠️ Backend health check failed, but continuing...');
-        }
-      } catch (healthError) {
-        if (healthError.name === 'AbortError') return; // Request was cancelled
-        console.error('❌ Backend health check failed:', healthError.message);
-        throw new Error(`Backend server is not responding. Please ensure the backend server is running on ${backend}`);
-      }
-
-      // Main API request
+      // Main API request (skip pre-health check to reduce duplicate traffic)
       const response = await fetch(`${endpoint}?${queryParams}`, {
         method: 'GET',
         headers: {
@@ -223,28 +205,23 @@ function DraftsContent() {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json',
         },
-        signal: signal,
-      });
+        signal,
+      })
 
-      if (signal.aborted) return; // Request was cancelled
+      if (signal.aborted) return
 
       if (!response.ok) {
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
         try {
-          const errorData = await response.text();
-          const errorJson = JSON.parse(errorData);
-          errorMessage = errorJson.message || errorJson.error || errorMessage;
-        } catch (parseError) {
-          // Use default error message
-        }
-        throw new Error(errorMessage);
+          const errorData = await response.text()
+          const errorJson = JSON.parse(errorData)
+          errorMessage = errorJson.message || errorJson.error || errorMessage
+        } catch { }
+        throw new Error(errorMessage)
       }
 
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.message || 'Failed to fetch proposals');
-      }
+      const data = await response.json()
+      if (!data.success) throw new Error(data.message || 'Failed to fetch proposals')
 
       if (mountedRef.current) {
         setState(prev => ({
@@ -252,38 +229,32 @@ function DraftsContent() {
           proposals: data.proposals || [],
           metadata: data.metadata,
           loading: false,
-          error: null
-        }));
+          error: null,
+        }))
       }
-
-      //       console.log(`📊 Found ${data.total} proposals from sources: ${data.sources?.join(', ')}`);
-
     } catch (err) {
-      if (err.name === 'AbortError') {
-        //         console.log('🚫 Fetch request was cancelled');
-        return;
-      }
+      if (err.name === 'AbortError') return
+      // Log as a plain object so custom logger can serialize correctly
+      console.error('❌ Failed to fetch proposals:', {
+        name: err?.name,
+        message: err?.message,
+        stack: typeof err?.stack === 'string' ? err.stack.split('\n')[0] : undefined,
+      })
+      if (!mountedRef.current) return
 
-      console.error('❌ Failed to fetch proposals:', err);
-
-      if (!mountedRef.current) return;
-
-      // Enhanced error handling
-      let userFriendlyMessage = err.message;
-
+      let userFriendlyMessage = err.message
       if (err.name === 'TypeError' && err.message.includes('Failed to fetch')) {
-        userFriendlyMessage = `Cannot connect to backend server. Please check:\n\n1. Backend server is running (npm run dev in backend folder)\n2. Backend URL is correct: ${backendConfig.backend}\n3. No firewall blocking the connection\n4. CORS is properly configured`;
+        userFriendlyMessage = `Cannot connect to backend server. Please check:\n\n1. Backend server is running (npm run dev in backend folder)\n2. Backend URL is correct: ${backendConfig.backend}\n3. No firewall blocking the connection\n4. CORS is properly configured`
       } else if (err.message.includes('Authentication token')) {
-        userFriendlyMessage = 'Authentication expired. Please sign in again.';
+        userFriendlyMessage = 'Authentication expired. Please sign in again.'
       }
 
-      setState(prev => ({
-        ...prev,
-        error: userFriendlyMessage,
-        loading: false
-      }));
+      setState(prev => ({ ...prev, error: userFriendlyMessage, loading: false }))
+    } finally {
+      lastFetchTimeRef.current = Date.now()
+      isFetchingRef.current = false
     }
-  }, [user?.email, backendConfig]);
+  }, [user?.email, backendConfig])
 
   // Enhanced proposal handling with better error recovery
   const handleContinueProposal = useCallback((proposal) => {
@@ -425,31 +396,42 @@ function DraftsContent() {
   // Visibility change handler
   useEffect(() => {
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && user && mountedRef.current) {
-        fetchProposals();
-      }
-    };
+      if (!user || !mountedRef.current) return
+      if (document.visibilityState !== 'visible') return
+      // Debounce and throttle visibility-triggered refresh
+      if (visibilityDebounceRef.current) clearTimeout(visibilityDebounceRef.current)
+      visibilityDebounceRef.current = setTimeout(() => {
+        const now = Date.now()
+        if (now - lastFetchTimeRef.current > 5000) {
+          fetchProposals()
+        }
+      }, 300)
+    }
 
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [fetchProposals, user]);
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      if (visibilityDebounceRef.current) clearTimeout(visibilityDebounceRef.current)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [fetchProposals, user])
 
   // Periodic refresh with proper cleanup
   useEffect(() => {
-    if (user && !state.loading) {
-      refreshIntervalRef.current = setInterval(() => {
-        if (mountedRef.current && !state.loading) {
-          fetchProposals();
-        }
-      }, 30000);
+    if (!user) return
+    // Set a single interval; guard inside based on last fetch
+    if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current)
+    refreshIntervalRef.current = setInterval(() => {
+      if (!mountedRef.current) return
+      const now = Date.now()
+      if (!state.loading && now - lastFetchTimeRef.current >= 30000) {
+        fetchProposals()
+      }
+    }, 5000) // check frequently, fetch no more than every 30s
 
-      return () => {
-        if (refreshIntervalRef.current) {
-          clearInterval(refreshIntervalRef.current);
-        }
-      };
+    return () => {
+      if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current)
     }
-  }, [fetchProposals, user, state.loading]);
+  }, [fetchProposals, user, state.loading])
 
   // Early returns for different states
   if (authLoading || !isInitialized) {
@@ -822,11 +804,181 @@ function DraftsContent() {
 
 // Main export with enhanced Suspense wrapper and hydration safety
 export default function DraftsPage() {
+  // Minimalist static view for debugging/placeholder
+  const MinimalDraftsPage = () => {
+    const staticProposals = [
+      { id: 'uuid-1', name: 'Improve User Interface', status: 'draft', lastEdited: '2025-09-10T14:15:00Z', step: 'overview', progress: 35, source: 'mysql' },
+      { id: 'uuid-2', name: 'Enhance Performance', status: 'revision_requested', lastEdited: '2025-09-08T09:30:00Z', step: 'orgInfo', progress: 62, source: 'mongodb' },
+      { id: 'uuid-3', name: 'Community Outreach Program', status: 'rejected', lastEdited: '2025-09-05T11:00:00Z', step: 'communityEvent', progress: 85, source: 'mysql' },
+    ]
+
+    const [activeTab, setActiveTab] = useState('all')
+    const [search, setSearch] = useState('')
+    const [statusFilter, setStatusFilter] = useState('all')
+    const [sourceFilter, setSourceFilter] = useState('all')
+
+    const prettyStatus = (s) => ({
+      draft: 'Draft',
+      pending: 'Pending',
+      approved: 'Approved',
+      rejected: 'Rejected',
+      denied: 'Rejected',
+      revision_requested: 'Needs Revision',
+    }[String(s || '').toLowerCase()] || s || 'Unknown')
+
+    const prettyStep = (s) => ({
+      overview: 'Overview',
+      orgInfo: 'Organization Info',
+      schoolEvent: 'School Event Details',
+      communityEvent: 'Community Event Details',
+      reporting: 'Reporting',
+    }[s] || 'Unknown Step')
+
+    const format = (iso) => {
+      try { return new Date(iso).toLocaleString() } catch { return 'Unknown' }
+    }
+
+    const baseFiltered = staticProposals.filter(p => {
+      const q = search.trim().toLowerCase()
+      const matchesQuery = q
+        ? [p.name, prettyStatus(p.status), prettyStep(p.step), p.source].some(v => String(v || '').toLowerCase().includes(q))
+        : true
+      const matchesStatus = statusFilter === 'all' ? true : String(p.status).toLowerCase() === statusFilter
+      const matchesSource = sourceFilter === 'all' ? true : String(p.source).toLowerCase() === sourceFilter
+      return matchesQuery && matchesStatus && matchesSource
+    })
+
+    const filtered = activeTab === 'all'
+      ? baseFiltered
+      : activeTab === 'drafts'
+        ? baseFiltered.filter(p => p.status === 'draft')
+        : baseFiltered.filter(p => ['rejected', 'denied', 'revision_requested'].includes(p.status))
+
+    return (
+      <div className="min-h-[100vh] bg-gradient-to-b from-white via-white to-slate-50">
+        <div className="px-6 pt-10 pb-8 max-w-5xl mx-auto">
+          <header className="mb-8">
+            <h1 className="text-[30px] leading-8 font-semibold tracking-tight">My Proposals</h1>
+            <p className="mt-2 text-sm text-muted-foreground max-w-prose">Review your drafts and feedback at a glance. Clean, focused, and distraction-free.</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">Total {staticProposals.length}</span>
+              <span className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">Drafts {staticProposals.filter(p => p.status === 'draft').length}</span>
+              <span className="text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">Needs Revision {staticProposals.filter(p => p.status === 'revision_requested').length}</span>
+              <span className="text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700">Rejected {staticProposals.filter(p => ['rejected', 'denied'].includes(p.status)).length}</span>
+            </div>
+          </header>
+
+          <nav className="mb-4 flex items-center gap-2 text-sm">
+            {[
+              { id: 'all', label: `All (${staticProposals.length})` },
+              { id: 'drafts', label: `Drafts (${staticProposals.filter(p => p.status === 'draft').length})` },
+              { id: 'rejected', label: `Rejected (${staticProposals.filter(p => ['rejected', 'denied', 'revision_requested'].includes(p.status)).length})` }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-3 py-1.5 rounded-full border transition-colors ${activeTab === tab.id ? 'bg-[#0A2B70] text-white border-transparent' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+
+          <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-2">
+            <div className="md:col-span-1">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search proposals, status, step, source..."
+                className="w-full h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0A2B70]/20 focus:border-[#0A2B70]/40"
+              />
+            </div>
+            <div className="md:col-span-1">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0A2B70]/20 focus:border-[#0A2B70]/40"
+              >
+                <option value="all">All statuses</option>
+                <option value="draft">Draft</option>
+                <option value="revision_requested">Needs Revision</option>
+                <option value="rejected">Rejected</option>
+                <option value="denied">Denied</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+              </select>
+            </div>
+            <div className="md:col-span-1 flex gap-2">
+              <select
+                value={sourceFilter}
+                onChange={(e) => setSourceFilter(e.target.value)}
+                className="w-full h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0A2B70]/20 focus:border-[#0A2B70]/40"
+              >
+                <option value="all">All sources</option>
+                <option value="mysql">MySQL</option>
+                <option value="mongodb">MongoDB</option>
+              </select>
+              <Button
+                variant="outline"
+                className="h-10"
+                onClick={() => { setSearch(''); setStatusFilter('all'); setSourceFilter('all'); }}
+              >
+                Clear
+              </Button>
+            </div>
+          </div>
+
+          {filtered.length === 0 ? (
+            <div className="border rounded-xl p-12 text-center bg-white/60 backdrop-blur-sm">
+              <div className="text-4xl mb-2">🗂️</div>
+              <h3 className="text-lg font-medium">No proposals found</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Start a new submission to create your first draft.</p>
+              <div className="mt-5">
+                <Button onClick={() => window.alert('Static demo')}>Submit New Event</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filtered.map((p) => (
+                <div key={p.id} className="group border rounded-xl p-5 bg-white hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between mb-3">
+                    <h3 className="font-medium leading-6 pr-4 group-hover:text-[#0A2B70] transition-colors">{p.name}</h3>
+                    <span className="inline-block text-[11px] px-2 py-1 rounded-full bg-gray-100 text-gray-800">{prettyStatus(p.status)}</span>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
+                    <div className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {format(p.lastEdited)}</div>
+                    <div className="flex items-center gap-1"><FileEdit className="h-3.5 w-3.5" /> {prettyStep(p.step)}</div>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-muted-foreground">Progress</span>
+                      <span className="text-xs font-medium">{p.progress}%</span>
+                    </div>
+                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-[#0A2B70] rounded-full" style={{ width: `${p.progress}%` }}></div>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex items-center justify-between">
+                    <span className="text-[11px] px-2 py-1 rounded-full bg-slate-50 text-slate-700 ring-1 ring-inset ring-slate-200">{p.source === 'mysql' ? 'MySQL' : 'MongoDB'}</span>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => window.alert('Static demo')}>Details</Button>
+                      <Button size="sm" onClick={() => window.alert('Static demo')}>{p.status === 'draft' ? 'Continue' : 'Review'}</Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <footer className="mt-10 text-center text-xs text-muted-foreground">
+            © 2025 CEDO — Drafts overview
+          </footer>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <HydrationSafeWrapper>
-      <Suspense fallback={<DraftsPageLoading />}>
-        <DraftsContent />
-      </Suspense>
-    </HydrationSafeWrapper>
+    <MinimalDraftsPage />
   );
 }

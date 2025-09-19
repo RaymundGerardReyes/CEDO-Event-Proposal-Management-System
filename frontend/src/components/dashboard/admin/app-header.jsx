@@ -4,7 +4,7 @@ import { AvatarProfile } from "@/components/ui/avatar-origin";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { AnimatePresence, motion } from "framer-motion";
+// Removed framer-motion imports for simpler dropdown implementation
 import { Bell, Check, ChevronDown, Clock, LogOut, Settings, User, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -76,19 +76,24 @@ export function AppHeader() {
     return () => window.removeEventListener("resize", updateResponsiveState)
   }, [])
 
-  // Enhanced click outside handler
+  // Enhanced click outside handler with better event handling
   useEffect(() => {
     function handleClickOutside(event) {
-      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+      // Check if the click is outside both dropdowns
+      const isOutsideNotifications = notificationRef.current && !notificationRef.current.contains(event.target);
+      const isOutsideProfile = profileRef.current && !profileRef.current.contains(event.target);
+
+      if (isOutsideNotifications) {
         setShowNotifications(false);
       }
-      if (profileRef.current && !profileRef.current.contains(event.target)) {
+      if (isOutsideProfile) {
         setShowProfile(false);
       }
     }
 
-    document.addEventListener("mousedown", handleClickOutside, { passive: true });
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    // Use capture phase to ensure we catch the event before other handlers
+    document.addEventListener("mousedown", handleClickOutside, { passive: true, capture: true });
+    return () => document.removeEventListener("mousedown", handleClickOutside, { capture: true });
   }, []);
 
   const markAsRead = (id, link) => {
@@ -222,7 +227,10 @@ export function AppHeader() {
               height: `clamp(2.5rem, 5vw, 3rem)`,
               padding: 0,
             }}
-            onClick={() => {
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('Notifications button clicked, current state:', showNotifications);
               setShowNotifications(!showNotifications);
               setShowProfile(false);
             }}
@@ -255,132 +263,127 @@ export function AppHeader() {
             )}
           </Button>
 
-          <AnimatePresence>
-            {showNotifications && (
-              <motion.div
-                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-                className="
-                  absolute right-0 mt-2 
-                  bg-white rounded-xl shadow-xl border border-gray-200
-                  overflow-hidden z-50 
-                "
-                style={{
-                  width: `clamp(320px, 40vw, 480px)`,
-                  maxHeight: `clamp(400px, 70vh, 600px)`,
-                }}
+          {showNotifications && (
+            console.log('Rendering notifications dropdown'),
+            <div
+              className="
+                absolute right-0 mt-2 
+                bg-white rounded-xl shadow-xl border border-gray-200
+                overflow-hidden z-[9999] 
+              "
+              style={{
+                width: `clamp(320px, 40vw, 480px)`,
+                maxHeight: `clamp(400px, 70vh, 600px)`,
+              }}
+            >
+              {/* Enhanced header */}
+              <div
+                className="border-b border-gray-200 bg-gray-50"
+                style={{ padding: `clamp(1rem, 3vw, 1.5rem)` }}
               >
-                {/* Enhanced header */}
-                <div
-                  className="border-b border-gray-200 bg-gray-50"
-                  style={{ padding: `clamp(1rem, 3vw, 1.5rem)` }}
-                >
-                  <div className="flex justify-between items-center">
-                    <h3
-                      className="font-semibold text-gray-900"
-                      style={{ fontSize: `clamp(1rem, 2vw, 1.25rem)` }}
+                <div className="flex justify-between items-center">
+                  <h3
+                    className="font-semibold text-gray-900"
+                    style={{ fontSize: `clamp(1rem, 2vw, 1.25rem)` }}
+                  >
+                    Notifications
+                  </h3>
+                  {unreadCount > 0 && (
+                    <Button
+                      variant="link"
+                      onClick={markAllAsRead}
+                      className="text-blue-600 hover:text-blue-700 h-auto p-0"
+                      style={{ fontSize: `clamp(0.875rem, 1.5vw, 1rem)` }}
                     >
-                      Notifications
-                    </h3>
-                    {unreadCount > 0 && (
-                      <Button
-                        variant="link"
-                        onClick={markAllAsRead}
-                        className="text-blue-600 hover:text-blue-700 h-auto p-0"
-                        style={{ fontSize: `clamp(0.875rem, 1.5vw, 1rem)` }}
-                      >
-                        Mark all read
-                      </Button>
-                    )}
-                  </div>
+                      Mark all read
+                    </Button>
+                  )}
                 </div>
+              </div>
 
-                {/* Enhanced notifications list */}
-                <div className="max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300">
-                  {notifications.length > 0 ? (
-                    <div>
-                      {notifications.map((notification) => (
-                        <div
-                          key={notification.id}
-                          className={`
+              {/* Enhanced notifications list */}
+              <div className="max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300">
+                {notifications.length > 0 ? (
+                  <div>
+                    {notifications.map((notification) => (
+                      <div
+                        key={notification.id}
+                        className={`
                             border-b border-gray-100 
                             hover:bg-gray-50 active:bg-gray-100 
                             transition-colors duration-300 cursor-pointer
                             ${!notification.read ? "bg-blue-50/50" : ""}
                           `}
-                          style={{ padding: `clamp(1rem, 3vw, 1.5rem)` }}
-                          onClick={() => markAsRead(notification.id, notification.link)}
-                          role="button"
-                          tabIndex={0}
+                        style={{ padding: `clamp(1rem, 3vw, 1.5rem)` }}
+                        onClick={() => markAsRead(notification.id, notification.link)}
+                        role="button"
+                        tabIndex={0}
+                      >
+                        <div
+                          className="flex gap-3"
+                          style={{ gap: `clamp(0.75rem, 2vw, 1rem)` }}
                         >
-                          <div
-                            className="flex gap-3"
-                            style={{ gap: `clamp(0.75rem, 2vw, 1rem)` }}
-                          >
-                            {getNotificationIcon(notification.type)}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex justify-between items-start gap-2">
-                                <p
-                                  className="font-medium text-gray-900 line-clamp-2"
-                                  style={{ fontSize: `clamp(0.875rem, 1.5vw, 1rem)` }}
-                                >
-                                  {notification.title}
-                                </p>
-                                {!notification.read && (
-                                  <span className="h-2 w-2 bg-blue-600 rounded-full mt-1 shrink-0"></span>
-                                )}
-                              </div>
+                          {getNotificationIcon(notification.type)}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-start gap-2">
                               <p
-                                className="text-gray-600 mt-1 line-clamp-2"
-                                style={{ fontSize: `clamp(0.75rem, 1.3vw, 0.875rem)` }}
+                                className="font-medium text-gray-900 line-clamp-2"
+                                style={{ fontSize: `clamp(0.875rem, 1.5vw, 1rem)` }}
                               >
-                                {notification.message}
+                                {notification.title}
                               </p>
-                              <p
-                                className="text-gray-500 mt-1"
-                                style={{ fontSize: `clamp(0.75rem, 1.2vw, 0.875rem)` }}
-                              >
-                                {notification.timestamp}
-                              </p>
+                              {!notification.read && (
+                                <span className="h-2 w-2 bg-blue-600 rounded-full mt-1 shrink-0"></span>
+                              )}
                             </div>
+                            <p
+                              className="text-gray-600 mt-1 line-clamp-2"
+                              style={{ fontSize: `clamp(0.75rem, 1.3vw, 0.875rem)` }}
+                            >
+                              {notification.message}
+                            </p>
+                            <p
+                              className="text-gray-500 mt-1"
+                              style={{ fontSize: `clamp(0.75rem, 1.2vw, 0.875rem)` }}
+                            >
+                              {notification.timestamp}
+                            </p>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div
-                      className="text-center"
-                      style={{ padding: `clamp(2rem, 5vw, 3rem)` }}
-                    >
-                      <div
-                        className="mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center"
-                        style={{
-                          width: `clamp(4rem, 8vw, 5rem)`,
-                          height: `clamp(4rem, 8vw, 5rem)`,
-                        }}
-                      >
-                        <Bell
-                          className="text-gray-400"
-                          style={{
-                            width: `clamp(2rem, 4vw, 2.5rem)`,
-                            height: `clamp(2rem, 4vw, 2.5rem)`,
-                          }}
-                        />
                       </div>
-                      <p
-                        className="text-gray-500"
-                        style={{ fontSize: `clamp(0.875rem, 1.5vw, 1rem)` }}
-                      >
-                        No notifications
-                      </p>
+                    ))}
+                  </div>
+                ) : (
+                  <div
+                    className="text-center"
+                    style={{ padding: `clamp(2rem, 5vw, 3rem)` }}
+                  >
+                    <div
+                      className="mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center"
+                      style={{
+                        width: `clamp(4rem, 8vw, 5rem)`,
+                        height: `clamp(4rem, 8vw, 5rem)`,
+                      }}
+                    >
+                      <Bell
+                        className="text-gray-400"
+                        style={{
+                          width: `clamp(2rem, 4vw, 2.5rem)`,
+                          height: `clamp(2rem, 4vw, 2.5rem)`,
+                        }}
+                      />
                     </div>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                    <p
+                      className="text-gray-500"
+                      style={{ fontSize: `clamp(0.875rem, 1.5vw, 1rem)` }}
+                    >
+                      No notifications
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Enhanced profile dropdown with Google OAuth Avatar using AvatarProfile */}
@@ -398,7 +401,10 @@ export function AppHeader() {
               padding: `clamp(0.5rem, 1vw, 0.75rem)`,
               gap: `clamp(0.5rem, 1.5vw, 1rem)`,
             }}
-            onClick={() => {
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('Profile button clicked, current state:', showProfile);
               setShowProfile(!showProfile);
               setShowNotifications(false);
             }}
@@ -445,140 +451,135 @@ export function AppHeader() {
             />
           </Button>
 
-          <AnimatePresence>
-            {showProfile && (
-              <motion.div
-                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-                className="
-                  absolute right-0 mt-2 
-                  bg-white rounded-xl shadow-xl border border-gray-200
-                  overflow-hidden z-50 
-                "
-                style={{ width: `clamp(256px, 32vw, 384px)` }}
+          {showProfile && (
+            console.log('Rendering profile dropdown'),
+            <div
+              className="
+                absolute right-0 mt-2 
+                bg-white rounded-xl shadow-xl border border-gray-200
+                overflow-hidden z-[9999] 
+              "
+              style={{ width: `clamp(256px, 32vw, 384px)` }}
+            >
+              {/* Enhanced profile header with Google OAuth Avatar using AvatarProfile */}
+              <div
+                className="border-b border-gray-200 bg-gray-50"
+                style={{ padding: `clamp(1rem, 3vw, 1.5rem)` }}
               >
-                {/* Enhanced profile header with Google OAuth Avatar using AvatarProfile */}
                 <div
-                  className="border-b border-gray-200 bg-gray-50"
-                  style={{ padding: `clamp(1rem, 3vw, 1.5rem)` }}
+                  className="flex items-center"
+                  style={{ gap: `clamp(0.75rem, 2vw, 1rem)` }}
                 >
-                  <div
-                    className="flex items-center"
-                    style={{ gap: `clamp(0.75rem, 2vw, 1rem)` }}
-                  >
-                    <AvatarProfile
-                      src={user.avatar || user.profilePicture || user.image}
-                      name={user.name}
-                      role={user.role}
-                      size="xl"
-                      showGoogleIndicator={true}
-                      className="ring-2 ring-primary/20"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className="font-medium text-gray-900 truncate"
-                        style={{ fontSize: `clamp(0.875rem, 1.5vw, 1rem)` }}
-                      >
-                        {user.name}
-                      </p>
-                      <p
-                        className="text-gray-500 truncate"
-                        style={{ fontSize: `clamp(0.75rem, 1.3vw, 0.875rem)` }}
-                      >
-                        {user.email}
-                      </p>
-                    </div>
+                  <AvatarProfile
+                    src={user.avatar || user.profilePicture || user.image}
+                    name={user.name}
+                    role={user.role}
+                    size="xl"
+                    showGoogleIndicator={true}
+                    className="ring-2 ring-primary/20"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className="font-medium text-gray-900 truncate"
+                      style={{ fontSize: `clamp(0.875rem, 1.5vw, 1rem)` }}
+                    >
+                      {user.name}
+                    </p>
+                    <p
+                      className="text-gray-500 truncate"
+                      style={{ fontSize: `clamp(0.75rem, 1.3vw, 0.875rem)` }}
+                    >
+                      {user.email}
+                    </p>
                   </div>
                 </div>
+              </div>
 
-                {/* Enhanced profile menu */}
-                <div style={{ padding: `clamp(0.5rem, 1.5vw, 0.75rem)` }}>
-                  <Button
-                    variant="ghost"
-                    className="
+              {/* Enhanced profile menu */}
+              <div style={{ padding: `clamp(0.5rem, 1.5vw, 0.75rem)` }}>
+                <Button
+                  variant="ghost"
+                  className="
                       w-full justify-start cursor-pointer rounded-lg
                       text-gray-700 hover:bg-gray-100 active:bg-gray-200
                       transition-all duration-300
                     "
+                  style={{
+                    height: `clamp(2.5rem, 5vh, 3rem)`,
+                    fontSize: `clamp(0.875rem, 1.5vw, 1rem)`,
+                    gap: `clamp(0.5rem, 1.5vw, 0.75rem)`,
+                  }}
+                  onClick={() => handleNavigation("/admin-dashboard/profile")}
+                >
+                  <User
                     style={{
-                      height: `clamp(2.5rem, 5vh, 3rem)`,
-                      fontSize: `clamp(0.875rem, 1.5vw, 1rem)`,
-                      gap: `clamp(0.5rem, 1.5vw, 0.75rem)`,
+                      width: `clamp(1rem, 2vw, 1.25rem)`,
+                      height: `clamp(1rem, 2vw, 1.25rem)`,
                     }}
-                    onClick={() => handleNavigation("/admin-dashboard/profile")}
-                  >
-                    <User
-                      style={{
-                        width: `clamp(1rem, 2vw, 1.25rem)`,
-                        height: `clamp(1rem, 2vw, 1.25rem)`,
-                      }}
-                    />
-                    My Profile
-                  </Button>
+                  />
+                  My Profile
+                </Button>
 
-                  {user.role === "head_admin" && (
-                    <Button
-                      variant="ghost"
-                      className="
+                {user.role === "head_admin" && (
+                  <Button
+                    variant="ghost"
+                    className="
                         w-full justify-start cursor-pointer rounded-lg
                         text-gray-700 hover:bg-gray-100 active:bg-gray-200
                         transition-all duration-300
                       "
-                      style={{
-                        height: `clamp(2.5rem, 5vh, 3rem)`,
-                        fontSize: `clamp(0.875rem, 1.5vw, 1rem)`,
-                        gap: `clamp(0.5rem, 1.5vw, 0.75rem)`,
-                      }}
-                      onClick={() => handleNavigation("/admin-dashboard/settings")}
-                    >
-                      <Settings
-                        style={{
-                          width: `clamp(1rem, 2vw, 1.25rem)`,
-                          height: `clamp(1rem, 2vw, 1.25rem)`,
-                        }}
-                      />
-                      Settings
-                    </Button>
-                  )}
-
-                  <div className="border-t my-1" />
-
-                  <Button
-                    variant="ghost"
-                    className="
-                      w-full justify-start cursor-pointer rounded-lg
-                      text-red-600 hover:text-red-700 hover:bg-red-50 active:bg-red-100
-                      transition-all duration-300
-                    "
                     style={{
                       height: `clamp(2.5rem, 5vh, 3rem)`,
                       fontSize: `clamp(0.875rem, 1.5vw, 1rem)`,
                       gap: `clamp(0.5rem, 1.5vw, 0.75rem)`,
                     }}
-                    onClick={async () => {
-                      try {
-                        setShowProfile(false);
-                        await signOut();
-                      } catch (error) {
-                        console.warn('Sign-out error:', error);
-                        setShowProfile(false);
-                      }
-                    }}
+                    onClick={() => handleNavigation("/admin-dashboard/settings")}
                   >
-                    <LogOut
+                    <Settings
                       style={{
                         width: `clamp(1rem, 2vw, 1.25rem)`,
                         height: `clamp(1rem, 2vw, 1.25rem)`,
                       }}
                     />
-                    Sign out
+                    Settings
                   </Button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                )}
+
+                <div className="border-t my-1" />
+
+                <Button
+                  variant="ghost"
+                  className="
+                      w-full justify-start cursor-pointer rounded-lg
+                      text-red-600 hover:text-red-700 hover:bg-red-50 active:bg-red-100
+                      transition-all duration-300
+                    "
+                  style={{
+                    height: `clamp(2.5rem, 5vh, 3rem)`,
+                    fontSize: `clamp(0.875rem, 1.5vw, 1rem)`,
+                    gap: `clamp(0.5rem, 1.5vw, 0.75rem)`,
+                  }}
+                  onClick={async () => {
+                    try {
+                      setShowProfile(false);
+                      await signOut();
+                    } catch (error) {
+                      console.warn('Sign-out error:', error);
+                      setShowProfile(false);
+                    }
+                  }}
+                >
+                  <LogOut
+                    style={{
+                      width: `clamp(1rem, 2vw, 1.25rem)`,
+                      height: `clamp(1rem, 2vw, 1.25rem)`,
+                    }}
+                  />
+                  Sign out
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

@@ -23,29 +23,29 @@ router.post('/', validateToken, validateProposal, async (req, res) => {
         const { uuid, organization_name, user_id, current_section = 'orgInfo', proposal_status = 'draft' } = req.body;
 
         // Check if proposal already exists
-        const [existingProposals] = await pool.execute(
-            'SELECT * FROM proposals WHERE uuid = ?',
+        const existingResult = await query(
+            'SELECT * FROM proposals WHERE uuid = $1',
             [uuid]
         );
 
-        if (existingProposals.length > 0) {
+        if (existingResult.rows.length > 0) {
             // Return existing proposal
             await createAuditLog(uuid, 'proposal_retrieved', req.user.id, 'Proposal retrieved by UUID');
-            return res.status(200).json(existingProposals[0]);
+            return res.status(200).json(existingResult.rows[0]);
         }
 
         // Create new proposal
-        const [result] = await pool.execute(
+        await query(
             `INSERT INTO proposals (
                 uuid, organization_name, user_id, current_section, proposal_status,
                 form_completion_percentage, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+            ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())`,
             [uuid, organization_name, user_id, current_section, proposal_status, 0]
         );
 
-        const [newProposal] = await pool.execute(
-            'SELECT * FROM proposals WHERE id = ?',
-            [result.insertId]
+        const newProposalResult = await query(
+            'SELECT * FROM proposals WHERE uuid = $1',
+            [uuid]
         );
 
         await createAuditLog(uuid, 'proposal_created', req.user.id, 'New proposal created', {
@@ -54,7 +54,7 @@ router.post('/', validateToken, validateProposal, async (req, res) => {
             proposal_status
         });
 
-        res.status(201).json(newProposal[0]);
+        res.status(201).json(newProposalResult.rows[0]);
     } catch (error) {
         console.error('Error creating proposal:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -71,12 +71,12 @@ router.put('/:uuid', validateToken, validateProposal, async (req, res) => {
         const updateData = req.body;
 
         // Check if proposal exists
-        const [proposals] = await pool.execute(
-            'SELECT * FROM proposals WHERE uuid = ?',
+        const proposalsResult = await query(
+            'SELECT * FROM proposals WHERE uuid = $1',
             [uuid]
         );
 
-        if (proposals.length === 0) {
+        if (proposalsResult.rows.length === 0) {
             return res.status(404).json({ error: 'Proposal not found' });
         }
 
@@ -98,20 +98,20 @@ router.put('/:uuid', validateToken, validateProposal, async (req, res) => {
         updateFields.push('updated_at = NOW()');
         updateValues.push(uuid);
 
-        await pool.execute(
-            `UPDATE proposals SET ${updateFields.join(', ')} WHERE uuid = ?`,
+        await query(
+            `UPDATE proposals SET ${updateFields.join(', ')} WHERE uuid = $${updateValues.length}`,
             updateValues
         );
 
         // Get updated proposal
-        const [updatedProposals] = await pool.execute(
-            'SELECT * FROM proposals WHERE uuid = ?',
+        const updatedProposalsResult = await query(
+            'SELECT * FROM proposals WHERE uuid = $1',
             [uuid]
         );
 
         await createAuditLog(uuid, 'proposal_updated', req.user.id, 'Proposal updated', updateData);
 
-        res.status(200).json(updatedProposals[0]);
+        res.status(200).json(updatedProposalsResult.rows[0]);
     } catch (error) {
         console.error('Error updating proposal:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -126,16 +126,16 @@ router.get('/:uuid', validateToken, async (req, res) => {
     try {
         const { uuid } = req.params;
 
-        const [proposals] = await pool.execute(
-            'SELECT * FROM proposals WHERE uuid = ?',
+        const proposalsResult = await query(
+            'SELECT * FROM proposals WHERE uuid = $1',
             [uuid]
         );
 
-        if (proposals.length === 0) {
+        if (proposalsResult.rows.length === 0) {
             return res.status(404).json({ error: 'Proposal not found' });
         }
 
-        res.status(200).json(proposals[0]);
+        res.status(200).json(proposalsResult.rows[0]);
     } catch (error) {
         console.error('Error fetching proposal:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -151,16 +151,16 @@ router.post('/:uuid/submit', validateToken, async (req, res) => {
         const { uuid } = req.params;
 
         // Check if proposal exists
-        const [proposals] = await pool.execute(
-            'SELECT * FROM proposals WHERE uuid = ?',
+        const proposalsResult = await query(
+            'SELECT * FROM proposals WHERE uuid = $1',
             [uuid]
         );
 
-        if (proposals.length === 0) {
+        if (proposalsResult.rows.length === 0) {
             return res.status(404).json({ error: 'Proposal not found' });
         }
 
-        const proposal = proposals[0];
+        const proposal = proposalsResult.rows[0];
 
         // Check if already submitted
         if (proposal.proposal_status !== 'draft') {
@@ -168,25 +168,25 @@ router.post('/:uuid/submit', validateToken, async (req, res) => {
         }
 
         // Update proposal status
-        await pool.execute(
+        await query(
             `UPDATE proposals SET 
                 proposal_status = 'pending',
                 submitted_at = NOW(),
                 current_section = 'submitted',
                 updated_at = NOW()
-            WHERE uuid = ?`,
+            WHERE uuid = $1`,
             [uuid]
         );
 
         // Get updated proposal
-        const [updatedProposals] = await pool.execute(
-            'SELECT * FROM proposals WHERE uuid = ?',
+        const updatedProposalsResult = await query(
+            'SELECT * FROM proposals WHERE uuid = $1',
             [uuid]
         );
 
         await createAuditLog(uuid, 'proposal_submitted', req.user.id, 'Proposal submitted for review');
 
-        res.status(200).json(updatedProposals[0]);
+        res.status(200).json(updatedProposalsResult.rows[0]);
     } catch (error) {
         console.error('Error submitting proposal:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -203,16 +203,16 @@ router.post('/:uuid/review', validateToken, validateAdmin, validateReviewAction,
         const { action, note } = req.body;
 
         // Check if proposal exists
-        const [proposals] = await pool.execute(
-            'SELECT * FROM proposals WHERE uuid = ?',
+        const proposalsResult = await query(
+            'SELECT * FROM proposals WHERE uuid = $1',
             [uuid]
         );
 
-        if (proposals.length === 0) {
+        if (proposalsResult.rows.length === 0) {
             return res.status(404).json({ error: 'Proposal not found' });
         }
 
-        const proposal = proposals[0];
+        const proposal = proposalsResult.rows[0];
 
         // Check if proposal is in pending status
         if (proposal.proposal_status !== 'pending') {
@@ -238,11 +238,11 @@ router.post('/:uuid/review', validateToken, validateAdmin, validateReviewAction,
         updateQuery += ' WHERE uuid = ?';
         updateValues.push(uuid);
 
-        await pool.execute(updateQuery, updateValues);
+        await query(updateQuery.replace(/\?/g, (_, i) => `$${i + 1}`), updateValues);
 
         // Get updated proposal
-        const [updatedProposals] = await pool.execute(
-            'SELECT * FROM proposals WHERE uuid = ?',
+        const updatedProposalsResult = await query(
+            'SELECT * FROM proposals WHERE uuid = $1',
             [uuid]
         );
 
@@ -252,7 +252,7 @@ router.post('/:uuid/review', validateToken, validateAdmin, validateReviewAction,
             admin_id: req.user.id
         });
 
-        res.status(200).json(updatedProposals[0]);
+        res.status(200).json(updatedProposalsResult.rows[0]);
     } catch (error) {
         console.error('Error reviewing proposal:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -269,16 +269,16 @@ router.post('/:uuid/report', validateToken, validateReportData, async (req, res)
         const reportData = req.body;
 
         // Check if proposal exists
-        const [proposals] = await pool.execute(
-            'SELECT * FROM proposals WHERE uuid = ?',
+        const proposalsResult = await query(
+            'SELECT * FROM proposals WHERE uuid = $1',
             [uuid]
         );
 
-        if (proposals.length === 0) {
+        if (proposalsResult.rows.length === 0) {
             return res.status(404).json({ error: 'Proposal not found' });
         }
 
-        const proposal = proposals[0];
+        const proposal = proposalsResult.rows[0];
 
         // Check if proposal is approved
         if (proposal.proposal_status !== 'approved') {
@@ -286,27 +286,27 @@ router.post('/:uuid/report', validateToken, validateReportData, async (req, res)
         }
 
         // Update proposal with report data
-        await pool.execute(
+        await query(
             `UPDATE proposals SET 
                 report_status = 'pending',
                 report_submitted_at = NOW(),
-                report_content = ?,
-                participant_count = ?,
-                outcomes = ?,
+                report_content = $1,
+                participant_count = $2,
+                outcomes = $3,
                 updated_at = NOW()
-            WHERE uuid = ?`,
+            WHERE uuid = $4`,
             [reportData.report_content, reportData.participant_count, reportData.outcomes, uuid]
         );
 
         // Get updated proposal
-        const [updatedProposals] = await pool.execute(
-            'SELECT * FROM proposals WHERE uuid = ?',
+        const updatedProposalsResult = await query(
+            'SELECT * FROM proposals WHERE uuid = $1',
             [uuid]
         );
 
         await createAuditLog(uuid, 'report_submitted', req.user.id, 'Report submitted', reportData);
 
-        res.status(200).json(updatedProposals[0]);
+        res.status(200).json(updatedProposalsResult.rows[0]);
     } catch (error) {
         console.error('Error submitting report:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -322,26 +322,26 @@ router.get('/:uuid/debug', validateToken, async (req, res) => {
         const { uuid } = req.params;
 
         // Get proposal data
-        const [proposals] = await pool.execute(
-            'SELECT * FROM proposals WHERE uuid = ?',
+        const proposalsResult = await query(
+            'SELECT * FROM proposals WHERE uuid = $1',
             [uuid]
         );
 
-        if (proposals.length === 0) {
+        if (proposalsResult.rows.length === 0) {
             return res.status(404).json({ error: 'Proposal not found' });
         }
 
-        const proposal = proposals[0];
+        const proposal = proposalsResult.rows[0];
 
         // Get audit logs
-        const [auditLogs] = await pool.execute(
-            'SELECT * FROM proposal_audit_logs WHERE proposal_uuid = ? ORDER BY created_at DESC',
+        const auditLogsResult = await query(
+            'SELECT * FROM proposal_audit_logs WHERE proposal_uuid = $1 ORDER BY created_at DESC',
             [uuid]
         );
 
         // Get debug logs
-        const [debugLogs] = await pool.execute(
-            'SELECT * FROM proposal_debug_logs WHERE proposal_uuid = ? ORDER BY created_at DESC',
+        const debugLogsResult = await query(
+            'SELECT * FROM proposal_debug_logs WHERE proposal_uuid = $1 ORDER BY created_at DESC',
             [uuid]
         );
 
@@ -350,8 +350,8 @@ router.get('/:uuid/debug', validateToken, async (req, res) => {
 
         const debugInfo = {
             mysql_record: proposal,
-            audit_logs: auditLogs,
-            debug_logs: debugLogs,
+            audit_logs: auditLogsResult.rows,
+            debug_logs: debugLogsResult.rows,
             status_match: statusMatch
         };
 
@@ -379,27 +379,27 @@ router.post('/:uuid/debug/logs', validateToken, async (req, res) => {
         }
 
         // Check if proposal exists
-        const [proposals] = await pool.execute(
-            'SELECT * FROM proposals WHERE uuid = ?',
+        const proposalsResult = await query(
+            'SELECT * FROM proposals WHERE uuid = $1',
             [uuid]
         );
 
-        if (proposals.length === 0) {
+        if (proposalsResult.rows.length === 0) {
             return res.status(404).json({ error: 'Proposal not found' });
         }
 
         // Create debug log
-        const [result] = await pool.execute(
-            'INSERT INTO proposal_debug_logs (proposal_uuid, source, message, meta) VALUES (?, ?, ?, ?)',
+        await query(
+            'INSERT INTO proposal_debug_logs (proposal_uuid, source, message, meta, created_at) VALUES ($1, $2, $3, $4, NOW())',
             [uuid, source, message, meta ? JSON.stringify(meta) : null]
         );
 
-        const [newLog] = await pool.execute(
-            'SELECT * FROM proposal_debug_logs WHERE id = ?',
-            [result.insertId]
+        const newLogResult = await query(
+            'SELECT * FROM proposal_debug_logs WHERE proposal_uuid = $1 ORDER BY id DESC LIMIT 1',
+            [uuid]
         );
 
-        res.status(201).json(newLog[0]);
+        res.status(201).json(newLogResult.rows[0]);
     } catch (error) {
         console.error('Error creating debug log:', error);
         res.status(500).json({ error: 'Internal server error' });

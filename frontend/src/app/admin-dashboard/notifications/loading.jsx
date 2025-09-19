@@ -1,4 +1,5 @@
-// frontend/src/app/admin-dashboard/notifications/loading.jsx
+// frontend/src/app/student-dashboard/notifications/loading.jsx
+
 export default function Loading() {
   return null
 }

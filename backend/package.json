@@ -33,6 +33,8 @@
         "init-databases": "npm run init-postgres && npm run init-mongodb",
         "setup-mongodb-dev": "node scripts/setup-mongodb-dev.js",
         "wait-db": "sh wait-for-it.sh mysql:3306 -- npm run init-db",
+        "apply-schema": "node scripts/run-schema.js",
+        "migrate:email-constraints": "node scripts/migrate-2025-09-18-email-constraints.js",
         "test": "vitest",
         "test:run": "vitest run",
         "test:coverage": "vitest run --coverage",
