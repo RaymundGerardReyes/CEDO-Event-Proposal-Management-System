@@ -1007,7 +1007,8 @@ export function AuthProvider({ children }) {
         console.log("🌐 AuthContext: Backend URL:", backendUrl);
 
         const response = await internalApi.post("/api/auth/google", {
-          token: googleResponse.credential
+          token: googleResponse.credential,
+          rememberMe: false // Default to false for Google auth, can be enhanced later
         });
 
         console.log("✅ AuthContext: Backend response received:", {

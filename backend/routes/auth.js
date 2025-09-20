@@ -65,10 +65,10 @@ const roleAccess = {
   },
 }
 
-// GOOGLE_CLIENT_ID_BACKEND is used by utils/googleAuth.js, ensure it's set in your .env
+// GOOGLE_CLIENT_ID is used by utils/googleAuth.js, ensure it's set in your .env
 // We'll log its presence within the route for clarity during requests.
-if (!process.env.GOOGLE_CLIENT_ID_BACKEND) {
-  console.error("FATAL ERROR: GOOGLE_CLIENT_ID_BACKEND not defined in environment variables. Google Sign-In will not function.")
+if (!process.env.GOOGLE_CLIENT_ID) {
+  console.error("FATAL ERROR: GOOGLE_CLIENT_ID not defined in environment variables. Google Sign-In will not function.")
 }
 if (!process.env.JWT_SECRET_DEV) {
   console.error("FATAL ERROR: JWT_SECRET_DEV not defined in environment variables. Standard login will not function.")
@@ -86,7 +86,7 @@ router.post('/login', async (req, res, next) => {
   console.log('Timestamp:', new Date().toISOString());
   console.log('Request Body:', JSON.stringify(req.body, null, 2));
 
-  const { email, password, captchaToken: token } = req.body;
+  const { email, password, captchaToken: token, rememberMe } = req.body;
   const recaptchaAction = "sign_in";
 
   if (!email || !password) {
@@ -148,12 +148,26 @@ router.post('/login', async (req, res, next) => {
     }
 
     console.log(`Backend [/login]: User ${user.id} (Email: ${email}) IS APPROVED. Generating app token.`);
-    const appToken = sessionManager.generateToken(user); // Use your sessionManager
+    const appToken = sessionManager.generateToken(user, rememberMe); // Pass rememberMe flag
     await sessionManager.logAccess(user.id, user.role, "email_login");
     console.log(`Backend [/login]: User ${user.id} (Email: ${email}) successfully authenticated via email/password.`);
 
+    // Set secure HTTP-only cookie for Remember Me
+    if (rememberMe) {
+      const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        path: '/'
+      };
+      res.cookie('cedo_token', appToken, cookieOptions);
+      res.cookie('cedo_remember_me', 'true', cookieOptions);
+    }
+
     res.json({
       token: appToken,
+      rememberMe: rememberMe || false,
       user: {
         id: user.id,
         name: user.name,
@@ -184,12 +198,12 @@ router.post("/google", async (req, res, next) => {
   console.log('\n--- Backend /auth/google Endpoint Hit ---');
   console.log('Timestamp:', new Date().toISOString());
   console.log('Request Body:', JSON.stringify(req.body, null, 2));
-  const idTokenFromFrontend = req.body.token;
+  const { token: idTokenFromFrontend, rememberMe } = req.body;
   let email = undefined; // for error logging fallback
 
-  // 1. Check GOOGLE_CLIENT_ID_BACKEND before any async/await or DB calls
-  if (!process.env.GOOGLE_CLIENT_ID_BACKEND) {
-    console.error("Backend [/google] Error: GOOGLE_CLIENT_ID_BACKEND not set in environment.");
+  // 1. Check GOOGLE_CLIENT_ID before any async/await or DB calls
+  if (!process.env.GOOGLE_CLIENT_ID) {
+    console.error("Backend [/google] Error: GOOGLE_CLIENT_ID not set in environment.");
     return res.status(500).json({ message: "Server configuration error: Google authentication is not properly configured." });
   }
 
@@ -282,14 +296,28 @@ router.post("/google", async (req, res, next) => {
     if (!user) {
       let resultByEmail = await query("SELECT * FROM users WHERE email = $1", [payloadEmail]);
       if (!resultByEmail.rows || resultByEmail.rows.length === 0) {
-        // Not found by either
-        console.warn("User not found by google_id or email. Returning 403.");
-        return res.status(403).json({ reason: "USER_NOT_FOUND", message: "User not found" });
+        // ✅ FIX: Create new user if not found (typical OAuth behavior)
+        console.log(`Creating new user for Google OAuth: ${payloadEmail}`);
+        try {
+          const newUserResult = await query(
+            "INSERT INTO users (name, email, google_id, role, is_approved, avatar) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+            [name, payloadEmail, googleId, ROLES.STUDENT, true, picture]
+          );
+          user = newUserResult.rows[0];
+          console.log(`✅ New user created: ${user.id} (${user.email})`);
+        } catch (createError) {
+          console.error("Error creating new user:", createError);
+          return res.status(500).json({
+            reason: "USER_CREATION_FAILED",
+            message: "Failed to create user account"
+          });
+        }
+      } else {
+        user = resultByEmail.rows[0];
+        // Link Google ID
+        await query("UPDATE users SET google_id = $1 WHERE id = $2", [googleId, user.id]);
+        user.google_id = googleId;
       }
-      user = resultByEmail.rows[0];
-      // Link Google ID
-      await query("UPDATE users SET google_id = $1 WHERE id = $2", [googleId, user.id]);
-      user.google_id = googleId;
     }
 
     // 3. Defensive: If user is still null, return 403
@@ -313,12 +341,26 @@ router.post("/google", async (req, res, next) => {
     }
 
     console.log(`Backend [/google]: User ${user.id} (Email: ${user.email}) IS APPROVED. Generating app token.`);
-    const appToken = sessionManager.generateToken(user);
+    const appToken = sessionManager.generateToken(user, rememberMe);
     await sessionManager.logAccess(user.id, user.role, "google_login");
     console.log(`Backend [/google]: User ${user.id} (Email: ${user.email}) successfully authenticated via Google.`);
 
+    // Set secure HTTP-only cookie for Remember Me
+    if (rememberMe) {
+      const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        path: '/'
+      };
+      res.cookie('cedo_token', appToken, cookieOptions);
+      res.cookie('cedo_remember_me', 'true', cookieOptions);
+    }
+
     res.json({
       token: appToken,
+      rememberMe: rememberMe || false,
       user: {
         id: user.id,
         name: user.name,
@@ -379,6 +421,20 @@ router.post('/logout', async (req, res) => {
     } catch (tokenError) {
       console.log('Backend [/logout]: Token validation failed, but allowing logout:', tokenError.message);
     }
+
+    // Clear Remember Me cookies
+    res.clearCookie('cedo_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/'
+    });
+    res.clearCookie('cedo_remember_me', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/'
+    });
 
     res.status(200).json({ message: 'Logout successful' });
   } catch (error) {

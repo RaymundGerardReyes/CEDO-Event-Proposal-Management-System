@@ -8,7 +8,7 @@ const ROLES = require("../constants/roles");
 // =============================
 const TABLES = {
     USERS: "users",
-    ACCESS_LOGS: "access_logs",
+    AUDIT_LOGS: "audit_logs",
     PROPOSALS: "proposals",
     REVIEWS: "reviews",
 };
@@ -31,14 +31,20 @@ const USER_COLUMNS = {
     FK_APPROVED_BY: "FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL",
 };
 
-const ACCESS_LOGS_COLUMNS = {
-    ID: "id SERIAL PRIMARY KEY",
-    USER_ID: "user_id INT NOT NULL",
-    ACTION: "action VARCHAR(50) NOT NULL",
+const AUDIT_LOGS_COLUMNS = {
+    ID: "id BIGSERIAL PRIMARY KEY",
+    USER_ID: "user_id INTEGER",
+    ACTION_TYPE: "action_type VARCHAR(20) NOT NULL CHECK (action_type IN ('CREATE', 'UPDATE', 'DELETE', 'APPROVE', 'REJECT', 'LOGIN', 'LOGOUT', 'VIEW', 'EXPORT'))",
+    TABLE_NAME: "table_name VARCHAR(50) NOT NULL",
+    RECORD_ID: "record_id BIGINT",
+    OLD_VALUES: "old_values JSONB",
+    NEW_VALUES: "new_values JSONB",
     IP_ADDRESS: "ip_address VARCHAR(45)",
-    USER_AGENT: "user_agent VARCHAR(255)",
-    TIMESTAMP: "timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-    FK_USER_ID: "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+    USER_AGENT: "user_agent TEXT",
+    SESSION_ID: "session_id VARCHAR(255)",
+    ADDITIONAL_INFO: "additional_info JSONB",
+    CREATED_AT: "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+    FK_USER_ID: "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL",
 };
 
 const PROPOSALS_SECTION5_COLUMNS = {
@@ -65,10 +71,10 @@ const PROPOSALS_SECTION5_COLUMNS = {
  */
 async function tableExists(tableName) {
     try {
-        const dbName = process.env.POSTGRES_DATABASE || process.env.MYSQL_DATABASE || process.env.DB_NAME || "cedo_auth";
+        // ✅ FIX: Use 'public' schema for PostgreSQL instead of database name
         const result = await query(
-            `SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = $1 AND table_name = $2`,
-            [dbName, tableName],
+            `SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1`,
+            [tableName],
         );
         if (!result.rows || result.rows.length < 1) {
             return false;
@@ -88,17 +94,13 @@ async function tableExists(tableName) {
  * @param {string[]} [foreignKeys] - Array of foreign key definitions
  */
 async function createTableIfNotExists(tableName, columns, foreignKeys = []) {
-    const exists = await tableExists(tableName);
-    if (exists) {
-        console.log(`${tableName} table already exists`);
-        return;
-    }
+    // ✅ FIX: Use PostgreSQL's CREATE TABLE IF NOT EXISTS to avoid conflicts
     const allColumns = columns.concat(foreignKeys);
-    const createSQL = `CREATE TABLE ${tableName} (\n  ${allColumns.join(",\n  ")}\n)`;
+    const createSQL = `CREATE TABLE IF NOT EXISTS ${tableName} (\n  ${allColumns.join(",\n  ")}\n)`;
     try {
-        console.log(`Creating ${tableName} table...`);
+        console.log(`Creating ${tableName} table if it doesn't exist...`);
         await query(createSQL);
-        console.log(`${tableName} table created successfully`);
+        console.log(`${tableName} table created successfully or already exists`);
     } catch (error) {
         console.error(`Error creating ${tableName} table:`, error && error.message ? error.message : error);
         throw error;
@@ -112,12 +114,18 @@ async function createTableIfNotExists(tableName, columns, foreignKeys = []) {
  */
 async function addMissingColumns(tableName, neededColumns) {
     try {
-        const result = await query(`SHOW COLUMNS FROM ${tableName}`);
-        let cols = Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) ? result[0] : [];
-        const existing = cols.map(c => c && c.Field).filter(Boolean);
+        // ✅ FIX: Use PostgreSQL syntax instead of MySQL SHOW COLUMNS
+        const result = await query(`
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_schema = 'public' AND table_name = $1
+        `, [tableName]);
+
+        const existing = result.rows.map(row => row.column_name);
         const missing = Object.entries(neededColumns).filter(([name]) => !existing.includes(name));
+
         if (missing.length) {
-            const alterClauses = missing.map(([name, type]) => `ADD COLUMN \`${name}\` ${type}`);
+            const alterClauses = missing.map(([name, type]) => `ADD COLUMN "${name}" ${type}`);
             const alterSQL = `ALTER TABLE ${tableName} ${alterClauses.join(', ')}`;
             console.log(`🛠️  Updating ${tableName} table:`, alterSQL);
             await query(alterSQL);
@@ -157,18 +165,24 @@ async function createUsersTable() {
     );
 }
 
-async function createAccessLogsTable() {
+async function createAuditLogsTable() {
     await createTableIfNotExists(
-        TABLES.ACCESS_LOGS,
+        TABLES.AUDIT_LOGS,
         [
-            ACCESS_LOGS_COLUMNS.ID,
-            ACCESS_LOGS_COLUMNS.USER_ID,
-            ACCESS_LOGS_COLUMNS.ACTION,
-            ACCESS_LOGS_COLUMNS.IP_ADDRESS,
-            ACCESS_LOGS_COLUMNS.USER_AGENT,
-            ACCESS_LOGS_COLUMNS.TIMESTAMP,
+            AUDIT_LOGS_COLUMNS.ID,
+            AUDIT_LOGS_COLUMNS.USER_ID,
+            AUDIT_LOGS_COLUMNS.ACTION_TYPE,
+            AUDIT_LOGS_COLUMNS.TABLE_NAME,
+            AUDIT_LOGS_COLUMNS.RECORD_ID,
+            AUDIT_LOGS_COLUMNS.OLD_VALUES,
+            AUDIT_LOGS_COLUMNS.NEW_VALUES,
+            AUDIT_LOGS_COLUMNS.IP_ADDRESS,
+            AUDIT_LOGS_COLUMNS.USER_AGENT,
+            AUDIT_LOGS_COLUMNS.SESSION_ID,
+            AUDIT_LOGS_COLUMNS.ADDITIONAL_INFO,
+            AUDIT_LOGS_COLUMNS.CREATED_AT,
         ],
-        [ACCESS_LOGS_COLUMNS.FK_USER_ID]
+        [AUDIT_LOGS_COLUMNS.FK_USER_ID]
     );
 }
 
@@ -176,13 +190,18 @@ async function createProposalsTable(tableExistsFn = tableExists) {
     const exists = await tableExistsFn(TABLES.PROPOSALS);
     if (exists) {
         try {
-            const result = await query('SHOW COLUMNS FROM proposals');
-            let cols = Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) ? result[0] : [];
-            const existing = cols.map(c => c && c.Field).filter(Boolean);
+            // ✅ FIX: Use PostgreSQL syntax instead of MySQL SHOW COLUMNS
+            const result = await query(`
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_schema = 'public' AND table_name = 'proposals'
+            `);
+
+            const existing = result.rows.map(row => row.column_name);
             const missing = Object.entries(PROPOSALS_SECTION5_COLUMNS)
                 .filter(([name]) => !existing.includes(name));
             if (missing.length) {
-                const alterClauses = missing.map(([name, type]) => `ADD COLUMN \`${name}\` ${type}`);
+                const alterClauses = missing.map(([name, type]) => `ADD COLUMN "${name}" ${type}`);
                 const alterSQL = `ALTER TABLE proposals ${alterClauses.join(', ')}`;
                 console.log('🛠️  Updating proposals table:', alterSQL);
                 await query(alterSQL);
@@ -195,12 +214,12 @@ async function createProposalsTable(tableExistsFn = tableExists) {
         }
         return;
     }
-    // Table does not exist: create it
-    const createSQL = `CREATE TABLE ${TABLES.PROPOSALS} (\n  id BIGSERIAL PRIMARY KEY,\n  title VARCHAR(255) NOT NULL,\n  description TEXT NOT NULL,\n  category VARCHAR(100) NOT NULL,\n  start_date DATE NOT NULL,\n  end_date DATE NOT NULL,\n  location VARCHAR(255) NOT NULL,\n  budget DECIMAL(10, 2) NOT NULL,\n  objectives TEXT NOT NULL,\n  volunteers_needed INT NOT NULL,\n  submitter_id INT NOT NULL,\n  organization_type VARCHAR(100) NOT NULL,\n  contact_person VARCHAR(255) NOT NULL,\n  contact_email VARCHAR(255) NOT NULL,\n  contact_phone VARCHAR(20) NOT NULL,\n  status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'pending', 'under_review', 'approved', 'rejected')),\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  FOREIGN KEY (submitter_id) REFERENCES users(id) ON DELETE CASCADE\n)`;
+    // ✅ FIX: Use CREATE TABLE IF NOT EXISTS to avoid conflicts
+    const createSQL = `CREATE TABLE IF NOT EXISTS ${TABLES.PROPOSALS} (\n  id BIGSERIAL PRIMARY KEY,\n  title VARCHAR(255) NOT NULL,\n  description TEXT NOT NULL,\n  category VARCHAR(100) NOT NULL,\n  start_date DATE NOT NULL,\n  end_date DATE NOT NULL,\n  location VARCHAR(255) NOT NULL,\n  budget DECIMAL(10, 2) NOT NULL,\n  objectives TEXT NOT NULL,\n  volunteers_needed INT NOT NULL,\n  submitter_id INT NOT NULL,\n  organization_type VARCHAR(100) NOT NULL,\n  contact_person VARCHAR(255) NOT NULL,\n  contact_email VARCHAR(255) NOT NULL,\n  contact_phone VARCHAR(20) NOT NULL,\n  status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'pending', 'under_review', 'approved', 'rejected')),\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  FOREIGN KEY (submitter_id) REFERENCES users(id) ON DELETE CASCADE\n)`;
     try {
-        console.log("Creating proposals table...");
+        console.log("Creating proposals table if it doesn't exist...");
         await query(createSQL);
-        console.log("Proposals table created successfully");
+        console.log("Proposals table created successfully or already exists");
     } catch (error) {
         console.error("Error creating proposals table:", error && error.message ? error.message : error);
         throw error;
@@ -217,7 +236,7 @@ async function createReviewsTable() {
             "comments TEXT NOT NULL",
             "rating INT NOT NULL",
             "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-            "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+            "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP", // ✅ FIX: Removed MySQL-specific ON UPDATE
         ],
         [
             "FOREIGN KEY (proposal_id) REFERENCES proposals(id) ON DELETE CASCADE",
@@ -239,10 +258,34 @@ async function ensureTablesExist() {
     }
 
     try {
-        await createUsersTable();
-        await createAccessLogsTable();
-        await createProposalsTable();
-        await createReviewsTable();
+        // ✅ FIX: Add individual error handling for each table creation
+        try {
+            await createUsersTable();
+        } catch (err) {
+            console.error('❌ Failed to create users table:', err.message);
+            // Continue with other tables
+        }
+
+        try {
+            await createAuditLogsTable();
+        } catch (err) {
+            console.error('❌ Failed to create audit_logs table:', err.message);
+            // Continue with other tables
+        }
+
+        try {
+            await createProposalsTable();
+        } catch (err) {
+            console.error('❌ Failed to create proposals table:', err.message);
+            // Continue with other tables
+        }
+
+        try {
+            await createReviewsTable();
+        } catch (err) {
+            console.error('❌ Failed to create reviews table:', err.message);
+            // Continue with other tables
+        }
 
         const result = await query("SELECT COUNT(*) as count FROM users");
         let users = Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) ? result[0] : [];
@@ -254,8 +297,9 @@ async function ensureTablesExist() {
             const salt = await bcrypt.genSalt(10);
             const hashedPassword = await bcrypt.hash("admin123", salt);
 
+            // ✅ FIX: Use PostgreSQL syntax with $1, $2, etc. placeholders
             await query(
-                "INSERT INTO users (name, email, password, role, is_approved) VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO users (name, email, password, role, is_approved) VALUES ($1, $2, $3, $4, $5)",
                 ["Admin User", "admin@example.com", hashedPassword, ROLES.HEAD_ADMIN, true]
             );
             console.log("Default admin user created successfully");
@@ -277,7 +321,7 @@ async function ensureTablesExist() {
 module.exports = {
     tableExists,
     createUsersTable,
-    createAccessLogsTable,
+    createAuditLogsTable,
     createProposalsTable,
     createReviewsTable,
     ensureTablesExist,

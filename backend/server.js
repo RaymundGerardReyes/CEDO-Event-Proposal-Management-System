@@ -166,7 +166,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cache-Control', 'Origin', 'X-Requested-With'],
   optionsSuccessStatus: 204
 };
 
@@ -400,7 +400,7 @@ app.get('/api/health', (req, res) => {
 app.get("/api/tables-check", async (req, res) => {
   try {
     const { tableExists } = require("./middleware/db-check")
-    const tables = ["users", "access_logs", "proposals", "reviews"]
+    const tables = ["users", "audit_logs", "proposals", "reviews"]
     const results = {}
 
     for (const table of tables) {

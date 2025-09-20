@@ -24,6 +24,47 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 
+// ✅ ENHANCED: Conditional console logging for development/production
+// Custom logging function that respects environment settings
+const isDevelopment = process.env.NODE_ENV === 'development';
+const isProduction = process.env.NODE_ENV === 'production';
+
+// Custom logging functions for AppSidebar
+const customLog = {
+    log: function (...args) {
+        if (isDevelopment) {
+            console.log('[APP-SIDEBAR]', ...args);
+        }
+    },
+    warn: function (...args) {
+        if (isDevelopment) {
+            console.warn('[APP-SIDEBAR WARNING]', ...args);
+        }
+    },
+    error: function (...args) {
+        // Always log errors, even in production for debugging
+        console.error('[APP-SIDEBAR ERROR]', ...args);
+    },
+    debug: function (...args) {
+        if (isDevelopment) {
+            console.log('[APP-SIDEBAR DEBUG]', ...args);
+        }
+    }
+};
+
+// Override console methods for production security
+if (isProduction) {
+    // Suppress console.log and console.warn in production
+    console.log = function () { };
+    console.warn = function () { };
+    // Keep console.error for critical error logging
+} else {
+    // Development environment - keep all console methods active
+    console.log = console.log;
+    console.warn = console.warn;
+    console.error = console.error;
+}
+
 const MOBILE_BREAKPOINT = 768
 
 function NavItem({ href, isActive, icon, children, collapsed, onClick, badge = null }) {
@@ -88,13 +129,13 @@ export function AppSidebar() {
 
     // Debug logging for state changes
     useEffect(() => {
-        console.log("AppSidebar: State changed", { collapsed, isMobile, isOpen, showToggle })
+        customLog.debug("State changed", { collapsed, isMobile, isOpen, showToggle })
     }, [collapsed, isMobile, isOpen, showToggle])
 
     // Dispatch sidebar state changes for layout components
     useEffect(() => {
         if (!isMobile) {
-            console.log("AppSidebar: Dispatching sidebar-toggle event", { collapsed, isMobile: false })
+            customLog.debug("Dispatching sidebar-toggle event", { collapsed, isMobile: false })
             window.dispatchEvent(
                 new CustomEvent("sidebar-toggle", {
                     detail: {
@@ -104,13 +145,13 @@ export function AppSidebar() {
                     },
                 }),
             )
-            console.log("AppSidebar: Event dispatched successfully")
+            customLog.debug("Event dispatched successfully")
         }
     }, [collapsed, isMobile])
 
     const toggleDesktopCollapse = () => {
         const newCollapsedState = !collapsed
-        console.log("AppSidebar: Toggle button clicked, changing from", collapsed, "to", newCollapsedState)
+        customLog.log("Toggle button clicked, changing from", collapsed, "to", newCollapsedState)
         setCollapsed(newCollapsedState)
     }
 
@@ -189,53 +230,196 @@ export function AppSidebar() {
                 <aside
                     className={`fixed top-0 left-0 w-[280px] sm:w-80 h-full bg-gradient-to-b from-cedo-blue via-cedo-blue to-cedo-blue/95 text-white z-[60] transform transition-all duration-500 ease-out lg:hidden shadow-2xl border-r border-cedo-gold/20 ${isOpen ? "translate-x-0" : "-translate-x-full"
                         }`}
+                    style={{
+                        borderRadius: '0 2rem 2rem 0',
+                        borderTopLeftRadius: '0',
+                        borderBottomLeftRadius: '0',
+                        borderTopRightRadius: '2rem',
+                        borderBottomRightRadius: '2rem',
+                        overflow: 'hidden'
+                    }}
                     aria-label="Main sidebar"
                 >
-                    <div className="flex flex-col h-full backdrop-blur-sm">
-                        {/* Enhanced Header */}
-                        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-cedo-gold/20 bg-gradient-to-r from-cedo-blue to-cedo-blue/80">
-                            <div className="flex items-center gap-3 sm:gap-4">
-                                <div className="relative h-10 w-10 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-cedo-gold to-cedo-gold-dark flex items-center justify-center shadow-lg">
-                                    <span className="font-bold text-cedo-blue text-lg sm:text-xl">C</span>
-                                    <div className="absolute inset-0 rounded-xl sm:rounded-2xl bg-gradient-to-br from-white/20 to-transparent"></div>
+                    {/* Mobile sidebar background grid pattern */}
+                    <div className="absolute inset-0 opacity-5 pointer-events-none">
+                        <div className="w-full h-full" style={{
+                            backgroundImage: `
+                                linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px),
+                                linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px)
+                            `,
+                            backgroundSize: '20px 20px'
+                        }} />
+                    </div>
+
+                    <div className="flex flex-col h-full backdrop-blur-sm relative z-10">
+                        {/* Enhanced Header with responsive grid layout and curved design */}
+                        <div
+                            className="relative p-4 sm:p-6 border-b border-cedo-gold/20 bg-gradient-to-r from-cedo-blue to-cedo-blue/80 overflow-hidden"
+                            style={{
+                                borderRadius: '0 2rem 0 0',
+                                borderTopLeftRadius: '0',
+                                borderTopRightRadius: '2rem'
+                            }}
+                        >
+                            {/* Header background grid pattern */}
+                            <div className="absolute inset-0 opacity-10">
+                                <div className="w-full h-full" style={{
+                                    backgroundImage: `
+                                        linear-gradient(45deg, rgba(255,255,255,0.1) 1px, transparent 1px),
+                                        linear-gradient(-45deg, rgba(255,255,255,0.1) 1px, transparent 1px)
+                                    `,
+                                    backgroundSize: '15px 15px'
+                                }} />
+                            </div>
+
+                            <div className="relative z-10 grid grid-cols-12 gap-3 items-center">
+                                {/* Logo section */}
+                                <div className="col-span-9 flex items-center gap-3 sm:gap-4">
+                                    <div
+                                        className="relative h-10 w-10 sm:h-12 sm:w-12 bg-gradient-to-br from-cedo-gold to-cedo-gold-dark flex items-center justify-center shadow-lg group"
+                                        style={{
+                                            borderRadius: '1rem',
+                                            transition: 'border-radius 500ms ease-out'
+                                        }}
+                                    >
+                                        <span className="font-bold text-cedo-blue text-lg sm:text-xl transition-transform duration-300 group-hover:scale-110">C</span>
+                                        <div
+                                            className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent"
+                                            style={{
+                                                borderRadius: '1rem'
+                                            }}
+                                        ></div>
+                                        <div
+                                            className="absolute inset-0 bg-gradient-to-br from-cedo-gold/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                                            style={{
+                                                borderRadius: '1rem'
+                                            }}
+                                        ></div>
+                                    </div>
+                                    <div>
+                                        <div className="font-bold text-xl sm:text-2xl text-cedo-gold">CEDO</div>
+                                        <div className="text-xs text-white/70">Admin Portal</div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <div className="font-bold text-xl sm:text-2xl text-cedo-gold">CEDO</div>
-                                    <div className="text-xs text-white/70">Admin Portal</div>
+
+                                {/* Close button */}
+                                <div className="col-span-3 flex justify-end">
+                                    <button
+                                        onClick={onClose}
+                                        className="group p-2 rounded-lg sm:rounded-xl hover:bg-white/10 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cedo-gold min-h-[44px] min-w-[44px] flex items-center justify-center"
+                                        aria-label="Close sidebar"
+                                    >
+                                        <X className="h-5 w-5 sm:h-6 sm:w-6 text-cedo-gold transition-transform duration-300 group-hover:scale-110" />
+                                    </button>
                                 </div>
                             </div>
-                            <button
-                                onClick={onClose}
-                                className="p-2 rounded-lg sm:rounded-xl hover:bg-white/10 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cedo-gold min-h-[44px] min-w-[44px] flex items-center justify-center"
-                                aria-label="Close sidebar"
-                            >
-                                <X className="h-5 w-5 sm:h-6 sm:w-6 text-cedo-gold" />
-                            </button>
                         </div>
 
-                        {/* Enhanced Navigation */}
-                        <nav className="flex-1 p-3 sm:p-4 space-y-1 sm:space-y-2 overflow-y-auto">
-                            <div className="space-y-1">
-                                {navItems.map((item) => (
-                                    <NavItem
-                                        key={item.href}
-                                        href={item.href}
-                                        isActive={pathname === item.href || (item.href !== "/admin-dashboard" && pathname.startsWith(item.href))}
-                                        icon={item.icon}
-                                        collapsed={false}
-                                        onClick={handleNavItemClickMobile}
-                                        badge={item.badge}
-                                    >
-                                        {item.label}
-                                    </NavItem>
+                        {/* Enhanced Navigation with responsive grid layout */}
+                        <nav className="flex-1 p-3 sm:p-4 space-y-2 sm:space-y-3 overflow-y-auto relative">
+                            {/* Navigation background grid pattern */}
+                            <div className="absolute inset-0 opacity-5 pointer-events-none">
+                                <div className="w-full h-full" style={{
+                                    backgroundImage: `
+                                        linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px),
+                                        linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px)
+                                    `,
+                                    backgroundSize: '25px 25px'
+                                }} />
+                            </div>
+
+                            <div className="relative z-10 grid grid-cols-1 gap-2 sm:gap-3">
+                                {navItems.map((item, index) => (
+                                    <div key={item.href} className="relative">
+                                        {/* Navigation item background grid effect with curved design */}
+                                        <div
+                                            className="absolute inset-0 bg-gradient-to-r from-cedo-gold/5 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300"
+                                            style={{
+                                                borderRadius: '1rem',
+                                                transition: 'border-radius 500ms ease-out, opacity 300ms ease-out'
+                                            }}
+                                        />
+
+                                        <NavItem
+                                            href={item.href}
+                                            isActive={pathname === item.href || (item.href !== "/admin-dashboard" && pathname.startsWith(item.href))}
+                                            icon={item.icon}
+                                            collapsed={false}
+                                            onClick={handleNavItemClickMobile}
+                                            badge={item.badge}
+                                        >
+                                            {item.label}
+                                        </NavItem>
+
+                                        {/* Navigation item grid overlay with curved design */}
+                                        <div
+                                            className="absolute inset-0 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+                                            style={{
+                                                borderRadius: '1rem',
+                                                transition: 'border-radius 500ms ease-out, opacity 300ms ease-out'
+                                            }}
+                                        >
+                                            <div className="w-full h-full" style={{
+                                                backgroundImage: `
+                                                    linear-gradient(45deg, rgba(255,255,255,0.1) 1px, transparent 1px),
+                                                    linear-gradient(-45deg, rgba(255,255,255,0.1) 1px, transparent 1px)
+                                                `,
+                                                backgroundSize: '10px 10px',
+                                                borderRadius: '1rem'
+                                            }} />
+                                        </div>
+                                    </div>
                                 ))}
                             </div>
                         </nav>
 
-                        {/* Enhanced Footer */}
-                        <div className="p-3 sm:p-4 border-t border-cedo-gold/20 bg-gradient-to-r from-cedo-blue/50 to-transparent">
-                            <div className="text-center text-xs text-white/60">
-                                © 2024 CEDO Admin Portal
+                        {/* Enhanced Footer with responsive grid layout and curved design */}
+                        <div
+                            className="relative p-3 sm:p-4 border-t border-cedo-gold/20 bg-gradient-to-r from-cedo-blue/50 to-transparent"
+                            style={{
+                                borderRadius: '0 0 2rem 0',
+                                borderBottomLeftRadius: '0',
+                                borderBottomRightRadius: '2rem'
+                            }}
+                        >
+                            {/* Footer background grid pattern */}
+                            <div className="absolute inset-0 opacity-5">
+                                <div className="w-full h-full" style={{
+                                    backgroundImage: `
+                                        linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px),
+                                        linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px)
+                                    `,
+                                    backgroundSize: '20px 20px',
+                                    borderRadius: '0 0 2rem 0'
+                                }} />
+                            </div>
+
+                            <div className="relative z-10 grid grid-cols-12 gap-2 items-center">
+                                {/* Copyright section */}
+                                <div className="col-span-8 text-center">
+                                    <div
+                                        className="text-xs text-white/60 bg-white/5 px-3 py-2"
+                                        style={{
+                                            borderRadius: '0.75rem',
+                                            transition: 'border-radius 500ms ease-out'
+                                        }}
+                                    >
+                                        © 2024 CEDO Admin Portal
+                                    </div>
+                                </div>
+
+                                {/* Version indicator */}
+                                <div className="col-span-4 flex justify-end">
+                                    <div
+                                        className="text-xs text-white/40 bg-white/5 px-2 py-1"
+                                        style={{
+                                            borderRadius: '1rem',
+                                            transition: 'border-radius 500ms ease-out'
+                                        }}
+                                    >
+                                        v2.1.0
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -244,15 +428,15 @@ export function AppSidebar() {
         )
     }
 
-    // Enhanced Desktop sidebar with better responsive design
+    // Enhanced Desktop sidebar with advanced responsive grid design
     return (
         <>
-            {/* Hover/Touch Detection Zone - positioned at sidebar edge */}
+            {/* Enhanced Hover/Touch Detection Zone with responsive grid */}
             <div
-                className="fixed top-0 left-0 h-full w-6 z-30 bg-transparent"
+                className="fixed top-0 left-0 h-full z-30 bg-transparent"
                 style={{
                     left: collapsed ? '0' : '0',
-                    width: collapsed ? '6rem' : '17rem', // Slightly wider than sidebar for better detection
+                    width: collapsed ? '6rem' : '17rem',
                     transition: 'width 500ms ease-out',
                 }}
                 onMouseEnter={handleShowToggle}
@@ -260,29 +444,73 @@ export function AppSidebar() {
                 onTouchStart={handleTouchStart}
                 onTouchEnd={handleTouchEnd}
                 aria-hidden="true"
-            />
+            >
+                {/* Detection grid overlay for better interaction */}
+                <div className="absolute inset-0 grid grid-cols-1 grid-rows-12 gap-0 opacity-0 hover:opacity-100 transition-opacity duration-300">
+                    {Array.from({ length: 12 }).map((_, i) => (
+                        <div key={i} className="bg-cedo-blue/5 hover:bg-cedo-blue/10 transition-colors duration-200" />
+                    ))}
+                </div>
+            </div>
 
-            {/* Enhanced Collapsible button - appears on hover/touch */}
+            {/* Enhanced Collapsible button with responsive grid positioning */}
             {showToggle && (
-                <button
-                    onClick={toggleDesktopCollapse}
-                    className={`fixed z-50 p-2 sm:p-3 rounded-lg sm:rounded-xl bg-gradient-to-r from-cedo-blue to-cedo-blue/90 text-cedo-gold shadow-2xl hover:shadow-cedo-gold/25 hover:scale-110 transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-cedo-gold border border-cedo-gold/20 min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center animate-in fade-in slide-in-from-left-2 duration-300`}
-                    style={{
-                        top: '0.75rem',
-                        left: collapsed ? 'calc(4rem + 0.5rem)' : 'calc(16rem + 0.5rem)',
-                        transition: 'left 500ms ease-out, transform 300ms ease-out, opacity 300ms ease-out',
-                        opacity: 1, // Override the opacity-0 class
-                    }}
-                    aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-                    title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-                    onMouseEnter={handleShowToggle}
-                    onMouseLeave={handleHideToggle}
-                >
-                    {collapsed ? <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" /> : <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />}
-                </button>
+                <div className="fixed z-50" style={{
+                    top: '0.75rem',
+                    left: collapsed ? 'calc(4rem + 0.5rem)' : 'calc(16rem + 0.5rem)',
+                    transition: 'left 500ms ease-out',
+                }}>
+                    <button
+                        onClick={toggleDesktopCollapse}
+                        className="group relative p-2 sm:p-3 bg-gradient-to-r from-cedo-blue to-cedo-blue/90 text-cedo-gold shadow-2xl hover:shadow-cedo-gold/25 hover:scale-110 transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-cedo-gold border border-cedo-gold/20 min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center animate-in fade-in slide-in-from-left-2 duration-300"
+                        style={{
+                            borderRadius: '1rem',
+                            transition: 'border-radius 500ms ease-out, transform 300ms ease-out, box-shadow 300ms ease-out'
+                        }}
+                        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                        onMouseEnter={handleShowToggle}
+                        onMouseLeave={handleHideToggle}
+                    >
+                        {/* Button background grid effect with curved design */}
+                        <div
+                            className="absolute inset-0 bg-gradient-to-br from-cedo-gold/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                            style={{
+                                borderRadius: '1rem',
+                                transition: 'border-radius 500ms ease-out, opacity 300ms ease-out'
+                            }}
+                        />
+
+                        {/* Icon with enhanced styling */}
+                        <div className="relative z-10 flex items-center justify-center">
+                            {collapsed ? (
+                                <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 transition-transform duration-300 group-hover:scale-110" />
+                            ) : (
+                                <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5 transition-transform duration-300 group-hover:scale-110" />
+                            )}
+                        </div>
+
+                        {/* Tooltip for better UX with curved design */}
+                        <div
+                            className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-2 bg-gray-900 text-white text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap pointer-events-none"
+                            style={{
+                                borderRadius: '0.75rem',
+                                transition: 'border-radius 500ms ease-out, opacity 300ms ease-out'
+                            }}
+                        >
+                            {collapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                            <div
+                                className="absolute top-1/2 -left-2 -translate-y-1/2 w-4 h-4 bg-gray-900 rotate-45"
+                                style={{
+                                    borderRadius: '0.25rem'
+                                }}
+                            ></div>
+                        </div>
+                    </button>
+                </div>
             )}
 
-            {/* Enhanced Sidebar container */}
+            {/* Enhanced Sidebar container with responsive grid system */}
             <div
                 className="relative"
                 style={{ width: collapsed ? '4rem' : '16rem' }}
@@ -291,23 +519,73 @@ export function AppSidebar() {
                 onTouchStart={handleTouchStart}
                 onTouchEnd={handleTouchEnd}
             >
+                {/* Background grid pattern overlay */}
+                <div className="absolute inset-0 opacity-5 pointer-events-none">
+                    <div className="w-full h-full" style={{
+                        backgroundImage: `
+                            linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px),
+                            linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px)
+                        `,
+                        backgroundSize: '20px 20px'
+                    }} />
+                </div>
 
                 <Sidebar
                     className={`fixed top-0 left-0 h-screen !bg-gradient-to-b from-cedo-blue via-cedo-blue to-cedo-blue/95 text-white transition-all duration-500 ease-out shadow-2xl border-r border-cedo-gold/20 z-40 ${collapsed ? "w-16" : "w-64"
                         }`}
                     style={{
-                        width: collapsed ? '4rem' : '16rem', // Fallback inline styles
-                        transition: 'width 500ms ease-out',
-                        backgroundColor: 'transparent' // Ensure no white background bleeds through
+                        width: collapsed ? '4rem' : '16rem',
+                        transition: 'width 500ms ease-out, border-radius 500ms ease-out',
+                        backgroundColor: 'transparent',
+                        borderRadius: collapsed ? '0 1.5rem 1.5rem 0' : '0 2rem 2rem 0',
+                        overflow: 'hidden'
                     }}
                 >
-                    {/* Enhanced Header */}
-                    <SidebarHeader className="py-4 sm:py-6 px-3 sm:px-4 border-b border-cedo-gold/20 bg-gradient-to-r from-cedo-blue to-cedo-blue/80" style={{ backgroundColor: 'transparent' }}>
-                        <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                                <div className="relative h-10 w-10 sm:h-12 sm:w-12 overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-br from-cedo-gold to-cedo-gold-dark flex items-center justify-center shadow-lg flex-shrink-0">
-                                    <span className="font-bold text-cedo-blue text-lg sm:text-xl">C</span>
-                                    <div className="absolute inset-0 rounded-xl sm:rounded-2xl bg-gradient-to-br from-white/20 to-transparent"></div>
+                    {/* Enhanced Header with responsive grid layout and curved design */}
+                    <SidebarHeader
+                        className="py-4 sm:py-6 px-3 sm:px-4 border-b border-cedo-gold/20 bg-gradient-to-r from-cedo-blue to-cedo-blue/80 relative overflow-hidden"
+                        style={{
+                            backgroundColor: 'transparent',
+                            borderRadius: collapsed ? '0 1.5rem 0 0' : '0 2rem 0 0',
+                            borderTopLeftRadius: '0',
+                            borderTopRightRadius: collapsed ? '1.5rem' : '2rem'
+                        }}
+                    >
+                        {/* Header background grid pattern */}
+                        <div className="absolute inset-0 opacity-10">
+                            <div className="w-full h-full" style={{
+                                backgroundImage: `
+                                    linear-gradient(45deg, rgba(255,255,255,0.1) 1px, transparent 1px),
+                                    linear-gradient(-45deg, rgba(255,255,255,0.1) 1px, transparent 1px)
+                                `,
+                                backgroundSize: '15px 15px'
+                            }} />
+                        </div>
+
+                        <div className="relative z-10 grid grid-cols-12 gap-2 items-center">
+                            {/* Logo section - responsive grid columns */}
+                            <div className={`${collapsed ? 'col-span-12 flex justify-center' : 'col-span-10'} flex items-center gap-2 sm:gap-3 min-w-0`}>
+                                <div
+                                    className="relative h-10 w-10 sm:h-12 sm:w-12 overflow-hidden bg-gradient-to-br from-cedo-gold to-cedo-gold-dark flex items-center justify-center shadow-lg flex-shrink-0 group"
+                                    style={{
+                                        borderRadius: collapsed ? '0.75rem' : '1rem',
+                                        transition: 'border-radius 500ms ease-out'
+                                    }}
+                                >
+                                    <span className="font-bold text-cedo-blue text-lg sm:text-xl transition-transform duration-300 group-hover:scale-110">C</span>
+                                    <div
+                                        className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent"
+                                        style={{
+                                            borderRadius: collapsed ? '0.75rem' : '1rem'
+                                        }}
+                                    ></div>
+                                    {/* Logo glow effect */}
+                                    <div
+                                        className="absolute inset-0 bg-gradient-to-br from-cedo-gold/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                                        style={{
+                                            borderRadius: collapsed ? '0.75rem' : '1rem'
+                                        }}
+                                    ></div>
                                 </div>
                                 {!collapsed && (
                                     <div className="transition-all duration-300 min-w-0">
@@ -316,16 +594,43 @@ export function AppSidebar() {
                                     </div>
                                 )}
                             </div>
+
+                            {/* Status indicator - only visible when expanded */}
+                            {!collapsed && (
+                                <div className="col-span-2 flex justify-end">
+                                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" title="System Online"></div>
+                                </div>
+                            )}
                         </div>
                     </SidebarHeader>
 
-                    {/* Enhanced Content */}
-                    <SidebarContent className="px-3 sm:px-4 py-4 sm:py-6 flex flex-col h-full" style={{ backgroundColor: 'transparent' }}>
-                        {/* Enhanced Main Navigation */}
-                        <SidebarMenu className="space-y-1 sm:space-y-2 flex-1">
-                            <div className="space-y-1">
-                                {navItems.map((item) => (
-                                    <SidebarMenuItem key={item.href}>
+                    {/* Enhanced Content with responsive grid navigation */}
+                    <SidebarContent className="px-3 sm:px-4 py-4 sm:py-6 flex flex-col h-full relative" style={{ backgroundColor: 'transparent' }}>
+                        {/* Navigation background grid pattern */}
+                        <div className="absolute inset-0 opacity-5 pointer-events-none">
+                            <div className="w-full h-full" style={{
+                                backgroundImage: `
+                                    linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px),
+                                    linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px)
+                                `,
+                                backgroundSize: '25px 25px'
+                            }} />
+                        </div>
+
+                        {/* Enhanced Main Navigation with grid layout */}
+                        <SidebarMenu className="space-y-2 sm:space-y-3 flex-1 relative z-10">
+                            <div className="grid grid-cols-1 gap-2 sm:gap-3">
+                                {navItems.map((item, index) => (
+                                    <SidebarMenuItem key={item.href} className="relative">
+                                        {/* Navigation item background grid effect with curved design */}
+                                        <div
+                                            className="absolute inset-0 bg-gradient-to-r from-cedo-gold/5 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300"
+                                            style={{
+                                                borderRadius: collapsed ? '0.75rem' : '1rem',
+                                                transition: 'border-radius 500ms ease-out, opacity 300ms ease-out'
+                                            }}
+                                        />
+
                                         <NavItem
                                             href={item.href}
                                             isActive={pathname === item.href || (item.href !== "/admin-dashboard" && pathname.startsWith(item.href))}
@@ -335,16 +640,104 @@ export function AppSidebar() {
                                         >
                                             {item.label}
                                         </NavItem>
+
+                                        {/* Navigation item grid overlay with curved design */}
+                                        <div
+                                            className="absolute inset-0 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+                                            style={{
+                                                borderRadius: collapsed ? '0.75rem' : '1rem',
+                                                transition: 'border-radius 500ms ease-out, opacity 300ms ease-out'
+                                            }}
+                                        >
+                                            <div className="w-full h-full" style={{
+                                                backgroundImage: `
+                                                    linear-gradient(45deg, rgba(255,255,255,0.1) 1px, transparent 1px),
+                                                    linear-gradient(-45deg, rgba(255,255,255,0.1) 1px, transparent 1px)
+                                                `,
+                                                backgroundSize: '10px 10px',
+                                                borderRadius: collapsed ? '0.75rem' : '1rem'
+                                            }} />
+                                        </div>
                                     </SidebarMenuItem>
                                 ))}
                             </div>
                         </SidebarMenu>
 
-                        {/* Enhanced Footer */}
+                        {/* Enhanced Footer with responsive grid layout and curved design */}
                         {!collapsed && (
-                            <div className="mt-4 pt-4 border-t border-cedo-gold/20">
-                                <div className="text-center text-xs text-white/60 bg-gradient-to-r from-transparent via-white/5 to-transparent py-2 rounded-lg">
-                                    © 2024 CEDO Admin Portal
+                            <div
+                                className="mt-4 pt-4 border-t border-cedo-gold/20 relative"
+                                style={{
+                                    borderRadius: '0 0 2rem 0',
+                                    borderBottomLeftRadius: '0',
+                                    borderBottomRightRadius: '2rem'
+                                }}
+                            >
+                                {/* Footer background grid pattern */}
+                                <div className="absolute inset-0 opacity-5">
+                                    <div className="w-full h-full" style={{
+                                        backgroundImage: `
+                                            linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px),
+                                            linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px)
+                                        `,
+                                        backgroundSize: '20px 20px',
+                                        borderRadius: '0 0 2rem 0'
+                                    }} />
+                                </div>
+
+                                <div className="relative z-10 grid grid-cols-12 gap-2 items-center">
+                                    {/* Copyright section */}
+                                    <div className="col-span-8 text-center">
+                                        <div
+                                            className="text-xs text-white/60 bg-gradient-to-r from-transparent via-white/5 to-transparent py-2 px-3"
+                                            style={{
+                                                borderRadius: '0.75rem',
+                                                transition: 'border-radius 500ms ease-out'
+                                            }}
+                                        >
+                                            © 2024 CEDO Admin Portal
+                                        </div>
+                                    </div>
+
+                                    {/* Version indicator */}
+                                    <div className="col-span-4 flex justify-end">
+                                        <div
+                                            className="text-xs text-white/40 bg-white/5 px-2 py-1"
+                                            style={{
+                                                borderRadius: '1rem',
+                                                transition: 'border-radius 500ms ease-out'
+                                            }}
+                                        >
+                                            v2.1.0
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Collapsed footer - minimal version with curved design */}
+                        {collapsed && (
+                            <div
+                                className="mt-4 pt-4 border-t border-cedo-gold/20 flex justify-center"
+                                style={{
+                                    borderRadius: '0 0 1.5rem 0',
+                                    borderBottomLeftRadius: '0',
+                                    borderBottomRightRadius: '1.5rem'
+                                }}
+                            >
+                                <div
+                                    className="w-8 h-8 bg-gradient-to-br from-cedo-gold/20 to-transparent flex items-center justify-center"
+                                    style={{
+                                        borderRadius: '1rem',
+                                        transition: 'border-radius 500ms ease-out'
+                                    }}
+                                >
+                                    <div
+                                        className="w-2 h-2 bg-cedo-gold"
+                                        style={{
+                                            borderRadius: '50%'
+                                        }}
+                                    ></div>
                                 </div>
                             </div>
                         )}

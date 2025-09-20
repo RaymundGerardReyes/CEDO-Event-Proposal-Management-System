@@ -60,6 +60,7 @@ export function getBackendUrl() {
  */
 export function getAuthToken() {
     if (typeof document !== 'undefined') {
+        // ✅ FIX: Look for the correct cookie name that backend sets
         const cookieValue = document.cookie.split('; ').find(row => row.startsWith('cedo_token='));
         if (cookieValue) {
             return cookieValue.split('=')[1];

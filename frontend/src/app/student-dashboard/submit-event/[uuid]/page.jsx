@@ -179,6 +179,14 @@ export default function UUIDSubmitEventPage() {
     const [selectedPath, setSelectedPath] = useState(null);
     const [isReportsSubmitted, setIsReportsSubmitted] = useState(false);
 
+    // ✅ FIX: Initialize progress when UUID page loads
+    useEffect(() => {
+        // If we're on step 2 or higher, mark step 1 as completed
+        if (currentStep >= 2) {
+            setCompletedSteps(prev => [...new Set([...prev, 1])]);
+        }
+    }, [currentStep]);
+
     // Enhanced form setup with react-hook-form
     const methods = useForm({
         resolver: zodResolver(eventFormSchema),
@@ -214,9 +222,10 @@ export default function UUIDSubmitEventPage() {
     const handlePathSelect = (path) => {
         setSelectedPath(path);
         if (path === 'organization') {
+            // ✅ FIX: Ensure Overview step (step 1) is marked as completed
+            setCompletedSteps(prev => [...new Set([...prev, 1])]);
             setCurrentStep(2);
             updateURL(2);
-            setCompletedSteps(prev => [...new Set([...prev, 1])]);
         } else if (path === 'post-event-report') {
             setCurrentStep(0);
         }

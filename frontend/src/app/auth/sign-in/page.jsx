@@ -26,6 +26,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
 import { getInternalApi, ROLES, useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useRememberMe } from "@/hooks/use-remember-me";
 import { getAppConfig, loadConfig } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from 'framer-motion';
@@ -37,8 +38,11 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
-// Dynamic import for Google reCAPTCHA
-const ReCAPTCHAComponent = dynamicImport(() => import("react-google-recaptcha"), { ssr: false });
+// Dynamic import for Google reCAPTCHA with optimized loading
+const ReCAPTCHAComponent = dynamicImport(() => import("react-google-recaptcha"), {
+  ssr: false,
+  loading: () => <div className="flex justify-center my-4"><div className="text-sm text-muted-foreground">Loading security verification...</div></div>
+});
 
 // Form validation schema
 const signInSchema = z.object({
@@ -92,6 +96,16 @@ function SignInContent() {
   const errorDialogTitleId = "error-dialog-title";
   const errorDialogDescriptionId = "error-dialog-description";
 
+  // Remember Me functionality
+  const {
+    isRememberMeSupported,
+    rememberMeStatus,
+    handleRememberMeLogin,
+    handleRememberMeLogout,
+    getStoredPreferences,
+    hasRememberMeEnabled
+  } = useRememberMe();
+
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
   const [isSubmittingGoogle, setIsSubmittingGoogle] = useState(false);
@@ -109,7 +123,7 @@ function SignInContent() {
 
   const isMobile = useIsMobile();
 
-  // Initialize React Hook Form
+  // Initialize React Hook Form with enhanced "Remember Me" functionality
   const form = useForm({
     resolver: zodResolver(signInSchema),
     defaultValues: {
@@ -118,6 +132,26 @@ function SignInContent() {
       rememberMe: false,
     },
   });
+
+  // Enhanced "Remember Me" functionality - Load saved credentials with security checks
+  useEffect(() => {
+    const loadSavedCredentials = () => {
+      try {
+        // Use our Remember Me utilities
+        const preferences = getStoredPreferences();
+
+        if (preferences && preferences.email && preferences.rememberMe) {
+          form.setValue('email', preferences.email);
+          form.setValue('rememberMe', true);
+          console.log('✅ SignIn: Loaded saved credentials for remember me');
+        }
+      } catch (error) {
+        console.warn('⚠️ SignIn: Failed to load saved credentials:', error);
+      }
+    };
+
+    loadSavedCredentials();
+  }, [form, getStoredPreferences]);
 
   const openErrorDialog = useCallback((message, errorDetails = null) => {
     setErrorDialogMessage(message);
@@ -152,53 +186,71 @@ function SignInContent() {
     }
   }, [searchParams, openErrorDialog]);
 
-  // Use a deterministic site key in test mode
+  // Optimized reCAPTCHA configuration with better error handling
   useEffect(() => {
     if (isTest) {
       setRecaptchaSiteKey('test-site-key');
       setIsConfigLoaded(true);
       return;
     }
+
+    let isMounted = true; // Prevent state updates on unmounted component
+
     async function initializeConfig() {
       try {
-        await loadConfig();
+        // Add timeout to prevent hanging requests
+        const configPromise = loadConfig();
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Config load timeout')), 5000)
+        );
+
+        await Promise.race([configPromise, timeoutPromise]);
+
+        if (!isMounted) return; // Component unmounted, don't update state
+
         const config = getAppConfig();
         let key = config.recaptchaSiteKey;
+
         if (!key) {
           key = process.env.RECAPTCHA_SITE_KEY || process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
           if (key) {
-            console.warn('[reCAPTCHA] Using fallback key from environment:', key);
+            console.warn('[reCAPTCHA] Using fallback key from environment');
           } else {
-            console.error('[reCAPTCHA] No site key found in /api/config or environment variables.');
+            console.error('[reCAPTCHA] No site key found in config or environment');
           }
         } else {
-          console.log('[reCAPTCHA] Using site key from /api/config:', key);
+          console.log('[reCAPTCHA] Using site key from config');
         }
-        setRecaptchaSiteKey(key);
-        setIsConfigLoaded(true);
+
+        if (isMounted) {
+          setRecaptchaSiteKey(key);
+          setIsConfigLoaded(true);
+        }
       } catch (error) {
-        // Enhanced error logging with detailed information
-        const errorDetails = {
-          message: error.message || 'Unknown config error',
-          name: error.name || 'ConfigError',
-          stack: error.stack,
-          timestamp: new Date().toISOString()
-        };
+        if (!isMounted) return;
 
-        console.error('[reCAPTCHA] Config fetch failed with details:', errorDetails);
+        console.error('[reCAPTCHA] Config fetch failed:', error.message);
 
-        // Fallback to env if config fetch fails
+        // Fallback to environment variables
         const key = process.env.RECAPTCHA_SITE_KEY || process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
         if (key) {
-          console.warn('[reCAPTCHA] Config fetch failed, using fallback key from environment:', key);
+          console.warn('[reCAPTCHA] Using fallback key from environment');
         } else {
-          console.error('[reCAPTCHA] Config fetch failed and no site key in environment.');
+          console.error('[reCAPTCHA] No fallback key available');
         }
-        setRecaptchaSiteKey(key);
-        setIsConfigLoaded(true);
+
+        if (isMounted) {
+          setRecaptchaSiteKey(key);
+          setIsConfigLoaded(true);
+        }
       }
     }
+
     initializeConfig();
+
+    return () => {
+      isMounted = false; // Cleanup function
+    };
   }, []);
 
   const resetGoogleButtonState = useCallback((reason = "unknown") => {
@@ -322,42 +374,61 @@ function SignInContent() {
     }
   }, [isInitialized, user]);
 
+  // Optimized Google button initialization with better error handling
   useEffect(() => {
-    console.log("🔄 SignIn: Google button useEffect triggered", {
-      isInitialized,
-      hasUser: !!user,
-      isGoogleButtonRendered,
-      isGoogleAuthProcessing,
-    });
-
     if (isInitialized && !user && !isGoogleButtonRendered) {
+      let isMounted = true; // Prevent state updates on unmounted component
+
       const initGoogleButton = async () => {
         const container = document.getElementById(GOOGLE_BUTTON_CONTAINER_ID);
         if (!container) {
           console.warn("⚠️ SignIn: Google button container not found, will retry.");
-          setTimeout(() => setGoogleButtonRetryCount(prev => prev + 1), 500);
+          if (isMounted) {
+            setTimeout(() => setGoogleButtonRetryCount(prev => prev + 1), 500);
+          }
           return;
         }
 
         console.log("🚀 SignIn: Starting Google button initialization");
-        setIsGoogleAuthProcessing(true);
+        if (isMounted) {
+          setIsGoogleAuthProcessing(true);
+        }
 
         try {
-          await signInWithGoogleAuth(container);
-          console.log("✅ SignIn: Google button render successful.");
-          setIsGoogleButtonRendered(true);
+          // Add timeout for Google auth initialization
+          const authPromise = signInWithGoogleAuth(container);
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Google auth timeout')), 10000)
+          );
+
+          await Promise.race([authPromise, timeoutPromise]);
+
+          if (isMounted) {
+            console.log("✅ SignIn: Google button render successful.");
+            setIsGoogleButtonRendered(true);
+          }
         } catch (error) {
-          console.error("❌ SignIn: Failed to render Google button:", error);
-          // Show error dialog for Google auth failures
-          openErrorDialog("Failed to sign in with Google. Please try again.");
+          if (isMounted) {
+            console.error("❌ SignIn: Failed to render Google button:", error.message);
+            // Only show error dialog for non-timeout errors
+            if (!error.message.includes('timeout')) {
+              openErrorDialog("Failed to sign in with Google. Please try again.");
+            }
+          }
         } finally {
-          setIsGoogleAuthProcessing(false);
-          console.log("✅ SignIn: Google button initialization process completed.");
+          if (isMounted) {
+            setIsGoogleAuthProcessing(false);
+            console.log("✅ SignIn: Google button initialization process completed.");
+          }
         }
       };
 
       const timeoutId = setTimeout(initGoogleButton, 300);
-      return () => clearTimeout(timeoutId);
+
+      return () => {
+        isMounted = false;
+        clearTimeout(timeoutId);
+      };
     }
   }, [isInitialized, user, isGoogleButtonRendered, signInWithGoogleAuth, openErrorDialog, googleButtonRetryCount]);
 
@@ -422,22 +493,52 @@ function SignInContent() {
     try {
       console.log("🔍 SignIn: Checking backend connectivity...");
       const internalApi = getInternalApi();
+
+      // Add timeout for health check
+      const healthPromise = internalApi.get('/health');
+      const healthTimeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Health check timeout')), 5000)
+      );
+
       try {
-        await internalApi.get('/health');
+        await Promise.race([healthPromise, healthTimeoutPromise]);
         console.log("✅ SignIn: Backend is reachable");
       } catch (healthError) {
-        console.error("❌ SignIn: Backend connectivity check failed:", healthError);
+        console.error("❌ SignIn: Backend connectivity check failed:", healthError.message);
         openErrorDialog("Backend server is not responding. Please check if the server is running.");
-        setIsSubmittingEmail(false);
         return;
       }
 
       console.log("📞 SignIn: Calling signIn function");
-      const userData = await signIn(data.email, data.password, data.rememberMe, captchaToken);
+
+      // Add timeout for sign-in request
+      const signInPromise = signIn(data.email, data.password, data.rememberMe, captchaToken);
+      const signInTimeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Sign-in timeout')), 15000)
+      );
+
+      const userData = await Promise.race([signInPromise, signInTimeoutPromise]);
       console.log("✅ SignIn: signIn function returned:", userData);
 
       if (userData) {
         console.log("🎉 SignIn: Sign-in successful, showing success toast");
+
+        // Enhanced "Remember Me" functionality - Save credentials if requested with security
+        const rememberMe = data.rememberMe;
+        try {
+          if (rememberMe) {
+            // Use our Remember Me utilities for secure storage
+            await handleRememberMeLogin(userData, true);
+            console.log('✅ SignIn: Saved credentials for remember me with secure storage');
+          } else {
+            // Clear saved credentials if user doesn't want to be remembered
+            await handleRememberMeLogout();
+            console.log('✅ SignIn: Cleared saved credentials');
+          }
+        } catch (error) {
+          console.warn('⚠️ SignIn: Failed to save/clear credentials:', error);
+        }
+
         toast({
           title: "Signed In Successfully!",
           description: `Welcome back, ${userData.name || "user"}! Redirecting...`,
@@ -453,7 +554,8 @@ function SignInContent() {
       const isExpectedError =
         error.message?.includes("Invalid") ||
         error.message?.includes("credentials") ||
-        error.message?.includes("pending approval");
+        error.message?.includes("pending approval") ||
+        error.message?.includes("timeout");
 
       if (!isExpectedError) {
         console.error("❌ SignIn: Unexpected error during sign-in:", {
@@ -546,7 +648,7 @@ function SignInContent() {
             <div className="flex justify-center w-full mt-0 mb-0">
               {LogoSimple ? <LogoSimple /> : <div className="text-destructive">Logo Error</div>}
             </div>
-            <h1 className="mt-2 text-2xl font-bold text-cedo-blue dark:text-blue-400 text-center">Welcome back</h1>
+            <h1 className="mt-4 text-2xl font-bold text-cedo-blue dark:text-blue-500 text-center whitespace-nowrap">City Education and Development Office</h1>
             <p className="mt-2 text-sm text-muted-foreground dark:text-gray-400 text-center">Sign in to your account to continue</p>
           </div>
 
@@ -651,14 +753,22 @@ function SignInContent() {
 
                   {recaptchaSiteKey && (
                     <div className="flex justify-center my-4" data-testid="recaptcha-container">
-                      <ReCAPTCHAComponent
-                        ref={recaptchaRef}
-                        sitekey={recaptchaSiteKey}
-                        onChange={handleCaptchaVerify}
-                        onErrored={handleCaptchaError}
-                        onExpired={resetCaptcha}
-                        data-testid="recaptcha"
-                      />
+                      <Suspense fallback={
+                        <div className="flex justify-center items-center p-4">
+                          <div className="text-sm text-muted-foreground">Loading security verification...</div>
+                        </div>
+                      }>
+                        <ReCAPTCHAComponent
+                          ref={recaptchaRef}
+                          sitekey={recaptchaSiteKey}
+                          onChange={handleCaptchaVerify}
+                          onErrored={handleCaptchaError}
+                          onExpired={resetCaptcha}
+                          data-testid="recaptcha"
+                          theme="light"
+                          size="normal"
+                        />
+                      </Suspense>
                     </div>
                   )}
 
@@ -666,18 +776,52 @@ function SignInContent() {
                     control={form.control}
                     name="rememberMe"
                     render={({ field }) => (
-                      <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
+                      <FormItem className="flex flex-row items-center justify-between space-x-2 space-y-0">
+                        <div className="flex items-center space-x-2">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              disabled={isSubmittingEmail || isSubmittingGoogle}
+                              className="dark:border-neutral-600"
+                              data-testid="remember-me-checkbox"
+                            />
+                          </FormControl>
+                          <FormLabel
+                            className="text-sm font-normal cursor-pointer dark:text-gray-300"
+                            title="Save your email for faster future logins. Your password is never saved."
+                          >
+                            Remember me
+                          </FormLabel>
+                        </div>
+                        {/* Clear saved data option */}
+                        {localStorage.getItem('cedo_remember_me') === 'true' && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs text-muted-foreground hover:text-foreground dark:text-gray-400 dark:hover:text-gray-200"
+                            onClick={() => {
+                              try {
+                                localStorage.removeItem('cedo_remembered_email');
+                                localStorage.removeItem('cedo_remember_me');
+                                localStorage.removeItem('cedo_remember_timestamp');
+                                form.setValue('rememberMe', false);
+                                toast({
+                                  title: "Cleared",
+                                  description: "Saved login information has been cleared.",
+                                  variant: "default",
+                                });
+                                console.log('✅ SignIn: Manually cleared saved credentials');
+                              } catch (error) {
+                                console.warn('⚠️ SignIn: Failed to clear saved credentials:', error);
+                              }
+                            }}
                             disabled={isSubmittingEmail || isSubmittingGoogle}
-                            className="dark:border-neutral-600"
-                          />
-                        </FormControl>
-                        <FormLabel className="text-sm font-normal cursor-pointer dark:text-gray-300">
-                          Remember me
-                        </FormLabel>
+                          >
+                            Clear saved
+                          </Button>
+                        )}
                       </FormItem>
                     )}
                   />

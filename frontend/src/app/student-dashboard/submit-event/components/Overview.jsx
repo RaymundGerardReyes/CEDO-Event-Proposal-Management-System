@@ -40,6 +40,10 @@ export default function Overview({ onPathSelect }) {
     };
 
     const handleEventProposalClick = () => {
+        // ✅ FIX: Generate UUID immediately for better UX
+        const newUuid = generateEventUuid();
+        console.log('🎯 Event Proposal Started with UUID:', newUuid);
+
         // Redirect to Organization.jsx (Step 2 of the event proposal flow)
         // UUID will be generated and added to URL by the parent component
         handlePathSelect('organization');
@@ -112,6 +116,23 @@ export default function Overview({ onPathSelect }) {
                             <Plus className="h-5 w-5" />
                             <span>Start Event Proposal</span>
                         </button>
+
+                        {/* UUID Status Display */}
+                        {eventUuid && (
+                            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                                <div className="flex items-center justify-center space-x-2">
+                                    <CheckCircle className="h-5 w-5 text-green-600" />
+                                    <div className="text-center">
+                                        <p className="text-sm font-medium text-green-800">
+                                            Event ID Generated
+                                        </p>
+                                        <p className="text-xs text-green-600 font-mono">
+                                            {getShortUuid()}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Help Text */}
                         <p className="text-xs text-gray-500 text-center mt-3">

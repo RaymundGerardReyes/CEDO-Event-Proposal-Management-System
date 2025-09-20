@@ -1,51 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const mysql = require('mysql2/promise');
-const jwt = require('jsonwebtoken');
 
-// Database connection configuration - Updated to match your setup
-const dbConfig = {
-    host: process.env.MYSQL_HOST || process.env.POSTGRES_HOST,
-    user: process.env.MYSQL_USER || process.env.POSTGRES_USER,
-    password: process.env.MYSQL_PASSWORD || process.env.POSTGRES_PASSWORD,
-    database: process.env.MYSQL_DATABASE ||  process.env.POSTGRES_DATABASE,
-    port: process.env.MYSQL_PORT || process.env.POSTGRES_PORT
-};
+// ✅ FIX: Use universal database connection (PostgreSQL)
+const { pool, query } = require('../config/database');
+// ✅ FIX: Use standard authentication middleware
+const { validateToken } = require('../middleware/auth');
 
-// Check if the token is likely a JWT
-const isLikelyJWT = (token) => {
-    // JWTs have three dot-separated base64url sections
-    return typeof token === 'string' && token.split('.').length === 3;
-};
-
-// Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-
-    if (!token) {
-        return res.status(401).json({ error: 'Access token required' });
-    }
-    if (!isLikelyJWT(token)) {
-        return res.status(401).json({ error: 'Malformed or missing JWT token' });
-    }
-
-    // Use JWT_SECRET_DEV (primary during local dev) or fall back to JWT_SECRET
-    const jwtSecret = process.env.JWT_SECRET_DEV || process.env.JWT_SECRET;
-
-    jwt.verify(token, jwtSecret, (err, decoded) => {
-        if (err) {
-            console.error('JWT verification error:', err.message);
-            return res.status(403).json({
-                error: 'Invalid or expired token',
-                details: process.env.NODE_ENV === 'development' ? err.message : undefined
-            });
-        }
-        // Support both flat and nested payloads
-        req.user = decoded.user ? decoded.user : decoded;
-        next();
-    });
-};
+// ✅ FIX: Removed custom authentication middleware - using standard validateToken from ../middleware/auth
 
 // Phone number validation function
 const validatePhoneNumber = (phoneNumber) => {
@@ -68,34 +29,31 @@ const validatePhoneNumber = (phoneNumber) => {
 };
 
 // GET /api/profile - Get user profile data
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', validateToken, async (req, res) => {
     try {
-        const connection = await mysql.createConnection(dbConfig);
-
-        const [rows] = await connection.execute(
+        // ✅ FIX: Use PostgreSQL syntax with universal database connection
+        const result = await query(
             `SELECT 
-        id, 
-        name, 
-        email, 
-        role, 
-        organization, 
-        organization_description, 
-        phone_number, 
-        avatar,
-        created_at,
-        updated_at
-      FROM users 
-      WHERE id = ?`,
+                id, 
+                name, 
+                email, 
+                role, 
+                organization, 
+                organization_description, 
+                phone_number, 
+                avatar,
+                created_at,
+                updated_at
+            FROM users 
+            WHERE id = $1`,
             [req.user.id]
         );
 
-        await connection.end();
-
-        if (rows.length === 0) {
+        if (result.rows.length === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        const user = rows[0];
+        const user = result.rows[0];
         res.json({
             success: true,
             user: {
@@ -121,8 +79,8 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 });
 
-// PUT /api/profile/organization - Update organization description
-router.put('/organization', authenticateToken, async (req, res) => {
+// PUT /api/profile - Update profile data (general route for frontend compatibility)
+router.put('/', validateToken, async (req, res) => {
     try {
         const { organizationDescription } = req.body;
 
@@ -133,19 +91,61 @@ router.put('/organization', authenticateToken, async (req, res) => {
             });
         }
 
-        const connection = await mysql.createConnection(dbConfig);
-
-        const [result] = await connection.execute(
+        // ✅ FIX: Use PostgreSQL syntax with universal database connection
+        const result = await query(
             `UPDATE users 
-       SET organization_description = ?, 
-           updated_at = CURRENT_TIMESTAMP 
-       WHERE id = ?`,
+            SET organization_description = $1, 
+                updated_at = CURRENT_TIMESTAMP 
+            WHERE id = $2`,
             [organizationDescription || null, req.user.id]
         );
 
-        await connection.end();
+        if (result.rowCount === 0) {
+            return res.status(404).json({
+                error: 'User not found'
+            });
+        }
 
-        if (result.affectedRows === 0) {
+        res.json({
+            success: true,
+            message: 'Profile updated successfully',
+            user: {
+                id: req.user.id,
+                organizationDescription: organizationDescription
+            }
+        });
+
+    } catch (error) {
+        console.error('Error updating profile:', error);
+        res.status(500).json({
+            error: 'Failed to update profile',
+            details: error.message
+        });
+    }
+});
+
+// PUT /api/profile/organization - Update organization description
+router.put('/organization', validateToken, async (req, res) => {
+    try {
+        const { organizationDescription } = req.body;
+
+        // Validate input
+        if (organizationDescription && organizationDescription.length > 5000) {
+            return res.status(400).json({
+                error: 'Organization description must be less than 5000 characters'
+            });
+        }
+
+        // ✅ FIX: Use PostgreSQL syntax with universal database connection
+        const result = await query(
+            `UPDATE users 
+            SET organization_description = $1, 
+                updated_at = CURRENT_TIMESTAMP 
+            WHERE id = $2`,
+            [organizationDescription || null, req.user.id]
+        );
+
+        if (result.rowCount === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
 
@@ -165,7 +165,7 @@ router.put('/organization', authenticateToken, async (req, res) => {
 });
 
 // PUT /api/profile/phone - Update phone number
-router.put('/phone', authenticateToken, async (req, res) => {
+router.put('/phone', validateToken, async (req, res) => {
     try {
         const { phoneNumber } = req.body;
 
@@ -175,34 +175,30 @@ router.put('/phone', authenticateToken, async (req, res) => {
             return res.status(400).json({ error: validation.error });
         }
 
-        const connection = await mysql.createConnection(dbConfig);
-
+        // ✅ FIX: Use PostgreSQL syntax with universal database connection
         // Check if phone number is already in use by another user
         if (phoneNumber) {
-            const [existingRows] = await connection.execute(
-                'SELECT id FROM users WHERE phone_number = ? AND id != ?',
+            const existingResult = await query(
+                'SELECT id FROM users WHERE phone_number = $1 AND id != $2',
                 [phoneNumber, req.user.id]
             );
 
-            if (existingRows.length > 0) {
-                await connection.end();
+            if (existingResult.rows.length > 0) {
                 return res.status(400).json({
                     error: 'Phone number is already in use by another user'
                 });
             }
         }
 
-        const [result] = await connection.execute(
+        const result = await query(
             `UPDATE users 
-       SET phone_number = ?, 
-           updated_at = CURRENT_TIMESTAMP 
-       WHERE id = ?`,
+            SET phone_number = $1, 
+                updated_at = CURRENT_TIMESTAMP 
+            WHERE id = $2`,
             [phoneNumber || null, req.user.id]
         );
 
-        await connection.end();
-
-        if (result.affectedRows === 0) {
+        if (result.rowCount === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
 
@@ -222,7 +218,7 @@ router.put('/phone', authenticateToken, async (req, res) => {
 });
 
 // PUT /api/profile/bulk - Update multiple profile fields at once
-router.put('/bulk', authenticateToken, async (req, res) => {
+router.put('/bulk', validateToken, async (req, res) => {
     try {
         const { organizationDescription, phoneNumber } = req.body;
 
@@ -239,29 +235,27 @@ router.put('/bulk', authenticateToken, async (req, res) => {
             return res.status(400).json({ error: phoneValidation.error });
         }
 
-        const connection = await mysql.createConnection(dbConfig);
-
+        // ✅ FIX: Use PostgreSQL syntax with universal database connection
         // Check if phone number is already in use by another user
         if (phoneNumber) {
-            const [existingRows] = await connection.execute(
-                'SELECT id FROM users WHERE phone_number = ? AND id != ?',
+            const existingResult = await query(
+                'SELECT id FROM users WHERE phone_number = $1 AND id != $2',
                 [phoneNumber, req.user.id]
             );
 
-            if (existingRows.length > 0) {
-                await connection.end();
+            if (existingResult.rows.length > 0) {
                 return res.status(400).json({
                     error: 'Phone number is already in use by another user'
                 });
             }
         }
 
-        const [result] = await connection.execute(
+        const result = await query(
             `UPDATE users 
-       SET organization_description = ?, 
-           phone_number = ?,
-           updated_at = CURRENT_TIMESTAMP 
-       WHERE id = ?`,
+            SET organization_description = $1, 
+                phone_number = $2,
+                updated_at = CURRENT_TIMESTAMP 
+            WHERE id = $3`,
             [
                 organizationDescription || null,
                 phoneNumber || null,
@@ -269,9 +263,7 @@ router.put('/bulk', authenticateToken, async (req, res) => {
             ]
         );
 
-        await connection.end();
-
-        if (result.affectedRows === 0) {
+        if (result.rowCount === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
 

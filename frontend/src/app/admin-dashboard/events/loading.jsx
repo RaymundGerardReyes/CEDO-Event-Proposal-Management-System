@@ -1,132 +1,130 @@
 // frontend/src/app/admin-dashboard/events/loading.jsx
 
-import { Card, CardContent } from "@/components/dashboard/admin/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/dashboard/admin/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export default function Loading() {
   return (
-    <div className="zoom-perfect-layout min-h-screen zoom-safe" style={{
-      padding: `clamp(1rem, 3vw, 2.5rem)`,
-      gap: `clamp(1rem, 2.5vw, 2rem)`,
-      background: '#f8f9fa'
-    }}>
-      {/* Header Skeleton */}
-      <div className="zoom-safe" style={{
-        marginBottom: `clamp(1.5rem, 3vw, 2.5rem)`
-      }}>
-        <Skeleton style={{
-          height: `clamp(2rem, 4vw, 2.5rem)`,
-          width: `clamp(200px, 40vw, 300px)`,
-          marginBottom: `clamp(0.5rem, 1vw, 0.75rem)`
-        }} />
-        <Skeleton style={{
-          height: `clamp(1rem, 2vw, 1.25rem)`,
-          width: `clamp(300px, 60vw, 450px)`
-        }} />
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 -m-4 sm:-m-6 md:-m-8 lg:-m-10">
+      {/* Enhanced Page Header Skeleton */}
+      <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200/60 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+          <div className="flex items-center justify-between">
+            <div className="space-y-3">
+              <Skeleton className="h-8 sm:h-10 lg:h-12 w-64 sm:w-80 lg:w-96" />
+              <Skeleton className="h-4 sm:h-5 lg:h-6 w-80 sm:w-96 lg:w-[500px]" />
+            </div>
+            <Skeleton className="h-12 sm:h-14 w-24 sm:w-32 rounded-xl" />
+          </div>
+        </div>
       </div>
 
-      {/* Event Management Card Skeleton */}
-      <Card className="shadow-sm border-slate-200 bg-white/90 backdrop-blur-sm responsive-rounded zoom-safe">
-        <CardContent style={{ padding: `clamp(1.25rem, 3vw, 1.5rem)` }}>
-          <div className="responsive-flex-between gap-fluid">
-            <div className="zoom-safe">
-              <Skeleton style={{
-                height: `clamp(1.5rem, 3vw, 2rem)`,
-                width: `clamp(150px, 30vw, 200px)`,
-                marginBottom: `clamp(0.5rem, 1vw, 0.75rem)`
-              }} />
-              <Skeleton style={{
-                height: `clamp(1rem, 2vw, 1.25rem)`,
-                width: `clamp(250px, 50vw, 350px)`
-              }} />
-            </div>
-            <div className="flex" style={{
-              gap: `clamp(0.5rem, 1vw, 0.75rem)`
-            }}>
-              <Skeleton style={{
-                height: `clamp(2.25rem, 4.5vw, 2.5rem)`,
-                width: `clamp(100px, 20vw, 130px)`
-              }} />
-              <Skeleton style={{
-                height: `clamp(2.25rem, 4.5vw, 2.5rem)`,
-                width: `clamp(80px, 16vw, 100px)`
-              }} />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Main content skeleton */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 sm:gap-8">
+          {/* Left column skeleton */}
+          <div className="xl:col-span-1 space-y-6">
+            {/* View Mode Controls Skeleton */}
+            <Card className="border border-gray-200/60 shadow-lg rounded-xl bg-white/80 backdrop-blur-sm">
+              <CardHeader className="p-4 sm:p-6 bg-gradient-to-r from-cedo-blue/5 to-cedo-blue/10 border-b border-gray-200/60">
+                <Skeleton className="h-6 sm:h-7 w-32" />
+              </CardHeader>
+              <CardContent className="p-4 sm:p-6 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <Skeleton className="h-12 sm:h-14 w-full rounded-xl" />
+                  <Skeleton className="h-12 sm:h-14 w-full rounded-xl" />
+                </div>
+              </CardContent>
+            </Card>
 
-      {/* Filter Controls Card Skeleton */}
-      <Card className="shadow-sm border-slate-200 bg-white/90 backdrop-blur-sm responsive-rounded zoom-safe">
-        <CardContent style={{ padding: `clamp(1.25rem, 3vw, 1.5rem)` }}>
-          <div className="space-y-4 zoom-safe">
-            {/* Tabs Skeleton */}
-            <div className="flex" style={{
-              gap: `clamp(0.5rem, 1vw, 0.75rem)`
-            }}>
-              <Skeleton style={{
-                height: `clamp(2.5rem, 5vw, 3rem)`,
-                width: `clamp(100px, 20vw, 120px)`
-              }} />
-              <Skeleton style={{
-                height: `clamp(2.5rem, 5vw, 3rem)`,
-                width: `clamp(80px, 16vw, 100px)`
-              }} />
-              <Skeleton style={{
-                height: `clamp(2.5rem, 5vw, 3rem)`,
-                width: `clamp(100px, 20vw, 120px)`
-              }} />
-            </div>
-
-            {/* Search and Filter Skeleton */}
-            <div className="responsive-flex gap-fluid">
-              <Skeleton style={{
-                height: `clamp(2.5rem, 5vw, 2.75rem)`,
-                width: '100%',
-                maxWidth: `clamp(200px, 30vw, 320px)`
-              }} />
-              <div className="flex" style={{
-                gap: `clamp(0.5rem, 1vw, 0.75rem)`
-              }}>
-                <Skeleton style={{
-                  height: `clamp(2.5rem, 5vw, 2.75rem)`,
-                  width: `clamp(130px, 20vw, 160px)`
-                }} />
-                <Skeleton style={{
-                  height: `clamp(2.5rem, 5vw, 2.75rem)`,
-                  width: `clamp(2.5rem, 5vw, 2.75rem)`
-                }} />
-              </div>
-            </div>
+            {/* Quick Stats Skeleton */}
+            <Card className="border border-gray-200/60 shadow-lg rounded-xl bg-gradient-to-br from-cedo-blue/5 to-cedo-blue/10 backdrop-blur-sm">
+              <CardHeader className="p-4 sm:p-6">
+                <Skeleton className="h-6 sm:h-7 w-24" />
+              </CardHeader>
+              <CardContent className="p-4 sm:p-6 pt-0 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center p-4 bg-white/60 rounded-lg border border-gray-200/60">
+                    <Skeleton className="h-8 sm:h-10 w-8 mx-auto mb-2" />
+                    <Skeleton className="h-3 w-16 mx-auto" />
+                  </div>
+                  <div className="text-center p-4 bg-white/60 rounded-lg border border-gray-200/60">
+                    <Skeleton className="h-8 sm:h-10 w-6 mx-auto mb-2" />
+                    <Skeleton className="h-3 w-20 mx-auto" />
+                  </div>
+                </div>
+                <div className="text-center p-4 bg-white/60 rounded-lg border border-gray-200/60">
+                  <Skeleton className="h-8 sm:h-10 w-12 mx-auto mb-2" />
+                  <Skeleton className="h-3 w-24 mx-auto" />
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Main Content Skeleton */}
-      <Card className="shadow-sm border-slate-200 bg-white/90 backdrop-blur-sm responsive-rounded zoom-safe flex-1">
-        <CardContent style={{
-          padding: `clamp(1.25rem, 3vw, 1.5rem)`,
-          minHeight: `clamp(400px, 50vh, 600px)`
-        }}>
-          <div className="zoom-safe h-full">
-            {/* Calendar/List View Skeleton */}
-            <div className="grid gap-4" style={{
-              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, clamp(250px, 25vw, 300px)), 1fr))',
-              gap: `clamp(1rem, 2vw, 1.5rem)`
-            }}>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton
-                  key={i}
-                  style={{
-                    height: `clamp(150px, 20vw, 200px)`,
-                    width: '100%'
-                  }}
-                />
-              ))}
-            </div>
+          {/* Right column skeleton */}
+          <div className="xl:col-span-3 space-y-6">
+            {/* Filter Controls Skeleton */}
+            <Card className="border border-gray-200/60 shadow-lg rounded-xl bg-white/80 backdrop-blur-sm">
+              <CardHeader className="p-4 sm:p-6 bg-gradient-to-r from-cedo-blue/5 to-cedo-blue/10 border-b border-gray-200/60">
+                <Skeleton className="h-6 sm:h-7 w-32" />
+              </CardHeader>
+              <CardContent className="p-4 sm:p-6">
+                <div className="space-y-4 sm:space-y-6">
+                  {/* Tabs Skeleton */}
+                  <div className="grid grid-cols-3 gap-2 bg-white/50 backdrop-blur-sm border border-gray-200/60 shadow-sm rounded-xl p-1">
+                    <Skeleton className="h-12 sm:h-14 w-full rounded-lg" />
+                    <Skeleton className="h-12 sm:h-14 w-full rounded-lg" />
+                    <Skeleton className="h-12 sm:h-14 w-full rounded-lg" />
+                  </div>
+
+                  {/* Search and Filter Skeleton */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                    <div className="sm:col-span-2 lg:col-span-2">
+                      <Skeleton className="h-12 sm:h-14 w-full rounded-xl" />
+                    </div>
+                    <div className="sm:col-span-1 lg:col-span-1">
+                      <Skeleton className="h-12 sm:h-14 w-full rounded-xl" />
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Main Events Display Skeleton */}
+            <Card className="border border-gray-200/60 shadow-lg rounded-xl bg-white/80 backdrop-blur-sm transition-all duration-300 hover:shadow-xl">
+              <CardHeader className="p-6 sm:p-8 bg-gradient-to-r from-cedo-blue/5 to-cedo-blue/10 border-b border-gray-200/60">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 rounded-xl" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-6 sm:h-7 lg:h-8 w-32 sm:w-40" />
+                    <Skeleton className="h-4 sm:h-5 w-48 sm:w-56" />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-6 sm:p-8">
+                <div className="min-h-[400px] sm:min-h-[500px] lg:min-h-[600px]">
+                  {/* Calendar/List View Skeleton */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="border border-gray-200/60 rounded-xl bg-white/60 backdrop-blur-sm shadow-sm p-4 sm:p-6">
+                        <div className="space-y-3">
+                          <Skeleton className="h-4 sm:h-5 w-3/4" />
+                          <Skeleton className="h-3 sm:h-4 w-full" />
+                          <Skeleton className="h-3 sm:h-4 w-2/3" />
+                          <div className="flex items-center gap-2 pt-2">
+                            <Skeleton className="h-6 w-6 rounded-full" />
+                            <Skeleton className="h-4 w-20" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }

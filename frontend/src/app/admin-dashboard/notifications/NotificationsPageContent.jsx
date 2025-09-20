@@ -13,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     AlertCircle,
     Bell,
+    Building,
     Calendar,
     CheckCircle,
     ChevronDown,
@@ -22,6 +23,7 @@ import {
     MoreHorizontal,
     RefreshCw,
     Search,
+    Shield,
     X
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
@@ -159,203 +161,378 @@ export default function NotificationsPageContent() {
     }, [filteredNotifications]);
 
     return (
-        <div className="flex-1 bg-[#f8f9fa] p-6 md:p-8">
-            <PageHeader title="Notifications" subtitle="Track all activities and updates" />
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 -m-4 sm:-m-6 md:-m-8 lg:-m-10">
+            {/* Enhanced Page Header with responsive spacing */}
+            <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200/60 shadow-sm">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+                    <PageHeader
+                        title="Notifications"
+                        subtitle="Track all activities and updates across the system"
+                    />
+                </div>
+            </div>
 
-            <Card className="mb-6 overflow-visible">
-                <CardHeader className="pb-3">
-                    <CardTitle>Notification Center</CardTitle>
-                </CardHeader>
-                <CardContent className="overflow-visible">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                        <Tabs defaultValue="all" className="w-full sm:w-auto">
-                            <TabsList className="grid w-full sm:w-auto grid-cols-3">
-                                <TabsTrigger value="all">All</TabsTrigger>
-                                <TabsTrigger value="unread">Unread</TabsTrigger>
-                                <TabsTrigger value="admin">Admin</TabsTrigger>
-                            </TabsList>
-                        </Tabs>
-
-                        <div className="flex w-full sm:w-auto gap-2 flex-wrap sm:flex-nowrap">
-                            <div className="relative w-full sm:w-auto">
-                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    type="search"
-                                    placeholder="Search notifications..."
-                                    className="pl-8 w-full sm:w-[250px]"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
+            {/* Main content with enhanced responsive grid layout */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+                <Card className="border border-gray-200/60 shadow-lg rounded-xl bg-white/80 backdrop-blur-sm transition-all duration-300 hover:shadow-xl overflow-visible">
+                    <CardHeader className="p-6 sm:p-8 bg-gradient-to-r from-cedo-blue/5 to-cedo-blue/10 border-b border-gray-200/60">
+                        <CardTitle className="text-xl sm:text-2xl lg:text-3xl font-bold text-cedo-blue mb-3 flex items-center gap-3">
+                            <div className="p-2 sm:p-3 rounded-xl bg-cedo-blue/10">
+                                <Bell className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-cedo-blue" />
                             </div>
-                            <Select value={statusFilter} onValueChange={setStatusFilter}>
-                                <SelectTrigger className="w-[130px]">
-                                    <SelectValue placeholder="Status" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Status</SelectItem>
-                                    <SelectItem value="unread">Unread</SelectItem>
-                                    <SelectItem value="read">Read</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <Select value={typeFilter} onValueChange={setTypeFilter}>
-                                <SelectTrigger className="w-[130px]">
-                                    <SelectValue placeholder="Type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Types</SelectItem>
-                                    <SelectItem value="proposal">Proposals</SelectItem>
-                                    <SelectItem value="event">Events</SelectItem>
-                                    <SelectItem value="comment">Comments</SelectItem>
-                                    <SelectItem value="concern">Concerns</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <Button variant="outline" onClick={markAllAsRead}>
-                                Mark All Read
-                            </Button>
-                        </div>
-                    </div>
+                            <div>
+                                <span>Notification Center</span>
+                                <p className="text-sm sm:text-base lg:text-lg text-gray-600 mt-1 font-normal">
+                                    Stay updated with all system activities and important updates
+                                </p>
+                            </div>
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6 sm:p-8 overflow-visible">
+                        {/* Enhanced responsive tabs and filters grid */}
+                        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 sm:gap-8 mb-6 sm:mb-8">
+                            {/* Left column - Tabs */}
+                            <div className="xl:col-span-1">
+                                <Tabs defaultValue="all" className="w-full">
+                                    <TabsList className="grid w-full grid-cols-3 bg-white/50 backdrop-blur-sm border border-gray-200/60 shadow-sm rounded-xl h-auto">
+                                        <TabsTrigger
+                                            value="all"
+                                            className="flex items-center justify-center gap-2 px-3 sm:px-4 py-3 sm:py-4 text-sm sm:text-base font-medium rounded-lg transition-all duration-300 hover:scale-105 active:scale-95"
+                                        >
+                                            <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
+                                            <span className="hidden sm:inline">All</span>
+                                        </TabsTrigger>
+                                        <TabsTrigger
+                                            value="unread"
+                                            className="flex items-center justify-center gap-2 px-3 sm:px-4 py-3 sm:py-4 text-sm sm:text-base font-medium rounded-lg transition-all duration-300 hover:scale-105 active:scale-95"
+                                        >
+                                            <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5" />
+                                            <span className="hidden sm:inline">Unread</span>
+                                        </TabsTrigger>
+                                        <TabsTrigger
+                                            value="admin"
+                                            className="flex items-center justify-center gap-2 px-3 sm:px-4 py-3 sm:py-4 text-sm sm:text-base font-medium rounded-lg transition-all duration-300 hover:scale-105 active:scale-95"
+                                        >
+                                            <Shield className="h-4 w-4 sm:h-5 sm:w-5" />
+                                            <span className="hidden sm:inline">Admin</span>
+                                        </TabsTrigger>
+                                    </TabsList>
+                                </Tabs>
+                            </div>
 
-                    <div className="space-y-6">
-                        {sortedDates.length > 0 ? (
-                            sortedDates.map((date) => (
-                                <div key={date} className="space-y-2">
-                                    <h3 className="text-sm font-medium text-muted-foreground sticky top-0 bg-[#f8f9fa] py-1">
-                                        {date === new Date().toLocaleDateString() ? "Today" : date}
-                                    </h3>
-                                    <div className="space-y-1 rounded-md border overflow-visible">
-                                        {groupedNotifications[date].map((notification) => (
-                                            <div key={notification.id} className="border-b last:border-b-0">
-                                                <div
-                                                    className={`flex items-start gap-3 p-4 hover:bg-muted/30 transition-colors ${notification.status === "unread" ? "bg-blue-50/50" : ""
-                                                        }`}
-                                                >
-                                                    <div
-                                                        className={`h-10 w-10 rounded-full ${notification.iconBg} flex items-center justify-center ${notification.iconColor} flex-shrink-0`}
-                                                    >
-                                                        {notification.icon}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex justify-between items-start">
-                                                            <div>
-                                                                <p className="text-sm font-medium">{notification.title}</p>
-                                                                <p className="text-xs text-muted-foreground truncate max-w-[300px] sm:max-w-[400px] md:max-w-full">
-                                                                    {notification.message}
-                                                                </p>
-                                                            </div>
-                                                            <div className="flex items-center gap-2 flex-shrink-0">
-                                                                <Badge variant="outline" className="text-xs h-5">
-                                                                    {notification.actionTag}
-                                                                </Badge>
-                                                                <span className="text-xs text-muted-foreground">{notification.relativeTime}</span>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="h-6 w-6"
-                                                                    onClick={(e) => {
-                                                                        e.preventDefault();
-                                                                        e.stopPropagation();
-                                                                        toggleExpand(notification.id);
-                                                                    }}
-                                                                >
-                                                                    {isExpanded(notification.id) ? (
-                                                                        <ChevronUp className="h-4 w-4" />
-                                                                    ) : (
-                                                                        <ChevronDown className="h-4 w-4" />
-                                                                    )}
-                                                                </Button>
-                                                                <DropdownMenu>
-                                                                    <DropdownMenuTrigger asChild>
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            className="h-6 w-6"
-                                                                        >
-                                                                            <MoreHorizontal className="h-4 w-4" />
-                                                                        </Button>
-                                                                    </DropdownMenuTrigger>
-                                                                    <DropdownMenuPortal>
-                                                                        <DropdownMenuContent align="end" className="w-48 z-[100]">
-                                                                            <DropdownMenuItem onSelect={() => markAsRead(notification.id)}>
-                                                                                Mark as read
-                                                                            </DropdownMenuItem>
-                                                                            <DropdownMenuItem onSelect={() => bumpNotification(notification.id)}>
-                                                                                Bump notification
-                                                                            </DropdownMenuItem>
-                                                                        </DropdownMenuContent>
-                                                                    </DropdownMenuPortal>
-                                                                </DropdownMenu>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex justify-between items-center mt-1">
-                                                            <p className="text-xs text-muted-foreground">{notification.organization}</p>
-                                                            {notification.status === "unread" && (
-                                                                <div className="h-2 w-2 rounded-full bg-blue-600"></div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
+                            {/* Right column - Search and filters */}
+                            <div className="xl:col-span-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                                    {/* Search bar */}
+                                    <div className="sm:col-span-2 lg:col-span-2">
+                                        <div className="relative">
+                                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
+                                            <Input
+                                                type="search"
+                                                placeholder="Search notifications..."
+                                                className="pl-12 pr-4 h-12 sm:h-14 text-sm sm:text-base border-gray-300 focus:border-cedo-blue focus:ring-cedo-blue/20 rounded-xl"
+                                                value={searchTerm}
+                                                onChange={(e) => setSearchTerm(e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
 
-                                                {isExpanded(notification.id) && (
-                                                    <div className="p-4 bg-gray-50 border-t animate-in slide-in-from-top duration-300">
-                                                        <div className="space-y-3">
-                                                            <div>
-                                                                <h4 className="text-sm font-medium">Details</h4>
-                                                                <p className="text-sm">{notification.message}</p>
-                                                            </div>
+                                    {/* Status filter */}
+                                    <div className="sm:col-span-1 lg:col-span-1">
+                                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                                            <SelectTrigger className="h-12 sm:h-14 text-sm sm:text-base border-gray-300 focus:border-cedo-blue focus:ring-cedo-blue/20 rounded-xl">
+                                                <SelectValue placeholder="Status" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">All Status</SelectItem>
+                                                <SelectItem value="unread">Unread</SelectItem>
+                                                <SelectItem value="read">Read</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
 
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                                <div>
-                                                                    <h4 className="text-sm font-medium">Organization</h4>
-                                                                    <p className="text-sm text-muted-foreground">{notification.organization}</p>
-                                                                </div>
-                                                                <div>
-                                                                    <h4 className="text-sm font-medium">Timestamp</h4>
-                                                                    <p className="text-sm text-muted-foreground">
-                                                                        {new Date(notification.timestamp).toLocaleString()}
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="flex justify-between items-center pt-2">
-                                                                <Button
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    className="text-cedo-blue"
-                                                                    onClick={() => markAsRead(notification.id)}
-                                                                >
-                                                                    Mark as read
-                                                                </Button>
-
-                                                                <div className="flex gap-2">
-                                                                    <Button variant="outline" size="sm" onClick={() => bumpNotification(notification.id)}>
-                                                                        <RefreshCw className="h-3 w-3 mr-1" />
-                                                                        Bump
-                                                                    </Button>
-                                                                    <Button variant="default" size="sm" className="bg-cedo-blue hover:bg-cedo-blue/90">
-                                                                        View Related Item
-                                                                    </Button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
+                                    {/* Type filter */}
+                                    <div className="sm:col-span-1 lg:col-span-1">
+                                        <Select value={typeFilter} onValueChange={setTypeFilter}>
+                                            <SelectTrigger className="h-12 sm:h-14 text-sm sm:text-base border-gray-300 focus:border-cedo-blue focus:ring-cedo-blue/20 rounded-xl">
+                                                <SelectValue placeholder="Type" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">All Types</SelectItem>
+                                                <SelectItem value="proposal">Proposals</SelectItem>
+                                                <SelectItem value="event">Events</SelectItem>
+                                                <SelectItem value="comment">Comments</SelectItem>
+                                                <SelectItem value="concern">Concerns</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                     </div>
                                 </div>
-                            ))
-                        ) : (
-                            <div className="flex flex-col items-center justify-center py-10 text-center">
-                                <div className="rounded-full bg-gray-100 p-3">
-                                    <Bell className="h-6 w-6 text-gray-400" />
+
+                                {/* Action buttons */}
+                                <div className="flex flex-wrap gap-3 sm:gap-4 mt-4 sm:mt-6">
+                                    <Button
+                                        variant="outline"
+                                        onClick={markAllAsRead}
+                                        className="h-12 sm:h-14 text-sm sm:text-base border-cedo-blue/30 text-cedo-blue hover:bg-cedo-blue hover:text-white rounded-xl transition-all duration-300"
+                                    >
+                                        <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                                        Mark All Read
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        className="h-12 sm:h-14 text-sm sm:text-base border-gray-300 text-gray-600 hover:border-cedo-blue hover:text-cedo-blue rounded-xl transition-all duration-300"
+                                    >
+                                        <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                                        Refresh
+                                    </Button>
                                 </div>
-                                <h3 className="mt-4 text-lg font-medium">No notifications found</h3>
-                                <p className="mt-2 text-sm text-muted-foreground">Try adjusting your filters or check back later</p>
                             </div>
-                        )}
-                    </div>
-                </CardContent>
-            </Card>
+                        </div>
+
+                        {/* Enhanced notifications list with responsive grid */}
+                        <div className="space-y-6 sm:space-y-8">
+                            {sortedDates.length > 0 ? (
+                                sortedDates.map((date) => (
+                                    <div key={date} className="space-y-4 sm:space-y-6">
+                                        <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm border-b border-gray-200/60 py-3 sm:py-4">
+                                            <h3 className="text-lg sm:text-xl font-bold text-cedo-blue flex items-center gap-3">
+                                                <div className="p-2 rounded-lg bg-cedo-blue/10">
+                                                    <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-cedo-blue" />
+                                                </div>
+                                                {date === new Date().toLocaleDateString() ? "Today" : date}
+                                            </h3>
+                                        </div>
+                                        <div className="space-y-3 sm:space-y-4">
+                                            {groupedNotifications[date].map((notification) => (
+                                                <div key={notification.id} className="border border-gray-200/60 rounded-xl bg-white/60 backdrop-blur-sm shadow-sm hover:shadow-lg transition-all duration-300 overflow-visible">
+                                                    <div
+                                                        className={`flex items-start gap-4 sm:gap-6 p-4 sm:p-6 hover:bg-gradient-to-r hover:from-cedo-blue/5 hover:to-transparent transition-all duration-300 ${notification.status === "unread" ? "bg-gradient-to-r from-blue-50/80 to-transparent border-l-4 border-l-cedo-blue" : ""
+                                                            }`}
+                                                    >
+                                                        <div
+                                                            className={`h-12 w-12 sm:h-14 sm:w-14 rounded-xl ${notification.iconBg} flex items-center justify-center ${notification.iconColor} flex-shrink-0 shadow-sm`}
+                                                        >
+                                                            {notification.icon}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+                                                                {/* Main content */}
+                                                                <div className="lg:col-span-8">
+                                                                    <div className="space-y-2">
+                                                                        <h4 className="text-base sm:text-lg font-semibold text-gray-900">{notification.title}</h4>
+                                                                        <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
+                                                                            {notification.message}
+                                                                        </p>
+                                                                        <div className="flex items-center gap-3 text-xs sm:text-sm text-gray-500">
+                                                                            <span className="flex items-center gap-1">
+                                                                                <Building className="h-3 w-3 sm:h-4 sm:w-4" />
+                                                                                {notification.organization}
+                                                                            </span>
+                                                                            <span className="flex items-center gap-1">
+                                                                                <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
+                                                                                {notification.relativeTime}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Actions and status */}
+                                                                <div className="lg:col-span-4">
+                                                                    <div className="flex flex-col sm:flex-row lg:flex-col gap-3 items-start sm:items-center lg:items-end">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <Badge
+                                                                                variant="outline"
+                                                                                className="text-xs sm:text-sm px-3 py-1 border-cedo-blue/30 text-cedo-blue bg-cedo-blue/10"
+                                                                            >
+                                                                                {notification.actionTag}
+                                                                            </Badge>
+                                                                            {notification.status === "unread" && (
+                                                                                <div className="h-3 w-3 rounded-full bg-cedo-blue animate-pulse"></div>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div className="flex items-center gap-2">
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="sm"
+                                                                                className="h-8 w-8 p-0 hover:bg-cedo-blue/10 hover:text-cedo-blue"
+                                                                                onClick={(e) => {
+                                                                                    e.preventDefault();
+                                                                                    e.stopPropagation();
+                                                                                    toggleExpand(notification.id);
+                                                                                }}
+                                                                            >
+                                                                                {isExpanded(notification.id) ? (
+                                                                                    <ChevronUp className="h-4 w-4" />
+                                                                                ) : (
+                                                                                    <ChevronDown className="h-4 w-4" />
+                                                                                )}
+                                                                            </Button>
+                                                                            <DropdownMenu>
+                                                                                <DropdownMenuTrigger asChild>
+                                                                                    <Button
+                                                                                        variant="ghost"
+                                                                                        size="sm"
+                                                                                        className="h-8 w-8 p-0 hover:bg-cedo-blue/10 hover:text-cedo-blue"
+                                                                                    >
+                                                                                        <MoreHorizontal className="h-4 w-4" />
+                                                                                    </Button>
+                                                                                </DropdownMenuTrigger>
+                                                                                <DropdownMenuPortal>
+                                                                                    <DropdownMenuContent align="end" className="w-48 z-[100] border border-gray-200/60 shadow-lg rounded-xl">
+                                                                                        <DropdownMenuItem
+                                                                                            onSelect={(e) => {
+                                                                                                e.preventDefault();
+                                                                                                e.stopPropagation();
+                                                                                                markAsRead(notification.id);
+                                                                                            }}
+                                                                                            className="cursor-pointer"
+                                                                                        >
+                                                                                            <CheckCircle className="h-4 w-4 mr-2" />
+                                                                                            Mark as read
+                                                                                        </DropdownMenuItem>
+                                                                                        <DropdownMenuItem
+                                                                                            onSelect={(e) => {
+                                                                                                e.preventDefault();
+                                                                                                e.stopPropagation();
+                                                                                                bumpNotification(notification.id);
+                                                                                            }}
+                                                                                            className="cursor-pointer"
+                                                                                        >
+                                                                                            <RefreshCw className="h-4 w-4 mr-2" />
+                                                                                            Bump notification
+                                                                                        </DropdownMenuItem>
+                                                                                    </DropdownMenuContent>
+                                                                                </DropdownMenuPortal>
+                                                                            </DropdownMenu>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {isExpanded(notification.id) && (
+                                                        <div className="p-4 sm:p-6 bg-gradient-to-r from-gray-50/80 to-white/60 border-t border-gray-200/60 animate-in slide-in-from-top duration-300">
+                                                            <div className="space-y-4 sm:space-y-6">
+                                                                <div className="space-y-3">
+                                                                    <h4 className="text-base sm:text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                                                        <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-cedo-blue" />
+                                                                        Additional Details
+                                                                    </h4>
+                                                                    <p className="text-sm sm:text-base text-gray-700 leading-relaxed bg-white/60 p-4 rounded-lg border border-gray-200/60">
+                                                                        {notification.details}
+                                                                    </p>
+                                                                </div>
+
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                                                                    <div className="bg-white/60 p-4 rounded-lg border border-gray-200/60">
+                                                                        <h4 className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                                                                            <Building className="h-4 w-4 text-cedo-blue" />
+                                                                            Organization
+                                                                        </h4>
+                                                                        <p className="text-sm text-gray-600">{notification.organization}</p>
+                                                                    </div>
+                                                                    <div className="bg-white/60 p-4 rounded-lg border border-gray-200/60">
+                                                                        <h4 className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                                                                            <Calendar className="h-4 w-4 text-cedo-blue" />
+                                                                            Timestamp
+                                                                        </h4>
+                                                                        <p className="text-sm text-gray-600">
+                                                                            {new Date(notification.timestamp).toLocaleString()}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-4 border-t border-gray-200/60">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <Badge
+                                                                            variant="outline"
+                                                                            className="text-xs border-gray-300 text-gray-600"
+                                                                        >
+                                                                            {notification.category}
+                                                                        </Badge>
+                                                                        <Badge
+                                                                            variant="outline"
+                                                                            className={`text-xs ${notification.status === 'unread' ? 'border-cedo-blue text-cedo-blue bg-cedo-blue/10' : 'border-gray-300 text-gray-600'}`}
+                                                                        >
+                                                                            {notification.status}
+                                                                        </Badge>
+                                                                    </div>
+
+                                                                    <div className="flex flex-wrap gap-2 sm:gap-3">
+                                                                        <Button
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            className="text-cedo-blue border-cedo-blue/30 hover:bg-cedo-blue hover:text-white"
+                                                                            onClick={() => markAsRead(notification.id)}
+                                                                        >
+                                                                            <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                                                                            Mark as read
+                                                                        </Button>
+                                                                        <Button
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            onClick={() => bumpNotification(notification.id)}
+                                                                            className="border-gray-300 text-gray-600 hover:border-cedo-blue hover:text-cedo-blue"
+                                                                        >
+                                                                            <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                                                                            Bump
+                                                                        </Button>
+                                                                        <Button
+                                                                            variant="default"
+                                                                            size="sm"
+                                                                            className="bg-cedo-blue hover:bg-cedo-blue/90 text-white"
+                                                                        >
+                                                                            <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                                                                            View Related Item
+                                                                        </Button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="flex flex-col items-center justify-center py-12 sm:py-16 text-center">
+                                    <div className="rounded-full bg-gradient-to-br from-gray-100 to-gray-200 p-6 sm:p-8 shadow-lg">
+                                        <Bell className="h-8 w-8 sm:h-12 sm:w-12 text-gray-400" />
+                                    </div>
+                                    <h3 className="mt-6 text-xl sm:text-2xl font-semibold text-gray-900">No notifications found</h3>
+                                    <p className="mt-3 text-sm sm:text-base text-gray-600 max-w-md">
+                                        Try adjusting your filters or check back later for new updates
+                                    </p>
+                                    <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => {
+                                                setSearchTerm('');
+                                                setStatusFilter('all');
+                                                setTypeFilter('all');
+                                            }}
+                                            className="border-cedo-blue/30 text-cedo-blue hover:bg-cedo-blue hover:text-white"
+                                        >
+                                            <RefreshCw className="h-4 w-4 mr-2" />
+                                            Clear Filters
+                                        </Button>
+                                        <Button
+                                            variant="default"
+                                            className="bg-cedo-blue hover:bg-cedo-blue/90 text-white"
+                                        >
+                                            <Bell className="h-4 w-4 mr-2" />
+                                            Refresh Notifications
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     );
 } 

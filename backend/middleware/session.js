@@ -15,12 +15,21 @@ const getJwtSecret = () => {
 const sessionManager = {
   __setTestSecret: (val) => (testSecretOverride = val), // test hook
 
-  generateToken: (user) => {
+  generateToken: (user, rememberMe = false) => {
     const JWT_SECRET = getJwtSecret();
+    const expirationTime = rememberMe ? '30d' : '1d';
+
     return jwt.sign(
-      { id: user.id, email: user.email, role: user.role, approved: user.approved },
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        approved: user.approved,
+        rememberMe: rememberMe,
+        iat: Math.floor(Date.now() / 1000)
+      },
       JWT_SECRET,
-      { expiresIn: '1d' }
+      { expiresIn: expirationTime }
     );
   },
 
@@ -45,7 +54,9 @@ const sessionManager = {
 
     if (!user.approved) throw new Error('User not approved for refresh token');
 
-    return sessionManager.generateToken(user);
+    // Preserve rememberMe setting from original token
+    const rememberMe = decoded.rememberMe || false;
+    return sessionManager.generateToken(user, rememberMe);
   },
 
   logAccess: async (userId, role, action) => {
@@ -53,12 +64,36 @@ const sessionManager = {
     if (!action) return logger.warn('Missing action in logAccess');
 
     try {
+      // ✅ FIX: Use audit_logs table with correct structure from PostgreSQL schema
       await query(
-        'INSERT INTO access_logs (user_id, role, action, timestamp) VALUES ($1, $2, $3, CURRENT_TIMESTAMP)',
-        [userId, role, action]
+        'INSERT INTO audit_logs (user_id, action_type, table_name, record_id, ip_address, user_agent, created_at) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)',
+        [userId, action, 'users', userId, null, null]
       );
     } catch (e) {
       logger.error('Failed to log access:', e.message);
+    }
+  },
+
+  // Remember Me specific methods
+  generateRememberMeToken: (user) => {
+    return sessionManager.generateToken(user, true);
+  },
+
+  isRememberMeToken: (token) => {
+    try {
+      const decoded = sessionManager.verifyToken(token);
+      return decoded.rememberMe === true;
+    } catch (error) {
+      return false;
+    }
+  },
+
+  getTokenExpiration: (token) => {
+    try {
+      const decoded = sessionManager.verifyToken(token);
+      return new Date(decoded.exp * 1000);
+    } catch (error) {
+      return null;
     }
   }
 };

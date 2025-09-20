@@ -206,6 +206,9 @@ export default function EnhancedSubmitEventPage() {
             const newUuid = uuidv4();
             console.log('🎯 Redirecting to UUID-based URL:', newUuid);
 
+            // ✅ FIX: Mark Overview step (step 1) as completed before redirecting
+            setCompletedSteps(prev => [...new Set([...prev, 1])]);
+
             // Redirect to UUID-based URL with step parameter
             router.push(`/student-dashboard/submit-event/${newUuid}?step=2`);
         } else if (path === 'post-event-report') {

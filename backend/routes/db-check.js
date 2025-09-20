@@ -29,70 +29,63 @@ router.get("/tables-check", async (req, res) => {
         const dbName = process.env.MYSQL_DATABASE || "cedo_auth"
 
         // Check if users table exists
-        const [usersTables] = await pool.query(
-            `SELECT TABLE_NAME 
-             FROM information_schema.TABLES 
-             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users'`,
-            [dbName],
+        const usersTables = await query(
+            `SELECT table_name 
+             FROM information_schema.tables 
+             WHERE table_schema = 'public' AND table_name = 'users'`
         )
 
-        // Check if access_logs table exists
-        const [accessLogsTables] = await pool.query(
-            `SELECT TABLE_NAME 
-             FROM information_schema.TABLES 
-             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'access_logs'`,
-            [dbName],
+        // Check if audit_logs table exists
+        const auditLogsTables = await query(
+            `SELECT table_name 
+             FROM information_schema.tables 
+             WHERE table_schema = 'public' AND table_name = 'audit_logs'`
         )
 
         // Check if proposals table exists
-        const [proposalsTables] = await pool.query(
-            `SELECT TABLE_NAME 
-             FROM information_schema.TABLES 
-             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'proposals'`,
-            [dbName],
+        const proposalsTables = await query(
+            `SELECT table_name 
+             FROM information_schema.tables 
+             WHERE table_schema = 'public' AND table_name = 'proposals'`
         )
 
         // Check if reviews table exists
-        const [reviewsTables] = await pool.query(
-            `SELECT TABLE_NAME 
-             FROM information_schema.TABLES 
-             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'reviews'`,
-            [dbName],
+        const reviewsTables = await query(
+            `SELECT table_name 
+             FROM information_schema.tables 
+             WHERE table_schema = 'public' AND table_name = 'reviews'`
         )
 
         // Check organization tables
-        const [organizationsTables] = await pool.query(
-            `SELECT TABLE_NAME 
-             FROM information_schema.TABLES 
-             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'organizations'`,
-            [dbName],
+        const organizationsTables = await query(
+            `SELECT table_name 
+             FROM information_schema.tables 
+             WHERE table_schema = 'public' AND table_name = 'organizations'`
         )
 
-        const [organizationTypesTables] = await pool.query(
-            `SELECT TABLE_NAME 
-             FROM information_schema.TABLES 
-             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'organization_types'`,
-            [dbName],
+        const organizationTypesTables = await query(
+            `SELECT table_name 
+             FROM information_schema.tables 
+             WHERE table_schema = 'public' AND table_name = 'organization_types'`
         )
 
-        const [organizationTypeLinksTables] = await pool.query(
-            `SELECT TABLE_NAME 
-             FROM information_schema.TABLES 
-             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'organization_type_links'`,
-            [dbName],
+        const organizationTypeLinksTables = await query(
+            `SELECT table_name 
+             FROM information_schema.tables 
+             WHERE table_schema = 'public' AND table_name = 'organization_type_links'`
         )
 
         res.json({
             status: "success",
             database: dbName,
             tables: {
-                users: usersTables.length > 0,
-                access_logs: accessLogsTables.length > 0,
-                proposals: proposalsTables.length > 0,
-                reviews: reviewsTables.length > 0,
-                organizations: organizationsTables.length > 0,
-                organization_types: organizationTypesTables.length > 0,
-                organization_type_links: organizationTypeLinksTables.length > 0,
+                users: usersTables.rows.length > 0,
+                audit_logs: auditLogsTables.rows.length > 0,
+                proposals: proposalsTables.rows.length > 0,
+                reviews: reviewsTables.rows.length > 0,
+                organizations: organizationsTables.rows.length > 0,
+                organization_types: organizationTypesTables.rows.length > 0,
+                organization_type_links: organizationTypeLinksTables.rows.length > 0,
             },
         })
     } catch (error) {

@@ -1,6 +1,6 @@
 /**
  * Proposal Routes
- * Handles UUID-based proposal management with MySQL backend
+ * Handles UUID-based proposal management with PostgreSQL backend
  * 
  * Key approaches: TDD implementation, comprehensive validation,
  * audit logging, and status transition management
@@ -39,7 +39,7 @@ router.post('/', validateToken, validateProposal, async (req, res) => {
             `INSERT INTO proposals (
                 uuid, organization_name, user_id, current_section, proposal_status,
                 form_completion_percentage, created_at, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())`,
+            ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
             [uuid, organization_name, user_id, current_section, proposal_status, 0]
         );
 
@@ -83,11 +83,13 @@ router.put('/:uuid', validateToken, validateProposal, async (req, res) => {
         // Build update query dynamically
         const updateFields = [];
         const updateValues = [];
+        let paramIndex = 1;
 
         Object.keys(updateData).forEach(key => {
             if (key !== 'uuid' && key !== 'id') { // Prevent updating primary keys
-                updateFields.push(`${key} = ?`);
+                updateFields.push(`${key} = $${paramIndex}`);
                 updateValues.push(updateData[key]);
+                paramIndex++;
             }
         });
 
@@ -95,11 +97,11 @@ router.put('/:uuid', validateToken, validateProposal, async (req, res) => {
             return res.status(400).json({ error: 'No valid fields to update' });
         }
 
-        updateFields.push('updated_at = NOW()');
+        updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
         updateValues.push(uuid);
 
         await query(
-            `UPDATE proposals SET ${updateFields.join(', ')} WHERE uuid = $${updateValues.length}`,
+            `UPDATE proposals SET ${updateFields.join(', ')} WHERE uuid = $${paramIndex}`,
             updateValues
         );
 
@@ -171,9 +173,9 @@ router.post('/:uuid/submit', validateToken, async (req, res) => {
         await query(
             `UPDATE proposals SET 
                 proposal_status = 'pending',
-                submitted_at = NOW(),
+                submitted_at = CURRENT_TIMESTAMP,
                 current_section = 'submitted',
-                updated_at = NOW()
+                updated_at = CURRENT_TIMESTAMP
             WHERE uuid = $1`,
             [uuid]
         );
@@ -222,23 +224,23 @@ router.post('/:uuid/review', validateToken, validateAdmin, validateReviewAction,
         // Update proposal based on action
         let updateQuery = `
             UPDATE proposals SET 
-                proposal_status = ?,
-                reviewed_by_admin_id = ?,
-                reviewed_at = NOW(),
-                updated_at = NOW()
+                proposal_status = $1,
+                reviewed_by_admin_id = $2,
+                reviewed_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
         `;
         const updateValues = [action, req.user.id];
 
         if (action === 'approve') {
-            updateQuery += ', approved_at = NOW()';
+            updateQuery += ', approved_at = CURRENT_TIMESTAMP';
         } else {
             updateQuery += ', approved_at = NULL';
         }
 
-        updateQuery += ' WHERE uuid = ?';
+        updateQuery += ' WHERE uuid = $3';
         updateValues.push(uuid);
 
-        await query(updateQuery.replace(/\?/g, (_, i) => `$${i + 1}`), updateValues);
+        await query(updateQuery, updateValues);
 
         // Get updated proposal
         const updatedProposalsResult = await query(
@@ -289,11 +291,11 @@ router.post('/:uuid/report', validateToken, validateReportData, async (req, res)
         await query(
             `UPDATE proposals SET 
                 report_status = 'pending',
-                report_submitted_at = NOW(),
+                report_submitted_at = CURRENT_TIMESTAMP,
                 report_content = $1,
                 participant_count = $2,
                 outcomes = $3,
-                updated_at = NOW()
+                updated_at = CURRENT_TIMESTAMP
             WHERE uuid = $4`,
             [reportData.report_content, reportData.participant_count, reportData.outcomes, uuid]
         );
@@ -349,7 +351,7 @@ router.get('/:uuid/debug', validateToken, async (req, res) => {
         const statusMatch = true; // This would be more complex in real implementation
 
         const debugInfo = {
-            mysql_record: proposal,
+            postgres_record: proposal,
             audit_logs: auditLogsResult.rows,
             debug_logs: debugLogsResult.rows,
             status_match: statusMatch
@@ -390,7 +392,7 @@ router.post('/:uuid/debug/logs', validateToken, async (req, res) => {
 
         // Create debug log
         await query(
-            'INSERT INTO proposal_debug_logs (proposal_uuid, source, message, meta, created_at) VALUES ($1, $2, $3, $4, NOW())',
+            'INSERT INTO proposal_debug_logs (proposal_uuid, source, message, meta, created_at) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)',
             [uuid, source, message, meta ? JSON.stringify(meta) : null]
         );
 
