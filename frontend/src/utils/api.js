@@ -60,13 +60,18 @@ export function getBackendUrl() {
  */
 export function getAuthToken() {
     if (typeof document !== 'undefined') {
-        // ✅ FIX: Look for the correct cookie name that backend sets
-        const cookieValue = document.cookie.split('; ').find(row => row.startsWith('cedo_token='));
-        if (cookieValue) {
-            return cookieValue.split('=')[1];
+        // ✅ FIX: Look for multiple possible cookie names that backend sets
+        const cookieNames = ['cedo_token', 'cedo_auth_token'];
+
+        for (const cookieName of cookieNames) {
+            const cookieValue = document.cookie.split('; ').find(row => row.startsWith(`${cookieName}=`));
+            if (cookieValue) {
+                return cookieValue.split('=')[1];
+            }
         }
+
         // Fallback to localStorage
-        return localStorage.getItem('cedo_token') || localStorage.getItem('authToken');
+        return localStorage.getItem('cedo_token') || localStorage.getItem('cedo_auth_token') || localStorage.getItem('authToken');
     }
     return null;
 }
@@ -231,9 +236,13 @@ export const apiRequest = async (endpoint, options = {}, fetchOptions = {}) => {
     const token = getAuthToken();
 
     const defaultHeaders = {
-        'Content-Type': 'application/json',
         'Cache-Control': 'no-cache',
     };
+
+    // Only set Content-Type for non-FormData requests
+    if (!(options.body instanceof FormData)) {
+        defaultHeaders['Content-Type'] = 'application/json';
+    }
 
     if (token) {
         defaultHeaders['Authorization'] = `Bearer ${token}`;
