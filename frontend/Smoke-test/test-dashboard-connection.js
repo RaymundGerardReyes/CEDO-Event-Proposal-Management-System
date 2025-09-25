@@ -33,10 +33,10 @@ async function testStatsEndpoint() {
 }
 
 async function testProposalsEndpoint() {
-    console.log('🧪 Testing /api/mongodb-unified/admin/proposals-hybrid endpoint...');
+    console.log('🧪 Testing /api/admin/proposals endpoint...');
 
     try {
-        const response = await fetch(`${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?limit=2`, {
+        const response = await fetch(`${backendUrl}/api/admin/proposals?limit=2`, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',

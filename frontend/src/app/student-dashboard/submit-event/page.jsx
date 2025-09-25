@@ -24,6 +24,7 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
+import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { EventFormProvider } from './contexts/EventFormContext';
 
@@ -41,6 +42,10 @@ const EventInformation = dynamic(() => import('./components/EventInformation'), 
 });
 
 const Review = dynamic(() => import('./components/Review'), {
+    loading: () => <div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>
+});
+
+const Pending = dynamic(() => import('./components/Pending'), {
     loading: () => <div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>
 });
 
@@ -138,27 +143,30 @@ const steps = [
         name: 'Organization',
         description: 'Organization details',
         icon: Users
-
     },
     {
         id: 3,
         name: 'Event Information',
         description: 'Date, venue, and logistics',
         icon: MapPin
-
     },
     {
         id: 4,
         name: 'Review',
-        description: 'Agenda and deliverables',
+        description: 'Review and submit proposal',
         icon: Calendar
     },
     {
         id: 5,
+        name: 'Pending',
+        description: 'Awaiting approval',
+        icon: CheckCircle
+    },
+    {
+        id: 6,
         name: 'Reports',
         description: 'Accomplishment Reports and Documentation',
         icon: Shield
-
     }
 ];
 
@@ -202,7 +210,6 @@ export default function EnhancedSubmitEventPage() {
         setSelectedPath(path);
         if (path === 'organization') {
             // Start Event Proposal path - generate UUID and redirect to UUID-based URL
-            const { v4: uuidv4 } = require('uuid');
             const newUuid = uuidv4();
             console.log('🎯 Redirecting to UUID-based URL:', newUuid);
 
@@ -221,12 +228,18 @@ export default function EnhancedSubmitEventPage() {
     const handleReportsSubmitted = (isSubmitted) => {
         setIsReportsSubmitted(isSubmitted);
         if (isSubmitted) {
-            // Mark Reports step (step 5) as completed when submitted
-            setCompletedSteps(prev => [...new Set([...prev, 5])]);
+            // Mark Reports step (step 6) as completed when submitted
+            setCompletedSteps(prev => [...new Set([...prev, 6])]);
         } else {
             // Remove Reports step from completed when reset
-            setCompletedSteps(prev => prev.filter(id => id !== 5));
+            setCompletedSteps(prev => prev.filter(id => id !== 6));
         }
+    };
+
+    // Handle proposal approval - unlock Reports step
+    const handleProposalApproved = () => {
+        setCompletedSteps(prev => [...new Set([...prev, 5])]);
+        setCurrentStep(6); // Go to Reports step
     };
 
     // Handle form reset for "Submit Another Report"
@@ -343,7 +356,8 @@ export default function EnhancedSubmitEventPage() {
             2: Organization,
             3: EventInformation,
             4: Review,
-            5: Reports
+            5: Pending,
+            6: Reports
         }[currentStep];
 
         if (!StepComponent) return null;
@@ -358,6 +372,7 @@ export default function EnhancedSubmitEventPage() {
                     onPathSelect={handlePathSelect}
                     onReportsSubmitted={handleReportsSubmitted}
                     onResetForm={handleResetForm}
+                    onApproved={handleProposalApproved}
                 />
             </Suspense>
         );

@@ -44,6 +44,11 @@ export default function Overview({ onPathSelect }) {
         const newUuid = generateEventUuid();
         console.log('🎯 Event Proposal Started with UUID:', newUuid);
 
+        // Clear any previous auto-fill flags for this new event
+        const autoFillKey = `autoFilled_${newUuid}`;
+        sessionStorage.removeItem(autoFillKey);
+        console.log('🎯 Cleared auto-fill session flag for new event');
+
         // Redirect to Organization.jsx (Step 2 of the event proposal flow)
         // UUID will be generated and added to URL by the parent component
         handlePathSelect('organization');

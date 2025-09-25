@@ -8,7 +8,7 @@ const testFrontendApiCall = async () => {
     try {
         // Simulate the exact call from the frontend
         const backendUrl = 'http://localhost:5000';
-        const apiUrl = `${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?limit=5`;
+        const apiUrl = `${backendUrl}/api/admin/proposals?limit=5`;
 
         console.log('📍 URL:', apiUrl);
 

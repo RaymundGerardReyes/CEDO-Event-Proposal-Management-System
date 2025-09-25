@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/contexts/auth-context"
+import { getDraftsAndRejected } from "@/services/proposal-service"
 import { AlertCircle, CheckCircle2, Clock, Database, FileEdit, Filter, RefreshCcw, Trash2, XCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -75,7 +76,7 @@ const StatusBadge = ({ status, source }) => {
       </Badge>
       {source && (
         <Badge variant="outline" className="text-xs">
-          {source === 'mysql' ? 'MySQL' : source === 'mongodb' ? 'MongoDB' : source}
+          {source === 'postgresql' ? 'PostgreSQL' : source === 'mysql' ? 'MySQL' : source === 'mongodb' ? 'MongoDB' : source}
         </Badge>
       )}
     </div>
@@ -179,55 +180,79 @@ function DraftsContent() {
       return
     }
 
-    // Abort any previous in-flight request and start a fresh one
-    if (fetchControllerRef.current) {
-      fetchControllerRef.current.abort()
-    }
-    fetchControllerRef.current = new AbortController()
-    const signal = fetchControllerRef.current.signal
+    // No need for abort controller with service function
 
     try {
       isFetchingRef.current = true
       setState(prev => ({ ...prev, loading: true, error: null }))
 
-      const { backend, getToken } = backendConfig
-      const token = getToken()
-      if (!token) throw new Error('Authentication token not found. Please sign in again.')
+      console.log('📋 Fetching drafts and rejected proposals for user:', user.email)
 
-      const endpoint = `${backend}/api/proposals/drafts-and-rejected`
-      const queryParams = new URLSearchParams({ includeRejected: 'true', limit: '100', offset: '0' })
-
-      // Main API request (skip pre-health check to reduce duplicate traffic)
-      const response = await fetch(`${endpoint}?${queryParams}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-        signal,
+      // Use the new service function
+      const result = await getDraftsAndRejected({
+        includeRejected: true,
+        limit: 100,
+        offset: 0
       })
 
-      if (signal.aborted) return
-
-      if (!response.ok) {
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
-        try {
-          const errorData = await response.text()
-          const errorJson = JSON.parse(errorData)
-          errorMessage = errorJson.message || errorJson.error || errorMessage
-        } catch { }
-        throw new Error(errorMessage)
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to fetch proposals')
       }
 
-      const data = await response.json()
-      if (!data.success) throw new Error(data.message || 'Failed to fetch proposals')
+      const proposals = result.data || []
+      console.log('📋 Drafts and rejected proposals loaded:', proposals.length)
+
+      // Transform proposals to match component expectations
+      const transformedProposals = proposals.map(proposal => ({
+        id: proposal.uuid, // Use UUID as ID
+        uuid: proposal.uuid,
+        name: proposal.eventName || proposal.event_name || 'Untitled Event',
+        organizationName: proposal.organizationName || proposal.organization_name,
+        organizationType: proposal.organizationType || proposal.organization_type,
+        contactPerson: proposal.contactPerson || proposal.contact_person,
+        contactEmail: proposal.contactEmail || proposal.contact_email,
+        contactPhone: proposal.contactPhone || proposal.contact_phone,
+        eventName: proposal.eventName || proposal.event_name,
+        eventVenue: proposal.eventVenue || proposal.event_venue,
+        eventStartDate: proposal.eventStartDate || proposal.event_start_date,
+        eventEndDate: proposal.eventEndDate || proposal.event_end_date,
+        eventStartTime: proposal.eventStartTime || proposal.event_start_time,
+        eventEndTime: proposal.eventEndTime || proposal.event_end_time,
+        eventMode: proposal.eventMode || proposal.event_mode,
+        eventType: proposal.eventType || proposal.event_type,
+        targetAudience: proposal.targetAudience || proposal.target_audience,
+        sdpCredits: proposal.sdpCredits || proposal.sdp_credits,
+        currentSection: proposal.currentSection || proposal.current_section,
+        formCompletionPercentage: proposal.formCompletionPercentage || proposal.form_completion_percentage,
+        proposalStatus: proposal.proposalStatus || proposal.proposal_status,
+        reportStatus: proposal.reportStatus || proposal.report_status,
+        eventStatus: proposal.eventStatus || proposal.event_status,
+        attendanceCount: proposal.attendanceCount || proposal.attendance_count,
+        objectives: proposal.objectives,
+        budget: proposal.budget,
+        volunteersNeeded: proposal.volunteersNeeded || proposal.volunteers_needed,
+        reportDescription: proposal.reportDescription || proposal.report_description,
+        adminComments: proposal.adminComments || proposal.admin_comments,
+        submittedAt: proposal.submittedAt || proposal.submitted_at,
+        approvedAt: proposal.approvedAt || proposal.approved_at,
+        createdAt: proposal.createdAt || proposal.created_at,
+        updatedAt: proposal.updatedAt || proposal.updated_at,
+        userName: proposal.userName || proposal.user_name,
+        userEmail: proposal.userEmail || proposal.user_email,
+        // Map to component expected fields
+        status: proposal.proposalStatus || proposal.proposal_status,
+        step: proposal.currentSection || proposal.current_section,
+        progress: proposal.formCompletionPercentage || proposal.form_completion_percentage || 0,
+        lastEdited: proposal.updatedAt || proposal.updated_at || proposal.createdAt || proposal.created_at,
+        source: 'postgresql', // Since we're using PostgreSQL
+        data: proposal // Store full proposal data
+      }))
 
       if (mountedRef.current) {
         setState(prev => ({
           ...prev,
-          proposals: data.proposals || [],
-          metadata: data.metadata,
+          proposals: transformedProposals,
+          metadata: result.metadata || {},
           loading: false,
           error: null,
         }))
@@ -254,7 +279,7 @@ function DraftsContent() {
       lastFetchTimeRef.current = Date.now()
       isFetchingRef.current = false
     }
-  }, [user?.email, backendConfig])
+  }, [user?.email])
 
   // Enhanced proposal handling with better error recovery
   const handleContinueProposal = useCallback((proposal) => {
@@ -467,8 +492,8 @@ function DraftsContent() {
           </div>
           {state.metadata && (
             <div className="text-right text-sm text-muted-foreground">
-              <p>Role: <span className="font-medium">{state.metadata.userRole}</span></p>
-              <p>Sources: <span className="font-medium">{state.metadata.sources.join(', ')}</span></p>
+              <p>Total: <span className="font-medium">{state.metadata.total || 0}</span></p>
+              <p>Source: <span className="font-medium">PostgreSQL</span></p>
             </div>
           )}
         </div>
@@ -562,42 +587,10 @@ function DraftsContent() {
                 <AlertTitle>Data Summary</AlertTitle>
                 <AlertDescription>
                   <div className="flex flex-wrap gap-4 mt-2 text-sm">
-                    <span>Total: <strong>{state.metadata.counts.total}</strong></span>
-                    <span>MySQL: <strong>{state.metadata.counts.mysql}</strong></span>
-                    <span>MongoDB: <strong>{state.metadata.counts.mongodb}</strong></span>
-                    <span>Last Updated: <strong>{formatDate(state.metadata.timestamp)}</strong></span>
+                    <span>Total: <strong>{state.metadata.total || 0}</strong></span>
+                    <span>Source: <strong>PostgreSQL</strong></span>
+                    <span>Last Updated: <strong>{formatDate(new Date().toISOString())}</strong></span>
                   </div>
-                  {/* Debug Information Toggle */}
-                  {state.metadata.counts.mongodb === 0 && (
-                    <div className="mt-3 p-3 bg-yellow-50 border-l-4 border-yellow-400">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-yellow-800">MongoDB Issue Detected</p>
-                          <p className="text-xs text-yellow-700">No MongoDB proposals found. This may indicate a connection issue.</p>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={async () => {
-                            try {
-                              const token = backendConfig.getToken();
-                              const response = await fetch(`${backendConfig.backend}/api/proposals/debug-mongodb`, {
-                                headers: { 'Authorization': `Bearer ${token}` }
-                              });
-                              const debugData = await response.json();
-                              //                               console.log('🔍 MongoDB Debug Info:', debugData);
-                              alert(`MongoDB Debug Info:\n\nConnection: ${debugData.mongodb?.connectionTest ? 'SUCCESS' : 'FAILED'}\nCollections: ${debugData.mongodb?.cedoAuthCollections?.join(', ') || 'None found'}\n\nCheck console for full details.`);
-                            } catch (err) {
-                              console.error('Debug failed:', err);
-                              alert('Debug request failed. Check console for details.');
-                            }
-                          }}
-                        >
-                          Debug MongoDB
-                        </Button>
-                      </div>
-                    </div>
-                  )}
                 </AlertDescription>
               </Alert>
             )}
@@ -612,15 +605,15 @@ function DraftsContent() {
               <TabsContent value={state.activeTab} className="mt-6">
                 {filteredProposals.length > 0 ? (
                   <div className="space-y-4">
-                    {/* Auto-save Alert */}
+                    {/* Data Integration Alert */}
                     <Alert className="p-4 sm:p-6">
                       <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5" />
                       <AlertTitle className="text-sm sm:text-base font-medium">
-                        Enhanced Data Integration
+                        Real-time Data Integration
                       </AlertTitle>
                       <AlertDescription className="text-xs sm:text-sm mt-1 sm:mt-2">
-                        Your proposals are automatically synced across MySQL and MongoDB databases.
-                        Data is fetched based on your role and permissions.
+                        Your proposals are fetched directly from the PostgreSQL database.
+                        Data is automatically updated and filtered by your user account.
                       </AlertDescription>
                     </Alert>
 
@@ -775,7 +768,7 @@ function DraftsContent() {
               Are you sure you want to delete "{state.proposalToDelete?.name}"? This action cannot be undone.
               {state.proposalToDelete?.source && (
                 <span className="block mt-2 text-xs text-muted-foreground">
-                  Source: {state.proposalToDelete.source === 'mysql' ? 'MySQL Database' : 'MongoDB Database'}
+                  Source: {state.proposalToDelete.source === 'postgresql' ? 'PostgreSQL Database' : state.proposalToDelete.source === 'mysql' ? 'MySQL Database' : 'MongoDB Database'}
                 </span>
               )}
             </DialogDescription>
@@ -804,181 +797,9 @@ function DraftsContent() {
 
 // Main export with enhanced Suspense wrapper and hydration safety
 export default function DraftsPage() {
-  // Minimalist static view for debugging/placeholder
-  const MinimalDraftsPage = () => {
-    const staticProposals = [
-      { id: 'uuid-1', name: 'Improve User Interface', status: 'draft', lastEdited: '2025-09-10T14:15:00Z', step: 'overview', progress: 35, source: 'mysql' },
-      { id: 'uuid-2', name: 'Enhance Performance', status: 'revision_requested', lastEdited: '2025-09-08T09:30:00Z', step: 'orgInfo', progress: 62, source: 'mongodb' },
-      { id: 'uuid-3', name: 'Community Outreach Program', status: 'rejected', lastEdited: '2025-09-05T11:00:00Z', step: 'communityEvent', progress: 85, source: 'mysql' },
-    ]
-
-    const [activeTab, setActiveTab] = useState('all')
-    const [search, setSearch] = useState('')
-    const [statusFilter, setStatusFilter] = useState('all')
-    const [sourceFilter, setSourceFilter] = useState('all')
-
-    const prettyStatus = (s) => ({
-      draft: 'Draft',
-      pending: 'Pending',
-      approved: 'Approved',
-      rejected: 'Rejected',
-      denied: 'Rejected',
-      revision_requested: 'Needs Revision',
-    }[String(s || '').toLowerCase()] || s || 'Unknown')
-
-    const prettyStep = (s) => ({
-      overview: 'Overview',
-      orgInfo: 'Organization Info',
-      schoolEvent: 'School Event Details',
-      communityEvent: 'Community Event Details',
-      reporting: 'Reporting',
-    }[s] || 'Unknown Step')
-
-    const format = (iso) => {
-      try { return new Date(iso).toLocaleString() } catch { return 'Unknown' }
-    }
-
-    const baseFiltered = staticProposals.filter(p => {
-      const q = search.trim().toLowerCase()
-      const matchesQuery = q
-        ? [p.name, prettyStatus(p.status), prettyStep(p.step), p.source].some(v => String(v || '').toLowerCase().includes(q))
-        : true
-      const matchesStatus = statusFilter === 'all' ? true : String(p.status).toLowerCase() === statusFilter
-      const matchesSource = sourceFilter === 'all' ? true : String(p.source).toLowerCase() === sourceFilter
-      return matchesQuery && matchesStatus && matchesSource
-    })
-
-    const filtered = activeTab === 'all'
-      ? baseFiltered
-      : activeTab === 'drafts'
-        ? baseFiltered.filter(p => p.status === 'draft')
-        : baseFiltered.filter(p => ['rejected', 'denied', 'revision_requested'].includes(p.status))
-
-    return (
-      <div className="min-h-[100vh] bg-gradient-to-b from-white via-white to-slate-50">
-        <div className="px-6 pt-10 pb-8 max-w-5xl mx-auto">
-          <header className="mb-8">
-            <h1 className="text-[30px] leading-8 font-semibold tracking-tight">My Proposals</h1>
-            <p className="mt-2 text-sm text-muted-foreground max-w-prose">Review your drafts and feedback at a glance. Clean, focused, and distraction-free.</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <span className="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">Total {staticProposals.length}</span>
-              <span className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">Drafts {staticProposals.filter(p => p.status === 'draft').length}</span>
-              <span className="text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">Needs Revision {staticProposals.filter(p => p.status === 'revision_requested').length}</span>
-              <span className="text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700">Rejected {staticProposals.filter(p => ['rejected', 'denied'].includes(p.status)).length}</span>
-            </div>
-          </header>
-
-          <nav className="mb-4 flex items-center gap-2 text-sm">
-            {[
-              { id: 'all', label: `All (${staticProposals.length})` },
-              { id: 'drafts', label: `Drafts (${staticProposals.filter(p => p.status === 'draft').length})` },
-              { id: 'rejected', label: `Rejected (${staticProposals.filter(p => ['rejected', 'denied', 'revision_requested'].includes(p.status)).length})` }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-3 py-1.5 rounded-full border transition-colors ${activeTab === tab.id ? 'bg-[#0A2B70] text-white border-transparent' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
-
-          <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-2">
-            <div className="md:col-span-1">
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search proposals, status, step, source..."
-                className="w-full h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0A2B70]/20 focus:border-[#0A2B70]/40"
-              />
-            </div>
-            <div className="md:col-span-1">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0A2B70]/20 focus:border-[#0A2B70]/40"
-              >
-                <option value="all">All statuses</option>
-                <option value="draft">Draft</option>
-                <option value="revision_requested">Needs Revision</option>
-                <option value="rejected">Rejected</option>
-                <option value="denied">Denied</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-              </select>
-            </div>
-            <div className="md:col-span-1 flex gap-2">
-              <select
-                value={sourceFilter}
-                onChange={(e) => setSourceFilter(e.target.value)}
-                className="w-full h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#0A2B70]/20 focus:border-[#0A2B70]/40"
-              >
-                <option value="all">All sources</option>
-                <option value="mysql">MySQL</option>
-                <option value="mongodb">MongoDB</option>
-              </select>
-              <Button
-                variant="outline"
-                className="h-10"
-                onClick={() => { setSearch(''); setStatusFilter('all'); setSourceFilter('all'); }}
-              >
-                Clear
-              </Button>
-            </div>
-          </div>
-
-          {filtered.length === 0 ? (
-            <div className="border rounded-xl p-12 text-center bg-white/60 backdrop-blur-sm">
-              <div className="text-4xl mb-2">🗂️</div>
-              <h3 className="text-lg font-medium">No proposals found</h3>
-              <p className="mt-1 text-sm text-muted-foreground">Start a new submission to create your first draft.</p>
-              <div className="mt-5">
-                <Button onClick={() => window.alert('Static demo')}>Submit New Event</Button>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filtered.map((p) => (
-                <div key={p.id} className="group border rounded-xl p-5 bg-white hover:shadow-md transition-shadow">
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="font-medium leading-6 pr-4 group-hover:text-[#0A2B70] transition-colors">{p.name}</h3>
-                    <span className="inline-block text-[11px] px-2 py-1 rounded-full bg-gray-100 text-gray-800">{prettyStatus(p.status)}</span>
-                  </div>
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
-                    <div className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {format(p.lastEdited)}</div>
-                    <div className="flex items-center gap-1"><FileEdit className="h-3.5 w-3.5" /> {prettyStep(p.step)}</div>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-muted-foreground">Progress</span>
-                      <span className="text-xs font-medium">{p.progress}%</span>
-                    </div>
-                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#0A2B70] rounded-full" style={{ width: `${p.progress}%` }}></div>
-                    </div>
-                  </div>
-                  <div className="mt-4 flex items-center justify-between">
-                    <span className="text-[11px] px-2 py-1 rounded-full bg-slate-50 text-slate-700 ring-1 ring-inset ring-slate-200">{p.source === 'mysql' ? 'MySQL' : 'MongoDB'}</span>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => window.alert('Static demo')}>Details</Button>
-                      <Button size="sm" onClick={() => window.alert('Static demo')}>{p.status === 'draft' ? 'Continue' : 'Review'}</Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <footer className="mt-10 text-center text-xs text-muted-foreground">
-            © 2025 CEDO — Drafts overview
-          </footer>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <MinimalDraftsPage />
+    <HydrationSafeWrapper>
+      <DraftsContent />
+    </HydrationSafeWrapper>
   );
 }

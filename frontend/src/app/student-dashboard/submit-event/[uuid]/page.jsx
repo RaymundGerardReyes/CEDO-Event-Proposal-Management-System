@@ -11,6 +11,7 @@
 
 "use client";
 
+import { saveDraftProposal } from '@/services/proposal-service.js';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
     Calendar,
@@ -44,7 +45,11 @@ const EventInformation = dynamic(() => import('../components/EventInformation'),
     loading: () => <div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>
 });
 
-const Program = dynamic(() => import('../components/Review'), {
+const Review = dynamic(() => import('../components/Review'), {
+    loading: () => <div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>
+});
+
+const Pending = dynamic(() => import('../components/Pending'), {
     loading: () => <div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>
 });
 
@@ -152,11 +157,17 @@ const steps = [
     {
         id: 4,
         name: 'Review',
-        description: 'Agenda and deliverables',
+        description: 'Review and submit proposal',
         icon: Calendar
     },
     {
         id: 5,
+        name: 'Pending',
+        description: 'Awaiting approval',
+        icon: CheckCircle
+    },
+    {
+        id: 6,
         name: 'Reports',
         description: 'Accomplishment Reports and Documentation',
         icon: Shield
@@ -235,10 +246,17 @@ export default function UUIDSubmitEventPage() {
     const handleReportsSubmitted = (isSubmitted) => {
         setIsReportsSubmitted(isSubmitted);
         if (isSubmitted) {
-            setCompletedSteps(prev => [...new Set([...prev, 5])]);
+            setCompletedSteps(prev => [...new Set([...prev, 6])]);
         } else {
-            setCompletedSteps(prev => prev.filter(id => id !== 5));
+            setCompletedSteps(prev => prev.filter(id => id !== 6));
         }
+    };
+
+    // Handle proposal approval - unlock Reports step
+    const handleProposalApproved = () => {
+        setCompletedSteps(prev => [...new Set([...prev, 5])]);
+        setCurrentStep(6); // Go to Reports step
+        updateURL(6);
     };
 
     // Handle form reset for "Submit Another Report"
@@ -261,20 +279,30 @@ export default function UUIDSubmitEventPage() {
 
     // Auto-save functionality with debouncing
     useEffect(() => {
-        if (!isDirty) return;
+        if (!isDirty || !uuid) return;
 
         const timeoutId = setTimeout(async () => {
             try {
-                await new Promise(resolve => setTimeout(resolve, 500));
-                setLastSaved(new Date());
-                console.log('Auto-saved at:', new Date().toLocaleTimeString());
+                console.log('💾 Auto-saving draft to backend...');
+                const result = await saveDraftProposal(uuid);
+
+                if (result.success) {
+                    setLastSaved(new Date());
+                    console.log('✅ Auto-saved to backend at:', new Date().toLocaleTimeString());
+                } else {
+                    console.warn('⚠️ Auto-save to backend failed:', result.message);
+                    // Still update local timestamp for user feedback
+                    setLastSaved(new Date());
+                }
             } catch (error) {
-                console.error('Auto-save failed:', error);
+                console.error('❌ Auto-save failed:', error);
+                // Still update local timestamp for user feedback
+                setLastSaved(new Date());
             }
         }, 2000);
 
         return () => clearTimeout(timeoutId);
-    }, [watchedValues, isDirty]);
+    }, [watchedValues, isDirty, uuid]);
 
     // Step validation and completion tracking
     const validateStep = useCallback(async (stepId) => {
@@ -330,6 +358,29 @@ export default function UUIDSubmitEventPage() {
         }
     };
 
+    // Handle manual draft saving
+    const handleSaveDraft = async () => {
+        if (!uuid) return;
+
+        try {
+            console.log('💾 Manually saving draft...');
+            const result = await saveDraftProposal(uuid);
+
+            if (result.success) {
+                setLastSaved(new Date());
+                console.log('✅ Draft saved successfully');
+                // Could show a toast notification here
+                alert('Draft saved successfully!');
+            } else {
+                console.error('❌ Failed to save draft:', result.message);
+                alert('Failed to save draft. Please try again.');
+            }
+        } catch (error) {
+            console.error('❌ Error saving draft:', error);
+            alert('An error occurred while saving. Please try again.');
+        }
+    };
+
     // Render current step component
     const renderCurrentStep = () => {
         if (currentStep === 0) {
@@ -350,8 +401,9 @@ export default function UUIDSubmitEventPage() {
             1: Overview,
             2: Organization,
             3: EventInformation,
-            4: Program,
-            5: Reports
+            4: Review,
+            5: Pending,
+            6: Reports
         }[currentStep];
 
         if (!StepComponent) return null;
@@ -366,6 +418,7 @@ export default function UUIDSubmitEventPage() {
                     onPathSelect={handlePathSelect}
                     onReportsSubmitted={handleReportsSubmitted}
                     onResetForm={handleResetForm}
+                    onApproved={handleProposalApproved}
                 />
             </Suspense>
         );
@@ -495,6 +548,7 @@ export default function UUIDSubmitEventPage() {
                                             <div className="flex gap-3">
                                                 <button
                                                     type="button"
+                                                    onClick={handleSaveDraft}
                                                     className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
                                                 >
                                                     <Save className="h-4 w-4 mr-1" />

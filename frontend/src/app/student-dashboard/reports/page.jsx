@@ -98,7 +98,7 @@ export default function ReportsPage() {
         setError(null);
 
         // Fetch proposals for the current user
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/mongodb-unified/reports/user-proposals`, {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/proposals/user-proposals`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',

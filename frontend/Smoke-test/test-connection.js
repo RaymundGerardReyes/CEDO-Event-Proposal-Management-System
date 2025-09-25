@@ -9,7 +9,7 @@ const testConnection = async () => {
         // Test 1: Direct backend call
         console.log('\n📡 Test 1: Direct backend call');
         const backendUrl = 'http://localhost:5000';
-        const apiUrl = `${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?limit=1`;
+        const apiUrl = `${backendUrl}/api/admin/proposals?limit=1`;
 
         console.log('📍 URL:', apiUrl);
 

@@ -8,6 +8,7 @@
 "use client";
 
 import { useAuth } from '@/contexts/auth-context';
+import { useFormStorage } from '@/hooks/use-form-storage';
 import { apiRequest } from '@/utils/api';
 import {
     AlertCircle,
@@ -20,7 +21,7 @@ import {
     User,
     Users
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { useEventForm } from '../contexts/EventFormContext';
 
@@ -127,19 +128,40 @@ export default function StepOrganizer({ methods, onNext, onPrevious, isLastStep 
         const limitedDigits = digitsOnly.slice(0, 11);
 
         // Format as 09XX-XXX-XXXX
-        if (limitedDigits.length <= 2) {
+        if (limitedDigits.length <= 4) {
             return limitedDigits;
-        } else if (limitedDigits.length <= 5) {
-            return `${limitedDigits.slice(0, 2)}-${limitedDigits.slice(2)}`;
+        } else if (limitedDigits.length <= 7) {
+            return `${limitedDigits.slice(0, 4)}-${limitedDigits.slice(4)}`;
         } else {
-            return `${limitedDigits.slice(0, 2)}-${limitedDigits.slice(2, 5)}-${limitedDigits.slice(5)}`;
+            return `${limitedDigits.slice(0, 4)}-${limitedDigits.slice(4, 7)}-${limitedDigits.slice(7)}`;
         }
     };
 
-    // Load user profile data and populate form fields (only once)
+    // Load user profile data and populate form fields (only once per session)
     useEffect(() => {
         const loadUserData = async () => {
-            if (!user?.id || hasAutoFilled) return;
+            // Check if we already auto-filled for this event UUID in this session
+            const autoFillKey = `autoFilled_${eventUuid}`;
+            const hasAutoFilledForThisEvent = sessionStorage.getItem(autoFillKey);
+
+            // Only auto-fill if:
+            // 1. User exists
+            // 2. We haven't auto-filled for this specific event UUID
+            // 3. Form fields are currently empty (not already filled)
+            const hasExistingData = watchedValues.organizationName ||
+                watchedValues.contactPerson ||
+                watchedValues.contactEmail ||
+                watchedValues.contactPhone;
+
+            if (!user?.id || hasAutoFilledForThisEvent || hasExistingData) {
+                if (hasAutoFilledForThisEvent) {
+                    console.log('🏢 Organization: Auto-fill already completed for this event UUID');
+                }
+                if (hasExistingData) {
+                    console.log('🏢 Organization: Form already has data, skipping auto-fill');
+                }
+                return;
+            }
 
             setIsLoadingUserData(true);
             try {
@@ -171,14 +193,18 @@ export default function StepOrganizer({ methods, onNext, onPrevious, isLastStep 
                         console.log('🏢 Organization: Auto-filled contact phone:', userData.phoneNumber);
                     }
 
-                    // Mark as auto-filled to prevent re-running
+                    // Mark as auto-filled for this specific event UUID in session storage
+                    sessionStorage.setItem(autoFillKey, 'true');
                     setHasAutoFilled(true);
+                    console.log('🏢 Organization: Auto-fill completed and marked in session storage');
                 } else {
                     console.warn('🏢 Organization: No user data available for auto-fill');
+                    sessionStorage.setItem(autoFillKey, 'true'); // Mark as attempted
                     setHasAutoFilled(true);
                 }
             } catch (error) {
                 console.error('🏢 Organization: Error loading user data:', error);
+                sessionStorage.setItem(autoFillKey, 'true'); // Mark as attempted even if failed
                 setHasAutoFilled(true);
             } finally {
                 setIsLoadingUserData(false);
@@ -186,7 +212,7 @@ export default function StepOrganizer({ methods, onNext, onPrevious, isLastStep 
         };
 
         loadUserData();
-    }, [user?.id, setValue, hasAutoFilled]);
+    }, [user?.id, eventUuid, setValue, watchedValues.organizationName, watchedValues.contactPerson, watchedValues.contactEmail, watchedValues.contactPhone]);
 
     // Load all organizations on component mount
     useEffect(() => {
@@ -290,58 +316,76 @@ export default function StepOrganizer({ methods, onNext, onPrevious, isLastStep 
         return hasRequiredFields && hasNoValidationErrors;
     };
 
-    // ------- LocalStorage Auto-save & Restore -------
-    const storageKey = useMemo(() => eventUuid ? `eventForm:${eventUuid}:organization` : null, [eventUuid]);
+    // ------- Enhanced localStorage Auto-save & Restore -------
+    const {
+        saveData,
+        loadData,
+        isLoading: isStorageLoading,
+        isSaving: isStorageSaving,
+        lastSaved,
+        storageError,
+        retrySave,
+        getDebugInfo
+    } = useFormStorage(eventUuid, 'organization', {
+        autoSave: true,
+        debounceDelay: 500,
+        onSave: (data) => console.log('🏢 Organization: Data saved successfully'),
+        onError: (error) => {
+            console.warn('🏢 Organization: Storage error:', error);
+            console.warn('🏢 Organization: Debug info:', getDebugInfo());
+        }
+    });
 
     // Load saved values on mount/uuid change
     useEffect(() => {
-        if (!storageKey) return;
-        try {
-            const raw = localStorage.getItem(storageKey);
-            if (!raw) return;
-            const saved = JSON.parse(raw);
-            const { values = {}, selectedOrg = null } = saved || {};
+        if (!eventUuid) return;
 
-            if (values && Object.keys(values).length) {
-                reset({
-                    ...watch(),
-                    ...values
-                });
-            }
-
-            if (selectedOrg) {
-                setSelectedOrganization(selectedOrg);
-            }
-        } catch (e) {
-            console.warn('Failed to load saved Organization:', e);
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [storageKey]);
-
-    // Debounced save on changes
-    useEffect(() => {
-        if (!storageKey) return;
-        const timeout = setTimeout(() => {
+        const loadSavedData = async () => {
             try {
-                const valuesToSave = {
-                    organizationName: watchedValues.organizationName || '',
-                    contactPerson: watchedValues.contactPerson || '',
-                    contactEmail: watchedValues.contactEmail || '',
-                    contactPhone: watchedValues.contactPhone || '',
-                    organizationRegistrationNo: watchedValues.organizationRegistrationNo || ''
-                };
-                const payload = {
-                    values: valuesToSave,
-                    selectedOrg: selectedOrganization
-                };
-                localStorage.setItem(storageKey, JSON.stringify(payload));
-            } catch (e) {
-                console.warn('Failed to save Organization:', e);
+                const saved = await loadData();
+                if (saved) {
+                    const { values = {}, selectedOrg = null } = saved;
+
+                    if (values && Object.keys(values).length) {
+                        reset({
+                            ...watch(),
+                            ...values
+                        });
+                        console.log('🏢 Organization: Restored form data from storage');
+                    }
+
+                    if (selectedOrg) {
+                        setSelectedOrganization(selectedOrg);
+                        console.log('🏢 Organization: Restored selected organization');
+                    }
+                }
+            } catch (error) {
+                console.warn('🏢 Organization: Failed to load saved data:', error);
             }
-        }, 500);
-        return () => clearTimeout(timeout);
+        };
+
+        loadSavedData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [storageKey, watchedValues, selectedOrganization]);
+    }, [eventUuid]);
+
+    // Auto-save on changes
+    useEffect(() => {
+        if (!eventUuid) return;
+
+        const valuesToSave = {
+            values: {
+                organizationName: watchedValues.organizationName || '',
+                contactPerson: watchedValues.contactPerson || '',
+                contactEmail: watchedValues.contactEmail || '',
+                contactPhone: watchedValues.contactPhone || '',
+                organizationRegistrationNo: watchedValues.organizationRegistrationNo || ''
+            },
+            selectedOrg: selectedOrganization
+        };
+
+        saveData(valuesToSave);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [watchedValues, selectedOrganization]);
 
     return (
         <div className="space-y-8">
@@ -356,10 +400,51 @@ export default function StepOrganizer({ methods, onNext, onPrevious, isLastStep 
                 {/* UUID Display */}
                 {eventUuid && (
                     <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p className="text-sm text-blue-800">
-                            <strong>Event ID:</strong> <code className="bg-blue-100 px-2 py-1 rounded text-blue-900 font-mono text-xs">{getShortUuid()}</code>
-                            <span className="ml-2 text-blue-600">• Created {getFormAge()}</span>
-                        </p>
+                        <div className="flex items-center justify-between">
+                            <p className="text-sm text-blue-800">
+                                <strong>Event ID:</strong> <code className="bg-blue-100 px-2 py-1 rounded text-blue-900 font-mono text-xs">{getShortUuid()}</code>
+                                <span className="ml-2 text-blue-600">• Created {getFormAge()}</span>
+                            </p>
+                            {/* Storage Status Indicator */}
+                            <div className="flex items-center space-x-2">
+                                {isStorageSaving && (
+                                    <div className="flex items-center text-blue-600">
+                                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-1"></div>
+                                        <span className="text-xs">Saving...</span>
+                                    </div>
+                                )}
+                                {lastSaved && !isStorageSaving && (
+                                    <div className="flex items-center text-green-600">
+                                        <CheckCircle className="h-3 w-3 mr-1" />
+                                        <span className="text-xs">Saved</span>
+                                    </div>
+                                )}
+                                {storageError && (
+                                    <div className="flex items-center text-red-600">
+                                        <AlertCircle className="h-3 w-3 mr-1" />
+                                        <span className="text-xs">Error</span>
+                                        <button
+                                            onClick={() => {
+                                                const currentData = {
+                                                    values: {
+                                                        organizationName: watchedValues.organizationName || '',
+                                                        contactPerson: watchedValues.contactPerson || '',
+                                                        contactEmail: watchedValues.contactEmail || '',
+                                                        contactPhone: watchedValues.contactPhone || '',
+                                                        organizationRegistrationNo: watchedValues.organizationRegistrationNo || ''
+                                                    },
+                                                    selectedOrg: selectedOrganization
+                                                };
+                                                retrySave(currentData);
+                                            }}
+                                            className="ml-2 text-xs underline hover:text-red-800"
+                                        >
+                                            Retry
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 )}
 

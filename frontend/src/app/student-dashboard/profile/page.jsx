@@ -186,6 +186,30 @@ const ProfilePageContent = memo(function ProfilePageContent() {
     setError(null);
 
     try {
+      // ✅ DEBUG: Check authentication token availability
+      const { getAuthToken } = await import('@/utils/api.js');
+      const token = getAuthToken();
+      console.log("🔍 Profile: Authentication check:", {
+        hasUser: !!user,
+        userId: user?.id,
+        hasToken: !!token,
+        tokenLength: token?.length || 0,
+        cookies: typeof document !== 'undefined' ? document.cookie : 'N/A'
+      });
+
+      if (!token) {
+        console.error("❌ Profile: No authentication token available");
+        setError("Authentication required. Please sign in again.");
+
+        // Redirect to sign-in page after a short delay
+        setTimeout(() => {
+          if (typeof window !== 'undefined') {
+            window.location.href = '/sign-in';
+          }
+        }, 2000);
+        return;
+      }
+
       console.log("👤 Profile: Fetching profile data...");
 
       // ✅ PERFORMANCE: Use apiRequest utility with timeout to prevent hanging requests

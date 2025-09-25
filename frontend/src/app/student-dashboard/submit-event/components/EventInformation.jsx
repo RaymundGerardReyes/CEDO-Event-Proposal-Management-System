@@ -16,6 +16,7 @@
 
 "use client";
 
+import { useFormStorage } from '@/hooks/use-form-storage';
 import {
     AlertCircle,
     Calendar,
@@ -26,7 +27,7 @@ import {
     Upload,
     X
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { useEventForm } from '../contexts/EventFormContext';
 
@@ -142,105 +143,151 @@ export default function StepLogistics({ methods, onNext, onPrevious, isLastStep 
 
     const dateError = validateDates();
 
-    // ------- LocalStorage Auto-save & Restore -------
-    const storageKey = useMemo(() => eventUuid ? `eventForm:${eventUuid}:eventInformation` : null, [eventUuid]);
+    // ------- Enhanced localStorage Auto-save & Restore -------
+    const {
+        saveData,
+        loadData,
+        isLoading: isStorageLoading,
+        isSaving: isStorageSaving,
+        lastSaved,
+        storageError,
+        retrySave,
+        getDebugInfo
+    } = useFormStorage(eventUuid, 'eventInformation', {
+        autoSave: true,
+        debounceDelay: 500,
+        onSave: (data) => console.log('📅 Event Information: Data saved successfully'),
+        onError: (error) => {
+            console.warn('📅 Event Information: Storage error:', error);
+            console.warn('📅 Event Information: Debug info:', getDebugInfo());
+        }
+    });
+
 
     // Load saved data on mount or when UUID changes
     useEffect(() => {
-        if (!storageKey) return;
-        try {
-            const raw = localStorage.getItem(storageKey);
-            if (!raw) return;
-            const saved = JSON.parse(raw);
+        if (!eventUuid) return;
 
-            // Restore basic fields
-            const {
-                values = {},
-                selectedTargetAudiences: savedAud = [],
-                gpoa,
-                projectProposal
-            } = saved;
-
-            reset({
-                ...watch(),
-                ...values
-            });
-
-            setSelectedTargetAudiences(savedAud);
-            if (Array.isArray(savedAud)) setValue('targetAudience', savedAud);
-
-            // Restore files from data URLs
-            const reviveFile = async (f) => {
-                if (!f?.dataUrl) return null;
-                const res = await fetch(f.dataUrl);
-                const blob = await res.blob();
-                return new File([blob], f.name || 'file', { type: f.type || blob.type });
-            };
-
-            (async () => {
-                if (gpoa?.dataUrl) {
-                    const file = await reviveFile(gpoa);
-                    if (file) {
-                        setGpoaFile(file);
-                        setGpoaDataUrl(gpoa.dataUrl);
-                        setValue('gpoaFile', file);
-                    }
-                }
-                if (projectProposal?.dataUrl) {
-                    const file = await reviveFile(projectProposal);
-                    if (file) {
-                        setProjectProposalFile(file);
-                        setProjectProposalDataUrl(projectProposal.dataUrl);
-                        setValue('projectProposalFile', file);
-                    }
-                }
-            })();
-        } catch (e) {
-            console.warn('Failed to load saved Event Information:', e);
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [storageKey]);
-
-    // Debounced save
-    useEffect(() => {
-        if (!storageKey) return;
-        const timeout = setTimeout(() => {
+        const loadSavedData = async () => {
             try {
-                const valuesToSave = {
-                    eventName: watchedValues.eventName || '',
-                    venue: watchedValues.venue || '',
-                    startDate: watchedValues.startDate || '',
-                    endDate: watchedValues.endDate || '',
-                    startTime: watchedValues.startTime || '',
-                    endTime: watchedValues.endTime || '',
-                    eventType: watchedValues.eventType || '',
-                    sdpCredits: watchedValues.sdpCredits || null,
-                };
+                const saved = await loadData();
+                if (saved) {
+                    const {
+                        values = {},
+                        selectedTargetAudiences: savedAud = [],
+                        gpoa,
+                        projectProposal
+                    } = saved;
 
-                const payload = {
-                    values: valuesToSave,
-                    selectedTargetAudiences,
-                    gpoa: gpoaFile && gpoaDataUrl ? {
-                        name: gpoaFile.name,
-                        size: gpoaFile.size,
-                        type: gpoaFile.type,
-                        dataUrl: gpoaDataUrl
-                    } : null,
-                    projectProposal: projectProposalFile && projectProposalDataUrl ? {
-                        name: projectProposalFile.name,
-                        size: projectProposalFile.size,
-                        type: projectProposalFile.type,
-                        dataUrl: projectProposalDataUrl
-                    } : null
-                };
-                localStorage.setItem(storageKey, JSON.stringify(payload));
-            } catch (e) {
-                console.warn('Failed to save Event Information:', e);
+                    // Restore basic fields
+                    if (values && Object.keys(values).length) {
+                        reset({
+                            ...watch(),
+                            ...values
+                        });
+                        console.log('📅 Event Information: Restored form data from storage');
+                    }
+
+                    // Restore target audiences
+                    if (Array.isArray(savedAud)) {
+                        setSelectedTargetAudiences(savedAud);
+                        setValue('targetAudience', savedAud);
+                        console.log('📅 Event Information: Restored target audiences');
+                    }
+
+                    // Restore files
+                    if (gpoa?.dataUrl) {
+                        try {
+                            const response = await fetch(gpoa.dataUrl);
+                            const blob = await response.blob();
+                            const file = new File([blob], gpoa.name || 'gpoa-file', { type: gpoa.type || blob.type });
+                            setGpoaFile(file);
+                            setGpoaDataUrl(gpoa.dataUrl);
+                            setValue('gpoaFile', file);
+                            console.log('📅 Event Information: Restored GPOA file:', file.name, file.size, 'bytes');
+                        } catch (error) {
+                            console.warn('📅 Event Information: Failed to restore GPOA file:', error);
+                            // Clear the file state if restoration failed
+                            setGpoaFile(null);
+                            setGpoaDataUrl(null);
+                            setValue('gpoaFile', null);
+                        }
+                    } else if (gpoa?.hasData) {
+                        // File metadata exists but no data URL - this shouldn't happen with new system
+                        console.warn('📅 Event Information: GPOA file metadata found but no data URL');
+                        setGpoaFile(null);
+                        setGpoaDataUrl(null);
+                        setValue('gpoaFile', null);
+                    }
+
+                    if (projectProposal?.dataUrl) {
+                        try {
+                            const response = await fetch(projectProposal.dataUrl);
+                            const blob = await response.blob();
+                            const file = new File([blob], projectProposal.name || 'project-proposal-file', { type: projectProposal.type || blob.type });
+                            setProjectProposalFile(file);
+                            setProjectProposalDataUrl(projectProposal.dataUrl);
+                            setValue('projectProposalFile', file);
+                            console.log('📅 Event Information: Restored Project Proposal file:', file.name, file.size, 'bytes');
+                        } catch (error) {
+                            console.warn('📅 Event Information: Failed to restore Project Proposal file:', error);
+                            // Clear the file state if restoration failed
+                            setProjectProposalFile(null);
+                            setProjectProposalDataUrl(null);
+                            setValue('projectProposalFile', null);
+                        }
+                    } else if (projectProposal?.hasData) {
+                        // File metadata exists but no data URL - this shouldn't happen with new system
+                        console.warn('📅 Event Information: Project Proposal file metadata found but no data URL');
+                        setProjectProposalFile(null);
+                        setProjectProposalDataUrl(null);
+                        setValue('projectProposalFile', null);
+                    }
+                }
+            } catch (error) {
+                console.warn('📅 Event Information: Failed to load saved data:', error);
             }
-        }, 500);
-        return () => clearTimeout(timeout);
+        };
+
+        loadSavedData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [storageKey, watchedValues, selectedTargetAudiences, gpoaFile, projectProposalFile, gpoaDataUrl, projectProposalDataUrl]);
+    }, [eventUuid]);
+
+    // Auto-save on changes
+    useEffect(() => {
+        if (!eventUuid) return;
+
+        const valuesToSave = {
+            values: {
+                eventName: watchedValues.eventName || '',
+                venue: watchedValues.venue || '',
+                startDate: watchedValues.startDate || '',
+                endDate: watchedValues.endDate || '',
+                startTime: watchedValues.startTime || '',
+                endTime: watchedValues.endTime || '',
+                eventType: watchedValues.eventType || '',
+                sdpCredits: watchedValues.sdpCredits || null,
+            },
+            selectedTargetAudiences,
+            gpoa: gpoaFile && gpoaDataUrl ? {
+                name: gpoaFile.name,
+                size: gpoaFile.size,
+                type: gpoaFile.type,
+                dataUrl: gpoaDataUrl,
+                timestamp: Date.now()
+            } : null,
+            projectProposal: projectProposalFile && projectProposalDataUrl ? {
+                name: projectProposalFile.name,
+                size: projectProposalFile.size,
+                type: projectProposalFile.type,
+                dataUrl: projectProposalDataUrl,
+                timestamp: Date.now()
+            } : null
+        };
+
+        saveData(valuesToSave);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [watchedValues, selectedTargetAudiences, gpoaFile, projectProposalFile, gpoaDataUrl, projectProposalDataUrl]);
 
     const isStepValid = () => {
         return watchedValues.eventName &&
@@ -270,10 +317,68 @@ export default function StepLogistics({ methods, onNext, onPrevious, isLastStep 
                 {/* UUID Display */}
                 {eventUuid && (
                     <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p className="text-sm text-blue-800">
-                            <strong>Event ID:</strong> <code className="bg-blue-100 px-2 py-1 rounded text-blue-900 font-mono text-xs">{getShortUuid()}</code>
-                            <span className="ml-2 text-blue-600">• Created {getFormAge()}</span>
-                        </p>
+                        <div className="flex items-center justify-between">
+                            <p className="text-sm text-blue-800">
+                                <strong>Event ID:</strong> <code className="bg-blue-100 px-2 py-1 rounded text-blue-900 font-mono text-xs">{getShortUuid()}</code>
+                                <span className="ml-2 text-blue-600">• Created {getFormAge()}</span>
+                            </p>
+                            {/* Storage Status Indicator */}
+                            <div className="flex items-center space-x-2">
+                                {isStorageSaving && (
+                                    <div className="flex items-center text-blue-600">
+                                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-1"></div>
+                                        <span className="text-xs">Saving...</span>
+                                    </div>
+                                )}
+                                {lastSaved && !isStorageSaving && (
+                                    <div className="flex items-center text-green-600">
+                                        <CheckCircle className="h-3 w-3 mr-1" />
+                                        <span className="text-xs">Saved</span>
+                                    </div>
+                                )}
+                                {storageError && (
+                                    <div className="flex items-center text-red-600">
+                                        <AlertCircle className="h-3 w-3 mr-1" />
+                                        <span className="text-xs">Error</span>
+                                        <button
+                                            onClick={() => {
+                                                const currentData = {
+                                                    values: {
+                                                        eventName: watchedValues.eventName || '',
+                                                        venue: watchedValues.venue || '',
+                                                        startDate: watchedValues.startDate || '',
+                                                        endDate: watchedValues.endDate || '',
+                                                        startTime: watchedValues.startTime || '',
+                                                        endTime: watchedValues.endTime || '',
+                                                        eventType: watchedValues.eventType || '',
+                                                        sdpCredits: watchedValues.sdpCredits || null,
+                                                    },
+                                                    selectedTargetAudiences,
+                                                    gpoa: gpoaFile && gpoaDataUrl ? {
+                                                        name: gpoaFile.name,
+                                                        size: gpoaFile.size,
+                                                        type: gpoaFile.type,
+                                                        dataUrl: gpoaDataUrl,
+                                                        timestamp: Date.now()
+                                                    } : null,
+                                                    projectProposal: projectProposalFile && projectProposalDataUrl ? {
+                                                        name: projectProposalFile.name,
+                                                        size: projectProposalFile.size,
+                                                        type: projectProposalFile.type,
+                                                        dataUrl: projectProposalDataUrl,
+                                                        timestamp: Date.now()
+                                                    } : null
+                                                };
+                                                retrySave(currentData);
+                                            }}
+                                            className="ml-2 text-xs underline hover:text-red-800"
+                                        >
+                                            Retry
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

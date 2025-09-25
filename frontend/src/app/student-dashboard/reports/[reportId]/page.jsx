@@ -115,7 +115,7 @@ async function fetchReportData(reportId, token) {
 
     // Try multiple fallback endpoints
     const fallbackEndpoints = [
-        `${backendUrl}/api/mongodb-unified/proposals/${reportId}`,
+        `${backendUrl}/api/proposals/${reportId}`,
         `${backendUrl}/api/proposals/debug/${reportId}`,
         `${backendUrl}/api/proposals/mysql/${reportId}`,
         `${backendUrl}/api/proposals/${reportId}`
@@ -126,7 +126,7 @@ async function fetchReportData(reportId, token) {
         const endpointName = endpoint.includes('mongodb-unified') ? 'MongoDB'
             : endpoint.includes('debug') ? 'Debug'
                 : endpoint.includes('mysql') ? 'MySQL'
-                    : 'Generic';
+                    : 'PostgreSQL';
 
         try {
             console.log(`🔍 Server: Trying ${endpointName} endpoint (${i + 1}/${fallbackEndpoints.length}):`, endpoint);

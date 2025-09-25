@@ -17,11 +17,12 @@
 
 "use client";
 
+import BackButton from '@/components/BackButton';
+import { getApprovedEvents } from '@/services/proposal-service.js';
 import {
     AlertCircle,
     Award,
     Calendar,
-    Clock,
     Eye,
     FileText,
     Filter,
@@ -29,112 +30,71 @@ import {
     Search,
     Users
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-// Mock data for completed events - in real app, this would come from API
-const MOCK_COMPLETED_EVENTS = [
-    {
-        id: 'evt-001',
-        title: 'Community Health Seminar for SLP Scholars',
-        date: '2024-01-15',
-        time: '09:00 AM - 12:00 PM',
-        venue: 'Main Auditorium',
-        organizer: 'SLP Scholars Association',
-        eventType: 'Academic Enhancement',
-        targetAudience: ['1st Year', '2nd Year'],
-        expectedParticipants: 150,
-        actualParticipants: 142,
-        status: 'completed',
-        reportStatus: 'pending', // pending, submitted, approved
-        sdpCredits: 2,
-        description: 'A comprehensive seminar on community health practices and their impact on student learning.'
-    },
-    {
-        id: 'evt-002',
-        title: 'Leadership Training Workshop',
-        date: '2024-01-20',
-        time: '02:00 PM - 05:00 PM',
-        venue: 'Conference Room A',
-        organizer: 'Student Leadership Council',
-        eventType: 'Leadership Training',
-        targetAudience: ['Leaders', '3rd Year', '4th Year'],
-        expectedParticipants: 50,
-        actualParticipants: 48,
-        status: 'completed',
-        reportStatus: 'submitted',
-        sdpCredits: 1,
-        description: 'Interactive workshop focusing on leadership skills and team management.'
-    },
-    {
-        id: 'evt-003',
-        title: 'Environmental Awareness Campaign',
-        date: '2024-01-25',
-        time: '08:00 AM - 04:00 PM',
-        venue: 'Campus Grounds',
-        organizer: 'Environmental Awareness Group',
-        eventType: 'Community Volunteerism',
-        targetAudience: ['All Levels'],
-        expectedParticipants: 200,
-        actualParticipants: 185,
-        status: 'completed',
-        reportStatus: 'approved',
-        sdpCredits: 2,
-        description: 'Campus-wide environmental awareness campaign with tree planting and waste management activities.'
-    },
-    {
-        id: 'evt-004',
-        title: 'Technology Innovation Seminar',
-        date: '2024-02-01',
-        time: '10:00 AM - 03:00 PM',
-        venue: 'Computer Lab 1',
-        organizer: 'Technology Innovation Club',
-        eventType: 'Seminar/Webinar',
-        targetAudience: ['2nd Year', '3rd Year', '4th Year'],
-        expectedParticipants: 80,
-        actualParticipants: 75,
-        status: 'completed',
-        reportStatus: 'pending',
-        sdpCredits: 1,
-        description: 'Exploring latest technology trends and their applications in academic settings.'
-    },
-    {
-        id: 'evt-005',
-        title: 'Cultural Heritage Festival',
-        date: '2024-02-05',
-        time: '06:00 PM - 10:00 PM',
-        venue: 'Cultural Center',
-        organizer: 'Cultural Heritage Society',
-        eventType: 'General Assembly',
-        targetAudience: ['All Levels', 'Alumni'],
-        expectedParticipants: 300,
-        actualParticipants: 275,
-        status: 'completed',
-        reportStatus: 'submitted',
-        sdpCredits: 2,
-        description: 'Celebration of cultural diversity with performances, food, and traditional activities.'
-    }
-];
 
-export default function PostEventReport({ onBack }) {
+export default function PostEventReport({ onBack, onNavigateToReports }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedEventType, setSelectedEventType] = useState('all');
     const [selectedReportStatus, setSelectedReportStatus] = useState('all');
     const [selectedDateRange, setSelectedDateRange] = useState('all');
     const [showFilters, setShowFilters] = useState(false);
 
-    // Filter and search logic
-    const filteredEvents = useMemo(() => {
-        return MOCK_COMPLETED_EVENTS.filter(event => {
-            const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                event.organizer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                event.description.toLowerCase().includes(searchTerm.toLowerCase());
+    // Real data from backend
+    const [approvedEvents, setApprovedEvents] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [userEmail, setUserEmail] = useState(null);
 
-            const matchesEventType = selectedEventType === 'all' || event.eventType === selectedEventType;
-            const matchesReportStatus = selectedReportStatus === 'all' || event.reportStatus === selectedReportStatus;
+    // Fetch approved events from backend
+    useEffect(() => {
+        const fetchApprovedEvents = async () => {
+            try {
+                setIsLoading(true);
+                setError(null);
+
+                console.log('📋 Fetching approved events for PostEventReport...');
+
+                // Get user email from localStorage or context if available
+                const storedUser = localStorage.getItem('user');
+                const email = storedUser ? JSON.parse(storedUser).email : null;
+                setUserEmail(email);
+
+                const result = await getApprovedEvents(email);
+
+                if (result.success) {
+                    console.log('✅ Approved events loaded:', result.data.length, 'events');
+                    setApprovedEvents(result.data);
+                } else {
+                    console.error('❌ Failed to load approved events:', result.message);
+                    setError(result.message || 'Failed to load approved events');
+                    setApprovedEvents([]);
+                }
+            } catch (error) {
+                console.error('❌ Error loading approved events:', error);
+                setError('Network error while loading events');
+                setApprovedEvents([]);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchApprovedEvents();
+    }, []);
+
+    // Filter and search logic - now using real data
+    const filteredEvents = useMemo(() => {
+        return approvedEvents.filter(event => {
+            const matchesSearch = event.event_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                event.organization_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                event.report_description?.toLowerCase().includes(searchTerm.toLowerCase());
+
+            const matchesEventType = selectedEventType === 'all' || event.event_type === selectedEventType;
+            const matchesReportStatus = selectedReportStatus === 'all' || event.report_status === selectedReportStatus;
 
             let matchesDateRange = true;
             if (selectedDateRange !== 'all') {
-                const eventDate = new Date(event.date);
+                const eventDate = new Date(event.event_start_date || event.created_at);
                 const now = new Date();
                 const daysDiff = Math.floor((now - eventDate) / (1000 * 60 * 60 * 24));
 
@@ -155,12 +115,18 @@ export default function PostEventReport({ onBack }) {
 
             return matchesSearch && matchesEventType && matchesReportStatus && matchesDateRange;
         });
-    }, [searchTerm, selectedEventType, selectedReportStatus, selectedDateRange]);
+    }, [approvedEvents, searchTerm, selectedEventType, selectedReportStatus, selectedDateRange]);
 
-    const handleEventSelect = (eventId) => {
+    const handleEventSelect = (event) => {
         // Navigate to report submission form for selected event
-        console.log('Selected event for report:', eventId);
-        // In real app, this would navigate to a report form for the specific event
+        console.log('Selected event for report:', event);
+
+        if (onNavigateToReports) {
+            // Pass the event data to the Reports component
+            onNavigateToReports(event);
+        } else {
+            console.warn('onNavigateToReports callback not provided');
+        }
     };
 
     const getStatusBadge = (status) => {
@@ -180,15 +146,43 @@ export default function PostEventReport({ onBack }) {
 
     return (
         <div className="space-y-6">
+            {/* Back Button */}
+            <div className="flex justify-start">
+                <BackButton
+                    fallbackPath="/student-dashboard"
+                    customAction={onBack}
+                    showHomeButton={true}
+                />
+            </div>
+
             {/* Header */}
             <div className="text-center">
                 <div className="flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mx-auto mb-6">
                     <FileText className="h-10 w-10 text-green-600" />
                 </div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-4">Completed Events</h1>
+                <h1 className="text-3xl font-bold text-gray-900 mb-4">Approved Events</h1>
                 <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                    Browse and select completed events to submit post-event reports and documentation
+                    Browse and select approved events to submit post-event reports and documentation
                 </p>
+
+                {/* Loading/Error States */}
+                {isLoading && (
+                    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-center justify-center">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+                            <span className="text-blue-800">Loading approved events...</span>
+                        </div>
+                    </div>
+                )}
+
+                {error && (
+                    <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                        <div className="flex items-center">
+                            <AlertCircle className="h-5 w-5 text-red-600 mr-2" />
+                            <span className="text-red-800">{error}</span>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Search and Filter Bar */}
@@ -284,10 +278,10 @@ export default function PostEventReport({ onBack }) {
             {/* Results Summary */}
             <div className="flex items-center justify-between">
                 <div className="text-sm text-gray-600">
-                    Showing {filteredEvents.length} of {MOCK_COMPLETED_EVENTS.length} completed events
+                    Showing {filteredEvents.length} of {approvedEvents.length} approved events
                 </div>
                 <div className="text-sm text-gray-500">
-                    {filteredEvents.filter(e => e.reportStatus === 'pending').length} pending reports
+                    {filteredEvents.filter(e => e.report_status === 'pending' || e.report_status === 'not_applicable').length} pending reports
                 </div>
             </div>
 
@@ -298,10 +292,10 @@ export default function PostEventReport({ onBack }) {
                         {/* Event Header */}
                         <div className="p-6 border-b border-gray-200">
                             <div className="flex items-start justify-between mb-3">
-                                <h3 className="text-lg font-semibold text-gray-900 line-clamp-2">{event.title}</h3>
-                                {getStatusBadge(event.reportStatus)}
+                                <h3 className="text-lg font-semibold text-gray-900 line-clamp-2">{event.event_name}</h3>
+                                {getStatusBadge(event.report_status)}
                             </div>
-                            <p className="text-sm text-gray-600 line-clamp-2">{event.description}</p>
+                            <p className="text-sm text-gray-600 line-clamp-2">{event.report_description || 'No description available'}</p>
                         </div>
 
                         {/* Event Details */}
@@ -309,62 +303,58 @@ export default function PostEventReport({ onBack }) {
                             {/* Date and Time */}
                             <div className="flex items-center text-sm text-gray-600">
                                 <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-                                <span>{new Date(event.date).toLocaleDateString('en-US', {
+                                <span>{new Date(event.event_start_date).toLocaleDateString('en-US', {
                                     year: 'numeric',
                                     month: 'long',
                                     day: 'numeric'
                                 })}</span>
-                                <Clock className="h-4 w-4 ml-4 mr-2 text-gray-400" />
-                                <span>{event.time}</span>
+                                {event.event_end_date && (
+                                    <>
+                                        <span className="mx-2">-</span>
+                                        <span>{new Date(event.event_end_date).toLocaleDateString('en-US', {
+                                            month: 'long',
+                                            day: 'numeric'
+                                        })}</span>
+                                    </>
+                                )}
                             </div>
 
                             {/* Venue */}
                             <div className="flex items-center text-sm text-gray-600">
                                 <MapPin className="h-4 w-4 mr-2 text-gray-400" />
-                                <span>{event.venue}</span>
+                                <span>{event.event_venue}</span>
                             </div>
 
                             {/* Organizer */}
                             <div className="flex items-center text-sm text-gray-600">
                                 <Users className="h-4 w-4 mr-2 text-gray-400" />
-                                <span>{event.organizer}</span>
+                                <span>{event.organization_name}</span>
                             </div>
 
-                            {/* Event Type and SDP Credits */}
+                            {/* Event Type and Contact */}
                             <div className="flex items-center justify-between text-sm">
                                 <div className="flex items-center text-gray-600">
                                     <Award className="h-4 w-4 mr-2 text-gray-400" />
-                                    <span>{event.eventType}</span>
+                                    <span>{event.event_type || 'Not specified'}</span>
                                 </div>
                                 <div className="text-blue-600 font-medium">
-                                    {event.sdpCredits} SDP Credit{event.sdpCredits > 1 ? 's' : ''}
+                                    {event.organization_type}
                                 </div>
                             </div>
 
-                            {/* Target Audience */}
-                            <div className="flex flex-wrap gap-1">
-                                {event.targetAudience.map((audience, index) => (
-                                    <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full">
-                                        {audience}
-                                    </span>
-                                ))}
-                            </div>
-
-                            {/* Participation Stats */}
+                            {/* Contact Information */}
                             <div className="bg-gray-50 rounded-lg p-3">
                                 <div className="flex items-center justify-between text-sm">
-                                    <span className="text-gray-600">Expected Participants:</span>
-                                    <span className="font-medium">{event.expectedParticipants}</span>
+                                    <span className="text-gray-600">Contact Person:</span>
+                                    <span className="font-medium">{event.contact_name || 'Not specified'}</span>
                                 </div>
                                 <div className="flex items-center justify-between text-sm">
-                                    <span className="text-gray-600">Actual Participants:</span>
-                                    <span className="font-medium text-green-600">{event.actualParticipants}</span>
+                                    <span className="text-gray-600">Email:</span>
+                                    <span className="font-medium text-blue-600">{event.contact_email}</span>
                                 </div>
                                 <div className="flex items-center justify-between text-sm">
-                                    <span className="text-gray-600">Attendance Rate:</span>
-                                    <span className="font-medium text-blue-600">
-                                        {Math.round((event.actualParticipants / event.expectedParticipants) * 100)}%
-                                    </span>
+                                    <span className="text-gray-600">Attendance:</span>
+                                    <span className="font-medium text-green-600">{event.attendance_count || 0}</span>
                                 </div>
                             </div>
                         </div>
@@ -373,12 +363,12 @@ export default function PostEventReport({ onBack }) {
                         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
                             <div className="flex gap-3">
                                 <button
-                                    onClick={() => handleEventSelect(event.id)}
+                                    onClick={() => handleEventSelect(event)}
                                     className="flex-1 flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                                 >
                                     <FileText className="h-4 w-4 mr-2" />
-                                    {event.reportStatus === 'pending' ? 'Submit Report' :
-                                        event.reportStatus === 'submitted' ? 'View Report' : 'View Details'}
+                                    {event.report_status === 'pending' || event.report_status === 'not_applicable' ? 'Submit Report' :
+                                        event.report_status === 'submitted' ? 'View Report' : 'View Details'}
                                 </button>
                                 <button className="flex items-center justify-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
                                     <Eye className="h-4 w-4" />
@@ -390,13 +380,21 @@ export default function PostEventReport({ onBack }) {
             </div>
 
             {/* No Results */}
-            {filteredEvents.length === 0 && (
+            {!isLoading && !error && filteredEvents.length === 0 && (
                 <div className="text-center py-12">
                     <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No events found</h3>
-                    <p className="text-gray-600">Try adjusting your search criteria or filters to find events.</p>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                        {approvedEvents.length === 0 ? 'No approved events found' : 'No events match your criteria'}
+                    </h3>
+                    <p className="text-gray-600">
+                        {approvedEvents.length === 0
+                            ? 'You don\'t have any approved events yet. Complete and submit a proposal to see it here.'
+                            : 'Try adjusting your search criteria or filters to find events.'
+                        }
+                    </p>
                 </div>
             )}
         </div>
     );
 }
+

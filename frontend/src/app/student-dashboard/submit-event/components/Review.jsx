@@ -7,20 +7,30 @@
 
 "use client";
 
+import { submitProposalForReview } from '@/services/proposal-service.js';
 import {
     AlertCircle,
+    Building2,
     Calendar,
     CheckCircle,
     FileText,
-    MapPin
+    Loader2,
+    MapPin,
+    Send
 } from 'lucide-react';
+import { useState } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { useEventForm } from '../contexts/EventFormContext';
 
-export default function StepProgram({ methods, onNext, onPrevious, isLastStep }) {
+export default function StepProgram({ methods, onNext, onPrevious, isLastStep, onApproved }) {
     const { watch } = useFormContext();
     const { eventUuid, getShortUuid, getFormAge } = useEventForm();
     const watchedValues = watch();
+
+    // State for form submission
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitStatus, setSubmitStatus] = useState(null); // 'success', 'error', null
+    const [submitMessage, setSubmitMessage] = useState('');
 
     // Format date for display
     const formatDate = (dateString) => {
@@ -68,16 +78,78 @@ export default function StepProgram({ methods, onNext, onPrevious, isLastStep })
         return audiences[value] || value;
     };
 
+    // Format target audiences array
+    const formatTargetAudiences = (audiences) => {
+        if (!audiences) return 'Not specified';
+        if (Array.isArray(audiences)) {
+            return audiences.map(aud => getTargetAudienceLabel(aud)).join(', ');
+        }
+        return getTargetAudienceLabel(audiences);
+    };
+
+    // Format time for display
+    const formatTime = (timeString) => {
+        if (!timeString) return 'Not specified';
+        return timeString;
+    };
+
     const isStepValid = () => {
-        return watchedValues.eventName &&
+        return watchedValues.organizationName &&
+            watchedValues.contactPerson &&
+            watchedValues.contactEmail &&
+            watchedValues.eventName &&
             watchedValues.venue &&
             watchedValues.startDate &&
             watchedValues.endDate &&
+            watchedValues.startTime &&
+            watchedValues.endTime &&
             watchedValues.eventType &&
             watchedValues.targetAudience &&
             watchedValues.sdpCredits &&
             watchedValues.gpoaFile &&
             watchedValues.projectProposalFile;
+    };
+
+    // Handle form submission
+    const handleSubmitProposal = async () => {
+        if (!isStepValid()) {
+            setSubmitStatus('error');
+            setSubmitMessage('Please complete all required fields before submitting.');
+            return;
+        }
+
+        setIsSubmitting(true);
+        setSubmitStatus(null);
+        setSubmitMessage('');
+
+        try {
+            console.log('🚀 Submitting proposal for review...');
+            const result = await submitProposalForReview(eventUuid);
+
+            if (result.success) {
+                setSubmitStatus('success');
+                setSubmitMessage('Proposal submitted successfully! You will receive a confirmation email shortly.');
+                console.log('✅ Proposal submitted successfully:', result.data);
+
+                // Navigate to pending step after successful submission
+                setTimeout(() => {
+                    // Use the onNext callback to go to step 5 (Pending)
+                    if (onNext) {
+                        onNext();
+                    }
+                }, 3000);
+            } else {
+                setSubmitStatus('error');
+                setSubmitMessage(result.message || 'Failed to submit proposal. Please try again.');
+                console.error('❌ Failed to submit proposal:', result.error);
+            }
+        } catch (error) {
+            setSubmitStatus('error');
+            setSubmitMessage('An unexpected error occurred. Please try again.');
+            console.error('❌ Error submitting proposal:', error);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -103,6 +175,32 @@ export default function StepProgram({ methods, onNext, onPrevious, isLastStep })
 
             {/* Review Content */}
             <div className="space-y-6">
+                {/* Organization Information */}
+                <div className="bg-white border border-gray-200 rounded-lg p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <Building2 className="h-5 w-5 mr-2" />
+                        Organization Information
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-500">Organization Name</label>
+                            <p className="text-gray-900 font-medium">{watchedValues.organizationName || 'Not specified'}</p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-500">Contact Person</label>
+                            <p className="text-gray-900 font-medium">{watchedValues.contactPerson || 'Not specified'}</p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-500">Contact Email</label>
+                            <p className="text-gray-900 font-medium">{watchedValues.contactEmail || 'Not specified'}</p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-500">Contact Phone</label>
+                            <p className="text-gray-900 font-medium">{watchedValues.contactPhone || 'Not specified'}</p>
+                        </div>
+                    </div>
+                </div>
+
                 {/* Event Overview */}
                 <div className="bg-white border border-gray-200 rounded-lg p-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
@@ -120,7 +218,7 @@ export default function StepProgram({ methods, onNext, onPrevious, isLastStep })
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-500">Target Audience</label>
-                            <p className="text-gray-900 font-medium">{getTargetAudienceLabel(watchedValues.targetAudience)}</p>
+                            <p className="text-gray-900 font-medium">{formatTargetAudiences(watchedValues.targetAudience)}</p>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-500">SDP Credits</label>
@@ -141,12 +239,16 @@ export default function StepProgram({ methods, onNext, onPrevious, isLastStep })
                             <p className="text-gray-900 font-medium">{watchedValues.venue || 'Not specified'}</p>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-500">Start Date</label>
-                            <p className="text-gray-900 font-medium">{formatDate(watchedValues.startDate)}</p>
+                            <label className="block text-sm font-medium text-gray-500">Start Date & Time</label>
+                            <p className="text-gray-900 font-medium">
+                                {formatDate(watchedValues.startDate)} at {formatTime(watchedValues.startTime)}
+                            </p>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-500">End Date</label>
-                            <p className="text-gray-900 font-medium">{formatDate(watchedValues.endDate)}</p>
+                            <label className="block text-sm font-medium text-gray-500">End Date & Time</label>
+                            <p className="text-gray-900 font-medium">
+                                {formatDate(watchedValues.endDate)} at {formatTime(watchedValues.endTime)}
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -215,6 +317,63 @@ export default function StepProgram({ methods, onNext, onPrevious, isLastStep })
                         </div>
                     </div>
                 </div>
+
+                {/* Submit Button */}
+                {isStepValid() && (
+                    <div className="bg-white border border-gray-200 rounded-lg p-6">
+                        <div className="text-center">
+                            <button
+                                onClick={handleSubmitProposal}
+                                disabled={isSubmitting}
+                                className={`inline-flex items-center px-8 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white transition-colors duration-200 ${isSubmitting
+                                    ? 'bg-gray-400 cursor-not-allowed'
+                                    : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                                    }`}
+                            >
+                                {isSubmitting ? (
+                                    <>
+                                        <Loader2 className="animate-spin h-5 w-5 mr-2" />
+                                        Submitting...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Send className="h-5 w-5 mr-2" />
+                                        Submit for Review
+                                    </>
+                                )}
+                            </button>
+                            <p className="mt-3 text-sm text-gray-500">
+                                By submitting, you confirm that all information is accurate and complete.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {/* Status Messages */}
+                {submitStatus && (
+                    <div className={`border rounded-lg p-4 ${submitStatus === 'success'
+                        ? 'bg-green-50 border-green-200'
+                        : 'bg-red-50 border-red-200'
+                        }`}>
+                        <div className="flex items-start space-x-3">
+                            {submitStatus === 'success' ? (
+                                <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                            ) : (
+                                <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                            )}
+                            <div>
+                                <h4 className={`font-medium ${submitStatus === 'success' ? 'text-green-900' : 'text-red-900'
+                                    }`}>
+                                    {submitStatus === 'success' ? 'Submission Successful!' : 'Submission Failed'}
+                                </h4>
+                                <p className={`text-sm mt-1 ${submitStatus === 'success' ? 'text-green-800' : 'text-red-800'
+                                    }`}>
+                                    {submitMessage}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Step Validation Status */}
