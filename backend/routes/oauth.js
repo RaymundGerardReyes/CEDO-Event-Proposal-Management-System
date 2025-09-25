@@ -287,7 +287,7 @@ router.get('/me', async (req, res) => {
         }
 
         // Get current user from database
-        const { pool, query } = require('../config/database');
+        const { pool, query } = require('../config/database-postgresql-only');
         const [users] = await pool.query('SELECT * FROM users WHERE id = ?', [userId]);
         const user = users[0];
 

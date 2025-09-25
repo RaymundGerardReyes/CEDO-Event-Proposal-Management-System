@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { pool, query } = require('../../config/database');
+const { pool, query } = require('../../config/database-postgresql-only');
 const { validateAdmin, validateToken } = require('../../middleware/auth');
 const { handleErrors } = require('./middleware');
 
@@ -61,7 +61,7 @@ router.get("/dashboard/stats", async (req, res, next) => {
                 event_name as eventName, 
                 proposal_status as status, 
                 COALESCE(submitted_at, created_at) as submittedAt, 
-                contact_name as contactPerson
+                contact_person as contactPerson
             FROM proposals
             WHERE event_name IS NOT NULL
             ORDER BY COALESCE(submitted_at, created_at) DESC
@@ -71,11 +71,11 @@ router.get("/dashboard/stats", async (req, res, next) => {
         // Get event type distribution
         const [eventTypes] = await pool.query(`
             SELECT 
-                COALESCE(school_event_type, community_event_type, 'other') as eventType, 
+                COALESCE(event_type, 'other') as eventType, 
                 COUNT(*) as count
             FROM proposals
-            WHERE COALESCE(school_event_type, community_event_type) IS NOT NULL
-            GROUP BY COALESCE(school_event_type, community_event_type)
+            WHERE event_type IS NOT NULL
+            GROUP BY event_type
             ORDER BY count DESC
         `);
 
@@ -152,8 +152,8 @@ router.get("/proposals", async (req, res, next) => {
         }
 
         if (eventType && eventType !== "all") {
-            query += " AND (school_event_type = ? OR community_event_type = ?)"
-            queryParams.push(eventType, eventType)
+            query += " AND event_type = ?"
+            queryParams.push(eventType)
         }
 
         // Execute query

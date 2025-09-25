@@ -113,7 +113,7 @@ describe('DB Check Middleware', () => {
         it('should not create proposals table if exists', async () => {
             // Mock the actual tableExists function that's being called
             const mockTableExists = jest.fn().mockResolvedValue(true);
-            // Simulate all required columns present (as returned by MySQL driver)
+            // Simulate all required columns present (as returned by postgresql driver)
             const allFields = [
                 { Field: 'id' },
                 { Field: 'digital_signature' },

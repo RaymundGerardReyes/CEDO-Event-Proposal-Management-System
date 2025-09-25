@@ -1,10 +1,10 @@
 /**
- * GridFS Utility for MongoDB File Storage
- * Handles file uploads, downloads, and management in MongoDB GridFS
+ * GridFS Utility for postgresql File Storage
+ * Handles file uploads, downloads, and management in postgresql GridFS
  */
 
-const { MongoClient, GridFSBucket } = require('mongodb');
-const mongoose = require('mongoose');
+const { postgresqlClient, GridFSBucket } = require('postgresql');
+const postgresqlose = require('postgresqlose');
 const fs = require('fs');
 const path = require('path');
 
@@ -12,8 +12,8 @@ const path = require('path');
 // CONFIGURATION
 // ============================================================================
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/cedo_db';
-const DATABASE_NAME = process.env.MONGODB_DATABASE || 'cedo_db';
+const postgresql_URI = process.env.postgresql_URI || 'postgresql://localhost:27017/cedo_db';
+const DATABASE_NAME = process.env.postgresql_DATABASE || 'cedo_db';
 const BUCKET_NAME = 'uploads';
 
 // Connection options
@@ -29,7 +29,7 @@ const CONNECTION_OPTIONS = {
 // GLOBAL STATE
 // ============================================================================
 
-let mongoClient = null;
+let postgresqlClient = null;
 let gridFSBucket = null;
 let isInitialized = false;
 let connectionPromise = null;
@@ -39,28 +39,28 @@ let connectionPromise = null;
 // ============================================================================
 
 /**
- * Initialize MongoDB connection and GridFS bucket
+ * Initialize postgresql connection and GridFS bucket
  * @returns {Promise<void>}
  */
 async function initializeGridFS() {
     console.log('🔧 (GridFS Utility) Starting GridFS initialization...');
 
-    if (isInitialized && mongoClient) {
+    if (isInitialized && postgresqlClient) {
         console.log('✅ (GridFS Utility) Already initialized');
         return;
     }
 
     try {
         // Create new client connection
-        console.log('🔧 (GridFS Utility) Creating MongoDB client...');
-        mongoClient = new MongoClient(MONGODB_URI, CONNECTION_OPTIONS);
+        console.log('🔧 (GridFS Utility) Creating postgresql client...');
+        postgresqlClient = new postgresqlClient(postgresql_URI, CONNECTION_OPTIONS);
 
-        // Connect to MongoDB
-        console.log('🔧 (GridFS Utility) Connecting to MongoDB...');
-        await mongoClient.connect();
+        // Connect to postgresql
+        console.log('🔧 (GridFS Utility) Connecting to postgresql...');
+        await postgresqlClient.connect();
 
         // Get database
-        const db = mongoClient.db(DATABASE_NAME);
+        const db = postgresqlClient.db(DATABASE_NAME);
 
         // Create GridFS bucket
         console.log('🔧 (GridFS Utility) Creating GridFS bucket...');
@@ -91,32 +91,32 @@ function getGridFSBucket() {
 }
 
 /**
- * Get the MongoDB client instance
- * @returns {MongoClient|null}
+ * Get the postgresql client instance
+ * @returns {postgresqlClient|null}
  */
-function getMongoClient() {
-    if (!isInitialized || !mongoClient) {
-        console.warn('⚠️ (GridFS Utility) MongoDB client not initialized');
+function getpostgresqlClient() {
+    if (!isInitialized || !postgresqlClient) {
+        console.warn('⚠️ (GridFS Utility) postgresql client not initialized');
         return null;
     }
-    return mongoClient;
+    return postgresqlClient;
 }
 
 /**
- * Close MongoDB connection
+ * Close postgresql connection
  * @returns {Promise<void>}
  */
 async function closeConnection() {
-    if (mongoClient) {
+    if (postgresqlClient) {
         try {
-            await mongoClient.close();
-            console.log('✅ (GridFS Utility) MongoDB connection closed');
+            await postgresqlClient.close();
+            console.log('✅ (GridFS Utility) postgresql connection closed');
         } catch (error) {
-            console.error('❌ (GridFS Utility) Error closing MongoDB connection:', error.message);
+            console.error('❌ (GridFS Utility) Error closing postgresql connection:', error.message);
         }
     }
 
-    mongoClient = null;
+    postgresqlClient = null;
     gridFSBucket = null;
     isInitialized = false;
 }
@@ -329,7 +329,7 @@ async function deleteFile(fileId) {
 
 /**
  * List all files in GridFS
- * @param {Object} filter - MongoDB filter object
+ * @param {Object} filter - postgresql filter object
  * @returns {Promise<Array>} Array of file metadata
  */
 async function listFiles(filter = {}) {
@@ -378,7 +378,7 @@ function isAvailable() {
 function getStatus() {
     return {
         initialized: isInitialized,
-        connected: mongoClient !== null,
+        connected: postgresqlClient !== null,
         bucketAvailable: gridFSBucket !== null
     };
 }
@@ -391,7 +391,7 @@ module.exports = {
     // Connection management
     initializeGridFS,
     getGridFSBucket,
-    getMongoClient,
+    getpostgresqlClient,
     closeConnection,
 
     // File operations

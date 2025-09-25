@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 // ✅ FIX: Use universal database connection (PostgreSQL)
-const { pool, query } = require('../config/database');
+const { pool, query } = require('../config/database-postgresql-only');
 // ✅ FIX: Use standard authentication middleware
 const { validateToken } = require('../middleware/auth');
 

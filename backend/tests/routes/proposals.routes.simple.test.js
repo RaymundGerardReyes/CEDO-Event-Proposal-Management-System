@@ -43,7 +43,7 @@ vi.mock('../services/audit.service.js', () => ({
     getAuditLogs: vi.fn(() => Promise.resolve([])),
     getDebugLogs: vi.fn(() => Promise.resolve([])),
     getDebugInfo: vi.fn(() => Promise.resolve({
-        mysql_record: { uuid: 'test-uuid', id: 57 },
+        postgresql_record: { uuid: 'test-uuid', id: 57 },
         audit_logs: [],
         debug_logs: [],
         status_match: true
@@ -202,6 +202,16 @@ describe('Proposal Routes - Simple Tests', () => {
         });
     });
 });
+
+
+
+
+
+
+
+
+
+
 
 
 

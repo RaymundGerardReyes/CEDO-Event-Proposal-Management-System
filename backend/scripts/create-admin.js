@@ -5,15 +5,15 @@
  * Creates admin users in the CEDO system
  */
 
-const mysql = require('mysql2/promise');
+const postgresql = require('postgresql2/promise');
 require('dotenv').config();
 
 const dbConfig = {
-    host: process.env.MYSQL_HOST || 'mysql',
-    port: process.env.MYSQL_PORT || 3306,
-    user: process.env.MYSQL_USER || 'root',
-    password: process.env.MYSQL_ROOT_PASSWORD || process.env.MYSQL_PASSWORD,
-    database: process.env.MYSQL_DATABASE || 'cedo_auth'
+    host: process.env.postgresql_HOST || 'postgresql',
+    port: process.env.postgresql_PORT || 3306,
+    user: process.env.postgresql_USER || 'root',
+    password: process.env.postgresql_ROOT_PASSWORD || process.env.postgresql_PASSWORD,
+    database: process.env.postgresql_DATABASE || 'cedo_auth'
 };
 
 async function createAdminUser() {
@@ -21,8 +21,8 @@ async function createAdminUser() {
 
     try {
         console.log('🔧 Connecting to database...');
-        connection = await mysql.createConnection(dbConfig);
-        console.log('✅ Connected to MySQL database');
+        connection = await postgresql.createConnection(dbConfig);
+        console.log('✅ Connected to postgresql database');
 
         // Admin user data
         const adminUser = {
@@ -78,7 +78,7 @@ async function createAdminUser() {
         if (error.code === 'ECONNREFUSED') {
             console.log('');
             console.log('🔧 Troubleshooting:');
-            console.log('1. Make sure MySQL is running (Docker: docker compose up mysql -d)');
+            console.log('1. Make sure postgresql is running (Docker: docker compose up postgresql -d)');
             console.log('2. Check your .env file database credentials');
             console.log('3. Ensure the database "cedo_auth" exists');
         }

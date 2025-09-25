@@ -1,9 +1,9 @@
 /**
  * =============================================
- * DATA SYNC SERVICE - MySQL + MongoDB Synchronization
+ * DATA SYNC SERVICE - postgresql + postgresql Synchronization
  * =============================================
  * 
- * This service handles data synchronization between MySQL and MongoDB
+ * This service handles data synchronization between postgresql and postgresql
  * databases, ensuring data consistency across the hybrid architecture.
  * It provides comprehensive sync operations, validation, and error handling.
  * 
@@ -21,9 +21,7 @@
  * - Performance optimization
  */
 
-const { pool, query } = require('../config/database');
-const { getDb } = require('../utils/db');
-
+const { pool, query } = require('../config/database-postgresql-only');
 // =============================================
 // SHARED UTILITY FUNCTIONS
 // =============================================
@@ -41,7 +39,7 @@ const validateSyncParams = (params) => {
     errors.push('Proposal ID is required');
   }
 
-  if (!params.direction || !['mysql-to-mongo', 'mongo-to-mysql', 'bidirectional'].includes(params.direction)) {
+  if (!params.direction || !['postgresql-to-postgresql', 'postgresql-to-postgresql', 'bidirectional'].includes(params.direction)) {
     errors.push('Invalid sync direction');
   }
 
@@ -66,8 +64,8 @@ const compareDataStructures = (data1, data2) => {
     if (data1[key] !== data2[key]) {
       differences.push({
         field: key,
-        mysqlValue: data1[key],
-        mongoValue: data2[key]
+        postgresqlValue: data1[key],
+        postgresqlValue: data2[key]
       });
     }
   });
@@ -156,37 +154,37 @@ const ensureProposalConsistency = async (organizationId) => {
 
     const orgName = await getOrganizationName(organizationId);
 
-    // Check MySQL proposals
-    const [mysqlProposals] = await pool.query(
+    // Check postgresql proposals
+    const [postgresqlProposals] = await pool.query(
       'SELECT id, uuid, proposal_status, organization_name FROM proposals WHERE user_id = ?',
       [organizationId]
     );
 
-    // Check MongoDB proposals (if available)
-    let mongoProposals = [];
+    // Check postgresql proposals (if available)
+    let postgresqlProposals = [];
     try {
       const db = await getDb();
-      mongoProposals = await db.collection('proposals').find({ submitter: organizationId.toString() }).toArray();
-    } catch (mongoError) {
-      console.warn('⚠️ SYNC: MongoDB not available for consistency check');
+      postgresqlProposals = await db.collection('proposals').find({ submitter: organizationId.toString() }).toArray();
+    } catch (postgresqlError) {
+      console.warn('⚠️ SYNC: postgresql not available for consistency check');
     }
 
     const consistency = {
       organizationName: orgName,
-      mysqlProposalCount: mysqlProposals.length,
-      mongoProposalCount: mongoProposals.length,
+      postgresqlProposalCount: postgresqlProposals.length,
+      postgresqlProposalCount: postgresqlProposals.length,
       consistent: true,
       recommendations: []
     };
 
     // Check for inconsistencies
-    if (mysqlProposals.length !== mongoProposals.length) {
+    if (postgresqlProposals.length !== postgresqlProposals.length) {
       consistency.consistent = false;
       consistency.recommendations.push('Proposal count mismatch between databases');
     }
 
     // Check organization name consistency
-    const inconsistentProposals = mysqlProposals.filter(p => p.organization_name !== orgName);
+    const inconsistentProposals = postgresqlProposals.filter(p => p.organization_name !== orgName);
     if (inconsistentProposals.length > 0) {
       consistency.consistent = false;
       consistency.recommendations.push(`${inconsistentProposals.length} proposals have inconsistent organization names`);
@@ -200,8 +198,8 @@ const ensureProposalConsistency = async (organizationId) => {
     return {
       consistency: {
         organizationName: 'Unknown',
-        mysqlProposalCount: 0,
-        mongoProposalCount: 0,
+        postgresqlProposalCount: 0,
+        postgresqlProposalCount: 0,
         consistent: false,
         recommendations: ['Error occurred during consistency check']
       }
@@ -210,53 +208,53 @@ const ensureProposalConsistency = async (organizationId) => {
 };
 
 // =============================================
-// MYSQL TO MONGODB SYNC FUNCTIONS
+// postgresql TO postgresql SYNC FUNCTIONS
 // =============================================
 
 /**
- * Sync proposal data from MySQL to MongoDB
+ * Sync proposal data from postgresql to postgresql
  * 
  * @param {string|number} proposalId - Proposal ID
  * @returns {Promise<Object>} Sync result
  */
-const syncMySQLToMongo = async (proposalId) => {
+const syncpostgresqlTopostgresql = async (proposalId) => {
   try {
-    logSyncOperation('MySQL to MongoDB sync started', { proposalId });
+    logSyncOperation('postgresql to postgresql sync started', { proposalId });
 
-    // Get MySQL proposal data
-    const [mysqlProposals] = await pool.query(
+    // Get postgresql proposal data
+    const [postgresqlProposals] = await pool.query(
       'SELECT * FROM proposals WHERE id = ?',
       [proposalId]
     );
 
-    if (mysqlProposals.length === 0) {
-      throw new Error('Proposal not found in MySQL');
+    if (postgresqlProposals.length === 0) {
+      throw new Error('Proposal not found in postgresql');
     }
 
-    const mysqlData = mysqlProposals[0];
+    const postgresqlData = postgresqlProposals[0];
 
-    // Get MongoDB database
+    // Get postgresql database
     const db = await getDb();
     const collection = db.collection('proposals');
 
-    // Check if MongoDB record exists
-    const existingMongoRecord = await collection.findOne({ proposalId: proposalId.toString() });
+    // Check if postgresql record exists
+    const existingpostgresqlRecord = await collection.findOne({ proposalId: proposalId.toString() });
 
-    if (existingMongoRecord) {
+    if (existingpostgresqlRecord) {
       // Update existing record
       const updateResult = await collection.updateOne(
         { proposalId: proposalId.toString() },
         {
           $set: {
-            ...mysqlData,
+            ...postgresqlData,
             proposalId: proposalId.toString(),
-            lastSyncedFromMySQL: generateSyncTimestamp(),
+            lastSyncedFrompostgresql: generateSyncTimestamp(),
             updatedAt: new Date()
           }
         }
       );
 
-      logSyncOperation('MySQL to MongoDB sync completed (update)', {
+      logSyncOperation('postgresql to postgresql sync completed (update)', {
         proposalId,
         modifiedCount: updateResult.modifiedCount
       });
@@ -272,14 +270,14 @@ const syncMySQLToMongo = async (proposalId) => {
     } else {
       // Create new record
       const insertResult = await collection.insertOne({
-        ...mysqlData,
+        ...postgresqlData,
         proposalId: proposalId.toString(),
-        lastSyncedFromMySQL: generateSyncTimestamp(),
+        lastSyncedFrompostgresql: generateSyncTimestamp(),
         createdAt: new Date(),
         updatedAt: new Date()
       });
 
-      logSyncOperation('MySQL to MongoDB sync completed (insert)', {
+      logSyncOperation('postgresql to postgresql sync completed (insert)', {
         proposalId,
         insertedId: insertResult.insertedId
       });
@@ -294,20 +292,20 @@ const syncMySQLToMongo = async (proposalId) => {
     }
 
   } catch (error) {
-    console.error('❌ SYNC: Error syncing MySQL to MongoDB:', error);
-    throw new Error(`Failed to sync MySQL to MongoDB: ${error.message}`);
+    console.error('❌ SYNC: Error syncing postgresql to postgresql:', error);
+    throw new Error(`Failed to sync postgresql to postgresql: ${error.message}`);
   }
 };
 
 /**
- * Sync multiple proposals from MySQL to MongoDB
+ * Sync multiple proposals from postgresql to postgresql
  * 
  * @param {Array} proposalIds - Array of proposal IDs
  * @returns {Promise<Object>} Batch sync result
  */
-const batchSyncMySQLToMongo = async (proposalIds) => {
+const batchSyncpostgresqlTopostgresql = async (proposalIds) => {
   try {
-    logSyncOperation('Batch MySQL to MongoDB sync started', {
+    logSyncOperation('Batch postgresql to postgresql sync started', {
       proposalCount: proposalIds.length
     });
 
@@ -316,7 +314,7 @@ const batchSyncMySQLToMongo = async (proposalIds) => {
 
     for (const proposalId of proposalIds) {
       try {
-        const result = await syncMySQLToMongo(proposalId);
+        const result = await syncpostgresqlTopostgresql(proposalId);
         results.push(result);
       } catch (error) {
         errors.push({
@@ -334,64 +332,64 @@ const batchSyncMySQLToMongo = async (proposalIds) => {
       errors: errors
     };
 
-    logSyncOperation('Batch MySQL to MongoDB sync completed', summary);
+    logSyncOperation('Batch postgresql to postgresql sync completed', summary);
 
     return summary;
 
   } catch (error) {
-    console.error('❌ SYNC: Error in batch MySQL to MongoDB sync:', error);
-    throw new Error(`Failed to batch sync MySQL to MongoDB: ${error.message}`);
+    console.error('❌ SYNC: Error in batch postgresql to postgresql sync:', error);
+    throw new Error(`Failed to batch sync postgresql to postgresql: ${error.message}`);
   }
 };
 
 // =============================================
-// MONGODB TO MYSQL SYNC FUNCTIONS
+// postgresql TO postgresql SYNC FUNCTIONS
 // =============================================
 
 /**
- * Sync proposal data from MongoDB to MySQL
+ * Sync proposal data from postgresql to postgresql
  * 
  * @param {string|number} proposalId - Proposal ID
  * @returns {Promise<Object>} Sync result
  */
-const syncMongoToMySQL = async (proposalId) => {
+const syncpostgresqlTopostgresql = async (proposalId) => {
   try {
-    logSyncOperation('MongoDB to MySQL sync started', { proposalId });
+    logSyncOperation('postgresql to postgresql sync started', { proposalId });
 
-    // Get MongoDB proposal data
+    // Get postgresql proposal data
     const db = await getDb();
     const collection = db.collection('proposals');
 
-    const mongoData = await collection.findOne({ proposalId: proposalId.toString() });
+    const postgresqlData = await collection.findOne({ proposalId: proposalId.toString() });
 
-    if (!mongoData) {
-      throw new Error('Proposal not found in MongoDB');
+    if (!postgresqlData) {
+      throw new Error('Proposal not found in postgresql');
     }
 
-    // Check if MySQL record exists
-    const [mysqlProposals] = await pool.query(
+    // Check if postgresql record exists
+    const [postgresqlProposals] = await pool.query(
       'SELECT id FROM proposals WHERE id = ?',
       [proposalId]
     );
 
-    if (mysqlProposals.length > 0) {
+    if (postgresqlProposals.length > 0) {
       // Update existing record
       const updateFields = [];
       const updateValues = [];
 
-      // Map MongoDB fields to MySQL fields
+      // Map postgresql fields to postgresql fields
       const fieldMapping = {
-        organization_name: mongoData.organization_name,
-        organization_type: mongoData.organization_type,
-        contact_name: mongoData.contact_name,
-        contact_email: mongoData.contact_email,
-        contact_phone: mongoData.contact_phone,
-        event_name: mongoData.event_name,
-        event_venue: mongoData.event_venue,
-        event_mode: mongoData.event_mode,
-        event_start_date: mongoData.event_start_date,
-        event_end_date: mongoData.event_end_date,
-        proposal_status: mongoData.proposal_status,
+        organization_name: postgresqlData.organization_name,
+        organization_type: postgresqlData.organization_type,
+        contact_name: postgresqlData.contact_name,
+        contact_email: postgresqlData.contact_email,
+        contact_phone: postgresqlData.contact_phone,
+        event_name: postgresqlData.event_name,
+        event_venue: postgresqlData.event_venue,
+        event_mode: postgresqlData.event_mode,
+        event_start_date: postgresqlData.event_start_date,
+        event_end_date: postgresqlData.event_end_date,
+        proposal_status: postgresqlData.proposal_status,
         updated_at: new Date()
       };
 
@@ -409,7 +407,7 @@ const syncMongoToMySQL = async (proposalId) => {
         updateValues
       );
 
-      logSyncOperation('MongoDB to MySQL sync completed (update)', {
+      logSyncOperation('postgresql to postgresql sync completed (update)', {
         proposalId,
         affectedRows: updateResult.affectedRows
       });
@@ -432,23 +430,23 @@ const syncMongoToMySQL = async (proposalId) => {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           proposalId,
-          mongoData.organization_name,
-          mongoData.organization_type,
-          mongoData.contact_name,
-          mongoData.contact_email,
-          mongoData.contact_phone,
-          mongoData.event_name,
-          mongoData.event_venue,
-          mongoData.event_mode,
-          mongoData.event_start_date,
-          mongoData.event_end_date,
-          mongoData.proposal_status,
+          postgresqlData.organization_name,
+          postgresqlData.organization_type,
+          postgresqlData.contact_name,
+          postgresqlData.contact_email,
+          postgresqlData.contact_phone,
+          postgresqlData.event_name,
+          postgresqlData.event_venue,
+          postgresqlData.event_mode,
+          postgresqlData.event_start_date,
+          postgresqlData.event_end_date,
+          postgresqlData.proposal_status,
           new Date(),
           new Date()
         ]
       );
 
-      logSyncOperation('MongoDB to MySQL sync completed (insert)', {
+      logSyncOperation('postgresql to postgresql sync completed (insert)', {
         proposalId,
         insertId: insertResult.insertId
       });
@@ -463,8 +461,8 @@ const syncMongoToMySQL = async (proposalId) => {
     }
 
   } catch (error) {
-    console.error('❌ SYNC: Error syncing MongoDB to MySQL:', error);
-    throw new Error(`Failed to sync MongoDB to MySQL: ${error.message}`);
+    console.error('❌ SYNC: Error syncing postgresql to postgresql:', error);
+    throw new Error(`Failed to sync postgresql to postgresql: ${error.message}`);
   }
 };
 
@@ -483,24 +481,24 @@ const bidirectionalSync = async (proposalId) => {
     logSyncOperation('Bidirectional sync started', { proposalId });
 
     // Get data from both databases
-    const [mysqlProposals] = await pool.query(
+    const [postgresqlProposals] = await pool.query(
       'SELECT * FROM proposals WHERE id = ?',
       [proposalId]
     );
 
     const db = await getDb();
     const collection = db.collection('proposals');
-    const mongoData = await collection.findOne({ proposalId: proposalId.toString() });
+    const postgresqlData = await collection.findOne({ proposalId: proposalId.toString() });
 
-    const mysqlData = mysqlProposals[0] || null;
+    const postgresqlData = postgresqlProposals[0] || null;
 
     // Compare data structures
-    const comparison = compareDataStructures(mysqlData || {}, mongoData || {});
+    const comparison = compareDataStructures(postgresqlData || {}, postgresqlData || {});
 
     const syncResult = {
       proposalId: proposalId,
-      mysqlExists: !!mysqlData,
-      mongoExists: !!mongoData,
+      postgresqlExists: !!postgresqlData,
+      postgresqlExists: !!postgresqlData,
       hasDifferences: comparison.hasDifferences,
       differences: comparison.differences,
       syncOperations: []
@@ -508,18 +506,18 @@ const bidirectionalSync = async (proposalId) => {
 
     // Sync based on differences
     if (comparison.hasDifferences) {
-      if (mysqlData && mongoData) {
+      if (postgresqlData && postgresqlData) {
         // Both exist, resolve conflicts
-        const conflictResolution = await resolveDataConflicts(proposalId, mysqlData, mongoData);
+        const conflictResolution = await resolveDataConflicts(proposalId, postgresqlData, postgresqlData);
         syncResult.conflictResolution = conflictResolution;
-      } else if (mysqlData && !mongoData) {
-        // Only MySQL exists, sync to MongoDB
-        const mongoResult = await syncMySQLToMongo(proposalId);
-        syncResult.syncOperations.push(mongoResult);
-      } else if (!mysqlData && mongoData) {
-        // Only MongoDB exists, sync to MySQL
-        const mysqlResult = await syncMongoToMySQL(proposalId);
-        syncResult.syncOperations.push(mysqlResult);
+      } else if (postgresqlData && !postgresqlData) {
+        // Only postgresql exists, sync to postgresql
+        const postgresqlResult = await syncpostgresqlTopostgresql(proposalId);
+        syncResult.syncOperations.push(postgresqlResult);
+      } else if (!postgresqlData && postgresqlData) {
+        // Only postgresql exists, sync to postgresql
+        const postgresqlResult = await syncpostgresqlTopostgresql(proposalId);
+        syncResult.syncOperations.push(postgresqlResult);
       }
     }
 
@@ -540,31 +538,31 @@ const bidirectionalSync = async (proposalId) => {
 };
 
 /**
- * Resolve data conflicts between MySQL and MongoDB
+ * Resolve data conflicts between postgresql and postgresql
  * 
  * @param {string|number} proposalId - Proposal ID
- * @param {Object} mysqlData - MySQL data
- * @param {Object} mongoData - MongoDB data
+ * @param {Object} postgresqlData - postgresql data
+ * @param {Object} postgresqlData - postgresql data
  * @returns {Promise<Object>} Conflict resolution result
  */
-const resolveDataConflicts = async (proposalId, mysqlData, mongoData) => {
+const resolveDataConflicts = async (proposalId, postgresqlData, postgresqlData) => {
   try {
     logSyncOperation('Resolving data conflicts', { proposalId });
 
-    const comparison = compareDataStructures(mysqlData, mongoData);
+    const comparison = compareDataStructures(postgresqlData, postgresqlData);
     const resolution = {
       proposalId: proposalId,
       conflicts: comparison.differences,
-      resolution: 'mysql-wins', // Default strategy
+      resolution: 'postgresql-wins', // Default strategy
       resolvedFields: []
     };
 
-    // Apply resolution strategy (MySQL wins by default)
+    // Apply resolution strategy (postgresql wins by default)
     for (const conflict of comparison.differences) {
-      const mysqlValue = conflict.mysqlValue;
-      const mongoValue = conflict.mongoValue;
+      const postgresqlValue = conflict.postgresqlValue;
+      const postgresqlValue = conflict.postgresqlValue;
 
-      // Update MongoDB with MySQL value
+      // Update postgresql with postgresql value
       const db = await getDb();
       const collection = db.collection('proposals');
 
@@ -572,7 +570,7 @@ const resolveDataConflicts = async (proposalId, mysqlData, mongoData) => {
         { proposalId: proposalId.toString() },
         {
           $set: {
-            [conflict.field]: mysqlValue,
+            [conflict.field]: postgresqlValue,
             lastConflictResolution: generateSyncTimestamp()
           }
         }
@@ -580,8 +578,8 @@ const resolveDataConflicts = async (proposalId, mysqlData, mongoData) => {
 
       resolution.resolvedFields.push({
         field: conflict.field,
-        oldValue: mongoValue,
-        newValue: mysqlValue
+        oldValue: postgresqlValue,
+        newValue: postgresqlValue
       });
     }
 
@@ -613,28 +611,28 @@ const validateSyncIntegrity = async (proposalId) => {
     logSyncOperation('Validating sync integrity', { proposalId });
 
     // Get data from both databases
-    const [mysqlProposals] = await pool.query(
+    const [postgresqlProposals] = await pool.query(
       'SELECT * FROM proposals WHERE id = ?',
       [proposalId]
     );
 
     const db = await getDb();
     const collection = db.collection('proposals');
-    const mongoData = await collection.findOne({ proposalId: proposalId.toString() });
+    const postgresqlData = await collection.findOne({ proposalId: proposalId.toString() });
 
-    const mysqlData = mysqlProposals[0] || null;
+    const postgresqlData = postgresqlProposals[0] || null;
 
     const validation = {
       proposalId: proposalId,
-      mysqlExists: !!mysqlData,
-      mongoExists: !!mongoData,
+      postgresqlExists: !!postgresqlData,
+      postgresqlExists: !!postgresqlData,
       dataConsistent: false,
       differences: [],
       validationPassed: false
     };
 
-    if (mysqlData && mongoData) {
-      const comparison = compareDataStructures(mysqlData, mongoData);
+    if (postgresqlData && postgresqlData) {
+      const comparison = compareDataStructures(postgresqlData, postgresqlData);
       validation.dataConsistent = !comparison.hasDifferences;
       validation.differences = comparison.differences;
       validation.validationPassed = comparison.hasDifferences === false;
@@ -642,8 +640,8 @@ const validateSyncIntegrity = async (proposalId) => {
       validation.validationPassed = false;
       validation.differences = [{
         field: 'existence',
-        mysqlValue: !!mysqlData,
-        mongoValue: !!mongoData
+        postgresqlValue: !!postgresqlData,
+        postgresqlValue: !!postgresqlData
       }];
     }
 
@@ -666,12 +664,12 @@ const validateSyncIntegrity = async (proposalId) => {
 // =============================================
 
 module.exports = {
-  // MySQL to MongoDB Sync
-  syncMySQLToMongo,
-  batchSyncMySQLToMongo,
+  // postgresql to postgresql Sync
+  syncpostgresqlTopostgresql,
+  batchSyncpostgresqlTopostgresql,
 
-  // MongoDB to MySQL Sync
-  syncMongoToMySQL,
+  // postgresql to postgresql Sync
+  syncpostgresqlTopostgresql,
 
   // Bidirectional Sync
   bidirectionalSync,

@@ -1,6 +1,6 @@
 const express = require("express")
 const router = express.Router()
-const { pool, query } = require("../config/database") // Universal database connection
+const { query } = require("../config/database-postgresql-only") // PostgreSQL-only database connection
 const { validateToken, validateAdmin } = require("../middleware/auth") // Updated JWT authentication middleware
 
 // ===============================================
@@ -25,72 +25,70 @@ router.get("/approved", async (req, res) => {
 
         console.log("📋 Events API: fetching proposals with statuses:", statuses, contactEmail ? `for ${contactEmail}` : "(no email filter)");
 
-        // Build SQL & params dynamically (IN (? , ? ...))
-        let placeholders = statuses.map(() => '?').join(',');
+        // Build SQL & params dynamically (IN ($1, $2, ...))
+        let placeholders = statuses.map((_, index) => `$${index + 1}`).join(',');
         let sql = `
             SELECT id,
+                   uuid,
                    organization_name,
                    organization_type,
                    contact_email,
-                   contact_name,
+                   contact_person,
                    event_name,
                    event_venue,
                    event_start_date,
                    event_end_date,
+                   event_start_time,
+                   event_end_time,
                    proposal_status,
                    event_status,
-                   created_at,
-                   updated_at,
-                   -- Section-5 columns
-                   accomplishment_report_file_name,
-                   accomplishment_report_file_path,
-                   pre_registration_file_name,
-                   pre_registration_file_path,
-                   final_attendance_file_name,
-                   final_attendance_file_path,
+                   report_status,
                    attendance_count,
                    report_description,
-                   0  AS form_completion_percentage,
-                   'applicable' AS report_status
+                   form_completion_percentage,
+                   sdp_credits,
+                   target_audience,
+                   created_at,
+                   updated_at
             FROM   proposals
-            WHERE  proposal_status IN (${placeholders})`;
+            WHERE  proposal_status IN (${placeholders}) AND is_deleted = false`;
 
         const params = [...statuses];
         if (contactEmail) {
-            sql += ' AND contact_email = ?';
+            sql += ` AND contact_email = $${params.length + 1}`;
             params.push(contactEmail);
         }
 
         sql += ' ORDER BY updated_at DESC';
 
-        const [rows] = await pool.query(sql, params);
+        const result = await query(sql, params);
+        const rows = result.rows;
 
         // Normalise / alias fields so the client doesn't have to guess
         const events = rows.map((row) => ({
             id: row.id,
-            uuid: null,
+            uuid: row.uuid,
             organization_name: row.organization_name,
             organization_type: row.organization_type,
             event_name: row.event_name,
             event_venue: row.event_venue,
             event_start_date: row.event_start_date,
             event_end_date: row.event_end_date,
+            event_start_time: row.event_start_time,
+            event_end_time: row.event_end_time,
             proposal_status: row.proposal_status,
             report_status: row.report_status || "not_applicable",
-            accomplishment_report_file_name: row.accomplishment_report_file_name || null,
-            accomplishment_report_file_path: row.accomplishment_report_file_path || null,
-            pre_registration_file_name: row.pre_registration_file_name || null,
-            pre_registration_file_path: row.pre_registration_file_path || null,
-            final_attendance_file_name: row.final_attendance_file_name || null,
-            final_attendance_file_path: row.final_attendance_file_path || null,
-            attendance_count: row.attendance_count,
+            attendance_count: row.attendance_count || 0,
             report_description: row.report_description,
             contact_email: row.contact_email,
-            contact_name: row.contact_name,
+            contact_name: row.contact_person,
+            contact_person: row.contact_person,
             created_at: row.created_at,
             updated_at: row.updated_at,
-            event_status: row.event_status || "pending",
+            event_status: row.event_status || "scheduled",
             form_completion_percentage: row.form_completion_percentage || 0,
+            sdp_credits: row.sdp_credits || 0,
+            target_audience: row.target_audience || []
         }));
 
         res.json({ success: true, events, count: events.length });

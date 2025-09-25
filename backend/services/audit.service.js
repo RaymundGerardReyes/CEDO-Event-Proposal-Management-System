@@ -6,7 +6,7 @@
  * and comprehensive audit trail management
  */
 
-const { pool, query } = require('../config/database');
+const { pool, query } = require('../config/database-postgresql-only');
 
 /**
  * Create audit log entry
@@ -18,13 +18,60 @@ const { pool, query } = require('../config/database');
  */
 async function createAuditLog(proposalUuid, action, actorId, note = null, meta = null) {
     try {
-        const [result] = await pool.execute(
-            'INSERT INTO proposal_audit_logs (proposal_uuid, action, actor_id, note, meta) VALUES (?, ?, ?, ?, ?)',
-            [proposalUuid, action, actorId, note, meta ? JSON.stringify(meta) : null]
+        // First, get the numeric ID of the proposal from its UUID
+        const proposalResult = await query(
+            'SELECT id FROM proposals WHERE uuid = $1',
+            [proposalUuid]
+        );
+
+        if (proposalResult.rows.length === 0) {
+            console.error(`[AUDIT] Proposal not found for UUID: ${proposalUuid}`);
+            return null;
+        }
+
+        const proposalId = proposalResult.rows[0].id;
+
+        // Map action types to valid CHECK constraint values
+        const actionMapping = {
+            'proposal_created': 'CREATE',
+            'proposal_updated': 'UPDATE',
+            'proposal_submitted': 'UPDATE',
+            'proposal_retrieved': 'VIEW',
+            'proposal_approved': 'APPROVE',
+            'proposal_rejected': 'REJECT',
+            'proposal_deleted': 'DELETE',
+            'report_submitted': 'UPDATE',
+            'files_uploaded': 'UPDATE'
+        };
+
+        const validActionType = actionMapping[action] || 'UPDATE';
+
+        const result = await query(
+            'INSERT INTO audit_logs (user_id, action_type, table_name, record_id, old_values, new_values, additional_info) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+            [
+                actorId,
+                validActionType,
+                'proposals',
+                proposalId,
+                null,
+                meta ? JSON.stringify(meta) : null,
+                note ? JSON.stringify({ note }) : null
+            ]
         );
 
         console.log(`[AUDIT] Created audit log: ${action} for proposal ${proposalUuid} by user ${actorId}`);
-        return result.insertId;
+
+        // Return the created audit log
+        if (result.rows && result.rows[0]) {
+            return result.rows[0];
+        }
+
+        // Fallback: get the created audit log by querying
+        const auditLogResult = await query(
+            'SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 1'
+        );
+
+        return auditLogResult.rows[0] || result;
     } catch (error) {
         console.error('Error creating audit log:', error);
         // Don't throw - audit logging failure shouldn't break the main operation
@@ -132,7 +179,7 @@ async function getDebugInfo(proposalUuid) {
         const statusMatch = true; // This would be more complex in real implementation
 
         return {
-            mysql_record: proposal,
+            postgresql_record: proposal,
             audit_logs: auditLogs,
             debug_logs: debugLogs,
             status_match: statusMatch

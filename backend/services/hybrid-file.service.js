@@ -1,10 +1,10 @@
 /**
  * =============================================
- * HYBRID FILE SERVICE - MySQL + MongoDB Integration
+ * HYBRID FILE SERVICE - postgresql + postgresql Integration
  * =============================================
  * 
- * This service handles hybrid file operations combining MySQL for metadata
- * and MongoDB GridFS for file storage. It provides seamless integration
+ * This service handles hybrid file operations combining postgresql for metadata
+ * and postgresql GridFS for file storage. It provides seamless integration
  * between relational and document databases for comprehensive file management.
  * 
  * @module services/hybrid-file.service
@@ -13,7 +13,7 @@
  * 
  * @description
  * Features:
- * - Hybrid MySQL + MongoDB file storage
+ * - Hybrid postgresql + postgresql file storage
  * - File metadata synchronization
  * - Cross-database file operations
  * - File linking and relationship management
@@ -21,9 +21,8 @@
  * - Data consistency validation
  */
 
-const { pool, query } = require('../config/database');
-const { getDb } = require('../utils/db');
-const { GridFSBucket } = require('mongodb');
+const { pool, query } = require('../config/database-postgresql-only');
+const { GridFSBucket } = require('postgresql');
 
 // =============================================
 // SHARED UTILITY FUNCTIONS
@@ -57,12 +56,12 @@ const validateHybridFileParams = (params) => {
 };
 
 /**
- * Create file metadata record in MySQL
+ * Create file metadata record in postgresql
  * 
  * @param {Object} fileData - File metadata
  * @returns {Promise<Object>} Created record
  */
-const createMySQLFileRecord = async (fileData) => {
+const createpostgresqlFileRecord = async (fileData) => {
     try {
         const [result] = await pool.query(
             `INSERT INTO proposal_files (
@@ -87,18 +86,18 @@ const createMySQLFileRecord = async (fileData) => {
         };
 
     } catch (error) {
-        console.error('Error creating MySQL file record:', error);
-        throw new Error(`Failed to create MySQL file record: ${error.message}`);
+        console.error('Error creating postgresql file record:', error);
+        throw new Error(`Failed to create postgresql file record: ${error.message}`);
     }
 };
 
 /**
- * Get file metadata from MySQL
+ * Get file metadata from postgresql
  * 
  * @param {string|number} proposalId - Proposal ID
  * @returns {Promise<Array>} File metadata records
  */
-const getMySQLFileRecords = async (proposalId) => {
+const getpostgresqlFileRecords = async (proposalId) => {
     try {
         const [records] = await pool.query(
             'SELECT * FROM proposal_files WHERE proposal_id = ? ORDER BY upload_date DESC',
@@ -108,18 +107,18 @@ const getMySQLFileRecords = async (proposalId) => {
         return records;
 
     } catch (error) {
-        console.error('Error getting MySQL file records:', error);
-        throw new Error(`Failed to get MySQL file records: ${error.message}`);
+        console.error('Error getting postgresql file records:', error);
+        throw new Error(`Failed to get postgresql file records: ${error.message}`);
     }
 };
 
 /**
- * Get MongoDB file metadata
+ * Get postgresql file metadata
  * 
  * @param {string|number} proposalId - Proposal ID
- * @returns {Promise<Array>} MongoDB file metadata
+ * @returns {Promise<Array>} postgresql file metadata
  */
-const getMongoFileMetadata = async (proposalId) => {
+const getpostgresqlFileMetadata = async (proposalId) => {
     try {
         const db = await getDb();
         const bucket = new GridFSBucket(db, { bucketName: 'proposal_files' });
@@ -138,7 +137,7 @@ const getMongoFileMetadata = async (proposalId) => {
         }));
 
     } catch (error) {
-        console.error('Error getting MongoDB file metadata:', error);
+        console.error('Error getting postgresql file metadata:', error);
         return [];
     }
 };
@@ -148,7 +147,7 @@ const getMongoFileMetadata = async (proposalId) => {
 // =============================================
 
 /**
- * Upload file with hybrid storage (MySQL + MongoDB)
+ * Upload file with hybrid storage (postgresql + postgresql)
  * 
  * @param {Object} file - File object from multer
  * @param {Object} metadata - File metadata
@@ -180,7 +179,7 @@ const uploadHybridFile = async (file, metadata) => {
         const sanitizedBaseName = baseName.replace(/[^a-zA-Z0-9]/g, '_');
         const uniqueFilename = `${metadata.organizationName.replace(/\s+/g, '_')}_${metadata.fileType}_${timestamp}_${randomString}${extension}`;
 
-        // Upload to MongoDB GridFS
+        // Upload to postgresql GridFS
         const uploadStream = bucket.openUploadStream(uniqueFilename, {
             metadata: {
                 originalName: file.originalname,
@@ -202,8 +201,8 @@ const uploadHybridFile = async (file, metadata) => {
                 try {
                     const fileId = uploadStream.id;
 
-                    // Create MySQL metadata record
-                    const mysqlRecord = await createMySQLFileRecord({
+                    // Create postgresql metadata record
+                    const postgresqlRecord = await createpostgresqlFileRecord({
                         proposalId: metadata.proposalId,
                         fileType: metadata.fileType,
                         originalName: file.originalname,
@@ -212,19 +211,19 @@ const uploadHybridFile = async (file, metadata) => {
                         mimeType: file.mimetype,
                         uploadDate: new Date(),
                         organizationName: metadata.organizationName,
-                        mongoFileId: fileId.toString()
+                        postgresqlFileId: fileId.toString()
                     });
 
                     console.log('✅ HYBRID: Successfully uploaded file with hybrid storage:', {
-                        mongoFileId: fileId.toString(),
-                        mysqlRecordId: mysqlRecord.id,
+                        postgresqlFileId: fileId.toString(),
+                        postgresqlRecordId: postgresqlRecord.id,
                         filename: uniqueFilename
                     });
 
                     resolve({
                         success: true,
-                        mongoFileId: fileId.toString(),
-                        mysqlRecordId: mysqlRecord.id,
+                        postgresqlFileId: fileId.toString(),
+                        postgresqlRecordId: postgresqlRecord.id,
                         filename: uniqueFilename,
                         originalName: file.originalname,
                         size: file.size,
@@ -299,50 +298,50 @@ const getHybridFilesForProposal = async (proposalId) => {
     try {
         console.log('📋 HYBRID: Getting hybrid files for proposal:', proposalId);
 
-        // Get MySQL records
-        const mysqlRecords = await getMySQLFileRecords(proposalId);
+        // Get postgresql records
+        const postgresqlRecords = await getpostgresqlFileRecords(proposalId);
 
-        // Get MongoDB metadata
-        const mongoFiles = await getMongoFileMetadata(proposalId);
+        // Get postgresql metadata
+        const postgresqlFiles = await getpostgresqlFileMetadata(proposalId);
 
         // Combine and match records
         const combinedFiles = [];
 
-        // Process MySQL records
-        mysqlRecords.forEach(mysqlRecord => {
-            const mongoFile = mongoFiles.find(mf => mf.id === mysqlRecord.mongo_file_id);
+        // Process postgresql records
+        postgresqlRecords.forEach(postgresqlRecord => {
+            const postgresqlFile = postgresqlFiles.find(mf => mf.id === postgresqlRecord.postgresql_file_id);
 
             combinedFiles.push({
-                id: mysqlRecord.id,
-                mongoFileId: mysqlRecord.mongo_file_id,
-                fileType: mysqlRecord.file_type,
-                originalName: mysqlRecord.original_name,
-                storedName: mysqlRecord.stored_name,
-                fileSize: mysqlRecord.file_size,
-                mimeType: mysqlRecord.mime_type,
-                uploadDate: mysqlRecord.upload_date,
-                organizationName: mysqlRecord.organization_name,
-                mongoMetadata: mongoFile || null,
+                id: postgresqlRecord.id,
+                postgresqlFileId: postgresqlRecord.postgresql_file_id,
+                fileType: postgresqlRecord.file_type,
+                originalName: postgresqlRecord.original_name,
+                storedName: postgresqlRecord.stored_name,
+                fileSize: postgresqlRecord.file_size,
+                mimeType: postgresqlRecord.mime_type,
+                uploadDate: postgresqlRecord.upload_date,
+                organizationName: postgresqlRecord.organization_name,
+                postgresqlMetadata: postgresqlFile || null,
                 source: 'hybrid'
             });
         });
 
-        // Add MongoDB-only files (if any)
-        mongoFiles.forEach(mongoFile => {
-            const exists = combinedFiles.some(cf => cf.mongoFileId === mongoFile.id);
+        // Add postgresql-only files (if any)
+        postgresqlFiles.forEach(postgresqlFile => {
+            const exists = combinedFiles.some(cf => cf.postgresqlFileId === postgresqlFile.id);
             if (!exists) {
                 combinedFiles.push({
                     id: null,
-                    mongoFileId: mongoFile.id,
-                    fileType: mongoFile.fileType,
-                    originalName: mongoFile.originalName,
-                    storedName: mongoFile.filename,
-                    fileSize: mongoFile.size,
-                    mimeType: mongoFile.mimetype,
-                    uploadDate: mongoFile.uploadDate,
-                    organizationName: mongoFile.organizationName,
-                    mongoMetadata: mongoFile,
-                    source: 'mongodb-only'
+                    postgresqlFileId: postgresqlFile.id,
+                    fileType: postgresqlFile.fileType,
+                    originalName: postgresqlFile.originalName,
+                    storedName: postgresqlFile.filename,
+                    fileSize: postgresqlFile.size,
+                    mimeType: postgresqlFile.mimetype,
+                    uploadDate: postgresqlFile.uploadDate,
+                    organizationName: postgresqlFile.organizationName,
+                    postgresqlMetadata: postgresqlFile,
+                    source: 'postgresql-only'
                 });
             }
         });
@@ -350,16 +349,16 @@ const getHybridFilesForProposal = async (proposalId) => {
         console.log('✅ HYBRID: Successfully retrieved hybrid files:', {
             proposalId: proposalId,
             totalFiles: combinedFiles.length,
-            mysqlFiles: mysqlRecords.length,
-            mongoFiles: mongoFiles.length
+            postgresqlFiles: postgresqlRecords.length,
+            postgresqlFiles: postgresqlFiles.length
         });
 
         return {
             files: combinedFiles,
             summary: {
                 total: combinedFiles.length,
-                mysqlFiles: mysqlRecords.length,
-                mongoFiles: mongoFiles.length,
+                postgresqlFiles: postgresqlRecords.length,
+                postgresqlFiles: postgresqlFiles.length,
                 totalSize: combinedFiles.reduce((sum, file) => sum + file.fileSize, 0)
             }
         };
@@ -373,20 +372,20 @@ const getHybridFilesForProposal = async (proposalId) => {
 /**
  * Download hybrid file
  * 
- * @param {string} mongoFileId - MongoDB file ID
+ * @param {string} postgresqlFileId - postgresql file ID
  * @returns {Promise<Object>} File stream and metadata
  */
-const downloadHybridFile = async (mongoFileId) => {
+const downloadHybridFile = async (postgresqlFileId) => {
     try {
-        console.log('📥 HYBRID: Downloading hybrid file:', mongoFileId);
+        console.log('📥 HYBRID: Downloading hybrid file:', postgresqlFileId);
 
         const db = await getDb();
         const bucket = new GridFSBucket(db, { bucketName: 'proposal_files' });
 
         // Get file metadata
-        const files = await bucket.find({ _id: mongoFileId }).toArray();
+        const files = await bucket.find({ _id: postgresqlFileId }).toArray();
         if (files.length === 0) {
-            throw new Error('File not found in MongoDB');
+            throw new Error('File not found in postgresql');
         }
 
         const file = files[0];
@@ -402,10 +401,10 @@ const downloadHybridFile = async (mongoFileId) => {
         };
 
         // Create download stream
-        const downloadStream = bucket.openDownloadStream(mongoFileId);
+        const downloadStream = bucket.openDownloadStream(postgresqlFileId);
 
         console.log('✅ HYBRID: Successfully prepared file for download:', {
-            fileId: mongoFileId,
+            fileId: postgresqlFileId,
             filename: metadata.filename,
             size: `${(metadata.size / 1024 / 1024).toFixed(2)} MB`
         });
@@ -428,25 +427,25 @@ const downloadHybridFile = async (mongoFileId) => {
 /**
  * Delete hybrid file
  * 
- * @param {string} mongoFileId - MongoDB file ID
- * @param {string|number} mysqlRecordId - MySQL record ID
+ * @param {string} postgresqlFileId - postgresql file ID
+ * @param {string|number} postgresqlRecordId - postgresql record ID
  * @returns {Promise<boolean>} Success status
  */
-const deleteHybridFile = async (mongoFileId, mysqlRecordId) => {
+const deleteHybridFile = async (postgresqlFileId, postgresqlRecordId) => {
     try {
         console.log('🗑️ HYBRID: Deleting hybrid file:', {
-            mongoFileId: mongoFileId,
-            mysqlRecordId: mysqlRecordId
+            postgresqlFileId: postgresqlFileId,
+            postgresqlRecordId: postgresqlRecordId
         });
 
-        // Delete from MongoDB GridFS
+        // Delete from postgresql GridFS
         const db = await getDb();
         const bucket = new GridFSBucket(db, { bucketName: 'proposal_files' });
-        await bucket.delete(mongoFileId);
+        await bucket.delete(postgresqlFileId);
 
-        // Delete from MySQL
-        if (mysqlRecordId) {
-            await pool.query('DELETE FROM proposal_files WHERE id = ?', [mysqlRecordId]);
+        // Delete from postgresql
+        if (postgresqlRecordId) {
+            await pool.query('DELETE FROM proposal_files WHERE id = ?', [postgresqlRecordId]);
         }
 
         console.log('✅ HYBRID: Successfully deleted hybrid file');
@@ -469,45 +468,45 @@ const syncHybridFileData = async (proposalId) => {
     try {
         console.log('🔄 HYBRID: Syncing file data for proposal:', proposalId);
 
-        // Get both MySQL and MongoDB data
-        const mysqlRecords = await getMySQLFileRecords(proposalId);
-        const mongoFiles = await getMongoFileMetadata(proposalId);
+        // Get both postgresql and postgresql data
+        const postgresqlRecords = await getpostgresqlFileRecords(proposalId);
+        const postgresqlFiles = await getpostgresqlFileMetadata(proposalId);
 
         const syncResult = {
             proposalId: proposalId,
-            mysqlRecords: mysqlRecords.length,
-            mongoFiles: mongoFiles.length,
-            orphanedMysql: [],
-            orphanedMongo: [],
+            postgresqlRecords: postgresqlRecords.length,
+            postgresqlFiles: postgresqlFiles.length,
+            orphanedpostgresql: [],
+            orphanedpostgresql: [],
             synced: []
         };
 
-        // Find orphaned MySQL records (no corresponding MongoDB file)
-        mysqlRecords.forEach(mysqlRecord => {
-            const mongoFile = mongoFiles.find(mf => mf.id === mysqlRecord.mongo_file_id);
-            if (!mongoFile) {
-                syncResult.orphanedMysql.push(mysqlRecord);
+        // Find orphaned postgresql records (no corresponding postgresql file)
+        postgresqlRecords.forEach(postgresqlRecord => {
+            const postgresqlFile = postgresqlFiles.find(mf => mf.id === postgresqlRecord.postgresql_file_id);
+            if (!postgresqlFile) {
+                syncResult.orphanedpostgresql.push(postgresqlRecord);
             } else {
                 syncResult.synced.push({
-                    mysqlRecord: mysqlRecord,
-                    mongoFile: mongoFile
+                    postgresqlRecord: postgresqlRecord,
+                    postgresqlFile: postgresqlFile
                 });
             }
         });
 
-        // Find orphaned MongoDB files (no corresponding MySQL record)
-        mongoFiles.forEach(mongoFile => {
-            const mysqlRecord = mysqlRecords.find(mr => mr.mongo_file_id === mongoFile.id);
-            if (!mysqlRecord) {
-                syncResult.orphanedMongo.push(mongoFile);
+        // Find orphaned postgresql files (no corresponding postgresql record)
+        postgresqlFiles.forEach(postgresqlFile => {
+            const postgresqlRecord = postgresqlRecords.find(mr => mr.postgresql_file_id === postgresqlFile.id);
+            if (!postgresqlRecord) {
+                syncResult.orphanedpostgresql.push(postgresqlFile);
             }
         });
 
         console.log('✅ HYBRID: Successfully synced file data:', {
             proposalId: proposalId,
             synced: syncResult.synced.length,
-            orphanedMysql: syncResult.orphanedMysql.length,
-            orphanedMongo: syncResult.orphanedMongo.length
+            orphanedpostgresql: syncResult.orphanedpostgresql.length,
+            orphanedpostgresql: syncResult.orphanedpostgresql.length
         });
 
         return syncResult;
@@ -537,7 +536,7 @@ module.exports = {
 
     // Utility Functions
     validateHybridFileParams,
-    createMySQLFileRecord,
-    getMySQLFileRecords,
-    getMongoFileMetadata
+    createpostgresqlFileRecord,
+    getpostgresqlFileRecords,
+    getpostgresqlFileMetadata
 }; 

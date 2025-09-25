@@ -6,15 +6,15 @@
  * This script tests both connection strings to see which one actually works for operations
  */
 
-const { MongoClient } = require('mongodb');
+const { postgresqlClient } = require('postgresql');
 
 async function testConnectionStrings() {
     console.log('\n🧪 TESTING CONNECTION STRINGS');
     console.log('='.repeat(50));
 
     const connectionStrings = [
-        'mongodb://localhost:27017/cedo_auth',
-        'mongodb://cedo_admin:Raymund-Estaca01@localhost:27017/cedo_auth?authSource=admin'
+        'postgresql://localhost:27017/cedo_auth',
+        'postgresql://cedo_admin:Raymund-Estaca01@localhost:27017/cedo_auth?authSource=admin'
     ];
 
     for (let i = 0; i < connectionStrings.length; i++) {
@@ -22,7 +22,7 @@ async function testConnectionStrings() {
         console.log(`\n🔍 Testing connection ${i + 1}: ${uri.replace(/\/\/.*@/, '//***:***@')}`);
 
         try {
-            const client = new MongoClient(uri, {
+            const client = new postgresqlClient(uri, {
                 serverSelectionTimeoutMS: 5000,
                 socketTimeoutMS: 10000,
             });

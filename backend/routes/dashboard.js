@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { pool, query } = require("../config/database");
+const { pool, query } = require("../config/database-postgresql-only");
 const { validateToken } = require("../middleware/auth");
 
 // ===============================================
@@ -49,7 +49,7 @@ router.get("/stats", validateToken, async (req, res) => {
             recentEvents: []
         };
 
-        // Get user's proposals from MySQL
+        // Get user's proposals from postgresql
         const [proposals] = await pool.query(`
             SELECT 
                 id,

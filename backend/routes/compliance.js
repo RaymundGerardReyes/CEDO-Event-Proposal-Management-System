@@ -5,7 +5,7 @@ const { body, validationResult } = require("express-validator");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
-const Proposal = require("../models/Proposal");
+// PostgreSQL-only: Proposal model not needed, using direct database queries
 const User = require("../models/User");
 const { validateToken } = require("../middleware/auth");
 const checkRole = require("../middleware/checkRole");

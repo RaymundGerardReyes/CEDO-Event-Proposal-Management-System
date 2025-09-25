@@ -4,7 +4,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const router = require('../../routes/profile');
 
-jest.mock('mysql2/promise', () => ({
+jest.mock('postgresql2/promise', () => ({
     createConnection: jest.fn(),
 }));
 
@@ -29,8 +29,8 @@ const mockConn = {
     end: jest.fn(),
 };
 
-const mysql = require('mysql2/promise');
-mysql.createConnection.mockResolvedValue(mockConn);
+const postgresql = require('postgresql2/promise');
+postgresql.createConnection.mockResolvedValue(mockConn);
 
 process.env.JWT_SECRET_DEV = 'jwtsecret';
 process.env.JWT_SECRET = 'jwtsecret';

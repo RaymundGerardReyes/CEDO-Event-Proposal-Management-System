@@ -6,13 +6,13 @@
  * This service handles all admin-related operations for proposals:
  * - Fetching proposals with filtering and pagination
  * - Generating dashboard statistics
- * - Hybrid MySQL + MongoDB file integration
+ * - PostgreSQL file integration
  * 
  * @author CEDO Development Team
  * @version 1.0.0
  */
 
-const { pool, query } = require('../config/database');
+const { pool, query } = require('../config/database-postgresql-only');
 
 /**
  * =============================================
@@ -40,21 +40,25 @@ async function getAdminProposals(queryParams) {
 
     const { status, category, search, organizationType } = queryParams;
 
-    let whereConditions = ['(is_deleted = 0 OR is_deleted IS NULL)'];
+    let whereConditions = ['(is_deleted = false OR is_deleted IS NULL)'];
     let params = [];
+    let paramIndex = 1;
 
     if (status && status !== 'all') {
-        whereConditions.push('proposal_status = ?');
+        whereConditions.push(`proposal_status = $${paramIndex}`);
         params.push(status);
+        paramIndex++;
     }
     if (organizationType && organizationType !== 'all') {
-        whereConditions.push('organization_type = ?');
+        whereConditions.push(`organization_type = $${paramIndex}`);
         params.push(organizationType);
+        paramIndex++;
     }
     if (search) {
-        whereConditions.push('(organization_name LIKE ? OR contact_name LIKE ? OR contact_email LIKE ? OR event_name LIKE ?)');
+        whereConditions.push(`(organization_name LIKE $${paramIndex} OR contact_person LIKE $${paramIndex + 1} OR contact_email LIKE $${paramIndex + 2} OR event_name LIKE $${paramIndex + 3})`);
         const searchPattern = `%${search}%`;
         params.push(searchPattern, searchPattern, searchPattern, searchPattern);
+        paramIndex += 4;
     }
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
@@ -62,17 +66,16 @@ async function getAdminProposals(queryParams) {
     const proposalsQuery = `
       SELECT 
         id, organization_name, organization_type, organization_description,
-        contact_name, contact_email, contact_phone,
+        contact_person, contact_email, contact_phone,
         event_name, event_venue, event_start_date, event_end_date,
-        event_start_time, event_end_time, event_mode,
-        COALESCE(school_event_type, community_event_type) as event_type,
+        event_start_time, event_end_time, event_mode, event_type,
         proposal_status, event_status, attendance_count,
         created_at, updated_at, admin_comments,
         objectives, budget
       FROM proposals 
       ${whereClause}
       ORDER BY created_at DESC
-      LIMIT ? OFFSET ?
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
     const countQuery = `
@@ -82,44 +85,19 @@ async function getAdminProposals(queryParams) {
     `;
 
     const [proposalsResult, countResult] = await Promise.all([
-        pool.query(proposalsQuery, [...params, limit, offset]),
-        pool.query(countQuery, params)
+        query(proposalsQuery, [...params, limit, offset]),
+        query(countQuery, params)
     ]);
 
-    const proposals = proposalsResult[0];
-    const totalCount = countResult[0][0].total_count;
+    const proposals = proposalsResult.rows;
+    const totalCount = parseInt(countResult.rows[0].total_count);
 
     // =============================================
-    // HYBRID FILE INTEGRATION: MongoDB + MySQL
+    // POSTGRESQL FILE INTEGRATION
     // =============================================
-    // Attach file metadata from MongoDB GridFS to MySQL proposals
-    try {
-        const { getDb } = require('../config/mongodb');
-        const db = await getDb();
-
-        // Normalize proposal IDs to strings for MongoDB query
-        const idStrings = proposals.map(p => String(p.id));
-
-        // Fetch file metadata from MongoDB proposals collection
-        const mongoDocs = await db.collection('proposals')
-            .find({ proposalId: { $in: idStrings } }, { projection: { proposalId: 1, files: 1 } })
-            .toArray();
-
-        // Create mapping of proposalId -> files
-        const fileMap = {};
-        mongoDocs.forEach(doc => {
-            fileMap[String(doc.proposalId)] = doc.files || {};
-        });
-
-        // Attach files to each MySQL proposal
-        proposals.forEach(p => {
-            p.files = fileMap[String(p.id)] || {};
-        });
-
-        console.log('📁 AdminService: Successfully merged MongoDB files for', Object.keys(fileMap).length, 'proposals');
-    } catch (mergeErr) {
-        console.warn('📁 AdminService: Unable to merge Mongo file metadata:', mergeErr.message);
-    }
+    // Files are stored directly in PostgreSQL using bytea or file paths
+    // No additional file integration needed for PostgreSQL-only setup
+    console.log('📁 AdminService: Using PostgreSQL file storage for', proposals.length, 'proposals');
 
     return { proposals, totalCount, limit, page };
 }
@@ -144,7 +122,7 @@ async function getAdminProposals(queryParams) {
  */
 async function getAdminStats() {
     try {
-        console.log('📊 Admin Service: Fetching dashboard statistics from MySQL');
+        console.log('📊 Admin Service: Fetching dashboard statistics from PostgreSQL');
 
         // =============================================
         // BASE CONDITIONS & QUERY SETUP
@@ -171,7 +149,7 @@ async function getAdminStats() {
                 COUNT(*) as recent_count
             FROM proposals 
             WHERE ${baseCondition} 
-            AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            AND created_at >= NOW() - INTERVAL '30 days'
         `;
 
         // 3. Event Statistics (only for approved proposals)
@@ -202,24 +180,24 @@ async function getAdminStats() {
 
         // Execute all queries in parallel for performance
         const [statusResult, recentActivityResult, eventsResult, orgTypesResult] = await Promise.all([
-            pool.query(statusQuery),
-            pool.query(recentActivityQuery),
-            pool.query(eventsQuery),
-            pool.query(orgTypesQuery)
+            query(statusQuery),
+            query(recentActivityQuery),
+            query(eventsQuery),
+            query(orgTypesQuery)
         ]);
 
         // Process status counts into key-value pairs
         const statusCounts = {};
-        statusResult[0].forEach(row => {
+        statusResult.rows.forEach(row => {
             statusCounts[row.proposal_status] = parseInt(row.count);
         });
 
         // Process events data (default to empty object if no results)
-        const eventsData = eventsResult[0][0] || {};
+        const eventsData = eventsResult.rows[0] || {};
 
         // Process organization types into key-value pairs
         const orgTypes = {};
-        orgTypesResult[0].forEach(row => {
+        orgTypesResult.rows.forEach(row => {
             orgTypes[row.organization_type] = parseInt(row.count);
         });
 
@@ -234,14 +212,14 @@ async function getAdminStats() {
                 COUNT(*) as count
             FROM proposals 
             WHERE ${baseCondition}
-            AND created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)
-            AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
+            AND created_at >= NOW() - INTERVAL '60 days'
+            AND created_at < NOW() - INTERVAL '30 days'
             GROUP BY proposal_status
         `;
 
-        const [previousPeriodResult] = await pool.query(previousPeriodQuery);
+        const previousPeriodResult = await query(previousPeriodQuery);
         const previousCounts = {};
-        previousPeriodResult.forEach(row => {
+        previousPeriodResult.rows.forEach(row => {
             previousCounts[row.proposal_status] = parseInt(row.count);
         });
 

@@ -50,14 +50,13 @@ router.get("/drafts-and-rejected", validateToken, async (req, res) => {
     }
 });
 
-// ✅ REFACTORED: MongoDB debugging endpoint (simplified)
-router.get("/debug-mongodb", validateToken, async (req, res) => {
+// PostgreSQL debugging endpoint
+router.get("/debug-postgresql", validateToken, async (req, res) => {
     try {
-        console.log('🔍 MongoDB Debug Endpoint Called');
+        console.log('🔍 PostgreSQL Debug Endpoint Called');
 
-        const { clientPromise, debugMongoDB, testConnection } = require('../../config/mongodb');
-        const connectionTest = await testConnection();
-        const debugInfo = await debugMongoDB();
+        const { query } = require('../../config/database-postgresql-only');
+        const connectionTest = await query('SELECT 1 as test, current_database() as database, current_user as user');
 
         res.json({
             success: true,
@@ -67,20 +66,20 @@ router.get("/debug-mongodb", validateToken, async (req, res) => {
                 email: req.user.email,
                 role: req.user.role
             },
-            mongodb: {
-                connectionTest,
-                debugInfo,
+            postgresql: {
+                connectionTest: connectionTest.rows[0],
                 environment: {
                     NODE_ENV: process.env.NODE_ENV,
-                    MONGODB_URI: process.env.MONGODB_URI ? 'SET' : 'NOT SET'
+                    POSTGRES_HOST: process.env.POSTGRES_HOST || 'localhost',
+                    POSTGRES_DATABASE: process.env.POSTGRES_DATABASE || 'cedo_auth'
                 }
             }
         });
     } catch (error) {
-        console.error('❌ MongoDB Debug Error:', error);
+        console.error('❌ PostgreSQL Debug Error:', error);
         res.status(500).json({
             success: false,
-            error: 'MongoDB debug failed',
+            error: 'PostgreSQL debug failed',
             message: error.message
         });
     }

@@ -4,7 +4,7 @@
  * Key approaches: Single responsibility, comprehensive validation, unified error responses
  */
 
-const { query } = require('../../config/database');
+const { query } = require('../../config/database-postgresql-only');
 const { v4: uuidv4 } = require('uuid');
 
 // ===================================================================
@@ -271,7 +271,7 @@ async function updateProposal(id, data, options = {}) {
                     return { success: true, message: 'No meaningful data to update' };
                 }
 
-                // Map frontend field names to MySQL column names according to init-db.js schema
+                // Map frontend field names to postgresql column names according to init-db.js schema
                 if (data.payload.schoolEventName && data.payload.schoolEventName.trim()) {
                     updateFields.push('event_name = $' + (updateValues.length + 1));
                     updateValues.push(data.payload.schoolEventName.trim());
@@ -282,7 +282,7 @@ async function updateProposal(id, data, options = {}) {
                 }
                 if (data.payload.schoolStartDate) {
                     updateFields.push('event_start_date = $' + (updateValues.length + 1));
-                    // Convert ISO date string to MySQL DATE format
+                    // Convert ISO date string to postgresql DATE format
                     try {
                         const startDate = new Date(data.payload.schoolStartDate);
                         if (isNaN(startDate.getTime())) {
@@ -296,7 +296,7 @@ async function updateProposal(id, data, options = {}) {
                 }
                 if (data.payload.schoolEndDate) {
                     updateFields.push('event_end_date = $' + (updateValues.length + 1));
-                    // Convert ISO date string to MySQL DATE format
+                    // Convert ISO date string to postgresql DATE format
                     try {
                         const endDate = new Date(data.payload.schoolEndDate);
                         if (isNaN(endDate.getTime())) {
@@ -349,7 +349,7 @@ async function updateProposal(id, data, options = {}) {
                     return { success: true, message: 'No meaningful data to update' };
                 }
 
-                // Map frontend field names to MySQL column names according to init-db.js schema
+                // Map frontend field names to postgresql column names according to init-db.js schema
                 if (data.payload.communityEventName && data.payload.communityEventName.trim()) {
                     updateFields.push('event_name = $' + (updateValues.length + 1));
                     updateValues.push(data.payload.communityEventName.trim());
@@ -360,7 +360,7 @@ async function updateProposal(id, data, options = {}) {
                 }
                 if (data.payload.communityStartDate) {
                     updateFields.push('event_start_date = $' + (updateValues.length + 1));
-                    // Convert ISO date string to MySQL DATE format
+                    // Convert ISO date string to postgresql DATE format
                     try {
                         const startDate = new Date(data.payload.communityStartDate);
                         if (isNaN(startDate.getTime())) {
@@ -374,7 +374,7 @@ async function updateProposal(id, data, options = {}) {
                 }
                 if (data.payload.communityEndDate) {
                     updateFields.push('event_end_date = $' + (updateValues.length + 1));
-                    // Convert ISO date string to MySQL DATE format
+                    // Convert ISO date string to postgresql DATE format
                     try {
                         const endDate = new Date(data.payload.communityEndDate);
                         if (isNaN(endDate.getTime())) {

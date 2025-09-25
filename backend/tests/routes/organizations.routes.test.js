@@ -10,7 +10,7 @@ jest.mock('../config/db', () => {
     return { pool: mPool };
 });
 
-const { pool, query } = require('../../config/database');
+const { pool, query } = require('../../config/database-postgresql-only');
 
 describe('POST /create (organizations)', () => {
     let app;
@@ -110,7 +110,7 @@ describe('POST /create (organizations)', () => {
         expect(pool.query).toHaveBeenCalledTimes(5);
     });
 
-    it('should handle MySQL ER_NO_SUCH_TABLE error', async () => {
+    it('should handle postgresql ER_NO_SUCH_TABLE error', async () => {
         pool.query.mockRejectedValueOnce({ code: 'ER_NO_SUCH_TABLE' });
         const res = await request(app)
             .post('/organizations/create')
@@ -124,7 +124,7 @@ describe('POST /create (organizations)', () => {
         expect(res.body.error).toMatch(/not initialized/i);
     });
 
-    it('should handle MySQL ER_DUP_ENTRY error', async () => {
+    it('should handle postgresql ER_DUP_ENTRY error', async () => {
         pool.query.mockRejectedValueOnce({ code: 'ER_DUP_ENTRY' });
         const res = await request(app)
             .post('/organizations/create')

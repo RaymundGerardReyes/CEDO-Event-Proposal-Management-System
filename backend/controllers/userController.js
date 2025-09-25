@@ -1,6 +1,6 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { pool, query } = require("../config/database");
+const { pool, query } = require("../config/database-postgresql-only");
 const User = require("../models/User");
 
 // --- Role Definitions ---

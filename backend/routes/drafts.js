@@ -5,7 +5,7 @@ const router = express.Router();
 /**
  * ENHANCED DRAFT MANAGEMENT ROUTES
  * --------------------------------
- * UUID-based draft system with proper MySQL/MongoDB integration
+ * UUID-based draft system with proper postgresql/postgresql integration
  * Handles both UUID and descriptive draft IDs with migration
  */
 const DRAFT_CACHE = new Map();

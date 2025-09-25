@@ -29,8 +29,8 @@ const requiredVars = {
     'GOOGLE_CLIENT_SECRET': 'your-google-client-secret',
     'RECAPTCHA_SECRET_KEY': 'your-recaptcha-secret',
 
-    // MongoDB (if using)
-    'MONGODB_URI': 'mongodb+srv://your-mongodb-connection-string',
+    // postgresql (if using)
+    'postgresql_URI': 'postgresql+srv://your-postgresql-connection-string',
 
     // Frontend URLs
     'FRONTEND_URL': 'https://your-frontend-service.onrender.com',

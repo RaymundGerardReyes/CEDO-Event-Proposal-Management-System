@@ -1,7 +1,7 @@
 // middleware/auth.middleware.js
 
 const jwt = require("jsonwebtoken");
-const { pool, query } = require("../config/database");
+const { pool, query } = require("../config/database-postgresql-only");
 const logger = require("../utils/logger");
 
 /**

@@ -1,6 +1,6 @@
 /**
  * Proposal Routes Tests
- * Tests UUID-based proposal management with MySQL backend
+ * Tests UUID-based proposal management with postgresql backend
  * 
  * Key approaches: TDD workflow, comprehensive endpoint coverage,
  * status transition validation, and error scenario testing
@@ -44,7 +44,7 @@ vi.mock('../../services/audit.service.js', () => ({
     getAuditLogs: vi.fn(() => Promise.resolve([])),
     getDebugLogs: vi.fn(() => Promise.resolve([])),
     getDebugInfo: vi.fn(() => Promise.resolve({
-        mysql_record: { uuid: 'test-uuid', id: 57 },
+        postgresql_record: { uuid: 'test-uuid', id: 57 },
         audit_logs: [],
         debug_logs: [],
         status_match: true

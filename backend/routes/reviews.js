@@ -1,7 +1,7 @@
 const express = require("express")
 const router = express.Router()
 const { body, validationResult } = require("express-validator")
-const Proposal = require("../models/Proposal")
+// PostgreSQL-only: Proposal model not needed, using direct database queries
 const User = require("../models/User")
 const { validateToken, validateAdmin, validateReviewer } = require("../middleware/auth")
 const checkRole = require("../middleware/checkRole")

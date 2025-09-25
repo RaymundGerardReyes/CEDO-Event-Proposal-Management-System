@@ -4,14 +4,14 @@
  * Approach: Batch update proposals that should be pending but are still draft
  */
 
-const mysql = require('mysql2/promise');
+const postgresql = require('postgresql2/promise');
 
 // Database configuration
 const dbConfig = {
     host: process.env.DB_HOST || '127.0.0.1',
     port: process.env.DB_PORT || 3306,
     user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || '',
+    password: process.env.DB_PASSWORD || process.env.postgresql_PASSWORD || '',
     database: process.env.DB_NAME || 'cedo_auth',
     waitForConnections: true,
     connectionLimit: 10,
@@ -31,7 +31,7 @@ async function fixProposalStatuses() {
         });
 
         // Create database connection
-        connection = await mysql.createConnection(dbConfig);
+        connection = await postgresql.createConnection(dbConfig);
         console.log('✅ Database connected');
 
         // Find proposals that should be pending but are still draft

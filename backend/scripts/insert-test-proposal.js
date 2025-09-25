@@ -1,6 +1,6 @@
 // backend/scripts/insert-test-proposal.js
 
-const { clientPromise } = require('../config/mongodb');
+const { clientPromise } = require('../config/postgresql');
 
 async function insertTestProposal() {
     try {
@@ -9,8 +9,8 @@ async function insertTestProposal() {
         const proposals = db.collection('proposals');
 
         const testProposal = {
-            title: 'Test MongoDB Proposal',
-            description: 'A test proposal for MongoDB validation.',
+            title: 'Test postgresql Proposal',
+            description: 'A test proposal for postgresql validation.',
             category: 'school-event',
             startDate: new Date(),
             endDate: new Date(Date.now() + 86400000), // +1 day
@@ -45,7 +45,7 @@ async function insertTestProposal() {
         };
 
         const result = await proposals.insertOne(testProposal);
-        console.log('✅ Test proposal inserted into MongoDB:', result.insertedId);
+        console.log('✅ Test proposal inserted into postgresql:', result.insertedId);
         process.exit(0);
     } catch (err) {
         console.error('❌ Failed to insert test proposal:', err);

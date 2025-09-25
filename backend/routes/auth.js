@@ -4,7 +4,7 @@ const express = require("express")
 const router = express.Router()
 const bcrypt = require("bcryptjs")
 // const jwt = require("jsonwebtoken") // Not directly used here for /google route
-const { pool, query } = require("../config/database")
+const { pool, query } = require("../config/database-postgresql-only")
 const authMiddleware = require("../middleware/auth")
 // const checkRole = require("../middleware/roles") // Not directly used here for /google route
 // const axios = require("axios") // Not directly used here for /google route
@@ -503,6 +503,12 @@ router.get('/me', async (req, res, next) => {
     console.log('--- Backend /auth/me Endpoint Finished ---\n');
   }
 });
+
+// Import token validation routes
+const validateTokenRouter = require('./auth/validate-token');
+
+// Mount token validation routes
+router.use('/auth', validateTokenRouter);
 
 module.exports = router;
 

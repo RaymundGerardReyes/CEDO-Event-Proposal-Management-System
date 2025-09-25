@@ -7,12 +7,52 @@
  */
 
 const express = require('express');
-const { pool, query } = require('../config/database');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs').promises;
+const { pool, query } = require('../config/database-postgresql-only');
 const { validateToken, validateAdmin } = require('../middleware/auth.js');
 const { createAuditLog } = require('../services/audit.service.js');
 const { validateProposal, validateReportData, validateReviewAction } = require('../validators/proposal.validator.js');
 
 const router = express.Router();
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+    destination: async (req, file, cb) => {
+        const uploadDir = path.join(__dirname, '../uploads/proposals');
+        try {
+            await fs.mkdir(uploadDir, { recursive: true });
+            cb(null, uploadDir);
+        } catch (error) {
+            cb(error);
+        }
+    },
+    filename: (req, file, cb) => {
+        const uuid = req.params.uuid;
+        const timestamp = Date.now();
+        const ext = path.extname(file.originalname);
+        const filename = `${uuid}_${file.fieldname}_${timestamp}${ext}`;
+        cb(null, filename);
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB limit
+        files: 2 // Maximum 2 files (GPOA and Project Proposal)
+    },
+    fileFilter: (req, file, cb) => {
+        // Allow PDF, DOC, DOCX files
+        const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+        if (allowedTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only PDF, DOC, and DOCX files are allowed'), false);
+        }
+    }
+});
 
 /**
  * POST /api/proposals
@@ -63,12 +103,19 @@ router.post('/', validateToken, validateProposal, async (req, res) => {
 
 /**
  * PUT /api/proposals/:uuid
- * Update proposal with partial data
+ * Upsert proposal (create if not exists, update if exists)
  */
-router.put('/:uuid', validateToken, validateProposal, async (req, res) => {
+router.put('/:uuid', validateToken, async (req, res) => {
     try {
         const { uuid } = req.params;
-        const updateData = req.body;
+        const { proposal: proposalData, files, ...otherData } = req.body;
+
+        console.log('📝 PUT /proposals/:uuid - Received data:', {
+            uuid,
+            hasProposal: !!proposalData,
+            hasFiles: !!files,
+            otherKeys: Object.keys(otherData)
+        });
 
         // Check if proposal exists
         const proposalsResult = await query(
@@ -76,47 +123,261 @@ router.put('/:uuid', validateToken, validateProposal, async (req, res) => {
             [uuid]
         );
 
-        if (proposalsResult.rows.length === 0) {
-            return res.status(404).json({ error: 'Proposal not found' });
-        }
+        const proposalExists = proposalsResult.rows.length > 0;
+        console.log(`📊 Proposal ${uuid} ${proposalExists ? 'exists' : 'does not exist'}, will ${proposalExists ? 'update' : 'create'}`);
 
-        // Build update query dynamically
-        const updateFields = [];
-        const updateValues = [];
-        let paramIndex = 1;
+        // Use proposalData if available, otherwise use the entire body
+        const updateData = proposalData || req.body;
 
-        Object.keys(updateData).forEach(key => {
-            if (key !== 'uuid' && key !== 'id') { // Prevent updating primary keys
-                updateFields.push(`${key} = $${paramIndex}`);
-                updateValues.push(updateData[key]);
-                paramIndex++;
+        if (proposalExists) {
+            // UPDATE existing proposal
+            console.log('📝 Updating existing proposal');
+
+            // Build update query dynamically
+            const updateFields = [];
+            const updateValues = [];
+            let paramIndex = 1;
+
+            Object.keys(updateData).forEach(key => {
+                if (key !== 'uuid' && key !== 'id' && key !== 'files') { // Prevent updating primary keys and files
+                    let value = updateData[key];
+
+                    // Handle JSON fields
+                    if (key === 'target_audience' || key === 'validation_errors') {
+                        value = JSON.stringify(value);
+                    }
+
+                    updateFields.push(`${key} = $${paramIndex}`);
+                    updateValues.push(value);
+                    paramIndex++;
+                }
+            });
+
+            if (updateFields.length === 0) {
+                console.log('⚠️ No valid fields to update');
+                return res.status(400).json({ error: 'No valid fields to update' });
             }
-        });
 
-        if (updateFields.length === 0) {
-            return res.status(400).json({ error: 'No valid fields to update' });
+            updateValues.push(uuid);
+
+            console.log('📝 Updating proposal with fields:', updateFields);
+
+            await query(
+                `UPDATE proposals SET ${updateFields.join(', ')} WHERE uuid = $${paramIndex}`,
+                updateValues
+            );
+
+            await createAuditLog(uuid, 'proposal_updated', req.user.id, 'Proposal updated', updateData);
+
+        } else {
+            // CREATE new proposal
+            console.log('📝 Creating new proposal');
+
+            // Prepare data for insertion with required fields (updated schema)
+            const insertData = {
+                uuid: uuid,
+                organization_name: updateData.organization_name || '',
+                organization_type: updateData.organization_type || 'school-based',
+                organization_description: updateData.organization_description || '',
+                organization_registration_no: updateData.organization_registration_no || '',
+                contact_person: updateData.contact_person || '',
+                contact_email: updateData.contact_email || '',
+                contact_phone: updateData.contact_phone || '',
+                event_name: updateData.event_name || '',
+                event_venue: updateData.event_venue || '',
+                event_start_date: updateData.event_start_date || null,
+                event_end_date: updateData.event_end_date || null,
+                event_start_time: updateData.event_start_time || null,
+                event_end_time: updateData.event_end_time || null,
+                event_mode: updateData.event_mode || 'offline',
+                event_type: updateData.event_type || '',
+                target_audience: updateData.target_audience ? JSON.stringify(updateData.target_audience) : '[]',
+                sdp_credits: updateData.sdp_credits || null,
+                gpoa_file_name: updateData.gpoa_file_name || null,
+                gpoa_file_size: updateData.gpoa_file_size || null,
+                gpoa_file_type: updateData.gpoa_file_type || null,
+                gpoa_file_path: updateData.gpoa_file_path || null,
+                project_proposal_file_name: updateData.project_proposal_file_name || null,
+                project_proposal_file_size: updateData.project_proposal_file_size || null,
+                project_proposal_file_type: updateData.project_proposal_file_type || null,
+                project_proposal_file_path: updateData.project_proposal_file_path || null,
+                current_section: updateData.current_section || 'orgInfo',
+                proposal_status: updateData.proposal_status || 'draft',
+                report_status: updateData.report_status || 'draft',
+                event_status: updateData.event_status || 'scheduled',
+                form_completion_percentage: updateData.form_completion_percentage || 0.00,
+                user_id: req.user.id
+            };
+
+            // Build insert query
+            const insertFields = Object.keys(insertData);
+            const insertValues = Object.values(insertData);
+            const placeholders = insertFields.map((_, index) => `$${index + 1}`).join(', ');
+
+            console.log('📝 Creating proposal with fields:', insertFields);
+            console.log('📝 Insert data - proposal_status:', insertData.proposal_status);
+
+            await query(
+                `INSERT INTO proposals (${insertFields.join(', ')}) VALUES (${placeholders})`,
+                insertValues
+            );
+
+            await createAuditLog(uuid, 'proposal_created', req.user.id, 'Proposal created', insertData);
         }
 
-        updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
-        updateValues.push(uuid);
-
-        await query(
-            `UPDATE proposals SET ${updateFields.join(', ')} WHERE uuid = $${paramIndex}`,
-            updateValues
-        );
-
-        // Get updated proposal
-        const updatedProposalsResult = await query(
+        // Get the final proposal (whether created or updated)
+        const finalProposalsResult = await query(
             'SELECT * FROM proposals WHERE uuid = $1',
             [uuid]
         );
 
-        await createAuditLog(uuid, 'proposal_updated', req.user.id, 'Proposal updated', updateData);
-
-        res.status(200).json(updatedProposalsResult.rows[0]);
+        res.status(200).json({
+            success: true,
+            data: finalProposalsResult.rows[0],
+            message: proposalExists ? 'Proposal updated successfully' : 'Proposal created successfully'
+        });
     } catch (error) {
-        console.error('Error updating proposal:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        console.error('❌ Error updating proposal:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error',
+            message: error.message
+        });
+    }
+});
+
+/**
+ * GET /api/proposals/drafts-and-rejected
+ * Get user's drafts and rejected proposals
+ */
+router.get('/drafts-and-rejected', validateToken, async (req, res) => {
+    try {
+        const { includeRejected = 'true', limit = 100, offset = 0 } = req.query;
+        const userId = req.user.id;
+
+        console.log('📋 Getting drafts and rejected proposals for user:', userId, { includeRejected, limit, offset });
+
+        // Build the query based on parameters
+        let statusFilter = "proposal_status IN ('draft')";
+        if (includeRejected === 'true') {
+            statusFilter = "proposal_status IN ('draft', 'denied')";
+        }
+
+        const proposalsResult = await query(
+            `SELECT 
+                p.uuid,
+                p.organization_name,
+                p.organization_type,
+                p.contact_person,
+                p.contact_email,
+                p.contact_phone,
+                p.event_name,
+                p.event_venue,
+                p.event_start_date,
+                p.event_end_date,
+                p.event_start_time,
+                p.event_end_time,
+                p.event_mode,
+                p.event_type,
+                p.target_audience,
+                p.sdp_credits,
+                p.current_section,
+                p.form_completion_percentage,
+                p.proposal_status,
+                p.report_status,
+                p.event_status,
+                p.attendance_count,
+                p.objectives,
+                p.budget,
+                p.volunteers_needed,
+                p.report_description,
+                p.admin_comments,
+                p.submitted_at,
+                p.approved_at,
+                p.created_at,
+                p.updated_at,
+                u.name as user_name,
+                u.email as user_email
+            FROM proposals p
+            LEFT JOIN users u ON p.user_id = u.id
+            WHERE p.user_id = $1 
+                AND p.is_deleted = false 
+                AND ${statusFilter}
+            ORDER BY p.updated_at DESC
+            LIMIT $2 OFFSET $3`,
+            [userId, parseInt(limit), parseInt(offset)]
+        );
+
+        // Get total count for pagination
+        const countResult = await query(
+            `SELECT COUNT(*) as total
+            FROM proposals p
+            WHERE p.user_id = $1 
+                AND p.is_deleted = false 
+                AND ${statusFilter}`,
+            [userId]
+        );
+
+        const totalCount = parseInt(countResult.rows[0].total);
+
+        // Transform the data to match frontend expectations
+        const proposals = proposalsResult.rows.map(proposal => ({
+            uuid: proposal.uuid,
+            organizationName: proposal.organization_name,
+            organizationType: proposal.organization_type,
+            contactPerson: proposal.contact_person,
+            contactEmail: proposal.contact_email,
+            contactPhone: proposal.contact_phone,
+            eventName: proposal.event_name,
+            eventVenue: proposal.event_venue,
+            eventStartDate: proposal.event_start_date,
+            eventEndDate: proposal.event_end_date,
+            eventStartTime: proposal.event_start_time,
+            eventEndTime: proposal.event_end_time,
+            eventMode: proposal.event_mode,
+            eventType: proposal.event_type,
+            targetAudience: proposal.target_audience,
+            sdpCredits: proposal.sdp_credits,
+            currentSection: proposal.current_section,
+            formCompletionPercentage: proposal.form_completion_percentage,
+            proposalStatus: proposal.proposal_status,
+            reportStatus: proposal.report_status,
+            eventStatus: proposal.event_status,
+            attendanceCount: proposal.attendance_count,
+            objectives: proposal.objectives,
+            budget: proposal.budget,
+            volunteersNeeded: proposal.volunteers_needed,
+            reportDescription: proposal.report_description,
+            adminComments: proposal.admin_comments,
+            submittedAt: proposal.submitted_at,
+            approvedAt: proposal.approved_at,
+            createdAt: proposal.created_at,
+            updatedAt: proposal.updated_at,
+            userName: proposal.user_name,
+            userEmail: proposal.user_email
+        }));
+
+        console.log('✅ Drafts and rejected proposals retrieved:', proposals.length, 'proposals');
+
+        res.json({
+            success: true,
+            proposals: proposals,
+            metadata: {
+                total: totalCount,
+                limit: parseInt(limit),
+                offset: parseInt(offset),
+                hasMore: (parseInt(offset) + proposals.length) < totalCount
+            },
+            count: proposals.length
+        });
+
+    } catch (error) {
+        console.error('❌ Error getting drafts and rejected proposals:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch drafts and rejected proposals',
+            message: error.message
+        });
     }
 });
 
@@ -165,7 +426,9 @@ router.post('/:uuid/submit', validateToken, async (req, res) => {
         const proposal = proposalsResult.rows[0];
 
         // Check if already submitted
+        console.log(`📊 Submit check - Proposal ${uuid} status: "${proposal.proposal_status}"`);
         if (proposal.proposal_status !== 'draft') {
+            console.log(`⚠️ Proposal ${uuid} cannot be submitted - current status: "${proposal.proposal_status}"`);
             return res.status(409).json({ error: 'Proposal already submitted' });
         }
 
@@ -174,7 +437,7 @@ router.post('/:uuid/submit', validateToken, async (req, res) => {
             `UPDATE proposals SET 
                 proposal_status = 'pending',
                 submitted_at = CURRENT_TIMESTAMP,
-                current_section = 'submitted',
+                current_section = 'reporting',
                 updated_at = CURRENT_TIMESTAMP
             WHERE uuid = $1`,
             [uuid]
@@ -188,7 +451,11 @@ router.post('/:uuid/submit', validateToken, async (req, res) => {
 
         await createAuditLog(uuid, 'proposal_submitted', req.user.id, 'Proposal submitted for review');
 
-        res.status(200).json(updatedProposalsResult.rows[0]);
+        res.status(200).json({
+            success: true,
+            data: updatedProposalsResult.rows[0],
+            message: 'Proposal submitted successfully'
+        });
     } catch (error) {
         console.error('Error submitting proposal:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -260,6 +527,85 @@ router.post('/:uuid/review', validateToken, validateAdmin, validateReviewAction,
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+
+/**
+ * GET /api/proposals/:uuid/status
+ * Get proposal status for pending page
+ */
+router.get('/:uuid/status', validateToken, async (req, res) => {
+    try {
+        const { uuid } = req.params;
+        const userId = req.user.id;
+
+        console.log('📋 Getting proposal status for UUID:', uuid);
+
+        // Get proposal details
+        const proposalResult = await query(
+            `SELECT 
+                id, uuid, proposal_status, report_status, event_status,
+                reviewed_at, approved_at, submitted_at, admin_comments,
+                organization_name, event_name, created_at, updated_at
+            FROM proposals 
+            WHERE uuid = $1 AND user_id = $2 AND is_deleted = false`,
+            [uuid, userId]
+        );
+
+        if (proposalResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Proposal not found or access denied'
+            });
+        }
+
+        const proposal = proposalResult.rows[0];
+
+        // Format the response
+        const statusResponse = {
+            success: true,
+            data: {
+                uuid: proposal.uuid,
+                proposal_status: proposal.proposal_status,
+                report_status: proposal.report_status,
+                event_status: proposal.event_status,
+                organization_name: proposal.organization_name,
+                event_name: proposal.event_name,
+                submitted_at: proposal.submitted_at,
+                reviewed_at: proposal.reviewed_at,
+                approved_at: proposal.approved_at,
+                admin_comments: proposal.admin_comments,
+                created_at: proposal.created_at,
+                updated_at: proposal.updated_at,
+                // Status display mapping
+                status_display: getStatusDisplay(proposal.proposal_status),
+                can_proceed_to_reports: proposal.proposal_status === 'approved'
+            }
+        };
+
+        console.log('✅ Proposal status retrieved:', statusResponse.data.proposal_status);
+        res.json(statusResponse);
+
+    } catch (error) {
+        console.error('❌ Error getting proposal status:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get proposal status'
+        });
+    }
+});
+
+/**
+ * Helper function to map proposal status to display text
+ */
+function getStatusDisplay(status) {
+    const statusMap = {
+        'draft': 'Draft',
+        'pending': 'Under Review',
+        'approved': 'Approved',
+        'denied': 'Not Approved',
+        'revision_requested': 'Revision Requested'
+    };
+    return statusMap[status] || 'Unknown';
+}
 
 /**
  * POST /api/proposals/:uuid/report
@@ -405,6 +751,236 @@ router.post('/:uuid/debug/logs', validateToken, async (req, res) => {
     } catch (error) {
         console.error('Error creating debug log:', error);
         res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * POST /api/proposals/:uuid/files
+ * Upload files for proposal (GPOA and Project Proposal)
+ */
+router.post('/:uuid/files', validateToken, upload.fields([
+    { name: 'gpoa', maxCount: 1 },
+    { name: 'projectProposal', maxCount: 1 }
+]), async (req, res) => {
+    try {
+        console.log('📎 File upload request received:', {
+            uuid: req.params.uuid,
+            contentType: req.headers['content-type'],
+            contentLength: req.headers['content-length'],
+            hasFiles: !!req.files,
+            files: req.files ? Object.keys(req.files) : 'none',
+            bodyKeys: Object.keys(req.body || {}),
+            rawBody: typeof req.body
+        });
+
+        const { uuid } = req.params;
+        const files = req.files;
+
+        // Check if proposal exists
+        const proposalsResult = await query(
+            'SELECT * FROM proposals WHERE uuid = $1',
+            [uuid]
+        );
+
+        if (proposalsResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Proposal not found' });
+        }
+
+        const uploadedFiles = {};
+
+        // Process GPOA file
+        if (files.gpoa && files.gpoa[0]) {
+            const gpoaFile = files.gpoa[0];
+            uploadedFiles.gpoa = {
+                filename: gpoaFile.filename,
+                originalName: gpoaFile.originalname,
+                path: gpoaFile.path,
+                size: gpoaFile.size,
+                mimetype: gpoaFile.mimetype
+            };
+
+            // Update proposal with GPOA file info
+            await query(
+                `UPDATE proposals SET 
+                    gpoa_file_name = $1,
+                    gpoa_file_size = $2,
+                    gpoa_file_path = $3,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE uuid = $4`,
+                [gpoaFile.originalname, gpoaFile.size, gpoaFile.path, uuid]
+            );
+        }
+
+        // Process Project Proposal file
+        if (files.projectProposal && files.projectProposal[0]) {
+            const proposalFile = files.projectProposal[0];
+            uploadedFiles.projectProposal = {
+                filename: proposalFile.filename,
+                originalName: proposalFile.originalname,
+                path: proposalFile.path,
+                size: proposalFile.size,
+                mimetype: proposalFile.mimetype
+            };
+
+            // Update proposal with Project Proposal file info
+            await query(
+                `UPDATE proposals SET 
+                    project_proposal_file_name = $1,
+                    project_proposal_file_size = $2,
+                    project_proposal_file_path = $3,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE uuid = $4`,
+                [proposalFile.originalname, proposalFile.size, proposalFile.path, uuid]
+            );
+        }
+
+        await createAuditLog(uuid, 'files_uploaded', req.user.id, 'Files uploaded', uploadedFiles);
+
+        res.status(200).json({
+            success: true,
+            message: 'Files uploaded successfully',
+            files: uploadedFiles
+        });
+
+    } catch (error) {
+        console.error('Error uploading files:', error);
+        console.error('Error details:', {
+            message: error.message,
+            code: error.code,
+            stack: error.stack
+        });
+
+        // Handle multer errors
+        if (error.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({
+                error: 'File size too large. Maximum 10MB allowed.',
+                code: 'LIMIT_FILE_SIZE'
+            });
+        }
+        if (error.code === 'LIMIT_FILE_COUNT') {
+            return res.status(400).json({
+                error: 'Too many files. Maximum 2 files allowed.',
+                code: 'LIMIT_FILE_COUNT'
+            });
+        }
+        if (error.message.includes('Only PDF, DOC, and DOCX files are allowed')) {
+            return res.status(400).json({
+                error: 'Invalid file type. Only PDF, DOC, and DOCX files are allowed.',
+                code: 'INVALID_FILE_TYPE'
+            });
+        }
+
+        // Handle database errors
+        if (error.code && error.code.startsWith('23')) {
+            console.error('Database constraint error:', error);
+            return res.status(400).json({
+                error: 'Database constraint violation',
+                code: 'DB_CONSTRAINT_ERROR',
+                details: error.message
+            });
+        }
+
+        // Handle other errors
+        res.status(500).json({
+            error: 'Internal server error',
+            code: 'INTERNAL_ERROR',
+            message: error.message
+        });
+    }
+});
+
+/**
+ * GET /api/proposals/:uuid/files
+ * Get file information for proposal
+ */
+router.get('/:uuid/files', validateToken, async (req, res) => {
+    try {
+        const { uuid } = req.params;
+
+        // Check if proposal exists
+        const proposalsResult = await query(
+            'SELECT gpoa_file_name, gpoa_file_size, gpoa_file_path, project_proposal_file_name, project_proposal_file_size, project_proposal_file_path FROM proposals WHERE uuid = $1',
+            [uuid]
+        );
+
+        if (proposalsResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Proposal not found' });
+        }
+
+        const proposal = proposalsResult.rows[0];
+        const files = {};
+
+        // GPOA file info
+        if (proposal.gpoa_file_name) {
+            files.gpoa = {
+                name: proposal.gpoa_file_name,
+                size: proposal.gpoa_file_size,
+                path: proposal.gpoa_file_path
+            };
+        }
+
+        // Project Proposal file info
+        if (proposal.project_proposal_file_name) {
+            files.projectProposal = {
+                name: proposal.project_proposal_file_name,
+                size: proposal.project_proposal_file_size,
+                path: proposal.project_proposal_file_path
+            };
+        }
+
+        res.status(200).json({
+            success: true,
+            files: files
+        });
+
+    } catch (error) {
+        console.error('Error fetching file info:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Get user's own proposals for reports
+router.get('/user-proposals', validateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        const result = await query(`
+            SELECT 
+                id, uuid, organization_name, organization_type, event_name, 
+                event_venue, event_start_date, event_end_date, proposal_status, 
+                report_status, event_status, created_at, updated_at
+            FROM proposals 
+            WHERE user_id = $1 AND is_deleted = false
+            ORDER BY created_at DESC
+        `, [userId]);
+
+        const proposals = result.rows.map(proposal => ({
+            id: proposal.id,
+            uuid: proposal.uuid,
+            organizationName: proposal.organization_name,
+            organizationType: proposal.organization_type,
+            eventName: proposal.event_name,
+            eventVenue: proposal.event_venue,
+            eventStartDate: proposal.event_start_date,
+            eventEndDate: proposal.event_end_date,
+            proposalStatus: proposal.proposal_status,
+            reportStatus: proposal.report_status,
+            eventStatus: proposal.event_status,
+            createdAt: proposal.created_at,
+            updatedAt: proposal.updated_at
+        }));
+
+        res.json({
+            success: true,
+            proposals
+        });
+
+    } catch (error) {
+        console.error('User proposals fetch error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch user proposals'
+        });
     }
 });
 

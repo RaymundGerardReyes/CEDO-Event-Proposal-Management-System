@@ -4,7 +4,7 @@
  */
 
 const jwt = require('jsonwebtoken');
-const { pool } = require('../config/database');
+const { pool } = require('../config/database-postgresql-only');
 
 // Cache for recently validated users (simple in-memory cache)
 const userCache = new Map();

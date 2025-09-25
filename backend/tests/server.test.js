@@ -7,7 +7,7 @@ const fs = require('fs');
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test-jwt-secret';
 process.env.GOOGLE_CLIENT_ID = 'test-google-client-id';
-process.env.MONGODB_URI = 'mongodb://test:test@localhost:27017/test';
+process.env.postgresql_URI = 'postgresql://test:test@localhost:27017/test';
 process.env.FRONTEND_URL = 'http://localhost:3000';
 process.env.RECAPTCHA_SECRET_KEY = 'test-recaptcha-secret';
 
@@ -18,8 +18,8 @@ jest.mock('../config/db', () => ({
     }
 }));
 
-jest.mock('../config/mongodb', () => ({
-    connectToMongo: jest.fn()
+jest.mock('../config/postgresql', () => ({
+    connectTopostgresql: jest.fn()
 }));
 
 jest.mock('../config/oauth', () => ({
@@ -75,7 +75,7 @@ describe('Server Configuration and Initialization', () => {
                 'NODE_ENV',
                 'JWT_SECRET',
                 'GOOGLE_CLIENT_ID',
-                'MONGODB_URI',
+                'postgresql_URI',
                 'FRONTEND_URL'
             ];
 
@@ -87,7 +87,7 @@ describe('Server Configuration and Initialization', () => {
         test('should handle missing environment variables gracefully', () => {
             const originalEnv = process.env;
             process.env = { ...originalEnv };
-            delete process.env.MONGODB_URI;
+            delete process.env.postgresql_URI;
 
             // Should not throw when requiring server
             expect(() => require('../server')).not.toThrow();
@@ -204,10 +204,10 @@ describe('Server Configuration and Initialization', () => {
         test('should include database status in health check', async () => {
             const response = await request(app).get('/health');
 
-            expect(response.body).toHaveProperty('mysql');
-            expect(response.body).toHaveProperty('mongodb');
-            expect(['connected', 'disconnected']).toContain(response.body.mysql);
-            expect(['connected', 'disconnected']).toContain(response.body.mongodb);
+            expect(response.body).toHaveProperty('postgresql');
+            expect(response.body).toHaveProperty('postgresql');
+            expect(['connected', 'disconnected']).toContain(response.body.postgresql);
+            expect(['connected', 'disconnected']).toContain(response.body.postgresql);
         });
 
         test('should return timestamp in ISO format', async () => {
@@ -538,7 +538,7 @@ describe('Server Configuration and Initialization', () => {
     });
 
     describe('Database Connection Testing', () => {
-        test('should test MySQL connection successfully', async () => {
+        test('should test postgresql connection successfully', async () => {
             pool.query.mockResolvedValueOnce([{ '1': 1 }]);
 
             const result = await testConnection();
@@ -547,7 +547,7 @@ describe('Server Configuration and Initialization', () => {
             expect(pool.query).toHaveBeenCalledWith('SELECT 1');
         });
 
-        test('should handle MySQL connection failure', async () => {
+        test('should handle postgresql connection failure', async () => {
             pool.query.mockRejectedValueOnce(new Error('Connection failed'));
 
             const result = await testConnection();
@@ -555,20 +555,20 @@ describe('Server Configuration and Initialization', () => {
             expect(result).toBe(false);
         });
 
-        test('should test MongoDB connection successfully', async () => {
-            const { connectToMongo } = require('../config/mongodb');
-            connectToMongo.mockResolvedValueOnce();
+        test('should test postgresql connection successfully', async () => {
+            const { connectTopostgresql } = require('../config/postgresql');
+            connectTopostgresql.mockResolvedValueOnce();
 
             // This would be tested in the actual server startup
-            expect(connectToMongo).toBeDefined();
+            expect(connectTopostgresql).toBeDefined();
         });
 
-        test('should handle MongoDB connection failure', async () => {
-            const { connectToMongo } = require('../config/mongodb');
-            connectToMongo.mockRejectedValueOnce(new Error('MongoDB connection failed'));
+        test('should handle postgresql connection failure', async () => {
+            const { connectTopostgresql } = require('../config/postgresql');
+            connectTopostgresql.mockRejectedValueOnce(new Error('postgresql connection failed'));
 
             // This would be tested in the actual server startup
-            expect(connectToMongo).toBeDefined();
+            expect(connectTopostgresql).toBeDefined();
         });
     });
 
@@ -605,7 +605,7 @@ describe('Server Configuration and Initialization', () => {
 
         test('should handle missing optional environment variables', () => {
             const optionalVars = [
-                'MONGODB_URI',
+                'postgresql_URI',
                 'FRONTEND_URL',
                 'RECAPTCHA_SECRET_KEY'
             ];

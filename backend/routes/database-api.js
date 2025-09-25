@@ -1,19 +1,17 @@
 const express = require('express');
 const router = express.Router();
-const { pool, query } = require('../config/database');
-const mongoose = require('mongoose');
-const { getDatabase, connectToMongo } = require('../config/mongodb');
+const { pool, query } = require('../config/database-postgresql-only');
 
 // ===============================================
 // UNIFIED DATABASE API ENDPOINTS
 // ===============================================
 
 // ===============================================
-// MYSQL CRUD OPERATIONS
+// postgresql CRUD OPERATIONS
 // ===============================================
 
-// GET all records from a MySQL table
-router.get('/mysql/:table', async (req, res) => {
+// GET all records from a postgresql table
+router.get('/postgresql/:table', async (req, res) => {
     try {
         const { table } = req.params;
         const page = parseInt(req.query.page) || 1;
@@ -42,8 +40,8 @@ router.get('/mysql/:table', async (req, res) => {
     }
 });
 
-// GET single record from MySQL table by ID
-router.get('/mysql/:table/:id', async (req, res) => {
+// GET single record from postgresql table by ID
+router.get('/postgresql/:table/:id', async (req, res) => {
     try {
         const { table, id } = req.params;
 
@@ -68,8 +66,8 @@ router.get('/mysql/:table/:id', async (req, res) => {
     }
 });
 
-// POST - Create new record in MySQL table
-router.post('/mysql/:table', async (req, res) => {
+// POST - Create new record in postgresql table
+router.post('/postgresql/:table', async (req, res) => {
     try {
         const { table } = req.params;
         const data = req.body;
@@ -104,8 +102,8 @@ router.post('/mysql/:table', async (req, res) => {
     }
 });
 
-// PUT - Update record in MySQL table
-router.put('/mysql/:table/:id', async (req, res) => {
+// PUT - Update record in postgresql table
+router.put('/postgresql/:table/:id', async (req, res) => {
     try {
         const { table, id } = req.params;
         const data = req.body;
@@ -144,8 +142,8 @@ router.put('/mysql/:table/:id', async (req, res) => {
     }
 });
 
-// DELETE record from MySQL table
-router.delete('/mysql/:table/:id', async (req, res) => {
+// DELETE record from postgresql table
+router.delete('/postgresql/:table/:id', async (req, res) => {
     try {
         const { table, id } = req.params;
 
@@ -172,23 +170,23 @@ router.delete('/mysql/:table/:id', async (req, res) => {
 });
 
 // ===============================================
-// MONGODB CRUD OPERATIONS
+// postgresql CRUD OPERATIONS
 // ===============================================
 
-// GET all documents from MongoDB collection
-router.get('/mongodb/:collection', async (req, res) => {
+// GET all documents from postgresql collection
+router.get('/postgresql/:collection', async (req, res) => {
     try {
         const { collection } = req.params;
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 50;
         const skip = (page - 1) * limit;
 
-        const db = mongoose.connection.db;
-        const mongoCollection = db.collection(collection);
+        const db = postgresqlose.connection.db;
+        const postgresqlCollection = db.collection(collection);
 
         const [documents, total] = await Promise.all([
-            mongoCollection.find({}).skip(skip).limit(limit).toArray(),
-            mongoCollection.countDocuments({})
+            postgresqlCollection.find({}).skip(skip).limit(limit).toArray(),
+            postgresqlCollection.countDocuments({})
         ]);
 
         res.json({
@@ -209,16 +207,16 @@ router.get('/mongodb/:collection', async (req, res) => {
     }
 });
 
-// GET single document from MongoDB collection by ID
-router.get('/mongodb/:collection/:id', async (req, res) => {
+// GET single document from postgresql collection by ID
+router.get('/postgresql/:collection/:id', async (req, res) => {
     try {
         const { collection, id } = req.params;
 
-        const db = mongoose.connection.db;
-        const mongoCollection = db.collection(collection);
+        const db = postgresqlose.connection.db;
+        const postgresqlCollection = db.collection(collection);
 
-        const document = await mongoCollection.findOne({
-            _id: new mongoose.Types.ObjectId(id)
+        const document = await postgresqlCollection.findOne({
+            _id: new postgresqlose.Types.ObjectId(id)
         });
 
         if (!document) {
@@ -240,8 +238,8 @@ router.get('/mongodb/:collection/:id', async (req, res) => {
     }
 });
 
-// POST - Create new document in MongoDB collection
-router.post('/mongodb/:collection', async (req, res) => {
+// POST - Create new document in postgresql collection
+router.post('/postgresql/:collection', async (req, res) => {
     try {
         const { collection } = req.params;
         const data = req.body;
@@ -256,10 +254,10 @@ router.post('/mongodb/:collection', async (req, res) => {
         data.createdAt = new Date();
         data.updatedAt = new Date();
 
-        const db = mongoose.connection.db;
-        const mongoCollection = db.collection(collection);
+        const db = postgresqlose.connection.db;
+        const postgresqlCollection = db.collection(collection);
 
-        const result = await mongoCollection.insertOne(data);
+        const result = await postgresqlCollection.insertOne(data);
 
         res.status(201).json({
             success: true,
@@ -277,8 +275,8 @@ router.post('/mongodb/:collection', async (req, res) => {
     }
 });
 
-// PUT - Update document in MongoDB collection
-router.put('/mongodb/:collection/:id', async (req, res) => {
+// PUT - Update document in postgresql collection
+router.put('/postgresql/:collection/:id', async (req, res) => {
     try {
         const { collection, id } = req.params;
         const data = req.body;
@@ -292,11 +290,11 @@ router.put('/mongodb/:collection/:id', async (req, res) => {
 
         data.updatedAt = new Date();
 
-        const db = mongoose.connection.db;
-        const mongoCollection = db.collection(collection);
+        const db = postgresqlose.connection.db;
+        const postgresqlCollection = db.collection(collection);
 
-        const result = await mongoCollection.updateOne(
-            { _id: new mongoose.Types.ObjectId(id) },
+        const result = await postgresqlCollection.updateOne(
+            { _id: new postgresqlose.Types.ObjectId(id) },
             { $set: data }
         );
 
@@ -320,16 +318,16 @@ router.put('/mongodb/:collection/:id', async (req, res) => {
     }
 });
 
-// DELETE document from MongoDB collection
-router.delete('/mongodb/:collection/:id', async (req, res) => {
+// DELETE document from postgresql collection
+router.delete('/postgresql/:collection/:id', async (req, res) => {
     try {
         const { collection, id } = req.params;
 
-        const db = mongoose.connection.db;
-        const mongoCollection = db.collection(collection);
+        const db = postgresqlose.connection.db;
+        const postgresqlCollection = db.collection(collection);
 
-        const result = await mongoCollection.deleteOne({
-            _id: new mongoose.Types.ObjectId(id)
+        const result = await postgresqlCollection.deleteOne({
+            _id: new postgresqlose.Types.ObjectId(id)
         });
 
         if (result.deletedCount === 0) {
@@ -357,7 +355,7 @@ router.delete('/mongodb/:collection/:id', async (req, res) => {
 // ===============================================
 
 // Get database schema information
-router.get('/schema/mysql', async (req, res) => {
+router.get('/schema/postgresql', async (req, res) => {
     try {
         const [tables] = await pool.query('SHOW TABLES');
         const schema = {};
@@ -386,9 +384,9 @@ router.get('/schema/mysql', async (req, res) => {
     }
 });
 
-router.get('/schema/mongodb', async (req, res) => {
+router.get('/schema/postgresql', async (req, res) => {
     try {
-        const db = mongoose.connection.db;
+        const db = postgresqlose.connection.db;
         const collections = await db.listCollections().toArray();
 
         const schema = {};
@@ -418,7 +416,7 @@ router.get('/schema/mongodb', async (req, res) => {
 });
 
 // Data sync between databases
-router.post('/sync/mysql-to-mongodb', async (req, res) => {
+router.post('/sync/postgresql-to-postgresql', async (req, res) => {
     try {
         const { sourceTable, targetCollection } = req.body;
 
@@ -429,7 +427,7 @@ router.post('/sync/mysql-to-mongodb', async (req, res) => {
             });
         }
 
-        // Get data from MySQL
+        // Get data from postgresql
         const [rows] = await pool.query('SELECT * FROM ??', [sourceTable]);
 
         if (rows.length === 0) {
@@ -440,21 +438,21 @@ router.post('/sync/mysql-to-mongodb', async (req, res) => {
             });
         }
 
-        // Insert into MongoDB
-        const db = mongoose.connection.db;
+        // Insert into postgresql
+        const db = postgresqlose.connection.db;
         const collection = db.collection(targetCollection);
 
         const documentsToInsert = rows.map(row => ({
             ...row,
             syncedAt: new Date(),
-            syncedFrom: 'mysql'
+            syncedFrom: 'postgresql'
         }));
 
         const result = await collection.insertMany(documentsToInsert);
 
         res.json({
             success: true,
-            message: `Synced ${result.insertedCount} records from MySQL table '${sourceTable}' to MongoDB collection '${targetCollection}'`,
+            message: `Synced ${result.insertedCount} records from postgresql table '${sourceTable}' to postgresql collection '${targetCollection}'`,
             insertedCount: result.insertedCount
         });
     } catch (error) {
@@ -465,7 +463,7 @@ router.post('/sync/mysql-to-mongodb', async (req, res) => {
     }
 });
 
-router.post('/sync/mongodb-to-mysql', async (req, res) => {
+router.post('/sync/postgresql-to-postgresql', async (req, res) => {
     try {
         const { sourceCollection, targetTable, fieldMapping } = req.body;
 
@@ -476,8 +474,8 @@ router.post('/sync/mongodb-to-mysql', async (req, res) => {
             });
         }
 
-        // Get data from MongoDB
-        const db = mongoose.connection.db;
+        // Get data from postgresql
+        const db = postgresqlose.connection.db;
         const collection = db.collection(sourceCollection);
         const documents = await collection.find({}).toArray();
 
@@ -489,14 +487,14 @@ router.post('/sync/mongodb-to-mysql', async (req, res) => {
             });
         }
 
-        // Get MySQL table structure
+        // Get postgresql table structure
         const [columns] = await pool.query('DESCRIBE ??', [targetTable]);
         const columnNames = columns.map(col => col.Field);
 
         let insertedCount = 0;
         for (const doc of documents) {
             try {
-                // Filter document fields to match MySQL table columns
+                // Filter document fields to match postgresql table columns
                 const filteredData = {};
                 for (const column of columnNames) {
                     if (column === 'id') continue; // Skip auto-increment ID
@@ -514,7 +512,7 @@ router.post('/sync/mongodb-to-mysql', async (req, res) => {
                     filteredData.synced_at = new Date();
                 }
                 if (columnNames.includes('synced_from')) {
-                    filteredData.synced_from = 'mongodb';
+                    filteredData.synced_from = 'postgresql';
                 }
 
                 if (Object.keys(filteredData).length > 0) {
@@ -533,7 +531,7 @@ router.post('/sync/mongodb-to-mysql', async (req, res) => {
 
         res.json({
             success: true,
-            message: `Synced ${insertedCount} documents from MongoDB collection '${sourceCollection}' to MySQL table '${targetTable}'`,
+            message: `Synced ${insertedCount} documents from postgresql collection '${sourceCollection}' to postgresql table '${targetTable}'`,
             insertedCount
         });
     } catch (error) {

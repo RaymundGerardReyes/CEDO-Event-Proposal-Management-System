@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { pool, query } = require('../../config/database');
+const { pool, query } = require('../../config/database-postgresql-only');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs/promises');
@@ -29,15 +29,15 @@ router.get("/", async (req, res, next) => {
         const search = req.query.search
 
         // Build the base query
-        let query = "SELECT * FROM proposals"
+        let sqlQuery = "SELECT * FROM proposals"
         let countQuery = "SELECT COUNT(*) as total FROM proposals"
         const queryParams = []
         const countParams = []
 
         // Add filters
         if (status && status !== "all") {
-            query += " WHERE proposal_status = ?"
-            countQuery += " WHERE proposal_status = ?"
+            sqlQuery += " WHERE proposal_status = $1"
+            countQuery += " WHERE proposal_status = $1"
             queryParams.push(status)
             countParams.push(status)
         }
@@ -47,24 +47,35 @@ router.get("/", async (req, res, next) => {
             const searchClause = status && status !== "all" ? " AND" : " WHERE"
             const searchPattern = `%${search}%`
 
-            query += `${searchClause}(event_name LIKE ? OR contact_name LIKE ? OR venue LIKE ?)`
-            countQuery += `${searchClause}(event_name LIKE ? OR contact_name LIKE ? OR venue LIKE ?)`
+            if (status && status !== "all") {
+                sqlQuery += `${searchClause}(event_name LIKE $2 OR contact_person LIKE $3 OR event_venue LIKE $4)`
+                countQuery += `${searchClause}(event_name LIKE $2 OR contact_person LIKE $3 OR event_venue LIKE $4)`
+            } else {
+                sqlQuery += `${searchClause}(event_name LIKE $1 OR contact_person LIKE $2 OR event_venue LIKE $3)`
+                countQuery += `${searchClause}(event_name LIKE $1 OR contact_person LIKE $2 OR event_venue LIKE $3)`
+            }
 
             queryParams.push(searchPattern, searchPattern, searchPattern)
             countParams.push(searchPattern, searchPattern, searchPattern)
         }
 
         // Add sorting (use correct column name)
-        query += " ORDER BY COALESCE(submitted_at, created_at) DESC"
+        sqlQuery += " ORDER BY COALESCE(submitted_at, created_at) DESC"
 
         // Add pagination
-        query += " LIMIT ? OFFSET ?"
+        if (status && status !== "all" && search) {
+            sqlQuery += " LIMIT $" + (queryParams.length + 1) + " OFFSET $" + (queryParams.length + 2)
+        } else if (status && status !== "all" || search) {
+            sqlQuery += " LIMIT $" + (queryParams.length + 1) + " OFFSET $" + (queryParams.length + 2)
+        } else {
+            sqlQuery += " LIMIT $1 OFFSET $2"
+        }
         queryParams.push(limit, offset)
 
         // Execute queries with connection pooling
-        const [proposals] = await pool.query(query, queryParams)
-        const [countResult] = await pool.query(countQuery, countParams)
-        const total = countResult[0].total
+        const proposalsResult = await query(sqlQuery, queryParams)
+        const countResult = await query(countQuery, countParams)
+        const total = countResult.rows[0].total
 
         // Calculate pagination metadata
         const pages = Math.ceil(total / limit)
@@ -78,7 +89,7 @@ router.get("/", async (req, res, next) => {
         }
 
         // Process proposals to include file information
-        const processedProposals = proposals.map((proposal) => {
+        const processedProposals = proposalsResult.rows.map((proposal) => {
             // Map file columns from database to file object structure
             const files = {}
 
@@ -151,16 +162,16 @@ router.get("/:id", async (req, res, next) => {
         const { id } = req.params
 
         // Get proposal details
-        const [proposals] = await pool.query("SELECT * FROM proposals WHERE id = ?", [id])
+        const proposalsResult = await query("SELECT * FROM proposals WHERE id = $1", [id])
 
-        if (proposals.length === 0) {
+        if (proposalsResult.rows.length === 0) {
             return res.status(404).json({
                 success: false,
                 error: "Proposal not found",
             })
         }
 
-        const proposal = proposals[0]
+        const proposal = proposalsResult.rows[0]
 
         // Map file columns to file object structure (same as above)
         const files = {}
@@ -209,9 +220,9 @@ router.get("/:id", async (req, res, next) => {
         }
 
         // Get approval history from audit_logs
-        const [history] = await pool.query(
-            "SELECT * FROM audit_logs WHERE table_name = 'proposals' AND record_id = ? ORDER BY created_at DESC",
-            [id],
+        const historyResult = await query(
+            "SELECT * FROM audit_logs WHERE table_name = 'proposals' AND record_id = $1 ORDER BY created_at DESC",
+            [id]
         )
 
         res.json({
@@ -219,7 +230,7 @@ router.get("/:id", async (req, res, next) => {
             proposal: {
                 ...proposal,
                 files,
-                history,
+                history: historyResult.rows,
             },
         })
     } catch (error) {
@@ -233,11 +244,7 @@ router.get("/:id", async (req, res, next) => {
  * @access Private (Admin)
  */
 router.patch("/:id/status", async (req, res, next) => {
-    const connection = await pool.getConnection()
-
     try {
-        await connection.beginTransaction()
-
         const { id } = req.params
         const { status, adminComments } = req.body
         const adminId = req.user.id // From auth middleware
@@ -255,13 +262,12 @@ router.patch("/:id/status", async (req, res, next) => {
         }
 
         // Update proposal status
-        const [updateResult] = await connection.query(
-            "UPDATE proposals SET proposal_status = ?, admin_comments = ?, updated_at = NOW() WHERE id = ?",
-            [normalizedStatus, adminComments || null, id],
+        const updateResult = await query(
+            "UPDATE proposals SET proposal_status = $1, admin_comments = $2, reviewed_by_admin_id = $3, reviewed_at = CURRENT_TIMESTAMP WHERE id = $4",
+            [normalizedStatus, adminComments || null, adminId, id]
         )
 
-        if (updateResult.affectedRows === 0) {
-            await connection.rollback()
+        if (updateResult.rowCount === 0) {
             return res.status(404).json({
                 success: false,
                 error: "Proposal not found",
@@ -269,24 +275,20 @@ router.patch("/:id/status", async (req, res, next) => {
         }
 
         // Record status change in history
-        await connection.query(
-            "INSERT INTO audit_logs (user_id, action_type, table_name, record_id, new_values, created_at) VALUES (?, ?, ?, ?, ?, NOW())",
-            [adminId, 'UPDATE', 'proposals', id, JSON.stringify({ status: normalizedStatus, admin_comments: adminComments || null })],
+        await query(
+            "INSERT INTO audit_logs (user_id, action_type, table_name, record_id, new_values) VALUES ($1, $2, $3, $4, $5)",
+            [adminId, 'UPDATE', 'proposals', id, JSON.stringify({ status: normalizedStatus, admin_comments: adminComments || null })]
         )
 
         // If approved, update user credits if applicable
         if (normalizedStatus === "approved") {
-            const [proposals] = await connection.query("SELECT user_id, school_event_type, school_return_service_credit FROM proposals WHERE id = ?", [
-                id,
-            ])
+            const proposalsResult = await query("SELECT user_id, event_type, sdp_credits FROM proposals WHERE id = $1", [id])
 
-            if (proposals.length > 0 && proposals[0].user_id && proposals[0].school_return_service_credit) {
+            if (proposalsResult.rows.length > 0 && proposalsResult.rows[0].user_id && proposalsResult.rows[0].sdp_credits) {
                 // Note: This would need a credits table or user credits field to be implemented
-                console.log(`Proposal approved for user ${proposals[0].user_id} with ${proposals[0].school_return_service_credit} credits`)
+                console.log(`Proposal approved for user ${proposalsResult.rows[0].user_id} with ${proposalsResult.rows[0].sdp_credits} credits`)
             }
         }
-
-        await connection.commit()
 
         res.json({
             success: true,
@@ -295,10 +297,8 @@ router.patch("/:id/status", async (req, res, next) => {
             status: normalizedStatus,
         })
     } catch (error) {
-        await connection.rollback()
+        console.error("❌ Error updating proposal status:", error)
         next(error)
-    } finally {
-        connection.release()
     }
 })
 
@@ -321,12 +321,12 @@ router.post("/:id/comment", async (req, res, next) => {
         }
 
         // Add comment to proposal
-        const [updateResult] = await pool.query(
-            'UPDATE proposals SET admin_comments = CONCAT(IFNULL(admin_comments, ""), ?, "\n"), updated_at = NOW() WHERE id = ?',
-            [`[${new Date().toISOString()}] ${comment} `, id],
+        const updateResult = await query(
+            'UPDATE proposals SET admin_comments = COALESCE(admin_comments, \'\') || $1 || E\'\\n\' WHERE id = $2',
+            [`[${new Date().toISOString()}] ${comment} `, id]
         )
 
-        if (updateResult.affectedRows === 0) {
+        if (updateResult.rowCount === 0) {
             return res.status(404).json({
                 success: false,
                 error: "Proposal not found",
@@ -334,9 +334,9 @@ router.post("/:id/comment", async (req, res, next) => {
         }
 
         // Record comment in history
-        await pool.query(
-            "INSERT INTO audit_logs (user_id, action_type, table_name, record_id, new_values, created_at) VALUES (?, ?, ?, ?, ?, NOW())",
-            [adminId, 'UPDATE', 'proposals', id, JSON.stringify({ admin_comments: comment })],
+        await query(
+            "INSERT INTO audit_logs (user_id, action_type, table_name, record_id, new_values) VALUES ($1, $2, $3, $4, $5)",
+            [adminId, 'UPDATE', 'proposals', id, JSON.stringify({ admin_comments: comment })]
         )
 
         res.json({
@@ -416,9 +416,9 @@ router.get("/:id/download/:fileType", async (req, res, next) => {
         }
 
         // Log download
-        await pool.query(
-            "INSERT INTO audit_logs (user_id, action_type, table_name, record_id, additional_info, created_at) VALUES (?, ?, ?, ?, ?, NOW())",
-            [req.user.id, 'VIEW', 'proposals', id, JSON.stringify({ file_type: fileType, action: 'download' })],
+        await query(
+            "INSERT INTO audit_logs (user_id, action_type, table_name, record_id, additional_info) VALUES ($1, $2, $3, $4, $5)",
+            [req.user.id, 'VIEW', 'proposals', id, JSON.stringify({ file_type: fileType, action: 'download' })]
         )
 
         // Send file
@@ -462,9 +462,9 @@ router.post("/:id/files", upload.array("files", 5), async (req, res, next) => {
         }
 
         // Check if proposal exists
-        const [proposals] = await pool.query("SELECT id FROM proposals WHERE id = ?", [id])
+        const proposalsResult = await query("SELECT id FROM proposals WHERE id = $1", [id])
 
-        if (proposals.length === 0) {
+        if (proposalsResult.rows.length === 0) {
             return res.status(404).json({
                 success: false,
                 error: "Proposal not found",
@@ -486,12 +486,11 @@ router.post("/:id/files", upload.array("files", 5), async (req, res, next) => {
             const type = fileTypeArray[index]
             const mapping = fileTypeMap[type]
             if (!mapping) return Promise.resolve()
-            return pool.query(
+            return query(
                 `UPDATE proposals SET \
-                    ${mapping.name} = ?, \
-                    ${mapping.path} = ?, \
-                    updated_at = NOW() \
-                 WHERE id = ?`,
+                    ${mapping.name} = $1, \
+                    ${mapping.path} = $2 \
+                 WHERE id = $3`,
                 [file.originalname, file.path, id]
             )
         })

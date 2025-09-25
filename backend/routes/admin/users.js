@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { pool, query } = require('../../config/database');
+const { pool, query } = require('../../config/database-postgresql-only');
 const { validateAdmin, validateToken } = require('../../middleware/auth');
 const { handleErrors } = require('./middleware');
 

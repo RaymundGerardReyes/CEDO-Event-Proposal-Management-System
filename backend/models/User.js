@@ -1,4 +1,4 @@
-const { pool, query } = require("../config/database")
+const { pool, query } = require("../config/database-postgresql-only")
 const bcrypt = require("bcryptjs")
 
 const User = {

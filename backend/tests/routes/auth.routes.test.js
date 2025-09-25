@@ -4,7 +4,7 @@
 const request = require('supertest');
 const express = require('express');
 const sessionManager = require('../../middleware/session');
-const { pool, query } = require('../../config/database');
+const { pool, query } = require('../../config/database-postgresql-only');
 const authRouter = require('../../routes/auth');
 const jwt = require('jsonwebtoken');
 

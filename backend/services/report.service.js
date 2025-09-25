@@ -21,9 +21,7 @@
  * - Export capabilities
  */
 
-const { pool, query } = require('../config/database');
-const { getDb } = require('../utils/db');
-
+const { pool, query } = require('../config/database-postgresql-only');
 // =============================================
 // SHARED UTILITY FUNCTIONS
 // =============================================
@@ -545,7 +543,7 @@ const getFileUploadAnalytics = async (filters = {}) => {
 
         const { from, to } = formatDateRange(filters.dateFrom, filters.dateTo);
 
-        // Get MongoDB file statistics
+        // Get postgresql file statistics
         const db = await getDb();
         const collection = db.collection('proposal_files.files');
 

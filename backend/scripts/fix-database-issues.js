@@ -3,28 +3,28 @@
  * Purpose: Fix all database connection and schema issues
  */
 
-const mysql = require('mysql2/promise');
+const postgresql = require('postgresql2/promise');
 require('dotenv').config({ path: './.env' });
 
 async function fixDatabaseIssues() {
     console.log('🔧 Starting Database Issues Fix...\n');
 
-    // Step 1: Test basic MySQL connection
-    console.log('📋 Step 1: Testing MySQL Connection');
+    // Step 1: Test basic postgresql connection
+    console.log('📋 Step 1: Testing postgresql Connection');
     let connection;
     try {
-        connection = await mysql.createConnection({
-            host: process.env.MYSQL_HOST || 'localhost',
-            port: process.env.MYSQL_PORT || 3306,
-            user: process.env.MYSQL_USER || 'root',
-            password: process.env.MYSQL_PASSWORD || '',
+        connection = await postgresql.createConnection({
+            host: process.env.postgresql_HOST || 'localhost',
+            port: process.env.postgresql_PORT || 3306,
+            user: process.env.postgresql_USER || 'root',
+            password: process.env.postgresql_PASSWORD || '',
         });
 
-        console.log('✅ MySQL connection established successfully');
+        console.log('✅ postgresql connection established successfully');
 
         // Step 2: Create database if it doesn't exist
         console.log('\n📋 Step 2: Creating Database');
-        const databaseName = process.env.MYSQL_DATABASE || 'cedo_db';
+        const databaseName = process.env.postgresql_DATABASE || 'cedo_db';
         await connection.execute(`CREATE DATABASE IF NOT EXISTS ${databaseName}`);
         console.log(`✅ Database '${databaseName}' created/verified`);
 
@@ -166,7 +166,7 @@ async function fixDatabaseIssues() {
 
         console.log('\n🎉 Database Issues Fix Completed Successfully!');
         console.log('\n📊 Summary:');
-        console.log('   ✅ MySQL connection established');
+        console.log('   ✅ postgresql connection established');
         console.log('   ✅ Database created/verified');
         console.log('   ✅ Tables created with correct structure');
         console.log('   ✅ Default user created');
@@ -178,13 +178,13 @@ async function fixDatabaseIssues() {
         console.error('Error details:', error);
 
         if (error.code === 'ER_ACCESS_DENIED_ERROR') {
-            console.log('\n💡 Solution: Check your MySQL credentials in .env file');
-            console.log('   - MYSQL_USER');
-            console.log('   - MYSQL_PASSWORD');
-            console.log('   - MYSQL_HOST');
+            console.log('\n💡 Solution: Check your postgresql credentials in .env file');
+            console.log('   - postgresql_USER');
+            console.log('   - postgresql_PASSWORD');
+            console.log('   - postgresql_HOST');
         } else if (error.code === 'ECONNREFUSED') {
-            console.log('\n💡 Solution: Make sure MySQL server is running');
-            console.log('   - Start MySQL service');
+            console.log('\n💡 Solution: Make sure postgresql server is running');
+            console.log('   - Start postgresql service');
             console.log('   - Check if port 3306 is available');
         }
 

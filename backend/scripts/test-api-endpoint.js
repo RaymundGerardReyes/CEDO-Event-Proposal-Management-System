@@ -77,28 +77,28 @@ async function testApiEndpoint() {
             // Analyze the response
             log('\n📊 Response Analysis:', 'blue');
             log(`Total proposals: ${data.total || 0}`, 'blue');
-            log(`MySQL proposals: ${data.mysql?.length || 0}`, 'blue');
-            log(`MongoDB proposals: ${data.mongodb?.length || 0}`, 'blue');
+            log(`postgresql proposals: ${data.postgresql?.length || 0}`, 'blue');
+            log(`postgresql proposals: ${data.postgresql?.length || 0}`, 'blue');
             log(`Sources used: ${data.sources?.join(', ') || 'none'}`, 'blue');
 
             // Check debug info
             if (data.debug) {
                 log('\n🔧 Debug Information:', 'yellow');
 
-                if (data.debug.mysql) {
-                    const mysql = data.debug.mysql;
-                    log(`MySQL - Attempted: ${mysql.attempted}, Success: ${mysql.success}`, mysql.success ? 'green' : 'red');
-                    if (mysql.error) log(`MySQL Error: ${mysql.error}`, 'red');
+                if (data.debug.postgresql) {
+                    const postgresql = data.debug.postgresql;
+                    log(`postgresql - Attempted: ${postgresql.attempted}, Success: ${postgresql.success}`, postgresql.success ? 'green' : 'red');
+                    if (postgresql.error) log(`postgresql Error: ${postgresql.error}`, 'red');
                 }
 
-                if (data.debug.mongodb) {
-                    const mongodb = data.debug.mongodb;
-                    log(`MongoDB - Attempted: ${mongodb.attempted}, Success: ${mongodb.success}`, mongodb.success ? 'green' : 'red');
-                    if (mongodb.error) log(`MongoDB Error: ${mongodb.error}`, 'red');
-                    if (mongodb.collections) log(`MongoDB Collections: ${mongodb.collections.join(', ')}`, 'blue');
-                    if (mongodb.sampleData) {
-                        log('MongoDB Sample Data:', 'blue');
-                        mongodb.sampleData.forEach((sample, index) => {
+                if (data.debug.postgresql) {
+                    const postgresql = data.debug.postgresql;
+                    log(`postgresql - Attempted: ${postgresql.attempted}, Success: ${postgresql.success}`, postgresql.success ? 'green' : 'red');
+                    if (postgresql.error) log(`postgresql Error: ${postgresql.error}`, 'red');
+                    if (postgresql.collections) log(`postgresql Collections: ${postgresql.collections.join(', ')}`, 'blue');
+                    if (postgresql.sampleData) {
+                        log('postgresql Sample Data:', 'blue');
+                        postgresql.sampleData.forEach((sample, index) => {
                             log(`  ${index + 1}. ID: ${sample.id}, Status: ${sample.status}, Email: ${sample.email}`, 'blue');
                         });
                     }
@@ -106,27 +106,27 @@ async function testApiEndpoint() {
             }
 
             // Show some sample proposals
-            if (data.mongodb && data.mongodb.length > 0) {
-                log('\n📝 Sample MongoDB Proposals:', 'green');
-                data.mongodb.slice(0, 3).forEach((proposal, index) => {
+            if (data.postgresql && data.postgresql.length > 0) {
+                log('\n📝 Sample postgresql Proposals:', 'green');
+                data.postgresql.slice(0, 3).forEach((proposal, index) => {
                     log(`  ${index + 1}. ${proposal.name} (${proposal.status})`, 'green');
                 });
             }
 
-            if (data.mysql && data.mysql.length > 0) {
-                log('\n📝 Sample MySQL Proposals:', 'green');
-                data.mysql.slice(0, 3).forEach((proposal, index) => {
+            if (data.postgresql && data.postgresql.length > 0) {
+                log('\n📝 Sample postgresql Proposals:', 'green');
+                data.postgresql.slice(0, 3).forEach((proposal, index) => {
                     log(`  ${index + 1}. ${proposal.name} (${proposal.status})`, 'green');
                 });
             }
 
             // Final verdict
-            if (data.mongodb && data.mongodb.length > 0) {
-                log('\n🎉 SUCCESS: MongoDB integration is working!', 'green');
-                log(`✅ Found ${data.mongodb.length} MongoDB proposals`, 'green');
+            if (data.postgresql && data.postgresql.length > 0) {
+                log('\n🎉 SUCCESS: postgresql integration is working!', 'green');
+                log(`✅ Found ${data.postgresql.length} postgresql proposals`, 'green');
             } else {
-                log('\n⚠️ MongoDB integration issue detected', 'yellow');
-                log('No MongoDB proposals found in response', 'yellow');
+                log('\n⚠️ postgresql integration issue detected', 'yellow');
+                log('No postgresql proposals found in response', 'yellow');
             }
 
         } else {

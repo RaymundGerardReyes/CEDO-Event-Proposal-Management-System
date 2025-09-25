@@ -21,8 +21,7 @@
  * - Error handling and logging
  */
 
-const { getDb } = require('../utils/db');
-const { GridFSBucket } = require('mongodb');
+const { GridFSBucket } = require('postgresql');
 const path = require('path');
 
 // =============================================

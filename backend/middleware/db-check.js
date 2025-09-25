@@ -1,6 +1,6 @@
 // backend/middleware/db-check.js
 
-const { pool, query } = require("../config/database");
+const { pool, query } = require("../config/database-postgresql-only");
 const ROLES = require("../constants/roles");
 
 // =============================
@@ -114,7 +114,7 @@ async function createTableIfNotExists(tableName, columns, foreignKeys = []) {
  */
 async function addMissingColumns(tableName, neededColumns) {
     try {
-        // ✅ FIX: Use PostgreSQL syntax instead of MySQL SHOW COLUMNS
+        // ✅ FIX: Use PostgreSQL syntax instead of postgresql SHOW COLUMNS
         const result = await query(`
             SELECT column_name 
             FROM information_schema.columns 
@@ -190,7 +190,7 @@ async function createProposalsTable(tableExistsFn = tableExists) {
     const exists = await tableExistsFn(TABLES.PROPOSALS);
     if (exists) {
         try {
-            // ✅ FIX: Use PostgreSQL syntax instead of MySQL SHOW COLUMNS
+            // ✅ FIX: Use PostgreSQL syntax instead of postgresql SHOW COLUMNS
             const result = await query(`
                 SELECT column_name 
                 FROM information_schema.columns 
@@ -236,7 +236,7 @@ async function createReviewsTable() {
             "comments TEXT NOT NULL",
             "rating INT NOT NULL",
             "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-            "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP", // ✅ FIX: Removed MySQL-specific ON UPDATE
+            "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP", // ✅ FIX: Removed postgresql-specific ON UPDATE
         ],
         [
             "FOREIGN KEY (proposal_id) REFERENCES proposals(id) ON DELETE CASCADE",
@@ -287,24 +287,34 @@ async function ensureTablesExist() {
             // Continue with other tables
         }
 
-        const result = await query("SELECT COUNT(*) as count FROM users");
-        let users = Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) ? result[0] : [];
-        let userCount = users[0] && typeof users[0].count === 'number' ? users[0].count : 0;
+        // Check if admin user already exists specifically
+        console.log("Creating default admin user...");
+        try {
+            // First check if admin user already exists
+            const adminCheck = await query("SELECT id FROM users WHERE email = $1", ["admin@example.com"]);
 
-        if (userCount === 0) {
-            console.log("Creating default admin user...");
-            const bcrypt = require("bcryptjs");
-            const salt = await bcrypt.genSalt(10);
-            const hashedPassword = await bcrypt.hash("admin123", salt);
+            if (adminCheck.rows.length > 0) {
+                console.log("✅ Admin user already exists, skipping creation.");
+            } else {
+                // Create admin user if it doesn't exist
+                const bcrypt = require("bcryptjs");
+                const salt = await bcrypt.genSalt(10);
+                const hashedPassword = await bcrypt.hash("admin123", salt);
 
-            // ✅ FIX: Use PostgreSQL syntax with $1, $2, etc. placeholders
-            await query(
-                "INSERT INTO users (name, email, password, role, is_approved) VALUES ($1, $2, $3, $4, $5)",
-                ["Admin User", "admin@example.com", hashedPassword, ROLES.HEAD_ADMIN, true]
-            );
-            console.log("Default admin user created successfully");
-        } else {
-            console.log("✅ Skipped creating default admin; users already exist.");
+                await query(
+                    "INSERT INTO users (name, email, password, role, is_approved) VALUES ($1, $2, $3, $4, $5)",
+                    ["Admin User", "admin@example.com", hashedPassword, ROLES.HEAD_ADMIN, true]
+                );
+                console.log("✅ Default admin user created successfully");
+            }
+        } catch (error) {
+            if (error.code === '23505' && error.constraint === 'users_email_key') {
+                console.log("✅ Admin user already exists, skipping creation.");
+            } else {
+                console.error("❌ Error creating admin user:", error.message);
+                // Don't throw error - just log it and continue
+                console.log("⚠️ Continuing server startup despite admin user creation error...");
+            }
         }
 
         return true;

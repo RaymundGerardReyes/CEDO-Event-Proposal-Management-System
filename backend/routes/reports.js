@@ -1,7 +1,7 @@
 const express = require("express")
 const router = express.Router()
 const { Parser } = require("json-2-csv")
-const Proposal = require("../models/Proposal")
+// PostgreSQL-only: Proposal model not needed, using direct database queries
 const User = require("../models/User")
 const { validateToken, validateAdmin, validateFaculty } = require("../middleware/auth")
 const checkRole = require("../middleware/checkRole")

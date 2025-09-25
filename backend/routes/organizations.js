@@ -1,7 +1,7 @@
 // backend/routes/organizations.js
 const express = require('express');
 const router = express.Router();
-const { query } = require('../config/database'); // Universal database connection
+const { query } = require('../config/database-postgresql-only'); // Universal database connection
 
 // GET /api/organizations - Get all organizations for autocomplete
 router.get('/', async (req, res) => {

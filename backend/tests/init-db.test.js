@@ -2,18 +2,18 @@
 
 const path = require('path');
 const fs = require('fs');
-const mysql = require('mysql2/promise');
+const postgresql = require('postgresql2/promise');
 const bcrypt = require('bcryptjs');
 
-jest.mock('mysql2/promise');
+jest.mock('postgresql2/promise');
 jest.mock('fs');
 jest.mock('bcryptjs');
 
 const envVars = {
-    MYSQL_HOST: 'localhost',
-    MYSQL_USER: 'root',
-    MYSQL_PASSWORD: 'testpass',
-    MYSQL_DATABASE: 'cedo_auth',
+    postgresql_HOST: 'localhost',
+    postgresql_USER: 'root',
+    postgresql_PASSWORD: 'testpass',
+    postgresql_DATABASE: 'cedo_auth',
     DB_HOST: 'localhost',
     DB_USER: 'root',
     DB_PASSWORD: 'testpass',
@@ -30,7 +30,7 @@ describe('init-db.js', () => {
         process.env = { ...envVars };
         queryMock = jest.fn();
         connectionMock = { query: queryMock };
-        mysql.createConnection.mockResolvedValue(connectionMock);
+        postgresql.createConnection.mockResolvedValue(connectionMock);
         fs.existsSync.mockReturnValue(true);
         initDb = require('../scripts/init-db');
     });
@@ -48,9 +48,9 @@ describe('init-db.js', () => {
         logSpy.mockRestore();
     });
 
-    test('connects to MySQL with correct credentials', async () => {
+    test('connects to postgresql with correct credentials', async () => {
         await initDb.main();
-        expect(mysql.createConnection).toHaveBeenCalledWith({
+        expect(postgresql.createConnection).toHaveBeenCalledWith({
             host: 'localhost',
             user: 'root',
             password: 'testpass',
@@ -129,7 +129,7 @@ describe('init-db.js', () => {
     });
 
     test('logs and throws on connection error', async () => {
-        mysql.createConnection.mockRejectedValue(new Error('Connection failed'));
+        postgresql.createConnection.mockRejectedValue(new Error('Connection failed'));
         const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
         await expect(initDb.main()).rejects.toThrow('Connection failed');
         errorSpy.mockRestore();
@@ -155,51 +155,51 @@ describe('init-db.js', () => {
     });
 
     test('handles process.env overrides for DB vars', async () => {
-        process.env.MYSQL_HOST = 'docker-mysql';
-        process.env.MYSQL_USER = 'docker-user';
-        process.env.MYSQL_PASSWORD = 'docker-pass';
+        process.env.postgresql_HOST = 'docker-postgresql';
+        process.env.postgresql_USER = 'docker-user';
+        process.env.postgresql_PASSWORD = 'docker-pass';
         await initDb.main();
-        expect(mysql.createConnection).toHaveBeenCalledWith({
-            host: 'docker-mysql',
+        expect(postgresql.createConnection).toHaveBeenCalledWith({
+            host: 'docker-postgresql',
             user: 'docker-user',
             password: 'docker-pass',
         });
     });
 
-    test('handles missing MYSQL_DATABASE and falls back to DB_NAME', async () => {
-        delete process.env.MYSQL_DATABASE;
+    test('handles missing postgresql_DATABASE and falls back to DB_NAME', async () => {
+        delete process.env.postgresql_DATABASE;
         process.env.DB_NAME = 'fallback_db';
         await initDb.main();
         expect(queryMock).toHaveBeenCalledWith('CREATE DATABASE IF NOT EXISTS `fallback_db`');
     });
 
-    test('handles missing MYSQL_USER and falls back to DB_USER', async () => {
-        delete process.env.MYSQL_USER;
+    test('handles missing postgresql_USER and falls back to DB_USER', async () => {
+        delete process.env.postgresql_USER;
         process.env.DB_USER = 'fallback_user';
         await initDb.main();
-        expect(mysql.createConnection).toHaveBeenCalledWith({
+        expect(postgresql.createConnection).toHaveBeenCalledWith({
             host: 'localhost',
             user: 'fallback_user',
             password: 'testpass',
         });
     });
 
-    test('handles missing MYSQL_HOST and falls back to DB_HOST', async () => {
-        delete process.env.MYSQL_HOST;
+    test('handles missing postgresql_HOST and falls back to DB_HOST', async () => {
+        delete process.env.postgresql_HOST;
         process.env.DB_HOST = 'fallback_host';
         await initDb.main();
-        expect(mysql.createConnection).toHaveBeenCalledWith({
+        expect(postgresql.createConnection).toHaveBeenCalledWith({
             host: 'fallback_host',
             user: 'root',
             password: 'testpass',
         });
     });
 
-    test('handles missing MYSQL_PASSWORD and falls back to DB_PASSWORD', async () => {
-        delete process.env.MYSQL_PASSWORD;
+    test('handles missing postgresql_PASSWORD and falls back to DB_PASSWORD', async () => {
+        delete process.env.postgresql_PASSWORD;
         process.env.DB_PASSWORD = 'fallback_pass';
         await initDb.main();
-        expect(mysql.createConnection).toHaveBeenCalledWith({
+        expect(postgresql.createConnection).toHaveBeenCalledWith({
             host: 'localhost',
             user: 'root',
             password: 'fallback_pass',

@@ -6,8 +6,6 @@
  * Structure:
  * - admin/index.js       - Central router (main entry point)
  * - admin/dashboard.js   - Dashboard HTML and status endpoints  
- * - admin/mysql.js       - MySQL status and data endpoints
- * - admin/mongodb.js     - MongoDB status and collections endpoints
  * - admin/proposals.js   - Proposal CRUD, status, comments, file operations
  * - admin/users.js       - User management endpoints
  * - admin/reports.js     - Report generation and dashboard stats

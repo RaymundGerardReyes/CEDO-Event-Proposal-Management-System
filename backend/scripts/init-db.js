@@ -1,11 +1,11 @@
 require("dotenv").config({ path: require("path").join(__dirname, "..", ".env") });
-const mysql = require("mysql2/promise");
+const postgresql = require("postgresql2/promise");
 const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const path = require("path");
 
 // ========================================
-// CEDO MySQL Database Initializer
+// CEDO postgresql Database Initializer
 // Based on CEDO_ERD_Data_Model.md
 // Production-ready with comprehensive error handling
 // 
@@ -16,14 +16,14 @@ const path = require("path");
 // - Enhanced audit logging for status transitions
 // ========================================
 
-console.log("🛠️  CEDO MySQL Database Initializer starting...");
+console.log("🛠️  CEDO postgresql Database Initializer starting...");
 console.log("📋 Based on CEDO_ERD_Data_Model.md specifications");
 
 // Environment variables with fallbacks
 const dbConfig = {
-  host: process.env.DB_HOST || process.env.MYSQL_HOST || "localhost",
-  user: process.env.DB_USER || process.env.MYSQL_USER || "root",
-  password: process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || "",
+  host: process.env.DB_HOST || process.env.postgresql_HOST || "localhost",
+  user: process.env.DB_USER || process.env.postgresql_USER || "root",
+  password: process.env.DB_PASSWORD || process.env.postgresql_PASSWORD || "",
   charset: "utf8mb4",
   collation: "utf8mb4_unicode_ci",
   timezone: "+00:00",
@@ -33,9 +33,9 @@ const dbConfig = {
   multipleStatements: true
 };
 
-const dbName = process.env.DB_NAME || process.env.MYSQL_DATABASE || "cedo_auth";
+const dbName = process.env.DB_NAME || process.env.postgresql_DATABASE || "cedo_auth";
 
-console.log(`🔗 Connecting to MySQL at ${dbConfig.host} with user ${dbConfig.user}`);
+console.log(`🔗 Connecting to postgresql at ${dbConfig.host} with user ${dbConfig.user}`);
 console.log(`📊 Target database: ${dbName}`);
 
 // Utility function for safe table creation
@@ -95,8 +95,8 @@ async function initializeDatabase() {
     // ========================================
 
     console.log("\n🔌 Establishing database connection...");
-    connection = await mysql.createConnection(dbConfig);
-    console.log("✅ Connected to MySQL server");
+    connection = await postgresql.createConnection(dbConfig);
+    console.log("✅ Connected to postgresql server");
 
     // ========================================
     // 2. CREATE DATABASE IF NOT EXISTS
@@ -895,7 +895,7 @@ async function initializeDatabase() {
     const [orgCount] = await connection.query("SELECT COUNT(*) as count FROM organizations");
     console.log(`✅ ${orgCount[0].count} organizations in system`);
 
-    console.log("\n🎉 MySQL Database initialization completed successfully!");
+    console.log("\n🎉 postgresql Database initialization completed successfully!");
     console.log("\n📋 Summary of created accounts:");
     console.log("1. Head Admin      - admin@cedo.gov.ph (Password: CEDOAdmin2024!@#)");
     console.log("2. System Manager  - manager@cedo.gov.ph (Password: CEDOManager2024!@#)");
@@ -911,17 +911,17 @@ async function initializeDatabase() {
 
     // Troubleshooting guidance
     console.log("\n🔧 Troubleshooting tips:");
-    console.log("1. Verify MySQL server is running");
+    console.log("1. Verify postgresql server is running");
     console.log("2. Check database credentials in environment variables");
-    console.log("3. Ensure MySQL user has sufficient privileges");
-    console.log("4. Check network connectivity to MySQL server");
-    console.log("5. Verify MySQL version compatibility (5.7+ recommended)");
+    console.log("3. Ensure postgresql user has sufficient privileges");
+    console.log("4. Check network connectivity to postgresql server");
+    console.log("5. Verify postgresql version compatibility (5.7+ recommended)");
 
     process.exit(1);
   } finally {
     if (connection) {
       await connection.end();
-      console.log("\n🔌 MySQL connection closed");
+      console.log("\n🔌 postgresql connection closed");
     }
   }
 }

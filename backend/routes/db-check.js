@@ -1,6 +1,6 @@
 const express = require("express")
 const router = express.Router()
-const { pool, query } = require("../config/database")
+const { pool, query } = require("../config/database-postgresql-only")
 
 // Simple health check endpoint
 router.get("/db-check", async (req, res) => {
@@ -26,7 +26,7 @@ router.get("/db-check", async (req, res) => {
 router.get("/tables-check", async (req, res) => {
     try {
         // Get database name
-        const dbName = process.env.MYSQL_DATABASE || "cedo_auth"
+        const dbName = process.env.postgresql_DATABASE || "cedo_auth"
 
         // Check if users table exists
         const usersTables = await query(

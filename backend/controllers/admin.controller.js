@@ -1,7 +1,7 @@
 const adminService = require('../services/admin.service');
 
 const getProposalsForAdmin = async (req, res) => {
-    console.log('📊 Admin: Fetching proposals for admin dashboard from MySQL');
+    console.log('📊 Admin: Fetching proposals for admin dashboard from PostgreSQL');
     try {
         const { proposals, totalCount, limit, page } = await adminService.getAdminProposals(req.query);
 
@@ -44,7 +44,7 @@ const getProposalsForAdmin = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Admin: Error fetching proposals from MySQL:', error);
+        console.error('❌ Admin: Error fetching proposals from PostgreSQL:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to fetch proposals',

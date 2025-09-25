@@ -1,13 +1,13 @@
 require("dotenv").config({ path: require("path").join(__dirname, "..", ".env") });
-const mysql = require("mysql2/promise");
+const postgresql = require("postgresql2/promise");
 
 // Test script to verify user creation and password storage
 async function testUserCreation() {
     const dbConfig = {
-        host: process.env.DB_HOST || process.env.MYSQL_HOST || "localhost",
-        user: process.env.DB_USER || process.env.MYSQL_USER || "root",
-        password: process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || "",
-        database: process.env.DB_NAME || process.env.MYSQL_DATABASE || "cedo_auth",
+        host: process.env.DB_HOST || process.env.postgresql_HOST || "localhost",
+        user: process.env.DB_USER || process.env.postgresql_USER || "root",
+        password: process.env.DB_PASSWORD || process.env.postgresql_PASSWORD || "",
+        database: process.env.DB_NAME || process.env.postgresql_DATABASE || "cedo_auth",
         charset: "utf8mb4",
         timezone: "+00:00"
     };
@@ -17,7 +17,7 @@ async function testUserCreation() {
     try {
         console.log("🧪 Testing user creation and password storage...");
 
-        connection = await mysql.createConnection(dbConfig);
+        connection = await postgresql.createConnection(dbConfig);
         console.log("✅ Connected to database");
 
         // Check existing users

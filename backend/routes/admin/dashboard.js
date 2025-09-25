@@ -6,15 +6,15 @@
  *
  * @module routes/admin/dashboard
  * @requires express
- * @requires mysql2/promise
- * @requires mongoose
+ * @requires postgresql2/promise
+ * @requires postgresqlose
  */
 
 const express = require('express');
 const router = express.Router();
 const logger = require('../../utils/logger');
-const mongoose = require('mongoose');
-const { pool, query } = require('../../config/database');
+// PostgreSQL-only: No mongoose needed
+const { pool, query } = require('../../config/database-postgresql-only');
 const { validateAdmin, validateToken } = require('../../middleware/auth');
 
 // ===============================================
@@ -29,31 +29,30 @@ const { validateAdmin, validateToken } = require('../../middleware/auth');
 router.get("/", async (req, res) => {
     try {
         // Get comprehensive database status and data for dashboard
-        let mysqlStatus = "Disconnected";
-        let mongoStatus = "Disconnected";
-        let mysqlTableCount = 0;
-        let mongoCollectionCount = 0;
-        let mysqlTables = [];
-        let mongoCollections = [];
+        let postgresqlStatus = "Disconnected";
+        let postgresqlTableCount = 0;
+        let postgresqlCollectionCount = 0;
+        let postgresqlTables = [];
+        let postgresqlCollections = [];
 
-        // Check MySQL connection and get table info
+        // Check postgresql connection and get table info
         try {
             await query("SELECT 1");
             const tablesResult = await query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'");
-            mysqlTableCount = tablesResult.rows.length;
-            mysqlStatus = "Connected";
+            postgresqlTableCount = tablesResult.rows.length;
+            postgresqlStatus = "Connected";
 
             // Get table details with row counts
             for (const tableRow of tablesResult.rows) {
                 const tableName = tableRow.table_name;
                 try {
                     const countResult = await query(`SELECT COUNT(*) as count FROM ${tableName}`);
-                    mysqlTables.push({
+                    postgresqlTables.push({
                         name: tableName,
                         count: countResult.rows[0].count
                     });
                 } catch (error) {
-                    mysqlTables.push({
+                    postgresqlTables.push({
                         name: tableName,
                         count: 0,
                         error: error.message
@@ -61,27 +60,27 @@ router.get("/", async (req, res) => {
                 }
             }
         } catch (error) {
-            console.warn("MySQL connection check failed:", error.message);
+            console.warn("postgresql connection check failed:", error.message);
         }
 
-        // Check MongoDB connection and get collection info
+        // Check postgresql connection and get collection info
         try {
-            if (mongoose.connection.readyState === 1) {
-                const db = mongoose.connection.db;
+            if (postgresqlose.connection.readyState === 1) {
+                const db = postgresqlose.connection.db;
                 const collections = await db.listCollections().toArray();
-                mongoCollectionCount = collections.length;
-                mongoStatus = "Connected";
+                postgresqlCollectionCount = collections.length;
+                postgresqlStatus = "Connected";
 
                 // Get collection details with document counts
                 for (const collection of collections) {
                     try {
                         const count = await db.collection(collection.name).countDocuments();
-                        mongoCollections.push({
+                        postgresqlCollections.push({
                             name: collection.name,
                             count: count
                         });
                     } catch (error) {
-                        mongoCollections.push({
+                        postgresqlCollections.push({
                             name: collection.name,
                             count: 0,
                             error: error.message
@@ -90,7 +89,7 @@ router.get("/", async (req, res) => {
                 }
             }
         } catch (error) {
-            console.warn("MongoDB connection check failed:", error.message);
+            console.warn("postgresql connection check failed:", error.message);
         }
 
         // Serve HTML dashboard
@@ -115,7 +114,7 @@ router.get("/", async (req, res) => {
                         <i class="fas fa-database text-blue-600 mr-3"></i>
                         CEDO Database Admin Dashboard
                     </h1>
-                    <p class="text-gray-600 mt-2">Manage your MySQL and MongoDB databases</p>
+                    <p class="text-gray-600 mt-2">Manage your postgresql and postgresql databases</p>
                     <div class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                         <p class="text-sm text-blue-800">
                             <i class="fas fa-info-circle mr-2"></i>
@@ -140,9 +139,9 @@ router.get("/", async (req, res) => {
                         <i class="fas fa-server text-xl"></i>
                     </div>
                     <div class="ml-4">
-                        <h3 class="text-lg font-semibold text-gray-800">MySQL Status</h3>
-                        <p class="text-2xl font-bold ${mysqlStatus === 'Connected' ? 'text-green-600' : 'text-red-600'}">${mysqlStatus}</p>
-                        <p class="text-sm text-gray-500">${mysqlTableCount} tables</p>
+                        <h3 class="text-lg font-semibold text-gray-800">postgresql Status</h3>
+                        <p class="text-2xl font-bold ${postgresqlStatus === 'Connected' ? 'text-green-600' : 'text-red-600'}">${postgresqlStatus}</p>
+                        <p class="text-sm text-gray-500">${postgresqlTableCount} tables</p>
                     </div>
                 </div>
             </div>
@@ -153,9 +152,9 @@ router.get("/", async (req, res) => {
                         <i class="fas fa-leaf text-xl"></i>
                     </div>
                     <div class="ml-4">
-                        <h3 class="text-lg font-semibold text-gray-800">MongoDB Status</h3>
-                        <p class="text-2xl font-bold ${mongoStatus === 'Connected' ? 'text-green-600' : 'text-red-600'}">${mongoStatus}</p>
-                        <p class="text-sm text-gray-500">${mongoCollectionCount} collections</p>
+                        <h3 class="text-lg font-semibold text-gray-800">postgresql Status</h3>
+                        <p class="text-2xl font-bold ${postgresqlStatus === 'Connected' ? 'text-green-600' : 'text-red-600'}">${postgresqlStatus}</p>
+                        <p class="text-sm text-gray-500">${postgresqlCollectionCount} collections</p>
                     </div>
                 </div>
             </div>
@@ -196,15 +195,15 @@ router.get("/", async (req, res) => {
                             class="py-4 px-6 border-b-2 font-medium text-sm transition-colors duration-200">
                         <i class="fas fa-chart-line mr-2"></i>Overview
                     </button>
-                    <button @click="activeTab = 'mysql'" 
-                            :class="{'border-blue-500 text-blue-600': activeTab === 'mysql', 'border-transparent text-gray-500 hover:text-gray-700': activeTab !== 'mysql'}"
+                    <button @click="activeTab = 'postgresql'" 
+                            :class="{'border-blue-500 text-blue-600': activeTab === 'postgresql', 'border-transparent text-gray-500 hover:text-gray-700': activeTab !== 'postgresql'}"
                             class="py-4 px-6 border-b-2 font-medium text-sm transition-colors duration-200">
-                        <i class="fas fa-database mr-2"></i>MySQL Tables
+                        <i class="fas fa-database mr-2"></i>postgresql Tables
                     </button>
-                    <button @click="activeTab = 'mongodb'" 
-                            :class="{'border-blue-500 text-blue-600': activeTab === 'mongodb', 'border-transparent text-gray-500 hover:text-gray-700': activeTab !== 'mongodb'}"
+                    <button @click="activeTab = 'postgresql'" 
+                            :class="{'border-blue-500 text-blue-600': activeTab === 'postgresql', 'border-transparent text-gray-500 hover:text-gray-700': activeTab !== 'postgresql'}"
                             class="py-4 px-6 border-b-2 font-medium text-sm transition-colors duration-200">
-                        <i class="fas fa-leaf mr-2"></i>MongoDB Collections
+                        <i class="fas fa-leaf mr-2"></i>postgresql Collections
                     </button>
                     <button @click="activeTab = 'api'" 
                             :class="{'border-blue-500 text-blue-600': activeTab === 'api', 'border-transparent text-gray-500 hover:text-gray-700': activeTab !== 'api'}"
@@ -228,12 +227,12 @@ router.get("/", async (req, res) => {
                             </h3>
                             <div class="space-y-3">
                                 <div class="flex justify-between">
-                                    <span class="text-gray-600">MySQL Tables:</span>
-                                    <span class="font-semibold">${mysqlTableCount}</span>
+                                    <span class="text-gray-600">postgresql Tables:</span>
+                                    <span class="font-semibold">${postgresqlTableCount}</span>
                                 </div>
                                 <div class="flex justify-between">
-                                    <span class="text-gray-600">MongoDB Collections:</span>
-                                    <span class="font-semibold">${mongoCollectionCount}</span>
+                                    <span class="text-gray-600">postgresql Collections:</span>
+                                    <span class="font-semibold">${postgresqlCollectionCount}</span>
                                 </div>
                                 <div class="flex justify-between">
                                     <span class="text-gray-600">Total Endpoints:</span>
@@ -256,11 +255,11 @@ router.get("/", async (req, res) => {
                             <div class="space-y-3">
                                 <div class="flex items-center">
                                     <i class="fas fa-check-circle text-green-500 mr-3"></i>
-                                    <span>MySQL Database Management</span>
+                                    <span>postgresql Database Management</span>
                                 </div>
                                 <div class="flex items-center">
                                     <i class="fas fa-check-circle text-green-500 mr-3"></i>
-                                    <span>MongoDB Collection Management</span>
+                                    <span>postgresql Collection Management</span>
                                 </div>
                                 <div class="flex items-center">
                                     <i class="fas fa-check-circle text-green-500 mr-3"></i>
@@ -279,31 +278,31 @@ router.get("/", async (req, res) => {
                     </div>
                 </div>
 
-                <!-- MySQL Tab -->
-                <div x-show="activeTab === 'mysql'" class="space-y-6">
+                <!-- postgresql Tab -->
+                <div x-show="activeTab === 'postgresql'" class="space-y-6">
                     <div class="flex justify-between items-center">
-                        <h2 class="text-2xl font-bold text-gray-800">MySQL Tables</h2>
-                        <button @click="loadMySQLTables()" 
+                        <h2 class="text-2xl font-bold text-gray-800">postgresql Tables</h2>
+                        <button @click="loadpostgresqlTables()" 
                                 class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors duration-200">
                             <i class="fas fa-sync-alt mr-2"></i>Refresh
                         </button>
                     </div>
                     
-                    <div class="bg-gray-50 rounded-lg p-4" x-show="mysqlTables.length === 0">
-                        <p class="text-center text-gray-600">Loading MySQL tables...</p>
+                    <div class="bg-gray-50 rounded-lg p-4" x-show="postgresqlTables.length === 0">
+                        <p class="text-center text-gray-600">Loading postgresql tables...</p>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" x-show="mysqlTables.length > 0">
-                        <template x-for="table in mysqlTables" :key="table.name">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" x-show="postgresqlTables.length > 0">
+                        <template x-for="table in postgresqlTables" :key="table.name">
                             <div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow duration-200">
                                 <h3 class="font-semibold text-gray-800 text-lg mb-2" x-text="table.name"></h3>
                                 <p class="text-gray-600 text-sm mb-3" x-text="'Records: ' + table.count"></p>
                                 <div class="flex space-x-2">
-                                    <button @click="viewTableData(table.name, 'mysql')" 
+                                    <button @click="viewTableData(table.name, 'postgresql')" 
                                             class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-sm transition-colors duration-200">
                                         <i class="fas fa-eye mr-1"></i>View Data
                                     </button>
-                                    <button @click="viewTableSchema(table.name, 'mysql')" 
+                                    <button @click="viewTableSchema(table.name, 'postgresql')" 
                                             class="bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1 rounded text-sm transition-colors duration-200">
                                         <i class="fas fa-table mr-1"></i>Schema
                                     </button>
@@ -313,31 +312,31 @@ router.get("/", async (req, res) => {
                     </div>
                 </div>
 
-                <!-- MongoDB Tab -->
-                <div x-show="activeTab === 'mongodb'" class="space-y-6">
+                <!-- postgresql Tab -->
+                <div x-show="activeTab === 'postgresql'" class="space-y-6">
                     <div class="flex justify-between items-center">
-                        <h2 class="text-2xl font-bold text-gray-800">MongoDB Collections</h2>
-                        <button @click="loadMongoCollections()" 
+                        <h2 class="text-2xl font-bold text-gray-800">postgresql Collections</h2>
+                        <button @click="loadpostgresqlCollections()" 
                                 class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors duration-200">
                             <i class="fas fa-sync-alt mr-2"></i>Refresh
                         </button>
                     </div>
                     
-                    <div class="bg-gray-50 rounded-lg p-4" x-show="mongoCollections.length === 0">
-                        <p class="text-center text-gray-600">Loading MongoDB collections...</p>
+                    <div class="bg-gray-50 rounded-lg p-4" x-show="postgresqlCollections.length === 0">
+                        <p class="text-center text-gray-600">Loading postgresql collections...</p>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" x-show="mongoCollections.length > 0">
-                        <template x-for="collection in mongoCollections" :key="collection.name">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" x-show="postgresqlCollections.length > 0">
+                        <template x-for="collection in postgresqlCollections" :key="collection.name">
                             <div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow duration-200">
                                 <h3 class="font-semibold text-gray-800 text-lg mb-2" x-text="collection.name"></h3>
                                 <p class="text-gray-600 text-sm mb-3" x-text="'Documents: ' + collection.count"></p>
                                 <div class="flex space-x-2">
-                                    <button @click="viewTableData(collection.name, 'mongodb')" 
+                                    <button @click="viewTableData(collection.name, 'postgresql')" 
                                             class="bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1 rounded text-sm transition-colors duration-200">
                                         <i class="fas fa-eye mr-1"></i>View Data
                                     </button>
-                                    <button @click="viewTableSchema(collection.name, 'mongodb')" 
+                                    <button @click="viewTableSchema(collection.name, 'postgresql')" 
                                             class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-sm transition-colors duration-200">
                                         <i class="fas fa-file-code mr-1"></i>Schema
                                     </button>
@@ -490,7 +489,7 @@ router.get("/", async (req, res) => {
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-gray-600">CEDO Database Admin Dashboard</p>
-                    <p class="text-sm text-gray-500">Django Admin-like interface for Express.js & MySQL/MongoDB</p>
+                    <p class="text-sm text-gray-500">Django Admin-like interface for Express.js & postgresql/postgresql</p>
                 </div>
                 <div class="text-sm text-gray-500">
                     <i class="fas fa-server mr-1"></i>Server: ${process.env.NODE_ENV || 'development'}
@@ -502,20 +501,20 @@ router.get("/", async (req, res) => {
     <script>
         // Pre-load dashboard data from server
         window.dashboardData = {
-            mysqlTables: ${JSON.stringify(mysqlTables)},
-            mongoCollections: ${JSON.stringify(mongoCollections)},
-            mysqlStatus: "${mysqlStatus}",
-            mongoStatus: "${mongoStatus}",
-            mysqlTableCount: ${mysqlTableCount},
-            mongoCollectionCount: ${mongoCollectionCount}
+            postgresqlTables: ${JSON.stringify(postgresqlTables)},
+            postgresqlCollections: ${JSON.stringify(postgresqlCollections)},
+            postgresqlStatus: "${postgresqlStatus}",
+            postgresqlStatus: "${postgresqlStatus}",
+            postgresqlTableCount: ${postgresqlTableCount},
+            postgresqlCollectionCount: ${postgresqlCollectionCount}
         };
     </script>
     <script>
         function adminDashboard() {
             return {
                 activeTab: 'overview',
-                mysqlTables: window.dashboardData.mysqlTables || [],
-                mongoCollections: window.dashboardData.mongoCollections || [],
+                postgresqlTables: window.dashboardData.postgresqlTables || [],
+                postgresqlCollections: window.dashboardData.postgresqlCollections || [],
                 serverUptime: 'Calculating...',
                 
                 // Modal data
@@ -530,31 +529,31 @@ router.get("/", async (req, res) => {
                 modalCurrentType: '',
                 
                 apiEndpoints: [
-                    { method: 'GET', url: '/api/db/mysql/users', color: 'green' },
-                    { method: 'GET', url: '/api/db/mysql/users?limit=5', color: 'green' },
-                    { method: 'GET', url: '/api/db/mongodb/proposal_files', color: 'green' },
-                    { method: 'GET', url: '/api/db/mongodb/proposals', color: 'green' },
+                    { method: 'GET', url: '/api/db/postgresql/users', color: 'green' },
+                    { method: 'GET', url: '/api/db/postgresql/users?limit=5', color: 'green' },
+                    { method: 'GET', url: '/api/db/postgresql/proposal_files', color: 'green' },
+                    { method: 'GET', url: '/api/db/postgresql/proposals', color: 'green' },
                     { method: 'GET', url: '/health', color: 'blue' },
-                    { method: 'GET', url: '/api/admin/mysql/status', color: 'blue' },
-                    { method: 'GET', url: '/api/admin/mongodb/status', color: 'blue' }
+                    { method: 'GET', url: '/api/admin/postgresql/status', color: 'blue' },
+                    { method: 'GET', url: '/api/admin/postgresql/status', color: 'blue' }
                 ],
 
                 init() {
                     // Use pre-loaded data from server
-                    this.mysqlTables = window.dashboardData.mysqlTables;
-                    this.mongoCollections = window.dashboardData.mongoCollections;
+                    this.postgresqlTables = window.dashboardData.postgresqlTables;
+                    this.postgresqlCollections = window.dashboardData.postgresqlCollections;
                     this.updateServerUptime();
                     setInterval(() => this.updateServerUptime(), 1000);
                 },
 
-                async loadMySQLTables() {
+                async loadpostgresqlTables() {
                     // Use pre-loaded data, but allow refresh if needed
-                    this.mysqlTables = window.dashboardData.mysqlTables;
+                    this.postgresqlTables = window.dashboardData.postgresqlTables;
                 },
 
-                async loadMongoCollections() {
+                async loadpostgresqlCollections() {
                     // Use pre-loaded data, but allow refresh if needed
-                    this.mongoCollections = window.dashboardData.mongoCollections;
+                    this.postgresqlCollections = window.dashboardData.postgresqlCollections;
                 },
 
                 updateServerUptime() {
@@ -589,9 +588,9 @@ router.get("/", async (req, res) => {
                     this.modalError = null;
                     
                     try {
-                        const url = type === 'mysql' ? 
-                            \`/api/db/mysql/\${tableName}?page=\${page}&limit=10\` : 
-                            \`/api/db/mongodb/\${tableName}?page=\${page}&limit=10\`;
+                        const url = type === 'postgresql' ? 
+                            \`/api/db/postgresql/\${tableName}?page=\${page}&limit=10\` : 
+                            \`/api/db/postgresql/\${tableName}?page=\${page}&limit=10\`;
                             
                         console.log('Loading data from:', url);
                         const response = await fetch(url);
@@ -780,7 +779,7 @@ router.get("/dashboard/stats", validateToken, validateAdmin, async (req, res, ne
                 event_name as eventName, 
                 proposal_status as status, 
                 COALESCE(submitted_at, created_at) as submittedAt, 
-                contact_name as contactPerson
+                contact_person as contactPerson
             FROM proposals
             WHERE event_name IS NOT NULL
             ORDER BY COALESCE(submitted_at, created_at) DESC
@@ -790,11 +789,11 @@ router.get("/dashboard/stats", validateToken, validateAdmin, async (req, res, ne
         // Get event type distribution
         const eventTypesResult = await query(`
             SELECT 
-                COALESCE(school_event_type, community_event_type, 'other') as eventType, 
+                COALESCE(event_type, 'other') as eventType, 
                 COUNT(*) as count
             FROM proposals
-            WHERE COALESCE(school_event_type, community_event_type) IS NOT NULL
-            GROUP BY COALESCE(school_event_type, community_event_type)
+            WHERE event_type IS NOT NULL
+            GROUP BY event_type
             ORDER BY count DESC
         `);
 

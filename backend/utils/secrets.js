@@ -6,7 +6,7 @@ const path = require('path');
 /**
  * Reads a secret from file or environment variable
  * Follows Docker secrets pattern: try _FILE variant first, then regular env var
- * @param {string} secretName - Name of the secret (e.g., 'MYSQL_PASSWORD')
+ * @param {string} secretName - Name of the secret (e.g., 'postgresql_PASSWORD')
  * @returns {string|null} - Secret value or null if not found
  */
 function readSecret(secretName) {
@@ -45,11 +45,11 @@ function readSecret(secretName) {
  */
 function getDatabaseConfig() {
     return {
-        host: process.env.MYSQL_HOST || process.env.POSTGRES_HOST,
-        port: process.env.MYSQL_PORT || process.env.POSTGRES_PORT,
-        user: process.env.MYSQL_USER ||  process.env.POSTGRES_USER,
-        password: readSecret('MYSQL_PASSWORD') || process.env.POSTGRES_PASSWORD,
-        database: process.env.MYSQL_DATABASE || process.env.POSTGRES_DATABASE,
+        host: process.env.postgresql_HOST || process.env.POSTGRES_HOST,
+        port: process.env.postgresql_PORT || process.env.POSTGRES_PORT,
+        user: process.env.postgresql_USER ||  process.env.POSTGRES_USER,
+        password: readSecret('postgresql_PASSWORD') || process.env.POSTGRES_PASSWORD,
+        database: process.env.postgresql_DATABASE || process.env.POSTGRES_DATABASE,
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,

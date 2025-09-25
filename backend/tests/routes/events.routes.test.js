@@ -4,7 +4,7 @@
 const request = require('supertest');
 const express = require('express');
 const eventsRouter = require('../../routes/events');
-const { pool, query } = require('../../config/database');
+const { pool, query } = require('../../config/database-postgresql-only');
 
 jest.mock('../config/db');
 

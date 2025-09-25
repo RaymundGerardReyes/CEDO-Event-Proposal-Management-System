@@ -8,7 +8,7 @@ const getDashboardStats = async (req, res) => {
             success: true,
             stats: dashboardStats,
             timestamp: new Date().toISOString(),
-            source: 'mysql_realtime'
+            source: 'postgresql_realtime'
         });
     } catch (error) {
         console.error('❌ Dashboard: Error fetching real-time statistics:', error);
@@ -41,7 +41,7 @@ const getLiveStats = async (req, res) => {
             success: true,
             stats: liveStats,
             timestamp: new Date().toISOString(),
-            source: 'mysql_live'
+            source: 'postgresql_live'
         });
     } catch (error) {
         console.error('❌ Dashboard: Error fetching live statistics:', error);
@@ -72,7 +72,7 @@ const getOrganizations = async (req, res) => {
             organizations: organizations,
             count: organizations.length,
             timestamp: new Date().toISOString(),
-            source: 'mysql_realtime'
+            source: 'postgresql_realtime'
         });
     } catch (error) {
         console.error('❌ Reports: Error fetching organizations:', error);
@@ -97,7 +97,7 @@ const getAnalytics = async (req, res) => {
             success: true,
             analytics: analytics,
             timestamp: new Date().toISOString(),
-            source: 'mysql_realtime'
+            source: 'postgresql_realtime'
         });
     } catch (error) {
         console.error('❌ Reports: Error fetching analytics:', error);
@@ -123,7 +123,7 @@ const getOrganizationAnalytics = async (req, res) => {
             success: true,
             analytics: orgAnalytics,
             timestamp: new Date().toISOString(),
-            source: 'mysql_realtime'
+            source: 'postgresql_realtime'
         });
     } catch (error) {
         console.error('❌ Reports: Error fetching organization analytics:', error);
@@ -150,7 +150,7 @@ const generateReport = async (req, res) => {
             success: true,
             report: report,
             timestamp: new Date().toISOString(),
-            source: 'mysql_realtime'
+            source: 'postgresql_realtime'
         });
     } catch (error) {
         console.error('❌ Reports: Error generating report:', error);

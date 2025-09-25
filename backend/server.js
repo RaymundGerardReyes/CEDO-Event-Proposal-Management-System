@@ -15,22 +15,23 @@ require('dotenv').config({ path: '../.env' }); // Then try root/.env
 // Normalize NODE_ENV to lowercase
 process.env.NODE_ENV = process.env.NODE_ENV ? process.env.NODE_ENV.toLowerCase() : 'development';
 
-// Fallback environment variables for development only
-if (!process.env.MONGODB_URI && process.env.NODE_ENV === 'development') {
-  process.env.MONGODB_URI = 'mongodb://cedo_admin:Raymund-Estaca01@localhost:27017/cedo_db?authSource=admin';
+// PostgreSQL-only configuration
+// Ensure PostgreSQL environment variables are set
+if (!process.env.POSTGRES_HOST) {
+  process.env.POSTGRES_HOST = 'localhost';
 }
-// Force authentication for development to prevent unauthenticated connections
-if (process.env.NODE_ENV === 'development' && process.env.MONGODB_URI && !process.env.MONGODB_URI.includes('@')) {
-  console.log('⚠️  Forcing authenticated MongoDB URI for development...');
-  process.env.MONGODB_URI = 'mongodb://cedo_admin:Raymund-Estaca01@localhost:27017/cedo_db?authSource=admin';
+if (!process.env.POSTGRES_PORT) {
+  process.env.POSTGRES_PORT = '5432';
 }
-// Production warning if MongoDB URI is not set or points to localhost
-if (process.env.NODE_ENV === 'production' && (!process.env.MONGODB_URI || process.env.MONGODB_URI.includes('localhost'))) {
-  console.warn('⚠️  MONGODB_URI not set or points to localhost in production - MongoDB features will be disabled');
-  // Clear MongoDB URI in production if it points to localhost
-  if (process.env.MONGODB_URI && process.env.MONGODB_URI.includes('localhost')) {
-    process.env.MONGODB_URI = '';
-  }
+if (!process.env.POSTGRES_DATABASE) {
+  process.env.POSTGRES_DATABASE = 'cedo_auth';
+}
+if (!process.env.POSTGRES_USER) {
+  process.env.POSTGRES_USER = 'postgres';
+}
+if (!process.env.POSTGRES_PASSWORD) {
+  console.warn('⚠️  POSTGRES_PASSWORD not set - using default password');
+  process.env.POSTGRES_PASSWORD = 'Raymund-Estaca01';
 }
 if (!process.env.JWT_SECRET) {
   process.env.JWT_SECRET = 'your-development-jwt-secret-key';
@@ -44,8 +45,9 @@ console.log('\n✅ Environment Variables Loaded');
 console.log(`🔑 GOOGLE_CLIENT_ID: ${process.env.GOOGLE_CLIENT_ID ? 'SET ✓' : '❌ MISSING'}`);
 console.log(`🔑 JWT_SECRET: ${process.env.JWT_SECRET ? 'SET ✓' : '❌ MISSING'}`);
 console.log(`🔑 NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
-console.log(`🔑 MONGODB_URI: ${process.env.MONGODB_URI ? 'SET ✓' : '❌ MISSING'}`);
-console.log(`🔍 MONGODB_URI (masked): ${process.env.MONGODB_URI ? process.env.MONGODB_URI.replace(/\/\/.*@/, '//***:***@') : 'NOT_SET'}`);
+console.log(`🐘 POSTGRES_HOST: ${process.env.POSTGRES_HOST || 'localhost'}`);
+console.log(`🐘 POSTGRES_DATABASE: ${process.env.POSTGRES_DATABASE || 'cedo_auth'}`);
+console.log(`🐘 POSTGRES_USER: ${process.env.POSTGRES_USER || 'postgres'}`);
 
 // Database environment variables debugging
 console.log('\n🔍 Database Environment Variables:');
@@ -70,7 +72,7 @@ const path = require("path")
 const cookieParser = require("cookie-parser")
 const cookieSession = require("cookie-session")
 const morgan = require("morgan")
-// MySQL import removed - using universal database manager
+// postgresql import removed - using universal database manager
 const bodyParser = require('body-parser')
 
 // Import OAuth configuration
@@ -79,10 +81,8 @@ const { passport } = require('./config/oauth')
 // ==============================
 // Database & Configuration Imports
 // ==============================
-// Use the universal database manager that supports both MySQL and PostgreSQL
-const { pool, getDatabaseType } = require("./config/database")
-const { connectToMongo } = require('./config/mongodb')
-const connectionManager = require('./utils/connection-manager')
+// Use PostgreSQL-only database manager
+const { pool, getDatabaseType } = require("./config/database-postgresql-only")
 
 // ==============================
 // Middleware Imports
@@ -101,8 +101,7 @@ const profileRoutes = require("./routes/profile")
 // ==============================
 // Route Imports - Core Application Features
 // ==============================
-const proposalsRouter = require('./routes/proposals');  // MySQL-focused proposals
-const mongoUnifiedRouter = require('./routes/mongodb-unified');  // Hybrid admin API ENABLED – now modular
+const proposalsRouter = require('./routes/proposals');  // PostgreSQL-focused proposals
 const configRouter = require('./routes/config'); // Public-facing config route
 
 // Initialize express app
@@ -114,7 +113,7 @@ app.set('trust proxy', 1)
 // ==============================
 // Server Configuration
 // ==============================
-// FIXED: Ensure PORT is not the same as MySQL port (3306)
+// FIXED: Ensure PORT is not the same as postgresql port (3306)
 // Use a different port like 5000 for your Express server
 // On Render, use the PORT environment variable, otherwise use 5000
 const PORT = process.env.NODE_ENV === 'test' ? 0 : (process.env.PORT || 5000); // Use random port for tests
@@ -132,10 +131,10 @@ if (process.env.RENDER === 'true' && (!process.env.PORT || process.env.PORT === 
 console.log("Environment Configuration:")
 console.log(`- NODE_ENV: ${process.env.NODE_ENV}`)
 console.log(`- PORT: ${PORT}`)
-console.log(`- MYSQL_HOST: ${process.env.MYSQL_HOST}`)
-console.log(`- MYSQL_PORT: ${process.env.MYSQL_PORT}`)
-console.log(`- MYSQL_DATABASE: ${process.env.MYSQL_DATABASE}`)
-console.log(`- MYSQL_USER: ${process.env.MYSQL_USER}`)
+console.log(`- POSTGRES_HOST: ${process.env.POSTGRES_HOST}`)
+console.log(`- POSTGRES_PORT: ${process.env.POSTGRES_PORT}`)
+console.log(`- POSTGRES_DATABASE: ${process.env.POSTGRES_DATABASE}`)
+console.log(`- POSTGRES_USER: ${process.env.POSTGRES_USER}`)
 console.log(`- FRONTEND_URL: ${process.env.FRONTEND_URL}`)
 console.log(`- RECAPTCHA_SECRET_KEY: ${process.env.RECAPTCHA_SECRET_KEY ? "set" : "not set"}`)
 
@@ -243,9 +242,25 @@ app.use(passport.session());
 // ==============================
 // General Middleware Setup
 // ==============================
-app.use(express.json()) // Parses JSON bodies
+// Configure body parser with increased limits for large file uploads
+// Only parse JSON for non-multipart requests
+app.use((req, res, next) => {
+  if (req.headers['content-type'] && req.headers['content-type'].includes('application/json')) {
+    express.json({ limit: '50mb' })(req, res, next);
+  } else {
+    next();
+  }
+});
+
+// Parse URL-encoded data (only for non-multipart requests)
+app.use((req, res, next) => {
+  if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
+    next(); // Skip URL-encoded parsing for multipart requests
+  } else {
+    express.urlencoded({ extended: true, limit: '50mb' })(req, res, next);
+  }
+});
 app.use(morgan("dev")) // Logs HTTP requests in development mode
-app.use(express.urlencoded({ extended: true }));
 
 // ==============================
 // Request Logging Middleware
@@ -263,7 +278,6 @@ app.use((req, res, next) => {
 // Global State
 // ==============================
 let isDbConnected = false; // Global flag for DB status
-let isMongoConnected = false; // Global flag for MongoDB status
 // Connection manager is already initialized as singleton
 
 // ==============================
@@ -272,17 +286,17 @@ let isMongoConnected = false; // Global flag for MongoDB status
 // Test DB connection
 async function testConnection() {
   if (!pool) {
-    console.error("MySQL connection failed: Database pool is undefined after require.")
+    console.error("postgresql connection failed: Database pool is undefined after require.")
     throw new Error("Database pool is undefined");
   }
 
   try {
     await pool.query("SELECT 1")
-    console.log("✅ MySQL database connected successfully")
+    console.log("✅ postgresql database connected successfully")
     isDbConnected = true; // Set global flag
     return true;
   } catch (err) {
-    console.error("❌ MySQL connection failed:", err.message)
+    console.error("❌ postgresql connection failed:", err.message)
     console.warn("\n⚠️ WARNING: DATABASE CONNECTION FAILED. Continuing in demo mode.")
     console.warn("API routes requiring the database will not work.")
     isDbConnected = false; // Set global flag
@@ -305,7 +319,6 @@ app.get('/', (req, res) => {
     timestamp: new Date().toISOString(),
     database: getDatabaseType(),
     dbConnected: isDbConnected,
-    mongoConnected: isMongoConnected,
     environment: process.env.NODE_ENV,
     port: PORT
   });
@@ -314,8 +327,22 @@ app.get('/', (req, res) => {
 // Enhanced health check endpoint with detailed service status
 app.get("/health", async (req, res) => {
   try {
-    // Get health status from connection manager
-    const healthStatus = await connectionManager.healthCheck();
+    // Test database connection
+    const startTime = Date.now();
+    let dbStatus = 'unknown';
+    let dbMessage = 'Database service not available';
+    let dbResponseTime = 0;
+
+    try {
+      const result = await pool.query('SELECT NOW() as current_time, version() as version');
+      dbStatus = 'healthy';
+      dbMessage = 'Database connection successful';
+      dbResponseTime = Date.now() - startTime;
+    } catch (dbError) {
+      dbStatus = 'unhealthy';
+      dbMessage = `Database connection failed: ${dbError.message}`;
+      dbResponseTime = Date.now() - startTime;
+    }
 
     // Get detailed health information
     const healthInfo = {
@@ -325,15 +352,10 @@ app.get("/health", async (req, res) => {
       services: {
         database: {
           type: getDatabaseType(),
-          status: healthStatus.services.database?.status || 'unknown',
-          message: healthStatus.services.database?.message || 'Database service not available',
-          responseTime: healthStatus.services.database?.responseTime || 0
+          status: dbStatus,
+          message: dbMessage,
+          responseTime: dbResponseTime
         },
-        mongodb: {
-          status: healthStatus.services.mongodb.status,
-          message: healthStatus.services.mongodb.message,
-          responseTime: healthStatus.services.mongodb.responseTime || 0
-        }
       },
       server: {
         uptime: process.uptime(),
@@ -343,8 +365,8 @@ app.get("/health", async (req, res) => {
     };
 
     // Determine overall health status
-    const allServicesHealthy = healthStatus.services.database?.status === 'healthy' || healthStatus.services.mongodb.status === 'healthy';
-    const statusCode = allServicesHealthy ? 200 : 503; // 503 if no databases available
+    const allServicesHealthy = dbStatus === 'healthy';
+    const statusCode = allServicesHealthy ? 200 : 503; // 503 if database not available
 
     res.status(statusCode).json(healthInfo);
   } catch (error) {
@@ -361,23 +383,37 @@ app.get("/health", async (req, res) => {
 // Add a database check endpoint
 app.get("/api/db-check", async (req, res) => {
   try {
-    const healthStatus = await connectionManager.healthCheck();
-    const databaseStatus = healthStatus.services.database;
+    // Test database connection directly
+    const startTime = Date.now();
+    let dbStatus = 'unknown';
+    let dbMessage = 'Database service not available';
+    let dbResponseTime = 0;
 
-    if (databaseStatus?.status === 'healthy') {
+    try {
+      const result = await pool.query('SELECT NOW() as current_time, version() as version');
+      dbStatus = 'healthy';
+      dbMessage = 'Database connection successful';
+      dbResponseTime = Date.now() - startTime;
+    } catch (dbError) {
+      dbStatus = 'unhealthy';
+      dbMessage = `Database connection failed: ${dbError.message}`;
+      dbResponseTime = Date.now() - startTime;
+    }
+
+    if (dbStatus === 'healthy') {
       res.status(200).json({
         status: "connected",
         message: "Database connection successful",
         databaseType: getDatabaseType(),
         timestamp: new Date().toISOString(),
-        responseTime: databaseStatus.responseTime || 0
+        responseTime: dbResponseTime
       });
     } else {
       res.status(500).json({
         status: "error",
         message: "Database connection failed",
         databaseType: getDatabaseType(),
-        error: databaseStatus?.message || 'Database service not available',
+        error: dbMessage,
         timestamp: new Date().toISOString(),
       });
     }
@@ -458,7 +494,7 @@ app.use('/api', draftsRouter);
 
 // ** Core Application Routes **
 app.use("/api/events", require("./routes/events"))
-app.use("/api/proposals", proposalsRouter)  // ✅ SINGLE PROPOSALS ROUTER - MySQL focused
+app.use("/api/proposals", proposalsRouter)  // ✅ SINGLE PROPOSALS ROUTER - postgresql focused
 app.use("/api/reviews", require("./routes/reviews"))
 app.use("/api/reports", require("./routes/reports"))
 app.use("/api/compliance", require("./routes/compliance"))
@@ -467,9 +503,8 @@ app.use("/api/compliance", require("./routes/compliance"))
 const organizationRoutes = require('./routes/organizations');
 app.use('/api/organizations', organizationRoutes);
 
-// ** Hybrid MongoDB+MySQL API Routes **
-// ✅ Hybrid MongoDB+MySQL API on separate path for admin features - ENABLED
-app.use('/api/mongodb-unified', mongoUnifiedRouter);
+// ** PostgreSQL API Routes **
+// ✅ PostgreSQL-only API routes
 
 // ** Admin Dashboard Routes **
 // ✅ Admin Dashboard Route
@@ -495,9 +530,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/uploads', express.static('uploads'));
 
 // ** Testing & Debug Routes **
-// ✅ Test MongoDB router (for debugging)
-const testMongoDBRouter = require('./routes/test-mongodb');
-app.use('/api', testMongoDBRouter);
+// ✅ PostgreSQL-only testing routes
 
 // ** Config API Route **
 // ✅ Public-facing config route for frontend (e.g., reCAPTCHA site key)
@@ -592,25 +625,24 @@ async function startServer() {
   // Step 1: Initialize connections using ConnectionManager
   console.log('📋 Step 1: Initializing database connections...');
   try {
-    await connectionManager.initialize();
-    isDbConnected = connectionManager.isDatabaseConnected;
-    isMongoConnected = connectionManager.isMongoConnected;
+    // Initialize PostgreSQL connection
+    const { query } = require('./config/database-postgresql-only');
+    await query('SELECT 1'); // Test connection
+    isDbConnected = true;
 
-    console.log('✅ Connection initialization complete');
-    console.log(`   ${getDatabaseType()}: ${isDbConnected ? '✅ Connected' : '❌ Disconnected'}`);
-    console.log(`   MongoDB: ${isMongoConnected ? '✅ Connected' : '❌ Disconnected'}`);
+    console.log('✅ PostgreSQL connection initialized');
+    console.log(`   ${getDatabaseType()}: ✅ Connected`);
   } catch (error) {
-    console.warn('⚠️ Connection initialization failed:', error.message);
+    console.warn('⚠️ PostgreSQL connection failed:', error.message);
     console.warn('💡 Server will run in demo mode without database features');
     isDbConnected = false;
-    isMongoConnected = false;
   }
 
   // Step 3: Initialize dependent services (with proper error handling)
   console.log('📋 Step 3: Initializing dependent services...');
 
-  // Initialize data-sync service only if databases are available
-  if (connectionManager.isDatabaseConnected || connectionManager.isMongoConnected) {
+  // Initialize data-sync service only if database is available
+  if (isDbConnected) {
     try {
       const dataSyncService = require('./services/data-sync.service');
       if (typeof dataSyncService.initialize === 'function') {
@@ -629,7 +661,7 @@ async function startServer() {
 
   // Step 4: Check database tables ONLY if connected
   console.log('📋 Step 4: Checking database tables...');
-  if (connectionManager.isDatabaseConnected) {
+  if (isDbConnected) {
     try {
       await ensureTablesExist();
       console.log('✅ Database tables verified.');
@@ -652,8 +684,7 @@ async function startServer() {
 
       // Log service status
       console.log('\n📊 Service Status:');
-      console.log(`   ${getDatabaseType()}: ${connectionManager.isDatabaseConnected ? '✅ Connected' : '❌ Disconnected'}`);
-      console.log(`   MongoDB: ${connectionManager.isMongoConnected ? '✅ Connected' : '❌ Disconnected'}`);
+      console.log(`   ${getDatabaseType()}: ${isDbConnected ? '✅ Connected' : '❌ Disconnected'}`);
       console.log(`   Health Check: http://localhost:${actualPort}/health`);
       console.log(`   API Health: http://localhost:${actualPort}/api/health`);
       console.log('');

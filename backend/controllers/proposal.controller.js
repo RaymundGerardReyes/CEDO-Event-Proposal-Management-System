@@ -2,7 +2,7 @@ const proposalService = require('../services/proposal.service');
 const fileService = require('../services/file.service');
 const { validationResult } = require("express-validator");
 const fs = require("fs");
-const { pool, query } = require('../config/database');
+const { pool, query } = require('../config/database-postgresql-only');
 
 const saveSection2Data = async (req, res) => {
     try {
@@ -22,7 +22,7 @@ const saveSection2Data = async (req, res) => {
             });
         }
     } catch (error) {
-        console.error('❌ MySQL Error saving Section 2 data:', error);
+        console.error('❌ PostgreSQL Error saving Section 2 data:', error);
         res.status(500).json({
             error: 'Database error',
             message: error.message,
@@ -32,11 +32,11 @@ const saveSection2Data = async (req, res) => {
 
 const saveSection2OrgData = async (req, res) => {
     try {
-        console.log('📥 MySQL: Received Section 2 organization data:', req.body);
+        console.log('📥 PostgreSQL: Received Section 2 organization data:', req.body);
         const result = await proposalService.saveSection2OrgData(req.body);
         const responseData = {
             id: result.id,
-            message: 'Section 2 organization data saved successfully to MySQL',
+            message: 'Section 2 organization data saved successfully to PostgreSQL',
             data: req.body,
             timestamp: new Date().toISOString()
         }
@@ -46,7 +46,7 @@ const saveSection2OrgData = async (req, res) => {
             res.status(201).json(responseData);
         }
     } catch (error) {
-        console.error('❌ MySQL: Error saving Section 2 data:', error);
+        console.error('❌ PostgreSQL: Error saving Section 2 data:', error);
         const statusCode = error.message === 'Proposal not found' ? 404 : 500;
         res.status(statusCode).json({
             error: 'Database error',
@@ -57,22 +57,22 @@ const saveSection2OrgData = async (req, res) => {
 
 const saveSection3EventData = async (req, res) => {
     try {
-        console.log('📥 MySQL SECTION 3: ==================== INCOMING REQUEST ====================');
-        console.log('📥 MySQL SECTION 3: Request method:', req.method);
-        console.log('📥 MySQL SECTION 3: Request headers:', {
+        console.log('📥 PostgreSQL SECTION 3: ==================== INCOMING REQUEST ====================');
+        console.log('📥 PostgreSQL SECTION 3: Request method:', req.method);
+        console.log('📥 PostgreSQL SECTION 3: Request headers:', {
             'content-type': req.headers['content-type'],
             'content-length': req.headers['content-length'],
             'user-agent': req.headers['user-agent']
         });
-        console.log('📥 MySQL SECTION 3: Request body:', req.body);
-        console.log('📥 MySQL SECTION 3: Request files:', req.files);
-        console.log('📥 MySQL SECTION 3: Has files attached:', !!(req.files && Object.keys(req.files).length > 0));
+        console.log('📥 PostgreSQL SECTION 3: Request body:', req.body);
+        console.log('📥 PostgreSQL SECTION 3: Request files:', req.files);
+        console.log('📥 PostgreSQL SECTION 3: Has files attached:', !!(req.files && Object.keys(req.files).length > 0));
 
         if (req.files && Object.keys(req.files).length > 0) {
-            console.log('📎 MySQL SECTION 3: FILE ATTACHMENT DETECTED - This should go to MongoDB!');
-            console.log('📎 MySQL SECTION 3: Files details:');
+            console.log('📎 PostgreSQL SECTION 3: FILE ATTACHMENT DETECTED - This should go to PostgreSQL!');
+            console.log('📎 PostgreSQL SECTION 3: Files details:');
             Object.entries(req.files).forEach(([fieldName, fileInfo]) => {
-                console.log(`📎 MySQL SECTION 3: - ${fieldName}:`, {
+                console.log(`📎 PostgreSQL SECTION 3: - ${fieldName}:`, {
                     originalname: fileInfo.originalname,
                     filename: fileInfo.filename,
                     mimetype: fileInfo.mimetype,
@@ -80,16 +80,16 @@ const saveSection3EventData = async (req, res) => {
                     path: fileInfo.path
                 });
             });
-            console.log('⚠️ MySQL SECTION 3: WARNING - Files detected but this route only saves to MySQL!');
-            console.log('⚠️ MySQL SECTION 3: Files should be handled by MongoDB unified API: /api/mongodb-unified/proposals/school-events');
+            console.log('⚠️ PostgreSQL SECTION 3: WARNING - Files detected but this route only saves to PostgreSQL!');
+            console.log('⚠️ PostgreSQL SECTION 3: Files should be handled by PostgreSQL unified API: /api/postgresql-unified/proposals/school-events');
         } else {
-            console.log('📄 MySQL SECTION 3: No files attached - proceeding with MySQL-only save');
+            console.log('📄 PostgreSQL SECTION 3: No files attached - proceeding with PostgreSQL-only save');
         }
 
-        console.log('📥 MySQL SECTION 3: Processed event data being saved to MySQL:', req.body);
+        console.log('📥 PostgreSQL SECTION 3: Processed event data being saved to PostgreSQL:', req.body);
         const result = await proposalService.saveSection3EventData(req.body);
 
-        console.log('✅ MySQL SECTION 3: Successfully saved to MySQL:', {
+        console.log('✅ PostgreSQL SECTION 3: Successfully saved to PostgreSQL:', {
             id: result.id,
             previousStatus: result.previousStatus,
             newStatus: result.newStatus,
@@ -98,7 +98,7 @@ const saveSection3EventData = async (req, res) => {
 
         res.status(200).json({
             id: result.id,
-            message: 'Section 3 event data updated successfully in MySQL (status preserved)',
+            message: 'Section 3 event data updated successfully in PostgreSQL (status preserved)',
             data: req.body,
             security: {
                 previousStatus: result.previousStatus,
@@ -109,13 +109,13 @@ const saveSection3EventData = async (req, res) => {
                 hasFiles: !!(req.files && Object.keys(req.files).length > 0),
                 filesCount: req.files ? Object.keys(req.files).length : 0,
                 note: req.files && Object.keys(req.files).length > 0 ?
-                    'Files detected but not saved - use MongoDB unified API for file storage' :
+                    'Files detected but not saved - use PostgreSQL unified API for file storage' :
                     'No files to process'
             },
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('❌ MySQL SECTION 3: Error updating Section 3 event data:', {
+        console.error('❌ PostgreSQL SECTION 3: Error updating Section 3 event data:', {
             error: error.message,
             stack: error.stack,
             requestBody: req.body,
@@ -139,9 +139,9 @@ const getDebugInfo = async (req, res) => {
             proposalId: proposalId,
             ...info,
             recommendations: {
-                hasData: !!(info.mongodb.found || info.mysql.found),
-                source: info.mongodb.found ? 'MongoDB' : info.mysql.found ? 'MySQL' : 'None',
-                nextStep: !(info.mongodb.found || info.mysql.found) ? 'Complete Section 2 first' : 'Data found, proceed to Section 3'
+                hasData: !!(info.postgresql.found || info.postgresql.found),
+                source: info.postgresql.found ? 'PostgreSQL' : info.postgresql.found ? 'PostgreSQL' : 'None',
+                nextStep: !(info.postgresql.found || info.postgresql.found) ? 'Complete Section 2 first' : 'Data found, proceed to Section 3'
             }
         });
     } catch (error) {
@@ -155,7 +155,7 @@ const getDebugInfo = async (req, res) => {
 
 const searchProposal = async (req, res) => {
     try {
-        console.log('🔍 MySQL: Searching for proposal:', req.body);
+        console.log('🔍 PostgreSQL: Searching for proposal:', req.body);
         const { organization_name, contact_email } = req.body;
         const proposal = await proposalService.searchProposal(organization_name, contact_email);
 
@@ -167,7 +167,7 @@ const searchProposal = async (req, res) => {
             });
         }
 
-        console.log('✅ MySQL: Found proposal:', proposal);
+        console.log('✅ PostgreSQL: Found proposal:', proposal);
         res.status(200).json({
             ...proposal,
             found: true,
@@ -175,7 +175,7 @@ const searchProposal = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ MySQL: Error searching for proposal:', error);
+        console.error('❌ PostgreSQL: Error searching for proposal:', error);
         res.status(500).json({
             error: 'Database error',
             message: error.message,
@@ -207,7 +207,7 @@ const mockSection2 = async (req, res) => {
 };
 
 // ===================================================================
-// MONGO DB PROPOSAL CRUD
+// postgresql DB PROPOSAL CRUD
 // ===================================================================
 
 const createProposal = async (req, res) => {
@@ -255,16 +255,16 @@ const getProposals = async (req, res) => {
 const getProposalById = async (req, res) => {
     try {
         const { id } = req.params;
-        console.log('📊 MySQL: Fetching proposal by ID:', id);
+        console.log('📊 PostgreSQL: Fetching proposal by ID:', id);
 
-        // Fetch from MySQL
+        // Fetch from PostgreSQL
         const [rows] = await pool.query(
             'SELECT * FROM proposals WHERE id = ?',
             [id]
         );
 
         if (rows.length === 0) {
-            console.log('❌ MySQL: Proposal not found for ID:', id);
+            console.log('❌ PostgreSQL: Proposal not found for ID:', id);
             return res.status(404).json({
                 success: false,
                 error: 'Proposal not found',
@@ -273,7 +273,7 @@ const getProposalById = async (req, res) => {
         }
 
         const proposal = rows[0];
-        console.log('✅ MySQL: Proposal found:', {
+        console.log('✅ PostgreSQL: Proposal found:', {
             id: proposal.id,
             organizationName: proposal.organization_name,
             status: proposal.proposal_status,
@@ -313,7 +313,7 @@ const getProposalById = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ MySQL: Error fetching proposal by ID:', {
+        console.error('❌ PostgreSQL: Error fetching proposal by ID:', {
             error: error.message,
             stack: error.stack,
             proposalId: req.params.id
@@ -436,27 +436,27 @@ const getUserDraftsAndRejected = async (req, res) => {
         console.log(`📊 Query params: status=${status}, limit=${limit}, offset=${offset}, includeRejected=${includeRejected}`);
 
         let results = {
-            mysql: [],
-            mongodb: [],
+            postgresql: [],
+            postgresql: [],
             total: 0,
             sources: [],
             debug: {
-                mysql: { attempted: false, success: false, error: null },
-                mongodb: { attempted: false, success: false, error: null, collections: [], sampleData: [] }
+                postgresql: { attempted: false, success: false, error: null },
+                postgresql: { attempted: false, success: false, error: null, collections: [], sampleData: [] }
             }
         };
 
-        // ===== MYSQL QUERY =====
+        // ===== postgresql QUERY =====
         try {
-            results.debug.mysql.attempted = true;
-            let mysqlConditions = [];
-            let mysqlParams = [];
+            results.debug.postgresql.attempted = true;
+            let postgresqlConditions = [];
+            let postgresqlParams = [];
 
-            // Role-based filtering for MySQL
+            // Role-based filtering for PostgreSQL
             if (role === 'student' || role === 'partner') {
                 // Students and partners see only their own proposals
-                mysqlConditions.push('contact_email = ?');
-                mysqlParams.push(email);
+                postgresqlConditions.push('contact_email = ?');
+                postgresqlParams.push(email);
             } else if (role === 'head_admin' || role === 'manager' || role === 'reviewer') {
                 // Admins, managers, and reviewers can see all proposals
                 // No additional filtering needed
@@ -478,12 +478,12 @@ const getUserDraftsAndRejected = async (req, res) => {
             }
 
             if (statusConditions.length > 0) {
-                mysqlConditions.push(`(${statusConditions.join(' OR ')})`);
+                postgresqlConditions.push(`(${statusConditions.join(' OR ')})`);
             }
 
-            const mysqlWhereClause = mysqlConditions.length > 0 ? `WHERE ${mysqlConditions.join(' AND ')}` : '';
+            const postgresqlWhereClause = postgresqlConditions.length > 0 ? `WHERE ${postgresqlConditions.join(' AND ')}` : '';
 
-            const mysqlQuery = `
+            const postgresqlQuery = `
                 SELECT 
                     id, 
                     organization_name, 
@@ -502,21 +502,21 @@ const getUserDraftsAndRejected = async (req, res) => {
                     current_section,
                     form_completion_percentage
                 FROM proposals 
-                ${mysqlWhereClause} 
+                ${postgresqlWhereClause} 
                 ORDER BY updated_at DESC 
                 LIMIT ? OFFSET ?
             `;
 
-            mysqlParams.push(parseInt(limit), parseInt(offset));
+            postgresqlParams.push(parseInt(limit), parseInt(offset));
 
-            console.log('📊 MySQL Query:', mysqlQuery);
-            console.log('📊 MySQL Params:', mysqlParams);
+            console.log('📊 PostgreSQL Query:', postgresqlQuery);
+            console.log('📊 PostgreSQL Params:', postgresqlParams);
 
-            const [mysqlRows] = await pool.query(mysqlQuery, mysqlParams);
+            const [postgresqlRows] = await pool.query(postgresqlQuery, postgresqlParams);
 
-            results.mysql = mysqlRows.map(row => ({
+            results.postgresql = postgresqlRows.map(row => ({
                 id: row.id,
-                source: 'mysql',
+                source: 'postgresql',
                 name: row.organization_name || row.event_name || 'Untitled Proposal',
                 organizationName: row.organization_name,
                 organizationType: row.organization_type,
@@ -545,81 +545,81 @@ const getUserDraftsAndRejected = async (req, res) => {
                 }
             }));
 
-            results.sources.push('mysql');
-            results.debug.mysql.success = true;
-            console.log(`✅ MySQL: Found ${results.mysql.length} proposals`);
+            results.sources.push('postgresql');
+            results.debug.postgresql.success = true;
+            console.log(`✅ PostgreSQL: Found ${results.postgresql.length} proposals`);
 
-        } catch (mysqlError) {
-            console.error('❌ MySQL query error:', mysqlError);
-            results.debug.mysql.error = mysqlError.message;
-            results.mysqlError = mysqlError.message;
+        } catch (postgresqlError) {
+            console.error('❌ PostgreSQL query error:', postgresqlError);
+            results.debug.postgresql.error = postgresqlError.message;
+            results.postgresqlError = postgresqlError.message;
         }
 
-        // ===== ENHANCED MONGODB QUERY =====
+        // ===== ENHANCED postgresql QUERY =====
         try {
-            results.debug.mongodb.attempted = true;
+            results.debug.postgresql.attempted = true;
 
-            // Use the working MongoDB connection directly
-            const { clientPromise } = require('../config/mongodb');
+            // Use the working PostgreSQL connection directly
+            const { clientPromise } = require('../config/postgresql');
 
             // Get client and database
             const client = await clientPromise;
             const db = client.db('cedo_db');
 
-            console.log('🍃 MongoDB: Connection established successfully');
+            console.log('🍃 PostgreSQL: Connection established successfully');
 
             // Test database access first
             await db.command({ ping: 1 });
-            console.log('🍃 MongoDB: Database ping successful');
+            console.log('🍃 PostgreSQL: Database ping successful');
 
             // Get collections list to verify access
             const collections = await db.listCollections().toArray();
-            results.debug.mongodb.collections = collections.map(c => c.name);
-            console.log('🍃 MongoDB: Available collections:', results.debug.mongodb.collections);
+            results.debug.postgresql.collections = collections.map(c => c.name);
+            console.log('🍃 PostgreSQL: Available collections:', results.debug.postgresql.collections);
 
             // Access proposals collection directly
             const proposalsCollection = db.collection('proposals');
 
-            // Build MongoDB query conditions
-            let mongoConditions = {};
+            // Build PostgreSQL query conditions
+            let postgresqlConditions = {};
 
-            // Role-based filtering for MongoDB
+            // Role-based filtering for PostgreSQL
             if (role === 'student' || role === 'partner') {
-                mongoConditions.contactEmail = email;
+                postgresqlConditions.contactEmail = email;
             }
 
-            // Status filtering for MongoDB
-            const mongoStatusConditions = [];
+            // Status filtering for PostgreSQL
+            const postgresqlStatusConditions = [];
             if (!status || status === 'all') {
-                mongoStatusConditions.push('draft');
+                postgresqlStatusConditions.push('draft');
                 if (includeRejected === 'true') {
-                    mongoStatusConditions.push('rejected');
+                    postgresqlStatusConditions.push('rejected');
                 }
             } else if (status === 'draft') {
-                mongoStatusConditions.push('draft');
+                postgresqlStatusConditions.push('draft');
             } else if (status === 'rejected') {
-                mongoStatusConditions.push('rejected');
+                postgresqlStatusConditions.push('rejected');
             }
 
-            if (mongoStatusConditions.length > 0) {
-                mongoConditions.status = { $in: mongoStatusConditions };
+            if (postgresqlStatusConditions.length > 0) {
+                postgresqlConditions.status = { $in: postgresqlStatusConditions };
             }
 
-            console.log('🍃 MongoDB Query Conditions:', mongoConditions);
+            console.log('🍃 PostgreSQL Query Conditions:', postgresqlConditions);
 
             // Execute the query
-            const mongoProposals = await proposalsCollection
-                .find(mongoConditions)
+            const postgresqlProposals = await proposalsCollection
+                .find(postgresqlConditions)
                 .sort({ updatedAt: -1, createdAt: -1 })
                 .limit(parseInt(limit))
                 .skip(parseInt(offset))
                 .toArray();
 
-            console.log(`🍃 MongoDB: Found ${mongoProposals.length} proposals matching conditions`);
+            console.log(`🍃 PostgreSQL: Found ${postgresqlProposals.length} proposals matching conditions`);
 
             // Sample some documents for debugging
-            if (mongoProposals.length > 0) {
-                results.debug.mongodb.sampleData = mongoProposals.slice(0, 2).map(doc => ({
+            if (postgresqlProposals.length > 0) {
+                results.debug.postgresql.sampleData = postgresqlProposals.slice(0, 2).map(doc => ({
                     id: doc._id?.toString(),
                     status: doc.status,
                     email: doc.contactEmail,
@@ -627,10 +627,10 @@ const getUserDraftsAndRejected = async (req, res) => {
                 }));
             }
 
-            // Transform MongoDB results to match expected format
-            results.mongodb = mongoProposals.map(proposal => ({
+            // Transform PostgreSQL results to match expected format
+            results.postgresql = postgresqlProposals.map(proposal => ({
                 id: proposal._id?.toString() || proposal.id,
-                source: 'mongodb',
+                source: 'postgresql',
                 name: proposal.title || proposal.eventName || proposal.organizationName || 'Untitled Proposal',
                 organizationName: proposal.organizationName || proposal.organization_name,
                 organizationType: proposal.organizationType || proposal.organization_type,
@@ -658,19 +658,19 @@ const getUserDraftsAndRejected = async (req, res) => {
                 }
             }));
 
-            console.log(`🍃 MongoDB: Transformed ${results.mongodb.length} proposals for response`);
+            console.log(`🍃 PostgreSQL: Transformed ${results.postgresql.length} proposals for response`);
 
-            results.sources.push('mongodb');
-            results.debug.mongodb.success = true;
+            results.sources.push('postgresql');
+            results.debug.postgresql.success = true;
 
-        } catch (mongoError) {
-            console.error('❌ MongoDB query error:', mongoError);
-            results.debug.mongodb.error = mongoError.message;
-            results.mongoError = mongoError.message;
+        } catch (postgresqlError) {
+            console.error('❌ PostgreSQL query error:', postgresqlError);
+            results.debug.postgresql.error = postgresqlError.message;
+            results.postgresqlError = postgresqlError.message;
         }
 
         // ===== COMBINE AND RETURN RESULTS =====
-        const allProposals = [...results.mysql, ...results.mongodb];
+        const allProposals = [...results.postgresql, ...results.postgresql];
 
         // Sort combined results by lastEdited date (most recent first)
         allProposals.sort((a, b) => new Date(b.lastEdited) - new Date(a.lastEdited));
@@ -687,8 +687,8 @@ const getUserDraftsAndRejected = async (req, res) => {
             timestamp: new Date().toISOString(),
             sources: results.sources,
             counts: {
-                mysql: results.mysql.length,
-                mongodb: results.mongodb.length,
+                postgresql: results.postgresql.length,
+                postgresql: results.postgresql.length,
                 total: results.total
             }
         };

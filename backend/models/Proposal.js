@@ -1,6 +1,7 @@
-const mongoose = require("mongoose")
+// This file is no longer needed in PostgreSQL-only setup
+// All proposal data is stored in PostgreSQL tables, not MongoDB schemas
 
-const ProposalSchema = new mongoose.Schema({
+const ProposalSchema = {
   title: {
     type: String,
     required: [true, "Please add a title"],
@@ -182,9 +183,9 @@ const ProposalSchema = new mongoose.Schema({
   },
 })
 
-// Set updatedAt before update
-ProposalSchema.pre("findOneAndUpdate", function () {
-  this.set({ updatedAt: new Date() })
-})
+  // Set updatedAt before update
+  ProposalSchema.pre("findOneAndUpdate", function () {
+    this.set({ updatedAt: new Date() })
+  })
 
-module.exports = mongoose.model("Proposal", ProposalSchema)
+module.exports = postgresqlose.model("Proposal", ProposalSchema)

@@ -21,10 +21,9 @@ router.get(
     adminController.getAdminStats
 );
 
-// NEW: Update proposal status – matches frontend path PATCH /api/proposals/admin/proposals/:id/status
-// This re-implements the logic found in mongodb-unified-api.js so that the
-// admin dashboard can hit the expected endpoint without 404.
-const { pool, query } = require('../../config/database');
+// Update proposal status – matches frontend path PATCH /api/proposals/admin/proposals/:id/status
+// PostgreSQL-only implementation for admin dashboard
+const { pool, query } = require('../../config/database-postgresql-only');
 
 router.patch('/proposals/:id/status', async (req, res) => {
     try {
@@ -67,6 +66,92 @@ router.patch('/proposals/:id/status', async (req, res) => {
     } catch (err) {
         console.error('❌ Admin PATCH status error:', err);
         return res.status(500).json({ success: false, error: 'Failed to update status', message: err.message });
+    }
+});
+
+// Download proposal files
+router.get('/proposals/download/:id/:fileType', async (req, res) => {
+    try {
+        const proposalId = req.params.id;
+        const fileType = req.params.fileType;
+
+        // Get proposal file information
+        const result = await query(
+            'SELECT gpoa_file_name, gpoa_file_path, project_proposal_file_name, project_proposal_file_path FROM proposals WHERE id = $1',
+            [proposalId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Proposal not found' });
+        }
+
+        const proposal = result.rows[0];
+        let filePath, fileName;
+
+        if (fileType === 'gpoa' && proposal.gpoa_file_path) {
+            filePath = proposal.gpoa_file_path;
+            fileName = proposal.gpoa_file_name;
+        } else if (fileType === 'project-proposal' && proposal.project_proposal_file_path) {
+            filePath = proposal.project_proposal_file_path;
+            fileName = proposal.project_proposal_file_name;
+        } else {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        // For now, return file info (actual file serving can be implemented later)
+        res.json({
+            success: true,
+            file: {
+                name: fileName,
+                path: filePath,
+                type: fileType
+            }
+        });
+
+    } catch (error) {
+        console.error('Download error:', error);
+        res.status(500).json({ error: 'Failed to download file' });
+    }
+});
+
+// Get proposal files
+router.get('/proposals/:id/files', async (req, res) => {
+    try {
+        const proposalId = req.params.id;
+
+        const result = await query(
+            'SELECT gpoa_file_name, gpoa_file_size, gpoa_file_path, project_proposal_file_name, project_proposal_file_size, project_proposal_file_path FROM proposals WHERE id = $1',
+            [proposalId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Proposal not found' });
+        }
+
+        const proposal = result.rows[0];
+        const files = {};
+
+        if (proposal.gpoa_file_name) {
+            files.gpoa = {
+                name: proposal.gpoa_file_name,
+                size: proposal.gpoa_file_size,
+                path: proposal.gpoa_file_path
+            };
+        }
+
+        if (proposal.project_proposal_file_name) {
+            files.projectProposal = {
+                name: proposal.project_proposal_file_name,
+                size: proposal.project_proposal_file_size,
+                path: proposal.project_proposal_file_path
+            };
+        }
+
+        res.json({ success: true, files });
+
+    } catch (error) {
+        console.error('Files fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch files' });
     }
 });
 

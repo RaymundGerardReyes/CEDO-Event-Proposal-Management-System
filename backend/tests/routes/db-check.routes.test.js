@@ -4,7 +4,7 @@
 const request = require('supertest');
 const express = require('express');
 const dbCheckRouter = require('../../routes/db-check');
-const { pool, query } = require('../../config/database');
+const { pool, query } = require('../../config/database-postgresql-only');
 
 jest.mock('../config/db');
 
@@ -15,7 +15,7 @@ app.use('/api', dbCheckRouter);
 describe('DB Check Routes', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        process.env.MYSQL_DATABASE = 'cedo_auth';
+        process.env.postgresql_DATABASE = 'cedo_auth';
     });
 
     describe('GET /db-check', () => {
@@ -104,7 +104,7 @@ describe('DB Check Routes', () => {
 
     // Additional edge cases for coverage
     it('should use default db name if env not set', async () => {
-        delete process.env.MYSQL_DATABASE;
+        delete process.env.postgresql_DATABASE;
         pool.query.mockResolvedValue([{ TABLE_NAME: 'users' }]);
         await request(app).get('/api/tables-check');
         expect(pool.query).toHaveBeenCalled();
