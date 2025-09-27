@@ -1,182 +1,134 @@
 /**
- * Utility functions for authentication handling
+ * Authentication Utilities
+ * Centralized token extraction and validation
  */
-
-// Global flag to prevent multiple simultaneous auth checks
-let authCheckInProgress = false;
-let lastAuthCheck = 0;
-const AUTH_CHECK_COOLDOWN = 30000; // 30 seconds between checks
 
 /**
- * Check if user is authenticated by validating token presence
- * @returns {boolean} True if user has a valid token
+ * Extract authentication token from multiple sources
+ * @returns {string|null} - Authentication token or null if not found
  */
-export function isAuthenticated() {
-    const token = getToken();
-    return !!(token && typeof token === 'string' && token.length >= 10);
-}
+export const getAuthToken = () => {
+    if (typeof window === 'undefined') return null;
 
-/**
- * Get authentication token from cookies or localStorage
- * @returns {string|null} The authentication token or null if not found
- */
-export function getToken() {
-    if (typeof document !== 'undefined') {
-        // Try to get token from cookies first
-        const cookieValue = document.cookie.split('; ').find(row => row.startsWith('cedo_token='));
-        if (cookieValue) {
-            const token = cookieValue.split('=')[1];
-            if (token && token.length > 0) {
-                return token;
+    let token = null;
+
+    // Method 1: Try localStorage first
+    token = localStorage.getItem('cedo_token') ||
+        localStorage.getItem('authToken') ||
+        localStorage.getItem('token');
+
+    // Method 2: Try cookies with multiple possible names
+    if (!token && typeof document !== 'undefined') {
+        const cookieNames = ['cedo_token', 'cedo_auth_token', 'auth_token', 'token', 'authToken'];
+        for (const cookieName of cookieNames) {
+            const cookieValue = document.cookie
+                .split('; ')
+                .find(row => row.startsWith(`${cookieName}=`))
+                ?.split('=')[1];
+            if (cookieValue && cookieValue.trim() !== '') {
+                token = cookieValue.trim();
+                break;
             }
         }
-
-        // Fallback to localStorage
-        return localStorage.getItem('cedo_token') || localStorage.getItem('authToken');
     }
-    return null;
-}
+
+    // Method 3: Try sessionStorage as fallback
+    if (!token) {
+        token = sessionStorage.getItem('cedo_token') ||
+            sessionStorage.getItem('authToken') ||
+            sessionStorage.getItem('token');
+    }
+
+    return token;
+};
 
 /**
- * Clear all authentication data from browser storage
+ * Validate token format
+ * @param {string} token - Token to validate
+ * @returns {boolean} - True if token format is valid
  */
-export function clearAuthData() {
-    if (typeof window !== 'undefined') {
-        // Clear localStorage
-        localStorage.removeItem('cedo_user');
+export const isValidToken = (token) => {
+    if (!token || typeof token !== 'string') return false;
 
-        // Clear cookies
-        document.cookie = 'cedo_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure';
-
-        // Clear any other auth-related data
-        sessionStorage.removeItem('auth_state');
-
-        // Reset auth check flags
-        authCheckInProgress = false;
-        lastAuthCheck = 0;
-
-        console.log('🧹 Auth data cleared from browser storage');
-    }
-}
+    // Basic JWT format check (should contain dots and be reasonably long)
+    return token.includes('.') && token.length > 10;
+};
 
 /**
- * Check if current user token is valid by making a test API call
+ * Get user information from localStorage
+ * @returns {object|null} - User object or null if not found
  */
-export async function validateCurrentToken() {
-    // Prevent multiple simultaneous checks
-    if (authCheckInProgress) {
-        console.log('🔒 Auth check already in progress, skipping');
-        return { valid: false, reason: 'CHECK_IN_PROGRESS' };
-    }
-
-    // Check cooldown period
-    const now = Date.now();
-    if (now - lastAuthCheck < AUTH_CHECK_COOLDOWN) {
-        console.log('⏰ Auth check cooldown active, skipping');
-        return { valid: false, reason: 'COOLDOWN' };
-    }
-
-    authCheckInProgress = true;
-    lastAuthCheck = now;
+export const getCurrentUser = () => {
+    if (typeof window === 'undefined') return null;
 
     try {
-        // Check if we have a token first
-        let hasToken = false;
-        if (typeof document !== 'undefined') {
-            const cookieValue = document.cookie.split("; ").find((row) => row.startsWith("cedo_token="));
-            if (cookieValue) {
-                const token = cookieValue.split("=")[1];
-                hasToken = token && token.length > 0;
-            }
-        }
-
-        if (!hasToken) {
-            console.log('🔍 No token found, skipping validation');
-            return { valid: false, reason: 'NO_TOKEN' };
-        }
-
-        // Add timeout to prevent hanging requests
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // Reduced to 5 seconds
-
-        const response = await fetch('/api/auth/me', {
-            credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            signal: controller.signal
-        });
-
-        clearTimeout(timeoutId);
-
-        if (response.ok) {
-            const data = await response.json();
-            console.log('✅ Token validation successful');
-            return { valid: true, user: data.user };
-        } else if (response.status === 401) {
-            const errorText = await response.text();
-            if (errorText.includes('User account not found') || errorText.includes('USER_NOT_FOUND')) {
-                // User not found in database - clear auth data
-                clearAuthData();
-                return { valid: false, reason: 'USER_NOT_FOUND' };
-            }
-            return { valid: false, reason: 'INVALID_TOKEN' };
-        } else {
-            return { valid: false, reason: 'API_ERROR' };
-        }
+        const userInfo = localStorage.getItem('cedo_user');
+        return userInfo ? JSON.parse(userInfo) : null;
     } catch (error) {
-        console.error('Error validating token:', error);
-        if (error.name === 'AbortError') {
-            return { valid: false, reason: 'TIMEOUT' };
-        }
-        return { valid: false, reason: 'NETWORK_ERROR' };
-    } finally {
-        authCheckInProgress = false;
+        console.warn('Failed to parse user info:', error);
+        return null;
     }
-}
+};
 
 /**
- * Handle invalid user token by clearing data and redirecting
+ * Check if user has admin privileges
+ * @returns {boolean} - True if user is admin
  */
-export function handleInvalidUserToken() {
-    clearAuthData();
-
-    // Show a toast notification if available
-    if (typeof window !== 'undefined' && window.__cedoToast) {
-        window.__cedoToast({
-            title: 'Session Expired',
-            description: 'Your account was not found. Please sign in again.',
-            variant: 'destructive',
-        });
-    }
-
-    // Redirect to sign-in page
-    if (typeof window !== 'undefined') {
-        window.location.href = '/sign-in';
-    }
-}
+export const isAdmin = () => {
+    const user = getCurrentUser();
+    return user && (user.role === 'admin' || user.role === 'head_admin');
+};
 
 /**
- * Initialize auth validation on page load
- * Simplified to prevent multiple API calls
+ * Create authenticated headers for API requests
+ * @param {object} additionalHeaders - Additional headers to include
+ * @returns {object} - Headers object with authentication
  */
-export function initializeAuthValidation() {
-    if (typeof window !== 'undefined') {
-        // Only run once per page load to prevent multiple calls
-        if (window.__authValidationRun) {
-            console.log('🔄 Auth validation already initialized, skipping');
-            return;
-        }
-        window.__authValidationRun = true;
+export const createAuthHeaders = (additionalHeaders = {}) => {
+    const token = getAuthToken();
 
-        // Add a small delay to prevent immediate API calls
-        setTimeout(() => {
-            validateCurrentToken().then(({ valid, reason }) => {
-                console.log(`🔍 Auth validation result: ${valid ? 'valid' : 'invalid'} (${reason})`);
-                if (!valid && reason === 'USER_NOT_FOUND') {
-                    handleInvalidUserToken();
-                }
-            });
-        }, 2000); // Increased delay to 2 seconds
+    if (!token) {
+        console.warn('No authentication token found');
+        return additionalHeaders;
     }
-} 
+
+    return {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, */*',
+        ...additionalHeaders
+    };
+};
+
+/**
+ * Debug authentication state
+ * @returns {object} - Debug information about authentication
+ */
+export const getAuthDebugInfo = () => {
+    if (typeof window === 'undefined') return { error: 'Not in browser environment' };
+
+    const token = getAuthToken();
+    const user = getCurrentUser();
+
+    return {
+        hasToken: !!token,
+        tokenLength: token ? token.length : 0,
+        tokenPreview: token ? `${token.substring(0, 20)}...` : null,
+        user: user ? { email: user.email, role: user.role } : null,
+        isAdmin: isAdmin(),
+        localStorage: {
+            cedo_token: !!localStorage.getItem('cedo_token'),
+            cedo_user: !!localStorage.getItem('cedo_user'),
+            authToken: !!localStorage.getItem('authToken'),
+            token: !!localStorage.getItem('token')
+        },
+        sessionStorage: {
+            cedo_token: !!sessionStorage.getItem('cedo_token'),
+            authToken: !!sessionStorage.getItem('authToken'),
+            token: !!sessionStorage.getItem('token')
+        },
+        cookies: document.cookie.split('; ').filter(cookie =>
+            cookie.includes('token') || cookie.includes('auth')
+        )
+    };
+};

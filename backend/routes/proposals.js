@@ -420,16 +420,26 @@ router.post('/:uuid/submit', validateToken, async (req, res) => {
         );
 
         if (proposalsResult.rows.length === 0) {
-            return res.status(404).json({ error: 'Proposal not found' });
+            console.log(`❌ Proposal ${uuid} not found in database`);
+            return res.status(404).json({
+                success: false,
+                error: 'Proposal not found',
+                message: 'Proposal not found in database'
+            });
         }
 
-        const proposal = proposalsResult.rows[0];
+        const baseResult = await query('SELECT * FROM proposals WHERE uuid = $1', [uuid]);
+        const proposal = baseResult.rows[0];
 
         // Check if already submitted
         console.log(`📊 Submit check - Proposal ${uuid} status: "${proposal.proposal_status}"`);
         if (proposal.proposal_status !== 'draft') {
             console.log(`⚠️ Proposal ${uuid} cannot be submitted - current status: "${proposal.proposal_status}"`);
-            return res.status(409).json({ error: 'Proposal already submitted' });
+            return res.status(409).json({
+                success: false,
+                error: 'Proposal already submitted',
+                message: `Proposal is already in ${proposal.proposal_status} status`
+            });
         }
 
         // Update proposal status
@@ -539,7 +549,7 @@ router.get('/:uuid/status', validateToken, async (req, res) => {
 
         console.log('📋 Getting proposal status for UUID:', uuid);
 
-        // Get proposal details
+        // Get proposal details with timeout
         const proposalResult = await query(
             `SELECT 
                 id, uuid, proposal_status, report_status, event_status,
@@ -547,7 +557,8 @@ router.get('/:uuid/status', validateToken, async (req, res) => {
                 organization_name, event_name, created_at, updated_at
             FROM proposals 
             WHERE uuid = $1 AND user_id = $2 AND is_deleted = false`,
-            [uuid, userId]
+            [uuid, userId],
+            { timeout: 10000 } // 10 second timeout
         );
 
         if (proposalResult.rows.length === 0) {
@@ -776,6 +787,29 @@ router.post('/:uuid/files', validateToken, upload.fields([
         const { uuid } = req.params;
         const files = req.files;
 
+        // Validate files object
+        if (!files) {
+            console.log('❌ No files object in request');
+            return res.status(400).json({
+                error: 'No files provided',
+                message: 'Files object is missing from request'
+            });
+        }
+
+        console.log('📁 Files received:', Object.keys(files));
+
+        // Check if at least one file is provided
+        const hasGpoaFile = files.gpoa && files.gpoa[0];
+        const hasProjectFile = files.projectProposal && files.projectProposal[0];
+
+        if (!hasGpoaFile && !hasProjectFile) {
+            console.log('❌ No valid files provided');
+            return res.status(400).json({
+                error: 'No valid files provided',
+                message: 'At least one file (GPOA or Project Proposal) must be provided'
+            });
+        }
+
         // Check if proposal exists
         const proposalsResult = await query(
             'SELECT * FROM proposals WHERE uuid = $1',
@@ -788,53 +822,68 @@ router.post('/:uuid/files', validateToken, upload.fields([
 
         const uploadedFiles = {};
 
-        // Process GPOA file
-        if (files.gpoa && files.gpoa[0]) {
-            const gpoaFile = files.gpoa[0];
-            uploadedFiles.gpoa = {
-                filename: gpoaFile.filename,
-                originalName: gpoaFile.originalname,
-                path: gpoaFile.path,
-                size: gpoaFile.size,
-                mimetype: gpoaFile.mimetype
-            };
+        try {
+            // Process GPOA file
+            if (files.gpoa && files.gpoa[0]) {
+                const gpoaFile = files.gpoa[0];
+                uploadedFiles.gpoa = {
+                    filename: gpoaFile.filename,
+                    originalName: gpoaFile.originalname,
+                    path: gpoaFile.path,
+                    size: gpoaFile.size,
+                    mimetype: gpoaFile.mimetype
+                };
 
-            // Update proposal with GPOA file info
-            await query(
-                `UPDATE proposals SET 
+                // Update proposal with GPOA file info
+                await query(
+                    `UPDATE proposals SET 
                     gpoa_file_name = $1,
                     gpoa_file_size = $2,
-                    gpoa_file_path = $3,
+                    gpoa_file_type = $3,
+                    gpoa_file_path = $4,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE uuid = $4`,
-                [gpoaFile.originalname, gpoaFile.size, gpoaFile.path, uuid]
-            );
-        }
+                WHERE uuid = $5`,
+                    [gpoaFile.originalname, gpoaFile.size, gpoaFile.mimetype, gpoaFile.path, uuid]
+                );
+            }
 
-        // Process Project Proposal file
-        if (files.projectProposal && files.projectProposal[0]) {
-            const proposalFile = files.projectProposal[0];
-            uploadedFiles.projectProposal = {
-                filename: proposalFile.filename,
-                originalName: proposalFile.originalname,
-                path: proposalFile.path,
-                size: proposalFile.size,
-                mimetype: proposalFile.mimetype
-            };
+            // Process Project Proposal file
+            if (files.projectProposal && files.projectProposal[0]) {
+                const proposalFile = files.projectProposal[0];
+                uploadedFiles.projectProposal = {
+                    filename: proposalFile.filename,
+                    originalName: proposalFile.originalname,
+                    path: proposalFile.path,
+                    size: proposalFile.size,
+                    mimetype: proposalFile.mimetype
+                };
 
-            // Update proposal with Project Proposal file info
-            await query(
-                `UPDATE proposals SET 
+                // Update proposal with Project Proposal file info
+                await query(
+                    `UPDATE proposals SET 
                     project_proposal_file_name = $1,
                     project_proposal_file_size = $2,
-                    project_proposal_file_path = $3,
+                    project_proposal_file_type = $3,
+                    project_proposal_file_path = $4,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE uuid = $4`,
-                [proposalFile.originalname, proposalFile.size, proposalFile.path, uuid]
-            );
-        }
+                WHERE uuid = $5`,
+                    [proposalFile.originalname, proposalFile.size, proposalFile.mimetype, proposalFile.path, uuid]
+                );
+            }
 
-        await createAuditLog(uuid, 'files_uploaded', req.user.id, 'Files uploaded', uploadedFiles);
+            await createAuditLog(uuid, 'files_uploaded', req.user.id, 'Files uploaded', uploadedFiles);
+
+        } catch (fileProcessingError) {
+            console.error('❌ Error processing files:', fileProcessingError);
+            console.error('❌ Files object:', files);
+            console.error('❌ Files keys:', files ? Object.keys(files) : 'files is null/undefined');
+
+            return res.status(500).json({
+                error: 'File processing error',
+                message: fileProcessingError.message,
+                details: 'Error occurred while processing uploaded files'
+            });
+        }
 
         res.status(200).json({
             success: true,

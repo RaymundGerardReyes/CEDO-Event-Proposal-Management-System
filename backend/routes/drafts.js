@@ -1,6 +1,7 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const router = express.Router();
+const { query } = require('../config/database-postgresql-only');
 
 /**
  * ENHANCED DRAFT MANAGEMENT ROUTES
@@ -38,6 +39,7 @@ router.post('/proposals/drafts', (req, res) => {
     console.log('📝 UUID Draft created:', { draftId, eventType, originalDescriptiveId });
 
     res.json({
+        success: true,
         draftId,
         eventType,
         status: 'draft',
@@ -115,7 +117,7 @@ router.get('/proposals/drafts/:id', (req, res) => {
 });
 
 // PATCH /api/proposals/drafts/:id/:section  →  partial update with UUID validation
-router.patch('/api/proposals/drafts/:id/:section', (req, res) => {
+router.patch('/proposals/drafts/:id/:section', (req, res) => {
     const { id, section } = req.params;
     let draft = DRAFT_CACHE.get(id);
 
@@ -282,22 +284,25 @@ router.patch('/proposals/drafts/:id', (req, res) => {
     });
 });
 
-// POST /api/proposals/drafts/:id/submit  →  final submit (enhanced for UUIDs)
+// POST /api/proposals/drafts/:id/submit  →  final submit (simplified)
 router.post('/proposals/drafts/:id/submit', (req, res) => {
-    const draft = DRAFT_CACHE.get(req.params.id);
+    const draftId = req.params.id;
+    const draft = DRAFT_CACHE.get(draftId);
+
     if (!draft) {
-        console.log('❌ Draft not found for submission:', req.params.id);
+        console.log('❌ Draft not found for submission:', draftId);
         return res.status(404).json({
             error: 'Draft not found',
-            message: 'UUID-based draft not found for submission'
+            message: 'Draft not found for submission'
         });
     }
 
+    // Draft exists in cache, proceed with submission
     draft.status = 'submitted';
     draft.submittedAt = Date.now();
-    DRAFT_CACHE.set(req.params.id, draft);
+    DRAFT_CACHE.set(draftId, draft);
 
-    console.log(`✅ UUID-based draft submitted: ${req.params.id}`);
+    console.log(`✅ Draft submitted: ${draftId}`);
     res.json({
         success: true,
         draft,

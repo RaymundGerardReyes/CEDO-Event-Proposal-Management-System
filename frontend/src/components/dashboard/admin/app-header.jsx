@@ -8,6 +8,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Bell, Check, ChevronDown, Clock, LogOut, Settings, User, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 // Enhanced responsive breakpoints with zoom awareness  
 const RESPONSIVE_BREAKPOINTS = {
@@ -54,7 +55,9 @@ export function AppHeader() {
   const [zoomLevel, setZoomLevel] = useState(1);
 
   const notificationRef = useRef(null);
+  const notificationButtonRef = useRef(null);
   const profileRef = useRef(null);
+  const [notifPosition, setNotifPosition] = useState({ top: 0, left: 0, width: 0 });
 
   const { user, signOut } = useAuth();
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -95,6 +98,33 @@ export function AppHeader() {
     document.addEventListener("mousedown", handleClickOutside, { passive: true, capture: true });
     return () => document.removeEventListener("mousedown", handleClickOutside, { capture: true });
   }, []);
+
+  // Compute and update portal dropdown position based on the bell button
+  useEffect(() => {
+    function updateNotifPosition() {
+      try {
+        const btn = notificationButtonRef.current;
+        if (!btn) return;
+        const rect = btn.getBoundingClientRect();
+        // Position dropdown aligned to button's right edge, below the header
+        setNotifPosition({
+          top: rect.bottom + 8, // 8px gap
+          left: Math.max(8, Math.min(window.innerWidth - 8, rect.right)),
+          width: Math.min(480, Math.max(320, Math.floor(window.innerWidth * 0.4)))
+        });
+      } catch (_) { }
+    }
+
+    if (showNotifications) {
+      updateNotifPosition();
+      window.addEventListener('scroll', updateNotifPosition, { passive: true });
+      window.addEventListener('resize', updateNotifPosition, { passive: true });
+      return () => {
+        window.removeEventListener('scroll', updateNotifPosition);
+        window.removeEventListener('resize', updateNotifPosition);
+      };
+    }
+  }, [showNotifications]);
 
   const markAsRead = (id, link) => {
     setNotifications(notifications.map((notif) => (notif.id === id ? { ...notif, read: true } : notif)));
@@ -227,6 +257,7 @@ export function AppHeader() {
               height: `clamp(2.5rem, 5vw, 3rem)`,
               padding: 0,
             }}
+            ref={notificationButtonRef}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -263,127 +294,130 @@ export function AppHeader() {
             )}
           </Button>
 
-          {showNotifications && (
-            console.log('Rendering notifications dropdown'),
-            <div
-              className="
-                absolute right-0 mt-2 
-                bg-white rounded-xl shadow-xl border border-gray-200
-                overflow-hidden z-[9999] 
-              "
-              style={{
-                width: `clamp(320px, 40vw, 480px)`,
-                maxHeight: `clamp(400px, 70vh, 600px)`,
-              }}
-            >
-              {/* Enhanced header */}
+          {showNotifications && createPortal(
+            (
               <div
-                className="border-b border-gray-200 bg-gray-50"
-                style={{ padding: `clamp(1rem, 3vw, 1.5rem)` }}
+                className="
+                fixed 
+                bg-white rounded-xl shadow-xl border border-gray-200
+                overflow-hidden z-[2147483647]
+              "
+                style={{
+                  top: notifPosition.top,
+                  left: Math.max(8, notifPosition.left - notifPosition.width),
+                  width: notifPosition.width,
+                  maxHeight: `clamp(400px, 70vh, 600px)`
+                }}
               >
-                <div className="flex justify-between items-center">
-                  <h3
-                    className="font-semibold text-gray-900"
-                    style={{ fontSize: `clamp(1rem, 2vw, 1.25rem)` }}
-                  >
-                    Notifications
-                  </h3>
-                  {unreadCount > 0 && (
-                    <Button
-                      variant="link"
-                      onClick={markAllAsRead}
-                      className="text-blue-600 hover:text-blue-700 h-auto p-0"
-                      style={{ fontSize: `clamp(0.875rem, 1.5vw, 1rem)` }}
+                {/* Enhanced header */}
+                <div
+                  className="border-b border-gray-200 bg-gray-50"
+                  style={{ padding: `clamp(1rem, 3vw, 1.5rem)` }}
+                >
+                  <div className="flex justify-between items-center">
+                    <h3
+                      className="font-semibold text-gray-900"
+                      style={{ fontSize: `clamp(1rem, 2vw, 1.25rem)` }}
                     >
-                      Mark all read
-                    </Button>
-                  )}
+                      Notifications
+                    </h3>
+                    {unreadCount > 0 && (
+                      <Button
+                        variant="link"
+                        onClick={markAllAsRead}
+                        className="text-blue-600 hover:text-blue-700 h-auto p-0"
+                        style={{ fontSize: `clamp(0.875rem, 1.5vw, 1rem)` }}
+                      >
+                        Mark all read
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {/* Enhanced notifications list */}
-              <div className="max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300">
-                {notifications.length > 0 ? (
-                  <div>
-                    {notifications.map((notification) => (
-                      <div
-                        key={notification.id}
-                        className={`
+                {/* Enhanced notifications list */}
+                <div className="max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300">
+                  {notifications.length > 0 ? (
+                    <div>
+                      {notifications.map((notification) => (
+                        <div
+                          key={notification.id}
+                          className={`
                             border-b border-gray-100 
                             hover:bg-gray-50 active:bg-gray-100 
                             transition-colors duration-300 cursor-pointer
                             ${!notification.read ? "bg-blue-50/50" : ""}
                           `}
-                        style={{ padding: `clamp(1rem, 3vw, 1.5rem)` }}
-                        onClick={() => markAsRead(notification.id, notification.link)}
-                        role="button"
-                        tabIndex={0}
-                      >
-                        <div
-                          className="flex gap-3"
-                          style={{ gap: `clamp(0.75rem, 2vw, 1rem)` }}
+                          style={{ padding: `clamp(1rem, 3vw, 1.5rem)` }}
+                          onClick={() => markAsRead(notification.id, notification.link)}
+                          role="button"
+                          tabIndex={0}
                         >
-                          {getNotificationIcon(notification.type)}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-start gap-2">
+                          <div
+                            className="flex gap-3"
+                            style={{ gap: `clamp(0.75rem, 2vw, 1rem)` }}
+                          >
+                            {getNotificationIcon(notification.type)}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex justify-between items-start gap-2">
+                                <p
+                                  className="font-medium text-gray-900 line-clamp-2"
+                                  style={{ fontSize: `clamp(0.875rem, 1.5vw, 1rem)` }}
+                                >
+                                  {notification.title}
+                                </p>
+                                {!notification.read && (
+                                  <span className="h-2 w-2 bg-blue-600 rounded-full mt-1 shrink-0"></span>
+                                )}
+                              </div>
                               <p
-                                className="font-medium text-gray-900 line-clamp-2"
-                                style={{ fontSize: `clamp(0.875rem, 1.5vw, 1rem)` }}
+                                className="text-gray-600 mt-1 line-clamp-2"
+                                style={{ fontSize: `clamp(0.75rem, 1.3vw, 0.875rem)` }}
                               >
-                                {notification.title}
+                                {notification.message}
                               </p>
-                              {!notification.read && (
-                                <span className="h-2 w-2 bg-blue-600 rounded-full mt-1 shrink-0"></span>
-                              )}
+                              <p
+                                className="text-gray-500 mt-1"
+                                style={{ fontSize: `clamp(0.75rem, 1.2vw, 0.875rem)` }}
+                              >
+                                {notification.timestamp}
+                              </p>
                             </div>
-                            <p
-                              className="text-gray-600 mt-1 line-clamp-2"
-                              style={{ fontSize: `clamp(0.75rem, 1.3vw, 0.875rem)` }}
-                            >
-                              {notification.message}
-                            </p>
-                            <p
-                              className="text-gray-500 mt-1"
-                              style={{ fontSize: `clamp(0.75rem, 1.2vw, 0.875rem)` }}
-                            >
-                              {notification.timestamp}
-                            </p>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div
-                    className="text-center"
-                    style={{ padding: `clamp(2rem, 5vw, 3rem)` }}
-                  >
-                    <div
-                      className="mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center"
-                      style={{
-                        width: `clamp(4rem, 8vw, 5rem)`,
-                        height: `clamp(4rem, 8vw, 5rem)`,
-                      }}
-                    >
-                      <Bell
-                        className="text-gray-400"
-                        style={{
-                          width: `clamp(2rem, 4vw, 2.5rem)`,
-                          height: `clamp(2rem, 4vw, 2.5rem)`,
-                        }}
-                      />
+                      ))}
                     </div>
-                    <p
-                      className="text-gray-500"
-                      style={{ fontSize: `clamp(0.875rem, 1.5vw, 1rem)` }}
+                  ) : (
+                    <div
+                      className="text-center"
+                      style={{ padding: `clamp(2rem, 5vw, 3rem)` }}
                     >
-                      No notifications
-                    </p>
-                  </div>
-                )}
+                      <div
+                        className="mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center"
+                        style={{
+                          width: `clamp(4rem, 8vw, 5rem)`,
+                          height: `clamp(4rem, 8vw, 5rem)`,
+                        }}
+                      >
+                        <Bell
+                          className="text-gray-400"
+                          style={{
+                            width: `clamp(2rem, 4vw, 2.5rem)`,
+                            height: `clamp(2rem, 4vw, 2.5rem)`,
+                          }}
+                        />
+                      </div>
+                      <p
+                        className="text-gray-500"
+                        style={{ fontSize: `clamp(0.875rem, 1.5vw, 1rem)` }}
+                      >
+                        No notifications
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            ), document.body)
+          }
         </div>
 
         {/* Enhanced profile dropdown with Google OAuth Avatar using AvatarProfile */}

@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 export async function GET(request) {
     try {
         const backendUrl = getAppConfig().backendUrl
-        const apiUrl = `${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?limit=3`
+        const apiUrl = `${backendUrl}/api/admin/proposals?limit=3`
 
         console.log('🧪 Testing backend connection:', apiUrl)
 

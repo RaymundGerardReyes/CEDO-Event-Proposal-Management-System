@@ -51,8 +51,8 @@ export const API_ENDPOINTS = {
     REPORTS: `${API_BASE_URL}/api/admin/reports`,
   },
 
-  // MongoDB unified endpoints
-  MONGODB_UNIFIED: `${API_BASE_URL}/api/mongodb-unified`,
+  // Admin API endpoints
+  ADMIN_API: `${API_BASE_URL}/api/admin`,
 };
 
 // ============================================================================

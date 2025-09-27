@@ -1250,6 +1250,70 @@ const getProposalStats = async () => {
   }
 };
 
+/**
+ * Save uploaded file metadata into proposals table and audit tables
+ * Aligns with schema columns: gpoa_* and project_proposal_*
+ * Optionally records to proposal_files and file_uploads tables.
+ *
+ * @param {number} proposalId
+ * @param {Array} files - Multer files array (expects fieldname 'gpoaFile' and/or 'projectProposalFile')
+ * @param {Object} options
+ * @param {number} [options.uploadedBy] - User ID performing upload
+ * @returns {Promise<void>}
+ */
+const saveProposalFiles = async (proposalId, files = [], options = {}) => {
+  if (!proposalId || !Array.isArray(files) || files.length === 0) return;
+
+  // Extract files by expected field names
+  const gpoa = files.find(f => (f.fieldname || '').toLowerCase().includes('gpoa')) || null;
+  const proj = files.find(f => (f.fieldname || '').toLowerCase().includes('project') || (f.fieldname || '').toLowerCase().includes('proposal')) || null;
+
+  const updates = [];
+  const params = [];
+  let idx = 1;
+
+  if (gpoa) {
+    updates.push(`gpoa_file_name = $${idx++}`); params.push(gpoa.originalname || null);
+    updates.push(`gpoa_file_size = $${idx++}`); params.push(gpoa.size || null);
+    updates.push(`gpoa_file_type = $${idx++}`); params.push(gpoa.mimetype || null);
+    updates.push(`gpoa_file_path = $${idx++}`); params.push(gpoa.path || null);
+  }
+
+  if (proj) {
+    updates.push(`project_proposal_file_name = $${idx++}`); params.push(proj.originalname || null);
+    updates.push(`project_proposal_file_size = $${idx++}`); params.push(proj.size || null);
+    updates.push(`project_proposal_file_type = $${idx++}`); params.push(proj.mimetype || null);
+    updates.push(`project_proposal_file_path = $${idx++}`); params.push(proj.path || null);
+  }
+
+  if (updates.length === 0) return;
+
+  updates.push(`updated_at = CURRENT_TIMESTAMP`);
+  params.push(proposalId);
+
+  await query(`UPDATE proposals SET ${updates.join(', ')} WHERE id = $${idx}`, params);
+
+  // Optional: record to proposal_files and file_uploads if files exist
+  const uploadedBy = options.uploadedBy || null;
+
+  const insertProposalFiles = async (fileObj, fileType) => {
+    if (!fileObj) return;
+    await query(
+      `INSERT INTO proposal_files (proposal_id, uploaded_by, file_type, original_name, mimetype, size, gridfs_id, organization_id, section, purpose, is_deleted, uploaded_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NULL, NULL, $7, $8, false, CURRENT_TIMESTAMP)`,
+      [proposalId, uploadedBy, fileType, fileObj.originalname || null, fileObj.mimetype || null, fileObj.size || null, 'eventInformation', fileType]
+    );
+    await query(
+      `INSERT INTO file_uploads (proposal_id, uploaded_by, action, file_name, file_type, file_size, gridfs_id, ip_address, user_agent)
+       VALUES ($1, $2, 'upload', $3, $4, $5, NULL, NULL, NULL)`,
+      [proposalId, uploadedBy, fileObj.originalname || null, fileType, fileObj.size || null]
+    );
+  };
+
+  await insertProposalFiles(gpoa, 'gpoa');
+  await insertProposalFiles(proj, 'project_proposal');
+};
+
 // =============================================
 // EXPORT FUNCTIONS
 // =============================================
@@ -1260,6 +1324,7 @@ module.exports = {
   getProposalById,
   updateProposal,
   deleteProposal,
+  saveProposalFiles,
 
   // Section-based Functions
   saveSection2Data,

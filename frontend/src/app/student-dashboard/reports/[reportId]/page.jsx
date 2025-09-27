@@ -123,10 +123,9 @@ async function fetchReportData(reportId, token) {
 
     for (let i = 0; i < fallbackEndpoints.length; i++) {
         const endpoint = fallbackEndpoints[i];
-        const endpointName = endpoint.includes('mongodb-unified') ? 'MongoDB'
-            : endpoint.includes('debug') ? 'Debug'
-                : endpoint.includes('mysql') ? 'MySQL'
-                    : 'PostgreSQL';
+        const endpointName = endpoint.includes('debug') ? 'Debug'
+            : endpoint.includes('mysql') ? 'MySQL'
+                : 'PostgreSQL';
 
         try {
             console.log(`🔍 Server: Trying ${endpointName} endpoint (${i + 1}/${fallbackEndpoints.length}):`, endpoint);

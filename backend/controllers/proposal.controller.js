@@ -224,7 +224,11 @@ const createProposal = async (req, res) => {
     }
 
     try {
-        const proposal = await proposalService.createProposal(req.user, req.body, req.files);
+        const proposal = await proposalService.createProposal(req.body);
+        // Persist files metadata into proposals/proposal_files/file_uploads per schema
+        if (req.files && req.files.length) {
+            await proposalService.saveProposalFiles(proposal.id, req.files, { uploadedBy: req.user?.id });
+        }
         res.status(201).json(proposal);
     } catch (err) {
         console.error("Error creating proposal:", err.message);
@@ -340,7 +344,10 @@ const updateProposal = async (req, res) => {
     }
 
     try {
-        const proposal = await proposalService.updateProposal(req.params.id, req.user, req.body, req.files);
+        const proposal = await proposalService.updateProposal(req.params.id, req.body);
+        if (req.files && req.files.length) {
+            await proposalService.saveProposalFiles(req.params.id, req.files, { uploadedBy: req.user?.id });
+        }
         res.json(proposal);
     } catch (err) {
         console.error("Error updating proposal:", err.message);

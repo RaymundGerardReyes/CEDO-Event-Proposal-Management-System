@@ -7,7 +7,7 @@
 
 "use client";
 
-import { submitProposalForReview } from '@/services/proposal-service.js';
+import { saveProposal, submitProposalForReview, uploadProposalFiles } from '@/services/proposal-service.js';
 import {
     AlertCircle,
     Building2,
@@ -123,7 +123,38 @@ export default function StepProgram({ methods, onNext, onPrevious, isLastStep, o
         setSubmitMessage('');
 
         try {
-            console.log('🚀 Submitting proposal for review...');
+            console.log('💾 Saving proposal to database first...');
+
+            // First, save the proposal to the database
+            const saveResult = await saveProposal(eventUuid, watchedValues);
+
+            if (!saveResult.success) {
+                setSubmitStatus('error');
+                setSubmitMessage(saveResult.message || 'Failed to save proposal. Please try again.');
+                console.error('❌ Failed to save proposal:', saveResult.error);
+                return;
+            }
+
+            console.log('✅ Proposal saved successfully, now uploading files...');
+
+            // Upload files if they exist
+            if (watchedValues.gpoaFile || watchedValues.projectProposalFile) {
+                const uploadResult = await uploadProposalFiles(eventUuid, {
+                    gpoaFile: watchedValues.gpoaFile,
+                    projectProposalFile: watchedValues.projectProposalFile
+                });
+
+                if (!uploadResult.success) {
+                    console.warn('⚠️ File upload failed, but continuing with submission:', uploadResult.message);
+                    // Don't fail the entire process if file upload fails
+                } else {
+                    console.log('✅ Files uploaded successfully');
+                }
+            }
+
+            console.log('📤 Now submitting proposal for review...');
+
+            // Then submit the proposal for review
             const result = await submitProposalForReview(eventUuid);
 
             if (result.success) {
@@ -146,7 +177,7 @@ export default function StepProgram({ methods, onNext, onPrevious, isLastStep, o
         } catch (error) {
             setSubmitStatus('error');
             setSubmitMessage('An unexpected error occurred. Please try again.');
-            console.error('❌ Error submitting proposal:', error);
+            console.error('❌ Error in submission process:', error);
         } finally {
             setIsSubmitting(false);
         }
@@ -333,17 +364,17 @@ export default function StepProgram({ methods, onNext, onPrevious, isLastStep, o
                                 {isSubmitting ? (
                                     <>
                                         <Loader2 className="animate-spin h-5 w-5 mr-2" />
-                                        Submitting...
+                                        Saving, Uploading & Submitting...
                                     </>
                                 ) : (
                                     <>
                                         <Send className="h-5 w-5 mr-2" />
-                                        Submit for Review
+                                        Save, Upload & Submit for Review
                                     </>
                                 )}
                             </button>
                             <p className="mt-3 text-sm text-gray-500">
-                                By submitting, you confirm that all information is accurate and complete.
+                                This will save your proposal, upload attached files, and submit it for review. By submitting, you confirm that all information is accurate and complete.
                             </p>
                         </div>
                     </div>

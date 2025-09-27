@@ -81,7 +81,7 @@ const OverviewTab = ({ proposal }) => {
         try {
             const backendUrl = process.env.API_URL || 'http://localhost:5000';
             const response = await fetch(
-                `${backendUrl}/api/mongodb-unified/admin/proposals/download/${proposal.id}/${fileType}`,
+                `${backendUrl}/api/admin/proposals/download/${proposal.id}/${fileType}`,
                 {
                     method: 'GET',
                     headers: {
@@ -242,7 +242,7 @@ const OverviewTab = ({ proposal }) => {
             }
 
             // ✅ Use the new admin-specific endpoint with proper authentication
-            const response = await fetch(`${backendUrl}/api/mongodb-unified/admin/proposals/${proposal.id}/files`, {
+            const response = await fetch(`${backendUrl}/api/admin/proposals/${proposal.id}/files`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',

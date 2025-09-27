@@ -289,9 +289,9 @@ const useRecentProposals = () => {
       }
       setError(null);
 
-      // Use the hybrid API endpoint that combines MySQL + MongoDB
+      // Use the PostgreSQL API endpoint
       const backendUrl = 'http://localhost:5000'; // Direct backend URL
-      const apiUrl = `${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?limit=${pagination.limit}&page=${page}`;
+      const apiUrl = `${backendUrl}/api/admin/proposals?limit=${pagination.limit}&page=${page}`;
 
       console.log('🔍 [Frontend] Fetching proposals from:', apiUrl);
 
@@ -666,12 +666,12 @@ export default function DashboardPage() {
         <section className="proposals-section lg:col-span-2" aria-labelledby="proposals-heading">
           <Card className="cedo-card">
             <CardContent className="p-6">
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex justify-between items-center mb-6 relative z-20">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Proposals</h2>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Latest proposal submissions and reviews</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 relative z-20">
                   <Button
                     variant="outline"
                     size="sm"

@@ -71,7 +71,9 @@ async function getAdminProposals(queryParams) {
         event_start_time, event_end_time, event_mode, event_type,
         proposal_status, event_status, attendance_count,
         created_at, updated_at, admin_comments,
-        objectives, budget
+        objectives, budget,
+        gpoa_file_name, gpoa_file_size, gpoa_file_type, gpoa_file_path,
+        project_proposal_file_name, project_proposal_file_size, project_proposal_file_type, project_proposal_file_path
       FROM proposals 
       ${whereClause}
       ORDER BY created_at DESC

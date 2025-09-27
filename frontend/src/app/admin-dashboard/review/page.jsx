@@ -67,11 +67,11 @@ export default function ReviewPage() {
         if (backendUrl.endsWith('/api')) {
           backendUrl = backendUrl.replace(/\/api$/, '');
         }
-        // ✅ Use the MongoDB unified endpoint that includes file metadata
-        console.log('📊 Fetching proposals from:', `${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?limit=100`);
+        // ✅ Use the PostgreSQL endpoint that includes file metadata
+        console.log('📊 Fetching proposals from:', `${backendUrl}/api/admin/proposals?limit=100`);
 
         const token = getToken();
-        const res = await fetch(`${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?limit=100`, {
+        const res = await fetch(`${backendUrl}/api/admin/proposals?limit=100`, {
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',

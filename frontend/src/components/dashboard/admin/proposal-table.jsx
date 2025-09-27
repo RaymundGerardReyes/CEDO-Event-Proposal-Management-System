@@ -5,21 +5,9 @@ export const dynamic = 'force-dynamic';
 
 // Utility function to safely get file count
 const getSafeFileCount = (files) => {
-  // Handle null, undefined, or non-object values
   if (!files) return 0;
-
-  // Handle arrays
-  if (Array.isArray(files)) {
-    return files.length;
-  }
-
-  // Handle objects
-  if (typeof files === 'object') {
-    const count = Object.keys(files).length;
-    return isNaN(count) ? 0 : count;
-  }
-
-  // Handle other types (strings, numbers, etc.)
+  if (Array.isArray(files)) return files.length;
+  if (typeof files === 'object') return Object.keys(files).length;
   return 0;
 };
 
@@ -28,94 +16,6 @@ const formatFileCount = (files) => {
   const count = getSafeFileCount(files);
   return count === 0 ? 'No files' : `${count} file${count === 1 ? '' : 's'}`;
 };
-
-// Safe DOM className utility functions
-const safeClassCheck = (element, className) => {
-  try {
-    if (!element || !className) return false;
-
-    // Check if element has classList (modern approach)
-    if (element.classList && typeof element.classList.contains === 'function') {
-      return element.classList.contains(className);
-    }
-
-    // Fallback for className string check
-    if (typeof element.className === 'string') {
-      return element.className.includes(className);
-    }
-
-    // Handle DOMTokenList
-    if (element.className && element.className.toString) {
-      return element.className.toString().includes(className);
-    }
-
-    return false;
-  } catch (error) {
-    console.warn('Safe class check error:', error);
-    return false;
-  }
-};
-
-// Safe resolve/reject functions
-const safeResolve = (value) => {
-  if (currentSignInPromiseActions && currentSignInPromiseActions.resolve) {
-    currentSignInPromiseActions.resolve(value);
-    currentSignInPromiseActions = null;
-  }
-};
-
-const safeReject = (error) => {
-  if (currentSignInPromiseActions && currentSignInPromiseActions.reject) {
-    currentSignInPromiseActions.reject(error);
-    currentSignInPromiseActions = null;
-  }
-};
-
-// Utility functions for error handling
-const getGoogleClientId = () => {
-  if (typeof window !== 'undefined' && window.__TEST_GOOGLE_CLIENT_ID__) {
-    return window.__TEST_GOOGLE_CLIENT_ID__;
-  }
-  return process.env.GOOGLE_CLIENT_ID;
-};
-
-const extractErrorMessage = (response) => {
-  if (response.error_description) {
-    return response.error_description;
-  }
-  if (response.error) {
-    return `Google OAuth Error: ${response.error}`;
-  }
-  return 'Unknown Google OAuth error occurred';
-};
-
-const getDefaultErrorMessage = () => {
-  return 'Google sign-in was cancelled or failed. Please try again.';
-};
-
-// Initialize promise actions variable
-let currentSignInPromiseActions = null;
-
-// Enhanced error boundary for DOM operations
-if (typeof window !== 'undefined') {
-  // Override problematic DOM operations
-  const originalAddEventListener = EventTarget.prototype.addEventListener;
-  EventTarget.prototype.addEventListener = function (type, listener, options) {
-    try {
-      return originalAddEventListener.call(this, type, listener, options);
-    } catch (error) {
-      console.warn('EventListener error handled:', error);
-    }
-  };
-
-  // Handle unhandled promise rejections
-  window.addEventListener('unhandledrejection', (event) => {
-    if (event.reason && event.reason.message && event.reason.message.includes('className')) {
-      event.preventDefault();
-      console.warn('DOM className error prevented:', event.reason);
-    }
-  });
-}
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -151,7 +51,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { getAppConfig } from "@/lib/utils";
-import { robustFetch } from '@/utils/api';
+import { createAuthHeaders, getAuthToken } from '@/utils/auth-utils';
 import {
   Calendar,
   CheckCircle,
@@ -168,14 +68,6 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-// Debounce function
-const debounce = (func, delay) => {
-  let timeout;
-  return (...args) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), delay);
-  };
-};
 
 const statusColors = {
   pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
@@ -214,7 +106,7 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
     toastRef.current = toast
   }, [toast])
 
-  // ✅ Test function to verify backend connection and API endpoints
+  // Test function to verify backend connection
   const testBackendConnection = async () => {
     try {
       const backendUrl = getAppConfig().backendUrl
@@ -227,31 +119,8 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
       console.log('📡 Backend URL:', backendUrl)
       console.log('🔑 Token exists:', !!token)
 
-      // Test basic connectivity
       const healthResponse = await fetch(`${backendUrl}/api/health`)
       console.log('❤️ Health check:', healthResponse.status, healthResponse.statusText)
-
-      if (token) {
-        // Test auth endpoint
-        const authResponse = await fetch(`${backendUrl}/api/auth/me`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        console.log('🔐 Auth check:', authResponse.status, authResponse.statusText)
-
-        // Test proposals endpoint
-        const proposalsResponse = await fetch(`${backendUrl}/api/admin/proposals?limit=1`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        })
-        console.log('📋 Proposals endpoint:', proposalsResponse.status, proposalsResponse.statusText)
-
-        if (proposalsResponse.ok) {
-          const data = await proposalsResponse.json()
-          console.log('📋 Sample proposal data:', data.proposals?.[0])
-        }
-      }
 
       toast({
         title: "Backend Connection Test",
@@ -270,6 +139,8 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
 
   // ✅ Ref to track if component is mounted (prevent state updates after unmount)
   const isMountedRef = useRef(true);
+  const isFetchingRef = useRef(false);
+
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -293,19 +164,7 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
     });
   }, [proposals, searchTerm, statusFilter]);
 
-  // Cache for preventing duplicate requests
-  const requestCache = useMemo(() => new Map(), []);
-
-  const createCacheKey = (page, status, search) => {
-    return `${page}-${status}-${search}`;
-  };
-
-  const isRequestInFlight = (cacheKey) => {
-    const cached = requestCache.get(cacheKey);
-    return cached && (Date.now() - cached.timestamp) < 5000; // 5 second cache
-  };
-
-  // ✅ Fixed debounced search term implementation
+  // Simple search term state
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
 
   useEffect(() => {
@@ -318,19 +177,12 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
     };
   }, [searchTerm]);
 
-  // Fetch proposals from the backend API
+  // Simplified fetch proposals function
   const fetchProposals = useCallback(async () => {
-    if (!isMountedRef.current) return;
+    if (!isMountedRef.current || isFetchingRef.current) return;
 
-    const cacheKey = createCacheKey(currentPage, statusFilter, debouncedSearchTerm);
-
-    if (isRequestInFlight(cacheKey)) {
-      console.log('🚫 Request already in flight, skipping:', cacheKey);
-      return;
-    }
-
+    isFetchingRef.current = true;
     setLoading(true);
-    requestCache.set(cacheKey, { timestamp: Date.now() });
 
     try {
       // Get authentication token from cookies
@@ -341,6 +193,7 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
 
       if (!token) {
         console.warn('No authentication token found for fetching proposals');
+        setLoading(false);
         return;
       }
 
@@ -352,67 +205,37 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
         ...(debouncedSearchTerm && { search: debouncedSearchTerm }),
       }).toString()
 
-      // ✅ Use hybrid API endpoint that combines MySQL + MongoDB
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
-      const apiUrl = `${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?${queryParams}`
-      console.log('📊 Fetching proposals from hybrid API:', apiUrl)
-      console.log('📊 Query params:', { currentPage, statusFilter, debouncedSearchTerm })
+      const backendUrl = getAppConfig().backendUrl
+      const apiUrl = `${backendUrl}/api/admin/proposals?${queryParams}`
+      console.log('📊 Fetching proposals:', apiUrl)
 
-      const response = await robustFetch(apiUrl, {
+      const response = await fetch(apiUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-      }, {
-        toastMessage: 'Failed to fetch proposals.',
-        toast: toastRef.current, // or your toast instance
-        sentryContext: { feature: 'AdminProposalTable' }
       });
 
-      console.log('📡 Frontend API response:', response.status, response.statusText)
-
       if (!response.ok) {
-        const errorText = await response.text()
-        console.error('❌ Frontend API error:', response.status, response.statusText, errorText)
-        if (response.status === 429) {
-          toastRef.current({
-            title: "Too Many Requests",
-            description: "You're searching too quickly. Please wait a moment.",
-            variant: "destructive"
-          });
-        } else if (response.status === 401) {
-          toastRef.current({
-            title: "Authentication Failed",
-            description: "Please sign in again to continue.",
-            variant: "destructive"
-          });
-        } else {
-          throw new Error(`API request failed: ${response.status} - ${response.statusText}`)
-        }
-        return; // Stop execution if response is not ok
+        throw new Error(`API request failed: ${response.status} - ${response.statusText}`)
       }
 
       const result = await response.json();
 
       if (!isMountedRef.current) return;
 
-      console.log('📊 Raw API response data:', result)
-
       if (result.success) {
         const rawProposals = result.proposals || []
         const pagination = result.pagination || {}
 
-        // ✅ Normalize proposal data to ensure consistent field mapping
+        // Normalize proposal data
         const normalizedProposals = rawProposals.map(proposal => ({
           ...proposal,
-          // Ensure status field consistency (backend uses 'proposal_status', frontend expects 'status')
           status: proposal.status || proposal.proposal_status || 'pending',
           proposal_status: proposal.proposal_status || proposal.status || 'pending',
-          // Ensure admin comments field consistency
           adminComments: proposal.adminComments || proposal.admin_comments || '',
           admin_comments: proposal.admin_comments || proposal.adminComments || '',
-          // Normalize other common fields
           eventName: proposal.eventName || proposal.event_name || proposal.event_title || '',
           contactPerson: proposal.contactPerson || proposal.contact_person || proposal.contact_name || '',
           contactEmail: proposal.contactEmail || proposal.contact_email || '',
@@ -427,19 +250,31 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
           eventMode: proposal.eventMode || proposal.event_mode || '',
           submittedAt: proposal.submittedAt || proposal.submitted_at || proposal.created_at || '',
           updatedAt: proposal.updatedAt || proposal.updated_at || '',
-          // Check if proposal has files
           hasFiles: !!(proposal.files && Object.keys(proposal.files).length > 0) ||
-            !!(proposal.school_gpoa_file_name || proposal.school_proposal_file_name ||
-              proposal.community_gpoa_file_name || proposal.community_proposal_file_name ||
-              proposal.accomplishment_report_file_name || proposal.pre_registration_file_name ||
-              proposal.final_attendance_file_name)
+            !!(proposal.gpoa_file_name || proposal.project_proposal_file_name),
+          files: {
+            ...(proposal.gpoa_file_name && {
+              gpoa: {
+                name: proposal.gpoa_file_name,
+                size: proposal.gpoa_file_size,
+                type: proposal.gpoa_file_type,
+                path: proposal.gpoa_file_path
+              }
+            }),
+            ...(proposal.project_proposal_file_name && {
+              projectProposal: {
+                name: proposal.project_proposal_file_name,
+                size: proposal.project_proposal_file_size,
+                type: proposal.project_proposal_file_type,
+                path: proposal.project_proposal_file_path
+              }
+            })
+          }
         }))
 
         setProposals(normalizedProposals)
         setPagination(pagination)
         console.log('✅ Proposals fetched successfully:', normalizedProposals.length)
-        console.log('📊 Sample normalized proposal data:', normalizedProposals[0])
-        console.log('📊 Pagination data:', pagination)
       } else {
         console.error('❌ Error fetching proposals:', result.error)
         if (isMountedRef.current) {
@@ -453,41 +288,33 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
     } catch (error) {
       console.error('❌ Fetch error:', error)
       if (isMountedRef.current) {
-        // ✅ Better error handling for rate limiting
-        if (error.message && error.message.includes('429')) {
-          toastRef.current({
-            title: "Rate Limited",
-            description: "Too many requests. Please wait a moment before trying again.",
-            variant: "destructive"
-          })
-        } else {
-          toastRef.current({
-            title: "Error",
-            description: "Failed to connect to server. Please check if the backend is running.",
-            variant: "destructive"
-          })
-        }
+        toastRef.current({
+          title: "Error",
+          description: "Failed to connect to server. Please check if the backend is running.",
+          variant: "destructive"
+        })
       }
     } finally {
-      requestCache.delete(cacheKey);
+      isFetchingRef.current = false;
       if (isMountedRef.current) {
         setLoading(false);
       }
     }
   }, [currentPage, debouncedSearchTerm, statusFilter])
 
-  // Debounced fetch function
-  const debouncedFetchProposals = useCallback(
-    debounce(() => {
-      fetchProposals();
-    }, 300),
-    [fetchProposals]
-  );
+  // Initial fetch on component mount
+  useEffect(() => {
+    fetchProposals();
+  }, [])
 
   // Effect to fetch proposals when page, filter, or debounced search term changes
   useEffect(() => {
-    debouncedFetchProposals()
-  }, [debouncedFetchProposals])
+    const timeoutId = setTimeout(() => {
+      fetchProposals();
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [currentPage, debouncedSearchTerm, statusFilter])
 
   // ✅ Enhanced proposal status update with comment support and improved error handling
   const updateProposalStatus = async (proposalId, newStatus, adminComments = '') => {
@@ -665,7 +492,7 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
 
       // ✅ Fallback: Re-fetch all proposals and find the updated one
       console.log('🔄 Fallback: Re-fetching all proposals to get updated data')
-      const allProposalsResponse = await fetch(`${backendUrl}/api/mongodb-unified/admin/proposals-hybrid?limit=100`, {
+      const allProposalsResponse = await fetch(`${backendUrl}/api/admin/proposals?limit=100`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -703,11 +530,21 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
     updateProposalStatus(selectedProposal.id, "rejected", rejectionComment.trim())
   }
 
-  // ✅ Simple MongoDB GridFS file download
+  // Simplified file download function
   const downloadFile = async (proposalId, fileType) => {
     try {
       const backendUrl = getAppConfig().backendUrl
       console.log(`🔍 Downloading ${fileType} for proposal ${proposalId}`)
+
+      const token = getAuthToken();
+      if (!token) {
+        toast({
+          title: "Authentication Error",
+          description: "Please sign in again to download files",
+          variant: "destructive"
+        });
+        return;
+      }
 
       toast({
         title: "Downloading...",
@@ -715,7 +552,15 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
         variant: "default"
       })
 
-      const response = await fetch(`${backendUrl}/api/mongodb-unified/admin/proposals/download/${proposalId}/${fileType}`)
+      const headers = createAuthHeaders({
+        'Accept': 'application/octet-stream, application/pdf, */*'
+      });
+
+      const response = await fetch(`${backendUrl}/api/admin/proposals/${proposalId}/download/${fileType}`, {
+        method: 'GET',
+        headers: headers,
+        credentials: 'include'
+      })
 
       if (response.ok) {
         const blob = await response.blob()
@@ -733,9 +578,22 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
         })
       } else {
         const errorData = await response.json().catch(() => ({}))
+        let errorMessage = "File not found"
+        if (response.status === 401) {
+          errorMessage = "Authentication failed. Please sign in again."
+        } else if (response.status === 404) {
+          errorMessage = "File not found or proposal doesn't exist"
+        } else if (response.status === 500) {
+          errorMessage = "Server error occurred while downloading file"
+        } else if (errorData.error) {
+          errorMessage = errorData.error
+        } else if (errorData.message) {
+          errorMessage = errorData.message
+        }
+
         toast({
           title: "Download Failed",
-          description: errorData.error || "File not found",
+          description: errorMessage,
           variant: "destructive"
         })
       }
@@ -823,7 +681,7 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
         <Card className="border-l-4 border-l-green-500 shadow-sm">
           <CardContent className="p-3 sm:p-4">
             <div className="flex flex-col @sm:flex-row @sm:items-center gap-3">
-              <div className="relative flex-1 min-w-0">
+              <div className="relative flex-1 min-w-0 z-20">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
                 <Input
                   placeholder="Search by event, contact, email..."
@@ -1472,7 +1330,7 @@ export const ProposalTable = ({ statusFilter = 'all' }) => {
                               <div className="min-w-0">
                                 <p className="font-semibold text-gray-900 text-sm @sm:text-base break-words">
                                   {fileType === "gpoa" ? "General Plan of Action" :
-                                    fileType === "proposal" ? "Project Proposal" :
+                                    fileType === "projectProposal" ? "Project Proposal" :
                                       fileType === "accomplishmentReport" ? "Accomplishment Report" :
                                         fileType.charAt(0).toUpperCase() + fileType.slice(1)}
                                 </p>

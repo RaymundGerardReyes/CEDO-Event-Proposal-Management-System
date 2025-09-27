@@ -52,10 +52,7 @@
     "**/*.jsx",
     ".next/types/**/*.ts",
     ".babel.config.js",
-    "vitest.config.js",
-    "--jestxx234/js",
-    "jest.setup/js",
-    "jest=setup=js"
+    "vitest.config.js"
   ],
   "exclude": [
     "node_modules",

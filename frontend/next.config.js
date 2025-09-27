@@ -11,33 +11,18 @@ const nextConfig = {
   // Enable compression for better performance
   compress: true,
 
-  // Server external packages
-  serverExternalPackages: ["axios", "jose", "react-google-recaptcha"],
-
   // PRODUCTION OPTIMIZATIONS
   productionBrowserSourceMaps: false,
   poweredByHeader: false,
   generateEtags: true,
 
-  // ✅ FIXED: Simplified experimental features - removed problematic font handling
+  // ✅ FIXED: Turbopack-compatible experimental features
   experimental: {
-    // Only enable stable features
+    // Only enable stable features that work with Turbopack
     scrollRestoration: true,
 
-    // ✅ CRITICAL: Disable problematic features that cause font loading issues
-    optimizeCss: false,
-    cssChunking: false,
-  },
-
-  // ✅ FIXED: Moved Turbopack configuration to the correct location
-  turbopack: {
-    // Minimal Turbopack configuration without font handling
-    rules: {
-      '*.svg': {
-        loaders: ['@svgr/webpack'],
-        as: '*.js',
-      },
-    },
+    // ✅ CRITICAL: Removed unsupported options for Turbopack compatibility
+    // Removed: optimizeCss, cssChunking, serverExternalPackages
   },
 
   // ENHANCED Image optimization
@@ -86,7 +71,7 @@ const nextConfig = {
   // TypeScript configuration
   typescript: { ignoreBuildErrors: true },
 
-  // Environment variables
+  // Environment variables - Fixed for Turbopack compatibility
   env: {
     APP_ENV: process.env.NODE_ENV || "development",
     BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || "http://localhost:5000",
@@ -94,7 +79,8 @@ const nextConfig = {
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
     RECAPTCHA_SITE_KEY: process.env.RECAPTCHA_SITE_KEY,
     JWT_SECRET_DEV: process.env.JWT_SECRET_DEV,
-    JWT_SECRET: process.env.JWT_SECRET,
+    // ✅ FIXED: Provide default JWT_SECRET for development
+    JWT_SECRET: process.env.JWT_SECRET || process.env.JWT_SECRET_DEV || "dev-secret-key-change-in-production",
     SESSION_TIMEOUT_MINUTES: (() => {
       const raw = process.env.SESSION_TIMEOUT_MINUTES;
       const parsed = parseInt(raw, 10);
@@ -106,6 +92,24 @@ const nextConfig = {
     })(),
     DISABLE_GOOGLE_SIGNIN_IN_DEV: process.env.NODE_ENV === 'development' ? 'true' : 'false',
     ENABLE_DOM_ERROR_RECOVERY: 'true',
+  },
+
+  // API Proxy Configuration for Independent Development
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'}/api/:path*`,
+      },
+      {
+        source: '/auth/:path*',
+        destination: `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'}/auth/:path*`,
+      },
+      {
+        source: '/uploads/:path*',
+        destination: `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'}/uploads/:path*`,
+      },
+    ];
   },
 
   // Build directory

@@ -245,11 +245,26 @@ app.use(passport.session());
 // Configure body parser with increased limits for large file uploads
 // Only parse JSON for non-multipart requests
 app.use((req, res, next) => {
-  if (req.headers['content-type'] && req.headers['content-type'].includes('application/json')) {
-    express.json({ limit: '50mb' })(req, res, next);
-  } else {
-    next();
+  const ct = req.headers['content-type'] || '';
+  const cl = req.headers['content-length'] || '';
+  // Skip JSON parsing for empty bodies to avoid "Unexpected token" errors
+  if (ct.includes('application/json') && cl !== '0') {
+    return express.json({ limit: '50mb' })(req, res, (err) => {
+      if (err) return next(err);
+      return next();
+    });
   }
+  return next();
+});
+
+// Lenient JSON parse error handler: default to empty body for drafts endpoints
+app.use((err, req, res, next) => {
+  if (err && err.type === 'entity.parse.failed') {
+    console.warn('⚠️ Lenient JSON parsing: defaulting empty req.body for invalid JSON');
+    req.body = {};
+    return next();
+  }
+  return next(err);
 });
 
 // Parse URL-encoded data (only for non-multipart requests)
@@ -260,6 +275,57 @@ app.use((req, res, next) => {
     express.urlencoded({ extended: true, limit: '50mb' })(req, res, next);
   }
 });
+
+// ==============================
+// File Upload Middleware Configuration
+// ==============================
+// Configure multer for handling file uploads globally
+const multer = require('multer');
+const fs = require('fs').promises;
+
+// Configure multer storage
+const storage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    const uploadDir = path.join(__dirname, 'uploads/proposals');
+    try {
+      await fs.mkdir(uploadDir, { recursive: true });
+      cb(null, uploadDir);
+    } catch (error) {
+      cb(error);
+    }
+  },
+  filename: (req, file, cb) => {
+    const timestamp = Date.now();
+    const ext = path.extname(file.originalname);
+    const filename = `${file.fieldname}_${timestamp}${ext}`;
+    cb(null, filename);
+  }
+});
+
+// Configure multer for file uploads
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+    files: 2 // Maximum 2 files
+  },
+  fileFilter: (req, file, cb) => {
+    // Allow PDF, DOC, DOCX files
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only PDF, Word, and DOCX files are allowed.'));
+    }
+  }
+});
+
+// Note: Multer middleware is applied per-route, not globally
+// This prevents conflicts with route-specific multer configurations
 app.use(morgan("dev")) // Logs HTTP requests in development mode
 
 // ==============================
@@ -490,7 +556,7 @@ app.use("/api/users", userRoutes)
 // ** Draft Management **
 // ✅ New drafts router - MUST BE BEFORE PROPOSALS ROUTE
 const draftsRouter = require('./routes/drafts');
-app.use('/api', draftsRouter);
+app.use('/api/drafts', draftsRouter);
 
 // ** Core Application Routes **
 app.use("/api/events", require("./routes/events"))

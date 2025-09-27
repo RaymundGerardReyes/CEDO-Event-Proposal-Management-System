@@ -6,28 +6,55 @@ const getProposalsForAdmin = async (req, res) => {
         const { proposals, totalCount, limit, page } = await adminService.getAdminProposals(req.query);
 
         const totalPages = Math.ceil(totalCount / limit);
-        const formattedProposals = proposals.map(proposal => ({
-            id: proposal.id,
-            eventName: proposal.event_name || proposal.organization_name,
-            venue: proposal.event_venue,
-            organization: proposal.organization_name,
-            submittedAt: proposal.created_at,
-            startDate: proposal.event_start_date,
-            status: proposal.proposal_status,
-            contactPerson: proposal.contact_name,
-            contactEmail: proposal.contact_email,
-            contactPhone: proposal.contact_phone,
-            organizationType: proposal.organization_type,
-            eventType: proposal.event_type,
-            description: proposal.organization_description,
-            expectedParticipants: proposal.attendance_count || 0,
-            intendedGoal: proposal.objectives,
-            requiredResources: proposal.budget || 0,
-            eventStatus: proposal.event_status,
-            adminComments: proposal.admin_comments,
-            files: proposal.files || {},
-            updatedAt: proposal.updated_at
-        }));
+        const formattedProposals = proposals.map(proposal => {
+            // Check if files exist based on file columns
+            const hasGpoa = !!(proposal.gpoa_file_name && proposal.gpoa_file_name.trim());
+            const hasProjectProposal = !!(proposal.project_proposal_file_name && proposal.project_proposal_file_name.trim());
+            const hasFiles = hasGpoa || hasProjectProposal;
+
+            // Build files object
+            const files = {};
+            if (hasGpoa) {
+                files.gpoa = {
+                    name: proposal.gpoa_file_name,
+                    size: proposal.gpoa_file_size,
+                    type: proposal.gpoa_file_type,
+                    path: proposal.gpoa_file_path
+                };
+            }
+            if (hasProjectProposal) {
+                files.projectProposal = {
+                    name: proposal.project_proposal_file_name,
+                    size: proposal.project_proposal_file_size,
+                    type: proposal.project_proposal_file_type,
+                    path: proposal.project_proposal_file_path
+                };
+            }
+
+            return {
+                id: proposal.id,
+                eventName: proposal.event_name || proposal.organization_name,
+                venue: proposal.event_venue,
+                organization: proposal.organization_name,
+                submittedAt: proposal.created_at,
+                startDate: proposal.event_start_date,
+                status: proposal.proposal_status,
+                contactPerson: proposal.contact_name,
+                contactEmail: proposal.contact_email,
+                contactPhone: proposal.contact_phone,
+                organizationType: proposal.organization_type,
+                eventType: proposal.event_type,
+                description: proposal.organization_description,
+                expectedParticipants: proposal.attendance_count || 0,
+                intendedGoal: proposal.objectives,
+                requiredResources: proposal.budget || 0,
+                eventStatus: proposal.event_status,
+                adminComments: proposal.admin_comments,
+                hasFiles: hasFiles,
+                files: files,
+                updatedAt: proposal.updated_at
+            };
+        });
 
         res.json({
             success: true,

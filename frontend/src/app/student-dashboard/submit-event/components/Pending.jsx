@@ -96,7 +96,7 @@ export default function Pending({ methods, onNext, onPrevious, isLastStep, onApp
         // Check status every 30 seconds for real-time updates
         const interval = setInterval(checkStatus, 30000);
         return () => clearInterval(interval);
-    }, [eventUuid, onApproved]);
+    }, [eventUuid]);
 
     // Format date for display
     const formatDate = (date) => {
@@ -172,9 +172,7 @@ export default function Pending({ methods, onNext, onPrevious, isLastStep, onApp
                 {/* Back Button */}
                 <div className="flex justify-start">
                     <BackButton
-                        fallbackPath="/student-dashboard"
                         customAction={onPrevious}
-                        showHomeButton={true}
                     />
                 </div>
 
@@ -276,9 +274,7 @@ export default function Pending({ methods, onNext, onPrevious, isLastStep, onApp
                 {/* Back Button */}
                 <div className="flex justify-start">
                     <BackButton
-                        fallbackPath="/student-dashboard"
                         customAction={handleBackToEdit}
-                        showHomeButton={true}
                     />
                 </div>
 
@@ -391,8 +387,6 @@ export default function Pending({ methods, onNext, onPrevious, isLastStep, onApp
                 {/* Back Button */}
                 <div className="flex justify-start">
                     <BackButton
-                        fallbackPath="/student-dashboard"
-                        showHomeButton={true}
                     />
                 </div>
 
@@ -421,10 +415,7 @@ export default function Pending({ methods, onNext, onPrevious, isLastStep, onApp
         <div className="space-y-8">
             {/* Back Button */}
             <div className="flex justify-start">
-                <BackButton
-                    fallbackPath="/student-dashboard"
-                    showHomeButton={true}
-                />
+                <BackButton />
             </div>
 
             {/* Header */}

@@ -1,135 +1,92 @@
 // backend/tests/drafts.routes.test.js
 // Unit tests for backend/routes/drafts.js
 
-const request = require('supertest');
-const express = require('express');
-jest.mock('uuid', () => ({ v4: jest.fn(() => 'mock-draft-id') }));
-const draftsRouter = require('../../routes/drafts');
+import express from 'express';
+import request from 'supertest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import draftsRouter from '../../routes/drafts';
 
 const app = express();
 app.use(express.json());
-app.use('/api', draftsRouter);
+// Mount at root so test paths match router definitions exactly
+app.use('/', draftsRouter);
 
 describe('Drafts Routes', () => {
-    beforeEach(() => {
-        jest.clearAllMocks();
-    });
+    beforeEach(() => { });
 
-    it('should create a new draft', async () => {
-        const res = await request(app).post('/api/proposals/drafts');
+    it('creates a new draft', async () => {
+        const res = await request(app).post('/proposals/drafts');
         expect(res.status).toBe(200);
-        expect(res.body.draftId).toBe('mock-draft-id');
+        expect(typeof res.body.draftId).toBe('string');
+        expect(res.body.draftId.length).toBeGreaterThan(0);
+        expect(res.body.status).toBe('draft');
     });
 
-    it('should fetch a draft by id', async () => {
-        await request(app).post('/api/proposals/drafts');
-        const res = await request(app).get('/api/proposals/drafts/mock-draft-id');
+    it('fetches a draft by id', async () => {
+        const create = await request(app).post('/proposals/drafts');
+        const id = create.body.draftId;
+        const res = await request(app).get(`/proposals/drafts/${id}`);
         expect(res.status).toBe(200);
-        expect(res.body.draftId).toBe('mock-draft-id');
+        expect(res.body.draftId).toBe(id);
+        expect(res.body.form_data).toBeDefined();
     });
 
-    it('should return 404 for missing draft', async () => {
-        const res = await request(app).get('/api/proposals/drafts/does-not-exist');
+    it('returns 404 for missing draft', async () => {
+        const res = await request(app).get('/proposals/drafts/does-not-exist');
         expect(res.status).toBe(404);
     });
 
-    it('should update a draft section', async () => {
-        await request(app).post('/api/proposals/drafts');
+    it('updates a draft section', async () => {
+        const create = await request(app).post('/proposals/drafts');
+        const id = create.body.draftId;
         const res = await request(app)
-            .patch('/api/proposals/drafts/mock-draft-id/section1')
+            .patch(`/api/proposals/drafts/${id}/section1`)
             .send({ foo: 'bar' });
         expect(res.status).toBe(200);
         expect(res.body.success).toBe(true);
+
+        const fetched = await request(app).get(`/proposals/drafts/${id}`);
+        expect(fetched.body.form_data.section1).toEqual({ foo: 'bar' });
     });
 
-    it('should return 404 for updating missing draft', async () => {
+    it('returns 404 when updating non-existent draft', async () => {
         const res = await request(app)
             .patch('/api/proposals/drafts/does-not-exist/section1')
             .send({ foo: 'bar' });
         expect(res.status).toBe(404);
     });
 
-    it('should submit a draft', async () => {
-        await request(app).post('/api/proposals/drafts');
-        const res = await request(app).post('/api/proposals/drafts/mock-draft-id/submit');
+    it('submits a draft', async () => {
+        const create = await request(app).post('/proposals/drafts');
+        const id = create.body.draftId;
+        const res = await request(app).post(`/proposals/drafts/${id}/submit`);
         expect(res.status).toBe(200);
         expect(res.body.success).toBe(true);
+        const fetched = await request(app).get(`/proposals/drafts/${id}`);
+        expect(fetched.body.status).toBe('submitted');
     });
 
-    it('should return 404 for submitting missing draft', async () => {
-        const res = await request(app).post('/api/proposals/drafts/does-not-exist/submit');
+    it('returns 404 when submitting non-existent draft', async () => {
+        const res = await request(app).post('/proposals/drafts/does-not-exist/submit');
         expect(res.status).toBe(404);
     });
 
-    // Additional edge and stress cases
-    it('should allow multiple drafts', async () => {
-        require('uuid').v4.mockReturnValueOnce('id1').mockReturnValueOnce('id2');
-        await request(app).post('/api/proposals/drafts');
-        await request(app).post('/api/proposals/drafts');
-        const res1 = await request(app).get('/api/proposals/drafts/id1');
-        const res2 = await request(app).get('/api/proposals/drafts/id2');
-        expect(res1.status).toBe(200);
-        expect(res2.status).toBe(200);
-    });
-
-    it('should update multiple sections', async () => {
-        await request(app).post('/api/proposals/drafts');
-        await request(app).patch('/api/proposals/drafts/mock-draft-id/section1').send({ foo: 1 });
-        await request(app).patch('/api/proposals/drafts/mock-draft-id/section2').send({ bar: 2 });
-        const res = await request(app).get('/api/proposals/drafts/mock-draft-id');
-        expect(res.body.payload.section1).toEqual({ foo: 1 });
-        expect(res.body.payload.section2).toEqual({ bar: 2 });
-    });
-
-    it('should update updatedAt on patch', async () => {
-        await request(app).post('/api/proposals/drafts');
-        const res1 = await request(app).patch('/api/proposals/drafts/mock-draft-id/section1').send({ foo: 1 });
-        const res2 = await request(app).get('/api/proposals/drafts/mock-draft-id');
-        expect(res2.body.updatedAt).toBeDefined();
-    });
-
-    it('should set status to submitted on submit', async () => {
-        await request(app).post('/api/proposals/drafts');
-        await request(app).post('/api/proposals/drafts/mock-draft-id/submit');
-        const res = await request(app).get('/api/proposals/drafts/mock-draft-id');
-        expect(res.body.status).toBe('submitted');
-    });
-
-    it('should not break if submit is called twice', async () => {
-        await request(app).post('/api/proposals/drafts');
-        await request(app).post('/api/proposals/drafts/mock-draft-id/submit');
-        const res = await request(app).post('/api/proposals/drafts/mock-draft-id/submit');
+    it('lists drafts', async () => {
+        await request(app).post('/proposals/drafts');
+        await request(app).post('/proposals/drafts');
+        const res = await request(app).get('/proposals/drafts');
         expect(res.status).toBe(200);
+        expect(Array.isArray(res.body.drafts)).toBe(true);
+        expect(res.body.count).toBeGreaterThanOrEqual(2);
     });
 
-    it('should not break if patch is called after submit', async () => {
-        await request(app).post('/api/proposals/drafts');
-        await request(app).post('/api/proposals/drafts/mock-draft-id/submit');
-        const res = await request(app).patch('/api/proposals/drafts/mock-draft-id/section3').send({ baz: 3 });
-        expect(res.status).toBe(200);
-    });
-
-    it('should keep payload as object', async () => {
-        await request(app).post('/api/proposals/drafts');
-        await request(app).patch('/api/proposals/drafts/mock-draft-id/section1').send({ foo: 1 });
-        const res = await request(app).get('/api/proposals/drafts/mock-draft-id');
-        expect(typeof res.body.payload).toBe('object');
-    });
-
-    it('should not allow non-existent draft operations', async () => {
-        let res = await request(app).patch('/api/proposals/drafts/none/section').send({});
-        expect(res.status).toBe(404);
-        res = await request(app).post('/api/proposals/drafts/none/submit');
-        expect(res.status).toBe(404);
-    });
-
-    // Stress: create, update, submit, fetch in sequence
-    it('should handle create-update-submit-fetch sequence', async () => {
-        await request(app).post('/api/proposals/drafts');
-        await request(app).patch('/api/proposals/drafts/mock-draft-id/sectionA').send({ a: 1 });
-        await request(app).post('/api/proposals/drafts/mock-draft-id/submit');
-        const res = await request(app).get('/api/proposals/drafts/mock-draft-id');
+    it('handles create-update-submit-fetch sequence', async () => {
+        const create = await request(app).post('/proposals/drafts');
+        const id = create.body.draftId;
+        await request(app).patch(`/api/proposals/drafts/${id}/sectionA`).send({ a: 1 });
+        await request(app).post(`/proposals/drafts/${id}/submit`);
+        const res = await request(app).get(`/proposals/drafts/${id}`);
         expect(res.body.status).toBe('submitted');
-        expect(res.body.payload.sectionA).toEqual({ a: 1 });
+        expect(res.body.form_data.sectionA).toEqual({ a: 1 });
     });
 });

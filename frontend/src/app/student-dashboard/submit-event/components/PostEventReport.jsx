@@ -149,7 +149,6 @@ export default function PostEventReport({ onBack, onNavigateToReports }) {
             {/* Back Button */}
             <div className="flex justify-start">
                 <BackButton
-                    fallbackPath="/student-dashboard"
                     customAction={onBack}
                     showHomeButton={true}
                 />

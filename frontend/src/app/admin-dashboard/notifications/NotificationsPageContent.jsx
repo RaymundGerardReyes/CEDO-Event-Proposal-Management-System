@@ -243,7 +243,7 @@ export default function NotificationsPageContent() {
                                             <SelectTrigger className="h-12 sm:h-14 text-sm sm:text-base border-gray-300 focus:border-cedo-blue focus:ring-cedo-blue/20 rounded-xl">
                                                 <SelectValue placeholder="Status" />
                                             </SelectTrigger>
-                                            <SelectContent>
+                                            <SelectContent className="z-[9999]">
                                                 <SelectItem value="all">All Status</SelectItem>
                                                 <SelectItem value="unread">Unread</SelectItem>
                                                 <SelectItem value="read">Read</SelectItem>
@@ -257,7 +257,7 @@ export default function NotificationsPageContent() {
                                             <SelectTrigger className="h-12 sm:h-14 text-sm sm:text-base border-gray-300 focus:border-cedo-blue focus:ring-cedo-blue/20 rounded-xl">
                                                 <SelectValue placeholder="Type" />
                                             </SelectTrigger>
-                                            <SelectContent>
+                                            <SelectContent className="z-[9999]">
                                                 <SelectItem value="all">All Types</SelectItem>
                                                 <SelectItem value="proposal">Proposals</SelectItem>
                                                 <SelectItem value="event">Events</SelectItem>
@@ -379,7 +379,7 @@ export default function NotificationsPageContent() {
                                                                                     </Button>
                                                                                 </DropdownMenuTrigger>
                                                                                 <DropdownMenuPortal>
-                                                                                    <DropdownMenuContent align="end" className="w-48 z-[100] border border-gray-200/60 shadow-lg rounded-xl">
+                                                                                    <DropdownMenuContent align="end" position="popper" sideOffset={8} collisionPadding={16} className="w-48 z-[9999] border border-gray-200/60 shadow-lg rounded-xl">
                                                                                         <DropdownMenuItem
                                                                                             onSelect={(e) => {
                                                                                                 e.preventDefault();

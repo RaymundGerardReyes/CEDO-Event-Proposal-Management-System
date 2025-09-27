@@ -188,14 +188,16 @@ export async function robustFetch(url, fetchOptions = {}, options = {}) {
 
             // Handle abort errors (timeout)
             if (error.name === 'AbortError') {
-                logger.warn(`${context}: Request timeout`, { url, attempt });
+                logger.warn(`${context}: Request timeout`, { url, attempt, timeout });
                 if (showToast && toast) {
                     toast({
-                        title: "Timeout",
-                        description: "Request timed out. Please try again.",
+                        title: "Request Timeout",
+                        description: `Request timed out after ${timeout / 1000} seconds. Please try again.`,
                         variant: "destructive",
                     });
                 }
+                // Don't retry on timeout, just throw the error
+                throw error;
             }
 
             // Handle network errors

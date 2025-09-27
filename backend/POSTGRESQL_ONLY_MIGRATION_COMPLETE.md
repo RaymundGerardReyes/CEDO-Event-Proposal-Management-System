@@ -157,3 +157,4 @@ ALTER TABLE proposals ADD CONSTRAINT fk_proposals_reviewed_by_admin_id
 **Next Steps**: Test all API endpoints to ensure PostgreSQL-only functionality works correctly
 
 
+

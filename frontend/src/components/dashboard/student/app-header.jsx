@@ -1,9 +1,10 @@
 "use client"
 
+import { getSafeImageUrl } from "@/utils/image-utils"
 import { Bell, Check, ChevronDown, Clock, LogOut, Settings, User, X } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
-import { getSafeImageUrl } from "@/utils/image-utils"
+import { createPortal } from "react-dom"
 
 // Sample notifications data
 const sampleNotifications = [
@@ -94,7 +95,10 @@ export function AppHeader() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const notificationRef = useRef(null)
+  const notificationButtonRef = useRef(null)
   const profileRef = useRef(null)
+  const notificationPortalRef = useRef(null)
+  const [notifPosition, setNotifPosition] = useState({ top: 0, left: 0, width: 0 })
 
   // Mock user data - replace with actual auth context
   const authUser = {
@@ -136,7 +140,9 @@ export function AppHeader() {
   // Handle clicking outside to close dropdowns
   useEffect(() => {
     function handleClickOutside(event) {
-      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+      const clickedInsidePortal = notificationPortalRef.current && notificationPortalRef.current.contains(event.target)
+      const clickedButton = notificationButtonRef.current && notificationButtonRef.current.contains(event.target)
+      if (!clickedInsidePortal && !clickedButton) {
         setShowNotifications(false)
       }
       if (profileRef.current && !profileRef.current.contains(event.target)) {
@@ -149,6 +155,32 @@ export function AppHeader() {
       document.removeEventListener("mousedown", handleClickOutside)
     }
   }, [])
+
+  // Compute and update portal dropdown position based on the bell button
+  useEffect(() => {
+    function updateNotifPosition() {
+      try {
+        const btn = notificationButtonRef.current
+        if (!btn) return
+        const rect = btn.getBoundingClientRect()
+        setNotifPosition({
+          top: rect.bottom + 8,
+          left: Math.max(8, Math.min(window.innerWidth - 8, rect.right)),
+          width: Math.min(480, Math.max(320, Math.floor(window.innerWidth * 0.4)))
+        })
+      } catch (_) { }
+    }
+
+    if (showNotifications) {
+      updateNotifPosition()
+      window.addEventListener('scroll', updateNotifPosition, { passive: true })
+      window.addEventListener('resize', updateNotifPosition, { passive: true })
+      return () => {
+        window.removeEventListener('scroll', updateNotifPosition)
+        window.removeEventListener('resize', updateNotifPosition)
+      }
+    }
+  }, [showNotifications])
 
   // Mark a notification as read
   const markAsRead = (id) => {
@@ -261,6 +293,7 @@ export function AppHeader() {
             variant="ghost"
             size="icon"
             className="relative h-9 w-9"
+            ref={notificationButtonRef}
             onClick={() => {
               setShowNotifications(!showNotifications)
               setShowProfile(false)
@@ -274,9 +307,18 @@ export function AppHeader() {
             )}
           </Button>
 
-          {/* Notifications dropdown */}
-          {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-md shadow-lg border overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+          {/* Notifications dropdown - portal-based fixed positioning */}
+          {showNotifications && createPortal((
+            <div
+              ref={notificationPortalRef}
+              className="fixed bg-white rounded-md shadow-lg border overflow-hidden z-[2147483647]"
+              style={{
+                top: 72,
+                right: 16,
+                width: Math.min(480, Math.max(320, Math.floor(window.innerWidth * 0.4))),
+                maxHeight: '70vh'
+              }}
+            >
               <div className="p-3 border-b flex justify-between items-center">
                 <h3 className="font-medium text-black">Notifications</h3>
                 {unreadCount > 0 && (
@@ -292,8 +334,7 @@ export function AppHeader() {
                     {notifications.map((notification) => (
                       <div
                         key={notification.id}
-                        className={`p-3 border-b hover:bg-gray-50 transition-colors cursor-pointer ${!notification.read ? "bg-blue-50/30" : ""
-                          }`}
+                        className={`p-3 border-b hover:bg-gray-50 transition-colors cursor-pointer ${!notification.read ? "bg-blue-50/30" : ""}`}
                         onClick={() => markAsRead(notification.id)}
                       >
                         <div className="flex gap-3">
@@ -323,7 +364,7 @@ export function AppHeader() {
                 </Button>
               </div>
             </div>
-          )}
+          ), document.body)}
         </div>
 
         {/* Profile */}

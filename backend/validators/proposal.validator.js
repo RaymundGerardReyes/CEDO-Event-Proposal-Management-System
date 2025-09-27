@@ -73,10 +73,11 @@ const validateProposal = [
         .isInt({ min: 0, max: 100 })
         .withMessage('Form completion percentage must be between 0 and 100'),
 
+    // Align event_type with UI options in EventInformation.jsx
     body('event_type')
         .optional()
-        .isIn(['school-based', 'community-based'])
-        .withMessage('Event type must be either school-based or community-based'),
+        .isIn(['academic-enhancement', 'seminar-webinar', 'general-assembly', 'leadership-training', 'others'])
+        .withMessage('Event type must be one of: academic-enhancement, seminar-webinar, general-assembly, leadership-training, others'),
 
     body('event_title')
         .optional()

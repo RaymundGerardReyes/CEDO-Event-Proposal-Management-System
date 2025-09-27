@@ -59,8 +59,8 @@ router.get("/", async (req, res, next) => {
             countParams.push(searchPattern, searchPattern, searchPattern)
         }
 
-        // Add sorting (use correct column name)
-        sqlQuery += " ORDER BY COALESCE(submitted_at, created_at) DESC"
+        // Add sorting (prioritize proposals with files, then by date)
+        sqlQuery += " ORDER BY (CASE WHEN gpoa_file_name IS NOT NULL OR project_proposal_file_name IS NOT NULL THEN 0 ELSE 1 END), COALESCE(submitted_at, created_at) DESC"
 
         // Add pagination
         if (status && status !== "all" && search) {
@@ -93,46 +93,20 @@ router.get("/", async (req, res, next) => {
             // Map file columns from database to file object structure
             const files = {}
 
-            if (proposal.school_gpoa_file_name) {
-                files.school_gpoa = {
-                    name: proposal.school_gpoa_file_name,
-                    path: proposal.school_gpoa_file_path
+            if (proposal.gpoa_file_name) {
+                files.gpoa = {
+                    name: proposal.gpoa_file_name,
+                    path: proposal.gpoa_file_path,
+                    size: proposal.gpoa_file_size,
+                    type: proposal.gpoa_file_type
                 }
             }
-            if (proposal.school_proposal_file_name) {
-                files.school_proposal = {
-                    name: proposal.school_proposal_file_name,
-                    path: proposal.school_proposal_file_path
-                }
-            }
-            if (proposal.community_gpoa_file_name) {
-                files.community_gpoa = {
-                    name: proposal.community_gpoa_file_name,
-                    path: proposal.community_gpoa_file_path
-                }
-            }
-            if (proposal.community_proposal_file_name) {
-                files.community_proposal = {
-                    name: proposal.community_proposal_file_name,
-                    path: proposal.community_proposal_file_path
-                }
-            }
-            if (proposal.accomplishment_report_file_name) {
-                files.accomplishment_report = {
-                    name: proposal.accomplishment_report_file_name,
-                    path: proposal.accomplishment_report_file_path
-                }
-            }
-            if (proposal.pre_registration_file_name) {
-                files.pre_registration = {
-                    name: proposal.pre_registration_file_name,
-                    path: proposal.pre_registration_file_path
-                }
-            }
-            if (proposal.final_attendance_file_name) {
-                files.final_attendance = {
-                    name: proposal.final_attendance_file_name,
-                    path: proposal.final_attendance_file_path
+            if (proposal.project_proposal_file_name) {
+                files.projectProposal = {
+                    name: proposal.project_proposal_file_name,
+                    path: proposal.project_proposal_file_path,
+                    size: proposal.project_proposal_file_size,
+                    type: proposal.project_proposal_file_type
                 }
             }
 
@@ -359,39 +333,29 @@ router.get("/:id/download/:fileType", async (req, res, next) => {
         const { id, fileType } = req.params
 
         // Get file information from proposals table
-        const [files] = await pool.query(
+        const files = await query(
             `SELECT 
-                school_gpoa_file_name, school_gpoa_file_path,
-                school_proposal_file_name, school_proposal_file_path,
-                community_gpoa_file_name, community_gpoa_file_path,
-                community_proposal_file_name, community_proposal_file_path,
-                accomplishment_report_file_name, accomplishment_report_file_path,
-                pre_registration_file_name, pre_registration_file_path,
-                final_attendance_file_name, final_attendance_file_path
-            FROM proposals WHERE id = ?`,
+                gpoa_file_name, gpoa_file_path, gpoa_file_size, gpoa_file_type,
+                project_proposal_file_name, project_proposal_file_path, project_proposal_file_size, project_proposal_file_type
+            FROM proposals WHERE id = $1`,
             [id],
         )
 
-        if (files.length === 0) {
+        if (files.rows.length === 0) {
             return res.status(404).json({
                 success: false,
                 error: "Proposal not found",
             })
         }
 
-        const proposal = files[0]
+        const proposal = files.rows[0]
         let fileName = null
         let filePath = null
 
         // Map fileType to the correct column names
         const fileTypeMap = {
-            'school_gpoa': { name: proposal.school_gpoa_file_name, path: proposal.school_gpoa_file_path },
-            'school_proposal': { name: proposal.school_proposal_file_name, path: proposal.school_proposal_file_path },
-            'community_gpoa': { name: proposal.community_gpoa_file_name, path: proposal.community_gpoa_file_path },
-            'community_proposal': { name: proposal.community_proposal_file_name, path: proposal.community_proposal_file_path },
-            'accomplishment_report': { name: proposal.accomplishment_report_file_name, path: proposal.accomplishment_report_file_path },
-            'pre_registration': { name: proposal.pre_registration_file_name, path: proposal.pre_registration_file_path },
-            'final_attendance': { name: proposal.final_attendance_file_name, path: proposal.final_attendance_file_path }
+            'gpoa': { name: proposal.gpoa_file_name, path: proposal.gpoa_file_path },
+            'projectProposal': { name: proposal.project_proposal_file_name, path: proposal.project_proposal_file_path }
         }
 
         const fileInfo = fileTypeMap[fileType]
@@ -438,7 +402,7 @@ router.post("/:id/files", upload.array("files", 5), async (req, res, next) => {
         const { id } = req.params
         const { fileTypes } = req.body
 
-        if (!req.files || req.files.length === 0) {
+        if (!req.files || req.files.rows.length === 0) {
             return res.status(400).json({
                 success: false,
                 error: "No files uploaded",
@@ -531,27 +495,22 @@ router.delete("/:id/files/:fileType", async (req, res, next) => {
         const { id, fileType } = req.params
 
         // Get file information from proposals table
-        const [files] = await pool.query(
+        const files = await query(
             `SELECT 
-                school_gpoa_file_name, school_gpoa_file_path,
-                school_proposal_file_name, school_proposal_file_path,
-                community_gpoa_file_name, community_gpoa_file_path,
-                community_proposal_file_name, community_proposal_file_path,
-                accomplishment_report_file_name, accomplishment_report_file_path,
-                pre_registration_file_name, pre_registration_file_path,
-                final_attendance_file_name, final_attendance_file_path
-            FROM proposals WHERE id = ?`,
+                gpoa_file_name, gpoa_file_path,
+                project_proposal_file_name, project_proposal_file_path
+            FROM proposals WHERE id = $1`,
             [id],
         )
 
-        if (files.length === 0) {
+        if (files.rows.length === 0) {
             return res.status(404).json({
                 success: false,
                 error: "Proposal not found",
             })
         }
 
-        const proposal = files[0]
+        const proposal = files.rows[0]
         const fileTypeMap = {
             'school_gpoa': { name: 'school_gpoa_file_name', path: 'school_gpoa_file_path' },
             'school_proposal': { name: 'school_proposal_file_name', path: 'school_proposal_file_path' },
@@ -577,12 +536,12 @@ router.delete("/:id/files/:fileType", async (req, res, next) => {
             logger.error(`Failed to delete file ${filePath}: `, error)
         }
         // Remove file info from proposals table
-        await pool.query(
+        await query(
             `UPDATE proposals SET \
                 ${mapping.name} = NULL, \
                 ${mapping.path} = NULL, \
-                updated_at = NOW() \
-             WHERE id = ?`,
+                updated_at = CURRENT_TIMESTAMP \
+             WHERE id = $1`,
             [id]
         )
         res.json({ success: true, message: "File deleted successfully" })
