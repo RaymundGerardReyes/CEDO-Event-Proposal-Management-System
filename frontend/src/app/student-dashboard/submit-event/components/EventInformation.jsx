@@ -17,6 +17,7 @@
 "use client";
 
 import { useFormStorage } from '@/hooks/use-form-storage';
+import { uploadProposalFiles } from '@/services/proposal-service';
 import {
     AlertCircle,
     Calendar,
@@ -64,6 +65,10 @@ export default function StepLogistics({ methods, onNext, onPrevious, isLastStep 
     const [selectedTargetAudiences, setSelectedTargetAudiences] = useState([]);
 
     const watchedValues = watch();
+
+    // Track upload to avoid duplicate uploads
+    const [gpoaUploaded, setGpoaUploaded] = useState(false);
+    const [projectUploaded, setProjectUploaded] = useState(false);
 
     // Handle target audience selection
     const handleTargetAudienceToggle = (audienceValue) => {
@@ -288,6 +293,38 @@ export default function StepLogistics({ methods, onNext, onPrevious, isLastStep 
         saveData(valuesToSave);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [watchedValues, selectedTargetAudiences, gpoaFile, projectProposalFile, gpoaDataUrl, projectProposalDataUrl]);
+
+    // Upload files to backend (proposal_files) when available and not yet uploaded
+    useEffect(() => {
+        const doUpload = async () => {
+            if (!eventUuid) return;
+            const files = {};
+            let shouldUpload = false;
+            if (gpoaFile && !gpoaUploaded) {
+                files.gpoaFile = gpoaFile;
+                shouldUpload = true;
+            }
+            if (projectProposalFile && !projectUploaded) {
+                files.projectProposalFile = projectProposalFile;
+                shouldUpload = true;
+            }
+            if (!shouldUpload) return;
+            try {
+                const res = await uploadProposalFiles(eventUuid, files);
+                if (res?.success) {
+                    if (files.gpoaFile) setGpoaUploaded(true);
+                    if (files.projectProposalFile) setProjectUploaded(true);
+                } else {
+                    console.warn('File upload did not succeed:', res?.message || res);
+                }
+            } catch (e) {
+                // Leave flags as false to retry on subsequent changes
+                console.warn('File upload failed, will retry on next change', e);
+            }
+        };
+        doUpload();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [eventUuid, gpoaFile, projectProposalFile]);
 
     const isStepValid = () => {
         return watchedValues.eventName &&

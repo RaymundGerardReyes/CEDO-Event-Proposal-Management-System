@@ -114,8 +114,22 @@ export const uploadProposalFiles = async (proposalId, files) => {
             body: formData
         });
 
+        let data = null;
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+            data = await response.json();
+        } else {
+            // In case backend returns text
+            data = { message: await response.text() };
+        }
+
+        if (!response.ok) {
+            const message = data?.error || data?.message || `${response.status} ${response.statusText}`;
+            return { success: false, message, status: response.status, data };
+        }
+
         console.log('✅ Files uploaded successfully');
-        return response;
+        return { success: true, data };
 
     } catch (error) {
         console.error('❌ Error uploading files:', error);
@@ -274,11 +288,17 @@ export const getProposalStatus = async (proposalId) => {
             return { success: false, message: 'Authentication token not found' };
         }
 
+        console.log('🔍 getProposalStatus: Making API call for proposal:', proposalId);
         const response = await api.get(`/proposals/${proposalId}/status`, {
             headers: {
                 'Authorization': `Bearer ${token}`,
             },
         });
+
+        console.log('🔍 getProposalStatus: Raw API response:', response);
+        console.log('🔍 getProposalStatus: Response success:', response.success);
+        console.log('🔍 getProposalStatus: Response data:', response.data);
+        console.log('🔍 getProposalStatus: Proposal status:', response.data?.proposal_status);
 
         return response;
     } catch (error) {
@@ -290,13 +310,15 @@ export const getProposalStatus = async (proposalId) => {
 /**
  * Get approved events for post-event reports
  */
-export const getApprovedEvents = async () => {
+export const getApprovedEvents = async (userEmail = null) => {
     try {
         const token = getAuthToken();
 
         if (!token) {
             return { success: false, message: 'Authentication token not found' };
         }
+
+        console.log('📋 Fetching approved events for user email:', userEmail);
 
         const response = await api.get('/proposals/user-proposals?status=approved', {
             headers: {
@@ -306,6 +328,7 @@ export const getApprovedEvents = async () => {
 
         if (response.success && response.data?.proposals) {
             const approvedEvents = response.data.proposals.filter(p => p.proposal_status === 'approved');
+            console.log('✅ Approved events retrieved:', approvedEvents.length, 'events');
             return { success: true, data: approvedEvents };
         }
 

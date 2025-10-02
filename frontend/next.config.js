@@ -23,6 +23,22 @@ const nextConfig = {
 
     // ✅ CRITICAL: Removed unsupported options for Turbopack compatibility
     // Removed: optimizeCss, cssChunking, serverExternalPackages
+
+    // ✅ ADDED: Server Actions configuration for file uploads (Next.js 15 compatible)
+    serverActions: {
+      bodySizeLimit: '10mb', // Increase from default 1mb to handle file uploads
+      allowedOrigins: ['localhost:3000', 'localhost:5000']
+    }
+  },
+
+  // ✅ ADDED: Turbopack configuration (Next.js 15.3.4 stable)
+  turbopack: {
+    rules: {
+      '*.svg': {
+        loaders: ['@svgr/webpack'],
+        as: '*.js',
+      },
+    },
   },
 
   // ENHANCED Image optimization
@@ -167,8 +183,13 @@ const nextConfig = {
     },
   ],
 
-  // ✅ ENHANCED: Webpack configuration with font handling
-  webpack: (config, { dev, isServer }) => {
+  // ✅ ENHANCED: Webpack configuration with font handling (conditional for Turbopack compatibility)
+  webpack: (config, { dev, isServer, webpack }) => {
+    // Only apply webpack config when not using Turbopack
+    if (process.env.TURBOPACK) {
+      return config;
+    }
+
     // Optimize bundle size
     config.resolve.fallback = {
       ...config.resolve.fallback,

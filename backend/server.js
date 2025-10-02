@@ -103,6 +103,7 @@ const profileRoutes = require("./routes/profile")
 // ==============================
 const proposalsRouter = require('./routes/proposals');  // PostgreSQL-focused proposals
 const configRouter = require('./routes/config'); // Public-facing config route
+const emailRouter = require('./routes/email'); // Email notification routes
 
 // Initialize express app
 const app = express()
@@ -561,6 +562,8 @@ app.use('/api/drafts', draftsRouter);
 // ** Core Application Routes **
 app.use("/api/events", require("./routes/events"))
 app.use("/api/proposals", proposalsRouter)  // ✅ SINGLE PROPOSALS ROUTER - postgresql focused
+app.use("/api/email", emailRouter)  // ✅ EMAIL NOTIFICATION ROUTES
+app.use("/api/notifications", require("./routes/notifications"))  // ✅ NOTIFICATIONS ROUTES
 app.use("/api/reviews", require("./routes/reviews"))
 app.use("/api/reports", require("./routes/reports"))
 app.use("/api/compliance", require("./routes/compliance"))
@@ -706,6 +709,16 @@ async function startServer() {
 
   // Step 3: Initialize dependent services (with proper error handling)
   console.log('📋 Step 3: Initializing dependent services...');
+
+  // Initialize email service
+  try {
+    const emailService = require('./services/email.service');
+    await emailService.initialize();
+    console.log('✅ Email service ready');
+  } catch (error) {
+    console.warn('⚠️ WARNING: Email service initialization failed:', error.message);
+    console.warn('⚠️ Continuing without email notification capabilities...');
+  }
 
   // Initialize data-sync service only if database is available
   if (isDbConnected) {

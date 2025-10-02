@@ -1,5 +1,6 @@
 import { clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { getApiUrl, getRecaptchaSiteKey, logEnvironmentStatus } from './env-validator'
 
 /**
  * Combines multiple class names into a single string
@@ -117,11 +118,11 @@ export function getResponsiveColumns(totalItems, maxColumns = 4) {
 }
 
 // Application configuration management
-let appConfig = null;
+let appConfig = {};
 
 // Test helper to reset config (for testing only)
 export function resetAppConfig() {
-    appConfig = null;
+    appConfig = {};
 }
 
 // Import centralized API configuration
@@ -132,12 +133,26 @@ export function resetAppConfig() {
  */
 export function getAppConfig() {
     if (!appConfig) {
-        // Initialize with fallback values
-        let backendUrl = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:5000';
+        // Initialize with fallback values - try multiple environment variables
+        let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ||
+            process.env.NEXT_PUBLIC_API_URL ||
+            process.env.API_URL ||
+            process.env.BACKEND_URL ||
+            'http://localhost:5000';
+
         // Remove trailing /api if present to prevent double /api/ in URLs
         if (backendUrl.endsWith('/api')) {
             backendUrl = backendUrl.replace(/\/api$/, '');
         }
+
+        console.log('🔧 getAppConfig: Environment variables check:', {
+            NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL,
+            NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+            API_URL: process.env.API_URL,
+            BACKEND_URL: process.env.BACKEND_URL,
+            finalBackendUrl: backendUrl
+        });
+
         appConfig = {
             backendUrl: backendUrl
         };
@@ -151,64 +166,107 @@ export function getAppConfig() {
  * @param {any} value - Configuration value
  */
 export function setAppConfig(key, value) {
+    if (!appConfig) {
+        appConfig = {};
+    }
     appConfig[key] = value;
 }
 
 /**
- * Load configuration from the backend
- * @returns {Promise<void>}
+ * Load configuration from the backend with enhanced error handling and retry logic
+ * @returns {Promise<Object>} Configuration object
  */
-export async function loadConfig() {
-    if (appConfig) return appConfig;
+export async function loadConfig(retries = 3) {
+    if (appConfig && Object.keys(appConfig).length > 0) return appConfig;
 
     // 🔧 SCOPE FIX: Move variable declarations outside try block
-    let base = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:5000';
+    let base = getApiUrl();
     let url = '';
 
     try {
-        // Use API_URL as base, fallback to BACKEND_URL, then to localhost:5000
-        // Remove trailing /api if present to prevent double /api/ in URLs
-        if (base.endsWith('/api')) {
-            base = base.replace(/\/api$/, '');
+        // Log environment status for debugging
+        if (process.env.NODE_ENV === 'development') {
+            logEnvironmentStatus();
         }
+
         // Ensure no double slash
         url = base.endsWith('/') ? base + 'api/config' : base + '/api/config';
 
+        console.log(`🔧 Attempting to load config from: ${url}`);
+
         // Enhanced fetch with timeout and retry logic
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-        try {
-            const res = await fetch(url, {
-                signal: controller.signal,
-                headers: {
-                    'Content-Type': 'application/json',
+        // Retry logic for network requests
+        let lastError;
+        for (let attempt = 1; attempt <= retries; attempt++) {
+            try {
+                console.log(`🔄 Config fetch attempt ${attempt}/${retries} to ${url}`);
+
+                const res = await fetch(url, {
+                    signal: controller.signal,
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    mode: 'cors', // Explicitly set CORS mode
+                    credentials: 'include', // Include cookies for authentication
+                });
+
+                clearTimeout(timeoutId);
+
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    console.error(`❌ HTTP ${res.status}: ${res.statusText}`, errorText);
+                    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
                 }
-            });
 
-            clearTimeout(timeoutId);
+                const configData = await res.json();
+                console.log('✅ Received config data:', configData);
 
-            if (!res.ok) {
-                throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                // Validate config data
+                if (!configData || typeof configData !== 'object') {
+                    throw new Error('Invalid config response format');
+                }
+
+                appConfig = {
+                    ...configData,
+                    // Ensure backendUrl is always set and does NOT end with /api
+                    backendUrl: configData.backendUrl || base,
+                    timestamp: Date.now()
+                };
+
+                // Remove trailing /api if present
+                if (appConfig.backendUrl.endsWith('/api')) {
+                    appConfig.backendUrl = appConfig.backendUrl.replace(/\/api$/, '');
+                }
+
+                console.log('✅ Loaded config successfully:', appConfig);
+                return appConfig;
+
+            } catch (fetchError) {
+                clearTimeout(timeoutId);
+                lastError = fetchError;
+                console.error(`❌ Fetch attempt ${attempt} failed:`, {
+                    message: fetchError.message,
+                    name: fetchError.name,
+                    url: url,
+                    base: base
+                });
+
+                // If this is not the last attempt, wait before retrying
+                if (attempt < retries) {
+                    const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
+                    console.log(`⏳ Waiting ${delay}ms before retry...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
             }
-
-            appConfig = await res.json();
-
-            // Ensure backendUrl is always set and does NOT end with /api
-            if (!appConfig.backendUrl) {
-                appConfig.backendUrl = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:5000';
-            }
-            // Remove trailing /api if present
-            if (appConfig.backendUrl.endsWith('/api')) {
-                appConfig.backendUrl = appConfig.backendUrl.replace(/\/api$/, '');
-            }
-            console.log('✅ Loaded config:', appConfig); // Debug log
-            return appConfig;
-
-        } catch (fetchError) {
-            clearTimeout(timeoutId);
-            throw fetchError;
         }
+
+        // If all retries failed, throw the last error
+        throw lastError;
 
     } catch (err) {
         // Enhanced error logging with detailed information
@@ -223,19 +281,31 @@ export async function loadConfig() {
 
         console.error('❌ Failed to load config:', errorDetails);
 
-        // Create fallback config
-        let backendUrl = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:5000';
-        // Remove trailing /api if present to prevent double /api/ in URLs
-        if (backendUrl.endsWith('/api')) {
-            backendUrl = backendUrl.replace(/\/api$/, '');
-        }
+        // Create fallback config with environment variables
+        let backendUrl = getApiUrl();
+
+        // Try to get reCAPTCHA key from environment as fallback
+        const recaptchaSiteKey = getRecaptchaSiteKey();
+
         appConfig = {
             backendUrl: backendUrl,
+            recaptchaSiteKey: recaptchaSiteKey,
             error: errorDetails.message,
             fallback: true,
             timestamp: Date.now()
         };
+
         console.log('🔄 Using fallback config:', appConfig);
+
+        // Log specific error types for debugging
+        if (err.name === 'AbortError') {
+            console.error('⏰ Config request timed out - backend may be slow or unresponsive');
+        } else if (err.message.includes('Failed to fetch')) {
+            console.error('🌐 Network error - check if backend is running and accessible');
+        } else if (err.message.includes('CORS')) {
+            console.error('🚫 CORS error - check backend CORS configuration');
+        }
+
         return appConfig;
     }
 }

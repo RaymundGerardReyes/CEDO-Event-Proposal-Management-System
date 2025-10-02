@@ -18,6 +18,8 @@
 "use client";
 
 import BackButton from '@/components/BackButton';
+import { useAuth } from '@/contexts/auth-context';
+import { useEmail } from '@/hooks/useEmail';
 import { getProposalStatus } from '@/services/proposal-service.js';
 import {
     AlertCircle,
@@ -35,12 +37,23 @@ import { useEffect, useState } from 'react';
 import { useEventForm } from '../contexts/EventFormContext';
 
 export default function Pending({ methods, onNext, onPrevious, isLastStep, onApproved }) {
-    const { eventUuid, getShortUuid, getFormAge } = useEventForm();
+    const { eventUuid, getShortUuid, getFormAge, formData } = useEventForm();
+    const { user } = useAuth(); // Get authenticated user from Google OAuth
     const [proposalStatus, setProposalStatus] = useState('pending');
     const [isLoading, setIsLoading] = useState(true);
     const [lastChecked, setLastChecked] = useState(new Date());
     const [proposalData, setProposalData] = useState(null);
     const [error, setError] = useState(null);
+    const [emailSent, setEmailSent] = useState(false);
+
+    // Email functionality
+    const {
+        sendProposalSubmitted,
+        sendProposalApproved,
+        sendProposalRejected,
+        isLoading: isEmailLoading,
+        error: emailError
+    } = useEmail();
 
     // Real backend API call to check proposal status
     useEffect(() => {
@@ -62,6 +75,9 @@ export default function Pending({ methods, onNext, onPrevious, isLastStep, onApp
                 if (result.success) {
                     const status = result.data.proposal_status;
                     console.log('✅ Backend returned proposal status:', status);
+                    console.log('🔍 Full backend response:', result);
+                    console.log('🔍 Result data:', result.data);
+                    console.log('🔍 Status field:', result.data.proposal_status);
 
                     // Map backend status to component state
                     setProposalStatus(status);
@@ -70,6 +86,27 @@ export default function Pending({ methods, onNext, onPrevious, isLastStep, onApp
                     // If approved and onApproved callback exists, trigger it
                     if (status === 'approved' && onApproved) {
                         console.log('🎉 Proposal approved! Triggering onApproved callback');
+
+                        // Send approval notification email to authenticated user
+                        try {
+                            console.log('📧 Sending approval notification email to authenticated user...');
+                            console.log('📧 User email from Google OAuth:', user?.email);
+                            console.log('📧 User name from Google OAuth:', user?.name);
+
+                            await sendProposalApproved({
+                                userEmail: user?.email || formData?.contactEmail || 'user@example.com', // Use Google OAuth email, fallback to form email
+                                userName: user?.name || formData?.contactPerson || 'User', // Use Google OAuth name, fallback to form name
+                                proposalData: {
+                                    ...result.data,
+                                    contact_email: formData?.contactEmail, // Include form contact email for reference
+                                    contact_person: formData?.contactPerson // Include form contact person for reference
+                                }
+                            });
+                            console.log('✅ Approval notification email sent to:', user?.email || formData?.contactEmail);
+                        } catch (emailError) {
+                            console.warn('⚠️ Failed to send approval notification email:', emailError.message);
+                        }
+
                         // Small delay to show the approved state first
                         setTimeout(() => {
                             onApproved();
@@ -127,6 +164,9 @@ export default function Pending({ methods, onNext, onPrevious, isLastStep, onApp
             if (result.success) {
                 const status = result.data.proposal_status;
                 console.log('✅ Manual refresh - Backend returned proposal status:', status);
+                console.log('🔍 Manual refresh - Full backend response:', result);
+                console.log('🔍 Manual refresh - Result data:', result.data);
+                console.log('🔍 Manual refresh - Status field:', result.data.proposal_status);
 
                 setProposalStatus(status);
                 setProposalData(result.data);

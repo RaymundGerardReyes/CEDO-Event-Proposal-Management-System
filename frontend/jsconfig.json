@@ -11,6 +11,9 @@
       "@hooks/*": [
         "./src/hooks/*"
       ],
+      "@headerComponents/*": [
+        "./src/components/headerComponents/*"
+      ],
       "@utils/*": [
         "./src/utils/*"
       ],

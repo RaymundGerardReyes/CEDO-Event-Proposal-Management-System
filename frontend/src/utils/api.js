@@ -264,13 +264,21 @@ export const apiRequest = async (endpoint, options = {}, fetchOptions = {}) => {
 
         logger.info(`API Response: ${response.status} ${response.statusText}`);
 
-        // Try to parse JSON response
+        // Respect explicit responseType when provided
+        if (fetchOptions && fetchOptions.responseType === 'blob') {
+            return await response.blob();
+        }
+
+        // Try to parse JSON response by content-type, otherwise fallback to text
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
             return await response.json();
-        } else {
-            return await response.text();
         }
+        if (contentType && (contentType.includes('application/octet-stream') || contentType.includes('application/pdf'))) {
+            // Common download types
+            return await response.blob();
+        }
+        return await response.text();
 
     } catch (error) {
         logger.error(`API Request failed: ${endpoint}`, error, {

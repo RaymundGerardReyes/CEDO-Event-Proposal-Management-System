@@ -18,27 +18,11 @@ const { validateProposal, validateReportData, validateReviewAction } = require('
 const router = express.Router();
 
 // Configure multer for file uploads
-const storage = multer.diskStorage({
-    destination: async (req, file, cb) => {
-        const uploadDir = path.join(__dirname, '../uploads/proposals');
-        try {
-            await fs.mkdir(uploadDir, { recursive: true });
-            cb(null, uploadDir);
-        } catch (error) {
-            cb(error);
-        }
-    },
-    filename: (req, file, cb) => {
-        const uuid = req.params.uuid;
-        const timestamp = Date.now();
-        const ext = path.extname(file.originalname);
-        const filename = `${uuid}_${file.fieldname}_${timestamp}${ext}`;
-        cb(null, filename);
-    }
-});
+// Memory storage for direct DB insertion into proposal_files
+const memoryStorage = multer.memoryStorage();
 
 const upload = multer({
-    storage: storage,
+    storage: memoryStorage,
     limits: {
         fileSize: 10 * 1024 * 1024, // 10MB limit
         files: 2 // Maximum 2 files (GPOA and Project Proposal)
@@ -147,6 +131,16 @@ router.put('/:uuid', validateToken, async (req, res) => {
                         value = JSON.stringify(value);
                     }
 
+                    // Skip legacy file columns not in new schema
+                    const legacyFileCols = new Set([
+                        'gpoa_file_name', 'gpoa_file_size', 'gpoa_file_type', 'gpoa_file_path',
+                        'project_proposal_file_name', 'project_proposal_file_size', 'project_proposal_file_type', 'project_proposal_file_path',
+                        'file_name', 'file_type', 'file_size', 'file_category', 'file_data'
+                    ]);
+                    if (legacyFileCols.has(key)) {
+                        return; // continue
+                    }
+
                     updateFields.push(`${key} = $${paramIndex}`);
                     updateValues.push(value);
                     paramIndex++;
@@ -193,14 +187,6 @@ router.put('/:uuid', validateToken, async (req, res) => {
                 event_type: updateData.event_type || '',
                 target_audience: updateData.target_audience ? JSON.stringify(updateData.target_audience) : '[]',
                 sdp_credits: updateData.sdp_credits || null,
-                gpoa_file_name: updateData.gpoa_file_name || null,
-                gpoa_file_size: updateData.gpoa_file_size || null,
-                gpoa_file_type: updateData.gpoa_file_type || null,
-                gpoa_file_path: updateData.gpoa_file_path || null,
-                project_proposal_file_name: updateData.project_proposal_file_name || null,
-                project_proposal_file_size: updateData.project_proposal_file_size || null,
-                project_proposal_file_type: updateData.project_proposal_file_type || null,
-                project_proposal_file_path: updateData.project_proposal_file_path || null,
                 current_section: updateData.current_section || 'orgInfo',
                 proposal_status: updateData.proposal_status || 'draft',
                 report_status: updateData.report_status || 'draft',
@@ -381,6 +367,87 @@ router.get('/drafts-and-rejected', validateToken, async (req, res) => {
     }
 });
 
+// Get user's own proposals for reports
+router.get('/user-proposals', validateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { status } = req.query;
+
+        console.log('📋 Getting user proposals for user:', userId, 'with status filter:', status);
+
+        // Build query with optional status filter
+        let queryText = `
+            SELECT 
+                id, uuid, organization_name, organization_type, event_name, 
+                event_venue, event_start_date, event_end_date, event_start_time, event_end_time,
+                event_type, contact_person, contact_email, contact_phone,
+                proposal_status, report_status, event_status, attendance_count,
+                objectives, budget, volunteers_needed, report_description,
+                admin_comments, submitted_at, approved_at, created_at, updated_at
+            FROM proposals 
+            WHERE user_id = $1 AND is_deleted = false
+        `;
+
+        const queryParams = [userId];
+
+        // Add status filter if provided
+        if (status && status !== 'all') {
+            queryText += ' AND proposal_status = $2';
+            queryParams.push(status);
+        }
+
+        queryText += ' ORDER BY created_at DESC';
+
+        const result = await query(queryText, queryParams);
+
+        const proposals = result.rows.map(proposal => ({
+            id: proposal.id,
+            uuid: proposal.uuid,
+            organization_name: proposal.organization_name,
+            organization_type: proposal.organization_type,
+            event_name: proposal.event_name,
+            event_venue: proposal.event_venue,
+            event_start_date: proposal.event_start_date,
+            event_end_date: proposal.event_end_date,
+            event_start_time: proposal.event_start_time,
+            event_end_time: proposal.event_end_time,
+            event_type: proposal.event_type,
+            contact_name: proposal.contact_person,
+            contact_email: proposal.contact_email,
+            contact_phone: proposal.contact_phone,
+            proposal_status: proposal.proposal_status,
+            report_status: proposal.report_status,
+            event_status: proposal.event_status,
+            attendance_count: proposal.attendance_count,
+            objectives: proposal.objectives,
+            budget: proposal.budget,
+            volunteers_needed: proposal.volunteers_needed,
+            report_description: proposal.report_description,
+            admin_comments: proposal.admin_comments,
+            submitted_at: proposal.submitted_at,
+            approved_at: proposal.approved_at,
+            created_at: proposal.created_at,
+            updated_at: proposal.updated_at
+        }));
+
+        console.log('✅ User proposals retrieved:', proposals.length, 'proposals');
+
+        res.json({
+            success: true,
+            data: {
+                proposals
+            }
+        });
+
+    } catch (error) {
+        console.error('User proposals fetch error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch user proposals'
+        });
+    }
+});
+
 /**
  * GET /api/proposals/:uuid
  * Get proposal by UUID
@@ -481,14 +548,28 @@ router.post('/:uuid/review', validateToken, validateAdmin, validateReviewAction,
         const { uuid } = req.params;
         const { action, note } = req.body;
 
-        // Check if proposal exists
-        const proposalsResult = await query(
-            'SELECT * FROM proposals WHERE uuid = $1',
+        // Ensure proposal exists; create a minimal placeholder if missing
+        let proposalsResult = await query(
+            'SELECT id FROM proposals WHERE uuid = $1',
             [uuid]
         );
 
         if (proposalsResult.rows.length === 0) {
-            return res.status(404).json({ error: 'Proposal not found' });
+            await query(
+                `INSERT INTO proposals (
+                    uuid, organization_name, organization_type, contact_person, contact_email,
+                    event_name, event_venue, event_start_date, event_end_date, event_start_time, event_end_time,
+                    event_mode, event_type, target_audience, sdp_credits, current_section, proposal_status, user_id,
+                    created_at, updated_at
+                ) VALUES (
+                    $1, '', 'school-based', '', '',
+                    '', '', NULL, NULL, NULL, NULL,
+                    'offline', '', '[]', NULL, 'orgInfo', 'draft', $2,
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )`,
+                [uuid, req.user.id]
+            );
+            proposalsResult = await query('SELECT id FROM proposals WHERE uuid = $1', [uuid]);
         }
 
         const proposal = proposalsResult.rows[0];
@@ -797,6 +878,22 @@ router.post('/:uuid/files', validateToken, upload.fields([
         }
 
         console.log('📁 Files received:', Object.keys(files));
+        if (files.gpoa && files.gpoa[0]) {
+            console.log('📎 gpoa file meta:', {
+                name: files.gpoa[0].originalname,
+                mimetype: files.gpoa[0].mimetype,
+                size: files.gpoa[0].size,
+                bufferBytes: files.gpoa[0].buffer ? files.gpoa[0].buffer.length : 0
+            });
+        }
+        if (files.projectProposal && files.projectProposal[0]) {
+            console.log('📎 projectProposal file meta:', {
+                name: files.projectProposal[0].originalname,
+                mimetype: files.projectProposal[0].mimetype,
+                size: files.projectProposal[0].size,
+                bufferBytes: files.projectProposal[0].buffer ? files.projectProposal[0].buffer.length : 0
+            });
+        }
 
         // Check if at least one file is provided
         const hasGpoaFile = files.gpoa && files.gpoa[0];
@@ -817,58 +914,63 @@ router.post('/:uuid/files', validateToken, upload.fields([
         );
 
         if (proposalsResult.rows.length === 0) {
+            console.log('❌ Proposal not found for uuid:', uuid);
             return res.status(404).json({ error: 'Proposal not found' });
         }
 
         const uploadedFiles = {};
 
         try {
-            // Process GPOA file
+            // Resolve proposal_id from uuid
+            const pidRes = await query('SELECT id FROM proposals WHERE uuid = $1', [uuid]);
+            if (pidRes.rows.length === 0) {
+                return res.status(404).json({ error: 'Proposal not found' });
+            }
+            const proposalId = pidRes.rows[0].id;
+
+            // Helper to insert into proposal_files
+            const insertFile = async (pf, category) => {
+                if (!pf || !pf.buffer || typeof pf.size !== 'number') {
+                    console.error('❌ insertFile: invalid file payload', { category, hasBuffer: !!(pf && pf.buffer), size: pf && pf.size });
+                    throw new Error('Invalid file payload received');
+                }
+                console.log('⬆️ Inserting file into proposal_files:', {
+                    category,
+                    name: pf.originalname,
+                    mimetype: pf.mimetype,
+                    size: pf.size,
+                    bufferBytes: pf.buffer ? pf.buffer.length : 0
+                });
+                await query(
+                    `INSERT INTO proposal_files (
+                        proposal_id, file_name, file_type, file_size, file_category,
+                        storage_backend, storage_key, file_data, created_at
+                    ) VALUES ($1, $2, $3, $4, $5, 'db', NULL, $6, now())`,
+                    [proposalId, pf.originalname, pf.mimetype, pf.size, category, pf.buffer]
+                );
+                console.log('✅ Inserted file record for category:', category);
+            };
+
+            // Process GPOA file (buffer-based)
             if (files.gpoa && files.gpoa[0]) {
                 const gpoaFile = files.gpoa[0];
                 uploadedFiles.gpoa = {
-                    filename: gpoaFile.filename,
                     originalName: gpoaFile.originalname,
-                    path: gpoaFile.path,
                     size: gpoaFile.size,
                     mimetype: gpoaFile.mimetype
                 };
-
-                // Update proposal with GPOA file info
-                await query(
-                    `UPDATE proposals SET 
-                    gpoa_file_name = $1,
-                    gpoa_file_size = $2,
-                    gpoa_file_type = $3,
-                    gpoa_file_path = $4,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE uuid = $5`,
-                    [gpoaFile.originalname, gpoaFile.size, gpoaFile.mimetype, gpoaFile.path, uuid]
-                );
+                await insertFile(gpoaFile, 'gpoa');
             }
 
-            // Process Project Proposal file
+            // Process Project Proposal file (buffer-based)
             if (files.projectProposal && files.projectProposal[0]) {
                 const proposalFile = files.projectProposal[0];
                 uploadedFiles.projectProposal = {
-                    filename: proposalFile.filename,
                     originalName: proposalFile.originalname,
-                    path: proposalFile.path,
                     size: proposalFile.size,
                     mimetype: proposalFile.mimetype
                 };
-
-                // Update proposal with Project Proposal file info
-                await query(
-                    `UPDATE proposals SET 
-                    project_proposal_file_name = $1,
-                    project_proposal_file_size = $2,
-                    project_proposal_file_type = $3,
-                    project_proposal_file_path = $4,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE uuid = $5`,
-                    [proposalFile.originalname, proposalFile.size, proposalFile.mimetype, proposalFile.path, uuid]
-                );
+                await insertFile(proposalFile, 'projectProposal');
             }
 
             await createAuditLog(uuid, 'files_uploaded', req.user.id, 'Files uploaded', uploadedFiles);
@@ -948,7 +1050,7 @@ router.get('/:uuid/files', validateToken, async (req, res) => {
 
         // Check if proposal exists
         const proposalsResult = await query(
-            'SELECT gpoa_file_name, gpoa_file_size, gpoa_file_path, project_proposal_file_name, project_proposal_file_size, project_proposal_file_path FROM proposals WHERE uuid = $1',
+            'SELECT id FROM proposals WHERE uuid = $1',
             [uuid]
         );
 
@@ -957,79 +1059,21 @@ router.get('/:uuid/files', validateToken, async (req, res) => {
         }
 
         const proposal = proposalsResult.rows[0];
-        const files = {};
 
-        // GPOA file info
-        if (proposal.gpoa_file_name) {
-            files.gpoa = {
-                name: proposal.gpoa_file_name,
-                size: proposal.gpoa_file_size,
-                path: proposal.gpoa_file_path
-            };
-        }
+        // Read from proposal_files (new canonical source)
+        const pf = await query(
+            `SELECT id, file_name, file_type, file_size, file_category, created_at
+             FROM proposal_files
+             WHERE proposal_id = $1
+             ORDER BY created_at DESC, id DESC`,
+            [proposal.id]
+        );
 
-        // Project Proposal file info
-        if (proposal.project_proposal_file_name) {
-            files.projectProposal = {
-                name: proposal.project_proposal_file_name,
-                size: proposal.project_proposal_file_size,
-                path: proposal.project_proposal_file_path
-            };
-        }
-
-        res.status(200).json({
-            success: true,
-            files: files
-        });
+        res.status(200).json({ success: true, files: pf.rows });
 
     } catch (error) {
         console.error('Error fetching file info:', error);
         res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-// Get user's own proposals for reports
-router.get('/user-proposals', validateToken, async (req, res) => {
-    try {
-        const userId = req.user.id;
-
-        const result = await query(`
-            SELECT 
-                id, uuid, organization_name, organization_type, event_name, 
-                event_venue, event_start_date, event_end_date, proposal_status, 
-                report_status, event_status, created_at, updated_at
-            FROM proposals 
-            WHERE user_id = $1 AND is_deleted = false
-            ORDER BY created_at DESC
-        `, [userId]);
-
-        const proposals = result.rows.map(proposal => ({
-            id: proposal.id,
-            uuid: proposal.uuid,
-            organizationName: proposal.organization_name,
-            organizationType: proposal.organization_type,
-            eventName: proposal.event_name,
-            eventVenue: proposal.event_venue,
-            eventStartDate: proposal.event_start_date,
-            eventEndDate: proposal.event_end_date,
-            proposalStatus: proposal.proposal_status,
-            reportStatus: proposal.report_status,
-            eventStatus: proposal.event_status,
-            createdAt: proposal.created_at,
-            updatedAt: proposal.updated_at
-        }));
-
-        res.json({
-            success: true,
-            proposals
-        });
-
-    } catch (error) {
-        console.error('User proposals fetch error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch user proposals'
-        });
     }
 });
 

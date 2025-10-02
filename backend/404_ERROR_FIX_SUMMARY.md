@@ -10,6 +10,17 @@
 
 ### **Backend Fix: Upsert Operation**
 
+JWT='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzE0LCJlbWFpbCI6InRlc3RzQGdtYWlsLmNvbSIsInJvbGUiOiJzdHVkZW50IiwicmVtZW1iZXJNZSI6ZmFsc2UsImlhdCI6MTc1OTMzMjQ1MSwiZXhwIjoxNzU5NDE4ODUxfQ.aW9MDCsMkIyBh_VVKs1lD5yK0ChJ0O1QjmJOR9wNW1A'
+
+GPOA=$(cygpath -u 'D:\CEDO Google Auth\backend\uploads\proposals\97369b73-dd76-492a-a41e-f1e038b49d72_gpoa_1759323811848.pdf')
+PP=$(cygpath -u 'D:\CEDO Google Auth\backend\uploads\proposals\97369b73-dd76-492a-a41e-f1e038b49d72_projectProposal_1759323811858.pdf')
+
+curl -i -X POST "http://localhost:5000/api/proposals/335caf4b-9aa6-4927-8a92-efb55b713eff/files" \
+  -H "Authorization: Bearer $JWT" \
+  -F "gpoa=@${GPOA};type=application/pdf" \
+  -F "projectProposal=@${PP};type=application/pdf"
+
+
 **File**: `backend/routes/proposals.js`
 
 #### **Before (Update Only)**:

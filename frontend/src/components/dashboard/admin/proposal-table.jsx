@@ -1,1589 +1,2018 @@
+// ProposalTable.js
 "use client"
 
-// Force dynamic rendering to prevent SSG issues
-export const dynamic = 'force-dynamic';
-
-// Utility function to safely get file count
-const getSafeFileCount = (files) => {
-  if (!files) return 0;
-  if (Array.isArray(files)) return files.length;
-  if (typeof files === 'object') return Object.keys(files).length;
-  return 0;
-};
-
-// Utility function to safely format file count for display
-const formatFileCount = (files) => {
-  const count = getSafeFileCount(files);
-  return count === 0 ? 'No files' : `${count} file${count === 1 ? '' : 's'}`;
-};
-
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Textarea } from "@/components/ui/textarea"
+import { useProposals } from "@/hooks/useProposals"
+import { cn } from "@/lib/utils"
+import { format } from "date-fns"
+import debounce from "lodash.debounce"
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
-import { getAppConfig } from "@/lib/utils";
-import { createAuthHeaders, getAuthToken } from '@/utils/auth-utils';
-import {
-  Calendar,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Building,
+  Calendar as CalendarDays,
+  Calendar as CalendarIcon,
+  Check,
   CheckCircle,
   Clock,
+  DollarSign,
   Download,
+  Edit,
   Eye,
+  FileCheck,
   FileText,
+  Filter,
   Mail,
   MapPin,
+  MessageSquare,
   MoreHorizontal,
+  Paperclip,
   Phone,
   Search,
+  Settings,
+  Star,
+  Tag,
+  Trash2,
+  User,
+  Users,
+  X,
   XCircle
-} from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+} from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useCallback, useEffect, useState } from "react"
 
+export function ProposalTable({
+  statusFilter = "all",
+  proposals = null, // Changed to null to detect if data should be fetched
+  selectedIds = [],
+  onSelectionChange,
+  onRowClick,
+  onProposalAction,
+  isLoading = false,
+  currentPage = 1,
+  pageSize = 10,
+  totalCount = 0,
+  onPageChange,
+  onPageSizeChange,
+  sortConfig,
+  onSortChange,
+  focusedProposalId,
+}) {
+  // Use internal state if no props provided, otherwise use props
+  const isInternalMode = proposals === null
 
-const statusColors = {
-  pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  approved: 'bg-green-100 text-green-800 border-green-200',
-  denied: 'bg-red-100 text-red-800 border-red-200',
-  rejected: 'bg-red-100 text-red-800 border-red-200'
-}
+  // Use the existing useProposals hook for internal mode
+  const {
+    proposals: hookProposals,
+    pagination,
+    loading: hookLoading,
+    error: hookError,
+    status: hookStatus,
+    page: hookPage,
+    limit: hookLimit,
+    search: hookSearch,
+    sort: hookSort,
+    uuid: hookUuid,
+    detailsOpen,
+    selected,
+    setStatus,
+    setPage,
+    setLimit,
+    setSearch,
+    setSort,
+    refetch,
+    openDetailsModal,
+    closeDetailsModal,
+    approve,
+    deny,
+    bulkApprove,
+    bulkDeny,
+  } = useProposals({
+    status: statusFilter,
+    page: currentPage,
+    limit: pageSize,
+  })
 
-const statusIcons = {
-  pending: Clock,
-  approved: CheckCircle,
-  denied: XCircle,
-  rejected: XCircle
-}
+  // Internal state for selection and UI
+  const [internalSelectedIds, setInternalSelectedIds] = useState([])
+  const [filters, setFilters] = useState({
+    search: "",
+    status: statusFilter,
+    type: null,
+    organizationType: null,
+    dateRange: null,
+    priority: null,
+    assignedTo: null,
+    fileCount: null,
+  })
 
-export const ProposalTable = ({ statusFilter = 'all' }) => {
-  const [proposals, setProposals] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pagination, setPagination] = useState({})
-  const [selectedProposal, setSelectedProposal] = useState(null)
-  const [showDetails, setShowDetails] = useState(false)
-  const [actionLoading, setActionLoading] = useState(false)
+  // Use hook data for internal mode, props for external mode
+  const actualProposals = isInternalMode ? hookProposals : proposals
+  const actualSelectedIds = isInternalMode ? internalSelectedIds : selectedIds
+  const actualIsLoading = isInternalMode ? hookLoading : isLoading
+  const actualCurrentPage = isInternalMode ? hookPage : currentPage
+  const actualPageSize = isInternalMode ? hookLimit : pageSize
+  const actualTotalCount = isInternalMode ? pagination?.totalCount || 0 : totalCount
+  const actualSortConfig = isInternalMode ? hookSort : sortConfig
+  const actualFocusedProposalId = isInternalMode ? hookUuid : focusedProposalId
 
-  // ✅ New state for comment dialog
-  const [showCommentDialog, setShowCommentDialog] = useState(false)
-  const [rejectionComment, setRejectionComment] = useState('')
-  const [commentLoading, setCommentLoading] = useState(false)
-
-  const { toast } = useToast()
-
-  // Create a stable toast reference to prevent infinite re-renders
-  const toastRef = useRef(toast)
-  useEffect(() => {
-    toastRef.current = toast
-  }, [toast])
-
-  // Test function to verify backend connection
-  const testBackendConnection = async () => {
-    try {
-      const backendUrl = getAppConfig().backendUrl
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('cedo_token='))
-        ?.split('=')[1];
-
-      console.log('🧪 Testing backend connection...')
-      console.log('📡 Backend URL:', backendUrl)
-      console.log('🔑 Token exists:', !!token)
-
-      const healthResponse = await fetch(`${backendUrl}/api/health`)
-      console.log('❤️ Health check:', healthResponse.status, healthResponse.statusText)
-
-      toast({
-        title: "Backend Connection Test",
-        description: "Check console for detailed results",
-        variant: "default"
-      })
-    } catch (error) {
-      console.error('❌ Backend connection test failed:', error)
-      toast({
-        title: "Connection Test Failed",
-        description: error.message,
-        variant: "destructive"
-      })
-    }
+  // Debug logging (only log when values actually change)
+  const debugInfo = {
+    isInternalMode,
+    proposalsProvided: proposals !== null,
+    proposalsCount: actualProposals?.length || 0,
+    statusFilter
   }
 
-  // ✅ Ref to track if component is mounted (prevent state updates after unmount)
-  const isMountedRef = useRef(true);
-  const isFetchingRef = useRef(false);
+  // Only log when values change to prevent spam
+  useEffect(() => {
+    console.log('🔍 ProposalTable mode check:', debugInfo)
+  }, [isInternalMode, actualProposals?.length, statusFilter])
+
+  const [expandedRows, setExpandedRows] = useState([])
+  const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  // Memoized filtered proposals for performance
-  const filteredProposals = useMemo(() => {
-    return proposals.filter(proposal => {
-      const matchesSearch = !searchTerm ||
-        proposal.organization_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        proposal.contact_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        proposal.contact_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        proposal.event_title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        proposal.proposal_status?.toLowerCase().includes(searchTerm.toLowerCase());
-
-      const matchesStatus = statusFilter === 'all' || proposal.proposal_status === statusFilter;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [proposals, searchTerm, statusFilter]);
-
-  // Simple search term state
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
-    }, 300);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [searchTerm]);
-
-  // Simplified fetch proposals function
-  const fetchProposals = useCallback(async () => {
-    if (!isMountedRef.current || isFetchingRef.current) return;
-
-    isFetchingRef.current = true;
-    setLoading(true);
-
-    try {
-      // Get authentication token from cookies
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('cedo_token='))
-        ?.split('=')[1];
-
-      if (!token) {
-        console.warn('No authentication token found for fetching proposals');
-        setLoading(false);
-        return;
-      }
-
-      // Build query parameters
-      const queryParams = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: '10',
-        ...(statusFilter && statusFilter !== 'all' && { status: statusFilter }),
-        ...(debouncedSearchTerm && { search: debouncedSearchTerm }),
-      }).toString()
-
-      const backendUrl = getAppConfig().backendUrl
-      const apiUrl = `${backendUrl}/api/admin/proposals?${queryParams}`
-      console.log('📊 Fetching proposals:', apiUrl)
-
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status} - ${response.statusText}`)
-      }
-
-      const result = await response.json();
-
-      if (!isMountedRef.current) return;
-
-      if (result.success) {
-        const rawProposals = result.proposals || []
-        const pagination = result.pagination || {}
-
-        // Normalize proposal data
-        const normalizedProposals = rawProposals.map(proposal => ({
-          ...proposal,
-          status: proposal.status || proposal.proposal_status || 'pending',
-          proposal_status: proposal.proposal_status || proposal.status || 'pending',
-          adminComments: proposal.adminComments || proposal.admin_comments || '',
-          admin_comments: proposal.admin_comments || proposal.adminComments || '',
-          eventName: proposal.eventName || proposal.event_name || proposal.event_title || '',
-          contactPerson: proposal.contactPerson || proposal.contact_person || proposal.contact_name || '',
-          contactEmail: proposal.contactEmail || proposal.contact_email || '',
-          contactPhone: proposal.contactPhone || proposal.contact_phone || '',
-          organizationType: proposal.organizationType || proposal.organization_type || '',
-          venue: proposal.venue || '',
-          startDate: proposal.startDate || proposal.start_date || proposal.event_start_date || '',
-          endDate: proposal.endDate || proposal.end_date || proposal.event_end_date || '',
-          timeStart: proposal.timeStart || proposal.time_start || proposal.event_start_time || '',
-          timeEnd: proposal.timeEnd || proposal.time_end || proposal.event_end_time || '',
-          eventType: proposal.eventType || proposal.event_type || '',
-          eventMode: proposal.eventMode || proposal.event_mode || '',
-          submittedAt: proposal.submittedAt || proposal.submitted_at || proposal.created_at || '',
-          updatedAt: proposal.updatedAt || proposal.updated_at || '',
-          hasFiles: !!(proposal.files && Object.keys(proposal.files).length > 0) ||
-            !!(proposal.gpoa_file_name || proposal.project_proposal_file_name),
-          files: {
-            ...(proposal.gpoa_file_name && {
-              gpoa: {
-                name: proposal.gpoa_file_name,
-                size: proposal.gpoa_file_size,
-                type: proposal.gpoa_file_type,
-                path: proposal.gpoa_file_path
-              }
-            }),
-            ...(proposal.project_proposal_file_name && {
-              projectProposal: {
-                name: proposal.project_proposal_file_name,
-                size: proposal.project_proposal_file_size,
-                type: proposal.project_proposal_file_type,
-                path: proposal.project_proposal_file_path
-              }
-            })
-          }
-        }))
-
-        setProposals(normalizedProposals)
-        setPagination(pagination)
-        console.log('✅ Proposals fetched successfully:', normalizedProposals.length)
-      } else {
-        console.error('❌ Error fetching proposals:', result.error)
-        if (isMountedRef.current) {
-          toastRef.current({
-            title: "Error",
-            description: result.error || "Failed to fetch proposals",
-            variant: "destructive"
-          })
-        }
-      }
-    } catch (error) {
-      console.error('❌ Fetch error:', error)
-      if (isMountedRef.current) {
-        toastRef.current({
-          title: "Error",
-          description: "Failed to connect to server. Please check if the backend is running.",
-          variant: "destructive"
-        })
-      }
-    } finally {
-      isFetchingRef.current = false;
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
-    }
-  }, [currentPage, debouncedSearchTerm, statusFilter])
-
-  // Initial fetch on component mount
-  useEffect(() => {
-    fetchProposals();
+    const checkMobile = () => setIsMobile(window.innerWidth < 768)
+    checkMobile()
+    window.addEventListener("resize", checkMobile)
+    return () => window.removeEventListener("resize", checkMobile)
   }, [])
 
-  // Effect to fetch proposals when page, filter, or debounced search term changes
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      fetchProposals();
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  }, [currentPage, debouncedSearchTerm, statusFilter])
-
-  // ✅ Enhanced proposal status update with comment support and improved error handling
-  const updateProposalStatus = async (proposalId, newStatus, adminComments = '') => {
-    if (!proposalId) {
-      toast({
-        title: "Error",
-        description: "Invalid proposal ID",
-        variant: "destructive"
-      })
-      return
+    if (actualFocusedProposalId && !expandedRows.includes(actualFocusedProposalId)) {
+      setExpandedRows((prev) => [...prev, actualFocusedProposalId])
     }
+  }, [actualFocusedProposalId])
 
-    setActionLoading(true)
-    console.log(`🔄 Updating proposal ${proposalId} status to: ${newStatus}`, { adminComments })
+  // Update status filter when prop changes
+  useEffect(() => {
+    if (isInternalMode) {
+      setStatus(statusFilter)
+    }
+    setFilters(prev => ({ ...prev, status: statusFilter }))
+  }, [statusFilter, isInternalMode, setStatus])
 
-    try {
-      const backendUrl = getAppConfig().backendUrl
-      console.log(`📡 Backend URL: ${backendUrl}`)
+  // Event handlers that work with both internal and external modes
+  const handleSelectAll = (checked) => {
+    const targetProposals = actualProposals
+    const targetOnSelectionChange = isInternalMode ? setInternalSelectedIds : onSelectionChange
+    const targetSelectedIds = actualSelectedIds
 
-      // Get authentication token from cookies
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('cedo_token='))
-        ?.split('=')[1];
-
-      if (!token) {
-        throw new Error('Authentication token not found. Please sign in again.');
-      }
-
-      // Prepare the request payload
-      const payload = {
-        status: newStatus,
-        adminComments: adminComments || null
-      }
-
-      console.log(`📤 Sending PATCH request to: ${backendUrl}/api/admin/proposals/${proposalId}/status`)
-      console.log(`📤 Payload:`, payload)
-
-      const response = await fetch(`${backendUrl}/api/admin/proposals/${proposalId}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload)
-      })
-
-      console.log(`📡 Response status: ${response.status} ${response.statusText}`)
-
-      // Handle different response scenarios
-      if (!response.ok) {
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
-        try {
-          const errorData = await response.json()
-          errorMessage = errorData.error || errorData.message || errorMessage
-          console.error('❌ Server error response:', errorData)
-        } catch (parseError) {
-          console.error('❌ Could not parse error response:', parseError)
-          const textError = await response.text()
-          console.error('❌ Raw error response:', textError)
-          errorMessage = textError || errorMessage
-        }
-        throw new Error(errorMessage)
-      }
-
-      const data = await response.json()
-      console.log('✅ Success response:', data)
-
-      if (data.success) {
-        toast({
-          title: "Success",
-          description: data.message || `Proposal ${newStatus} successfully`,
-          variant: "default"
-        })
-
-        // ✅ Update the proposals list immediately with optimistic update
-        setProposals(prevProposals =>
-          prevProposals.map(proposal =>
-            proposal.id === parseInt(proposalId) || proposal.id === proposalId
-              ? {
-                ...proposal,
-                proposal_status: newStatus,
-                status: newStatus,
-                admin_comments: adminComments,
-                adminComments: adminComments,
-                updated_at: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-              }
-              : proposal
-          )
-        )
-
-        // ✅ Update selectedProposal if it's the one being updated
-        if (selectedProposal && (selectedProposal.id === parseInt(proposalId) || selectedProposal.id === proposalId)) {
-          setSelectedProposal(prev => ({
-            ...prev,
-            proposal_status: newStatus,
-            status: newStatus,
-            admin_comments: adminComments,
-            adminComments: adminComments,
-            updated_at: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          }))
-        }
-
-        // ✅ Fetch updated proposal data to ensure consistency
-        setTimeout(() => {
-          fetchUpdatedProposalDetails(proposalId)
-          fetchProposals()
-        }, 1000)
-
-        // ✅ Close comment dialog and reset state
-        setShowCommentDialog(false)
-        setRejectionComment('')
-      } else {
-        throw new Error(data.error || data.message || 'Failed to update proposal - server returned success: false')
-      }
-    } catch (error) {
-      console.error('❌ Error updating proposal:', error)
-
-      // Enhanced error logging for debugging
-      console.error('❌ Error details:', {
-        proposalId,
-        newStatus,
-        adminComments,
-        errorMessage: error.message,
-        errorStack: error.stack
-      })
-
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update proposal. Please check the console for details.",
-        variant: "destructive"
-      })
-    } finally {
-      setActionLoading(false)
-      setCommentLoading(false)
+    if (checked) {
+      targetOnSelectionChange(targetProposals.map((p) => p.id))
+    } else {
+      targetOnSelectionChange([])
     }
   }
 
-  // ✅ Fetch updated proposal details after status change
-  const fetchUpdatedProposalDetails = async (proposalId) => {
-    try {
-      const backendUrl = getAppConfig().backendUrl
+  const handleSelectRow = (id, checked) => {
+    const targetOnSelectionChange = isInternalMode ? setInternalSelectedIds : onSelectionChange
+    const targetSelectedIds = actualSelectedIds
 
-      // Get authentication token from cookies
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('cedo_token='))
-        ?.split('=')[1];
+    if (checked) {
+      targetOnSelectionChange([...targetSelectedIds, id])
+    } else {
+      targetOnSelectionChange(targetSelectedIds.filter((selectedId) => selectedId !== id))
+    }
+  }
 
-      if (!token) {
-        console.warn('No authentication token found for fetching proposal details');
-        return;
+  const handleSort = (field) => {
+    if (isInternalMode) {
+      const currentSort = actualSortConfig || {}
+      const newDirection = currentSort.field === field && currentSort.direction === "asc" ? "desc" : "asc"
+      setSort({ field, direction: newDirection })
+    } else if (onSortChange) {
+      onSortChange(field)
+    }
+  }
+
+  const handleFiltersChange = (newFilters) => {
+    if (isInternalMode) {
+      setFilters(prev => ({ ...prev, ...newFilters }))
+      // Update hook search if search filter changes
+      if (newFilters.search !== undefined) {
+        setSearch(newFilters.search)
       }
+      setPage(1) // Reset to first page when filters change
+    }
+  }
 
-      // Try to fetch individual proposal details first
-      let response = await fetch(`${backendUrl}/api/admin/proposals/${proposalId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+  const handleClearFilters = () => {
+    if (isInternalMode) {
+      setFilters({
+        search: "",
+        status: statusFilter,
+        type: null,
+        organizationType: null,
+        dateRange: null,
+        priority: null,
+        assignedTo: null,
+        fileCount: null,
       })
+      setSearch("")
+      setPage(1)
+    }
+  }
 
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success && data.proposal) {
-          // ✅ Update the selectedProposal with fresh data including adminComments
-          setSelectedProposal(data.proposal)
-          console.log('✅ Updated proposal details with comments:', data.proposal.adminComments)
+  const handleBulkAction = async (action, comment) => {
+    if (!isInternalMode) {
+      if (onProposalAction) {
+        onProposalAction('bulk', action, comment)
+      }
+      return
+    }
+
+    try {
+      switch (action) {
+        case 'approve':
+          await bulkApprove(actualSelectedIds, comment)
+          break
+        case 'reject':
+          await bulkDeny(actualSelectedIds, comment)
+          break
+        default:
+          console.log(`Bulk action: ${action} on ${actualSelectedIds.length} proposals`, { comment })
           return
-        }
       }
-
-      // ✅ Fallback: Re-fetch all proposals and find the updated one
-      console.log('🔄 Fallback: Re-fetching all proposals to get updated data')
-      const allProposalsResponse = await fetch(`${backendUrl}/api/admin/proposals?limit=100`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-
-      if (allProposalsResponse.ok) {
-        const allData = await allProposalsResponse.json()
-        if (allData.success && allData.proposals) {
-          const updatedProposal = allData.proposals.find(p => p.id === proposalId)
-          if (updatedProposal) {
-            setSelectedProposal(updatedProposal)
-            console.log('✅ Updated proposal via fallback method:', updatedProposal.adminComments)
-          }
-        }
-      }
+      setInternalSelectedIds([])
+      // Hook will automatically refetch data
     } catch (error) {
-      console.error('❌ Error fetching updated proposal details:', error)
+      console.error('Error performing bulk action:', error)
     }
   }
 
-  // ✅ Handle rejection with comment
-  const handleRejectionWithComment = () => {
-    if (!rejectionComment.trim()) {
-      toast({
-        title: "Comment Required",
-        description: "Please provide a reason for rejecting this proposal.",
-        variant: "destructive"
-      })
+  const handleProposalAction = async (proposalId, action, comment) => {
+    if (!isInternalMode) {
+      if (onProposalAction) {
+        onProposalAction(proposalId, action, comment)
+      }
       return
     }
 
-    setCommentLoading(true)
-    updateProposalStatus(selectedProposal.id, "rejected", rejectionComment.trim())
+    try {
+      switch (action) {
+        case 'approve':
+          await approve(proposalId, comment)
+          break
+        case 'reject':
+          await deny(proposalId, comment)
+          break
+        case 'comment':
+          // Note: addProposalComment is not in the hook, would need to be added
+          console.log(`Comment action not implemented in hook yet: ${proposalId}`, { comment })
+          return
+        default:
+          console.log(`Proposal action: ${action} on proposal ${proposalId}`, { comment })
+          return
+      }
+      // Hook will automatically refetch data
+    } catch (error) {
+      console.error('Error performing proposal action:', error)
+    }
   }
 
-  // Simplified file download function
-  const downloadFile = async (proposalId, fileType) => {
-    try {
-      const backendUrl = getAppConfig().backendUrl
-      console.log(`🔍 Downloading ${fileType} for proposal ${proposalId}`)
+  const router = useRouter()
 
-      const token = getAuthToken();
-      if (!token) {
-        toast({
-          title: "Authentication Error",
-          description: "Please sign in again to download files",
-          variant: "destructive"
-        });
-        return;
-      }
+  const handleRowClick = (proposal) => {
+    console.log('🔍 handleRowClick triggered:', {
+      isInternalMode,
+      proposal,
+      proposalUuid: proposal.uuid,
+      proposalId: proposal.id,
+      hasOnRowClick: !!onRowClick
+    })
 
-      toast({
-        title: "Downloading...",
-        description: `Preparing ${fileType} file`,
-        variant: "default"
+    // Prevent navigation if clicking on interactive elements
+    if (event?.target?.closest('button, input, select, textarea, a')) {
+      console.log('🚫 Navigation prevented - clicked on interactive element')
+      return
+    }
+
+    if (isInternalMode) {
+      // Navigate to proposal detail page using UUID
+      const proposalUuid = proposal.uuid || proposal.id
+      console.log('🎯 Navigation attempt:', {
+        proposalUuid,
+        navigationUrl: `/admin-dashboard/proposals/${proposalUuid}`,
+        uuidType: typeof proposalUuid,
+        uuidLength: proposalUuid?.length
       })
 
-      const headers = createAuthHeaders({
-        'Accept': 'application/octet-stream, application/pdf, */*'
-      });
-
-      const response = await fetch(`${backendUrl}/api/admin/proposals/${proposalId}/download/${fileType}`, {
-        method: 'GET',
-        headers: headers,
-        credentials: 'include'
-      })
-
-      if (response.ok) {
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `${fileType}_proposal_${proposalId}.pdf`
-        a.click()
-        window.URL.revokeObjectURL(url)
-
-        toast({
-          title: "Download Successful",
-          description: `${fileType} file downloaded`,
-          variant: "default"
-        })
-      } else {
-        const errorData = await response.json().catch(() => ({}))
-        let errorMessage = "File not found"
-        if (response.status === 401) {
-          errorMessage = "Authentication failed. Please sign in again."
-        } else if (response.status === 404) {
-          errorMessage = "File not found or proposal doesn't exist"
-        } else if (response.status === 500) {
-          errorMessage = "Server error occurred while downloading file"
-        } else if (errorData.error) {
-          errorMessage = errorData.error
-        } else if (errorData.message) {
-          errorMessage = errorData.message
+      if (proposalUuid) {
+        try {
+          // Validate UUID format before navigation
+          const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+          if (uuidRegex.test(proposalUuid)) {
+            router.push(`/admin-dashboard/proposals/${proposalUuid}`)
+            console.log('✅ Navigation successful to:', `/admin-dashboard/proposals/${proposalUuid}`)
+          } else {
+            console.error('❌ Invalid UUID format:', proposalUuid)
+            // Fallback to ID-based navigation if UUID is invalid
+            router.push(`/admin-dashboard/proposals/${proposal.id}`)
+            console.log('🔄 Fallback navigation to ID:', proposal.id)
+          }
+        } catch (error) {
+          console.error('❌ Navigation failed:', error)
+          // Show user-friendly error message
+          alert('Failed to navigate to proposal details. Please try again.')
         }
-
-        toast({
-          title: "Download Failed",
-          description: errorMessage,
-          variant: "destructive"
-        })
+      } else {
+        console.error('❌ No UUID or ID found for proposal:', proposal)
+        alert('Unable to navigate: Proposal identifier not found.')
       }
-    } catch (error) {
-      console.error('❌ Download error:', error)
-      toast({
-        title: "Download Error",
-        description: "Failed to download file",
-        variant: "destructive"
-      })
+    } else if (onRowClick) {
+      onRowClick(proposal)
     }
   }
 
-  // Format date for display
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A'
-    try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      })
-    } catch {
-      return 'Invalid Date'
-    }
+  const toggleRowExpansion = (id) => {
+    setExpandedRows((prev) => (prev.includes(id) ? prev.filter((rowId) => rowId !== id) : [...prev, id]))
   }
 
-  // Format time for display
-  const formatTime = (timeString) => {
-    if (!timeString) return 'N/A';
-
-    try {
-      // timeString is expected to be in "HH:mm:ss" format from the database.
-      const [hours, minutes] = timeString.split(':');
-
-      let h = parseInt(hours, 10);
-      const ampm = h >= 12 ? 'PM' : 'AM';
-
-      h = h % 12;
-      h = h || 12; // Convert hour '0' to '12'
-
-      return `${h}:${minutes} ${ampm}`;
-    } catch (error) {
-      console.error('Error formatting time:', timeString, error);
-      return timeString; // Fallback to original string if something goes wrong
+  const getSortIcon = (field) => {
+    if (!actualSortConfig || actualSortConfig.field !== field) {
+      return <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
     }
-  };
+    return actualSortConfig.direction === "asc" ? (
+      <ArrowUp className="ml-2 h-4 w-4" />
+    ) : (
+      <ArrowDown className="ml-2 h-4 w-4" />
+    )
+  }
 
-  if (loading) {
+  if (actualIsLoading) {
     return (
-      <div className="@container space-y-3 sm:space-y-4">
-        {/* Optimized Loading State with Container Queries */}
-        <Card className="border-l-4 border-l-blue-500 shadow-sm">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3">
-              <div className="animate-spin rounded-full h-5 w-5 sm:h-6 sm:w-6 border-b-2 border-blue-600"></div>
-              <span className="text-sm text-gray-600">Loading proposals...</span>
-            </div>
-            {/* Container-aware skeleton cards */}
-            <div className="mt-4 space-y-2">
-              {[...Array(3)].map((_, index) => (
+      <div className="bg-card rounded-lg border">
+        <div className="p-6">
+          <div className="space-y-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-12 bg-muted animate-pulse rounded" />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const safeProposals = Array.isArray(actualProposals) ? actualProposals : []
+  const safeSelected = Array.isArray(actualSelectedIds) ? actualSelectedIds : []
+  const allSelected = safeProposals.length > 0 && safeSelected.length === safeProposals.length
+  const someSelected = safeSelected.length > 0 && safeSelected.length < safeProposals.length
+
+  // Render enhanced features when in internal mode
+  if (isInternalMode) {
+    return (
+      <div className="space-y-6">
+        {/* Enhanced Filter Bar */}
+        <FilterBar
+          filters={filters}
+          onFiltersChange={handleFiltersChange}
+          onClearFilters={handleClearFilters}
+        />
+
+        {/* Bulk Action Toolbar */}
+        <BulkActionToolbar
+          selectedCount={safeSelected.length}
+          onBulkAction={handleBulkAction}
+          onClearSelection={() => setInternalSelectedIds([])}
+        />
+
+        {/* Proposal Table */}
+        <div className="bg-card rounded-lg border">
+          {/* Desktop Table */}
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={handleSelectAll}
+                      aria-label="Select all proposals"
+                    />
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => handleSort('eventName')}
+                  >
+                    <div className="flex items-center">
+                      Event Name
+                      {getSortIcon('eventName')}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => handleSort('organization')}
+                  >
+                    <div className="flex items-center">
+                      Organization
+                      {getSortIcon('organization')}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => handleSort('contact.name')}
+                  >
+                    <div className="flex items-center">
+                      Contact
+                      {getSortIcon('contact.name')}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => handleSort('status')}
+                  >
+                    <div className="flex items-center">
+                      Status
+                      {getSortIcon('status')}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => handleSort('date')}
+                  >
+                    <div className="flex items-center">
+                      Event Date
+                      {getSortIcon('date')}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => handleSort('type')}
+                  >
+                    <div className="flex items-center">
+                      Type
+                      {getSortIcon('type')}
+                    </div>
+                  </TableHead>
+                  <TableHead className="w-12"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {safeProposals.map((proposal) => (
+                  <TableRow
+                    key={proposal.id}
+                    className={cn(
+                      "cursor-pointer hover:bg-muted/50 transition-colors",
+                      safeSelected.includes(proposal.id) && "bg-primary/5",
+                      expandedRows.includes(proposal.id) && "bg-muted/30"
+                    )}
+                    onClick={() => handleRowClick(proposal)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleRowClick(proposal);
+                      }
+                    }}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`View details for ${proposal.eventName}`}
+                  >
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={safeSelected.includes(proposal.id)}
+                        onCheckedChange={(checked) => handleSelectRow(proposal.id, checked)}
+                        aria-label={`Select ${proposal.eventName}`}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <div className="font-medium text-sm">{proposal.eventName}</div>
+                        <div className="text-xs text-muted-foreground line-clamp-1">
+                          {proposal.description || 'No description provided'}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Building className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm">{proposal.organization}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <User className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-sm font-medium">{proposal.contact?.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">{proposal.contact?.email}</span>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <StatusPill status={proposal.status} />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm">
+                          {proposal.date ? format(new Date(proposal.date), 'MMM dd, yyyy') : 'TBD'}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {proposal.type || 'Other'}
+                      </span>
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => onRowClick && onRowClick(proposal)}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onProposalAction && onProposalAction(proposal.id, 'approve')}>
+                            <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
+                            Approve
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onProposalAction && onProposalAction(proposal.id, 'reject')}>
+                            <XCircle className="mr-2 h-4 w-4 text-red-600" />
+                            Reject
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => onProposalAction && onProposalAction(proposal.id, 'edit')}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => onProposalAction && onProposalAction(proposal.id, 'delete')}
+                            className="text-red-600"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Mobile Cards */}
+          <div className="md:hidden">
+            <div className="p-4 space-y-4">
+              {safeProposals.map((proposal) => (
                 <div
-                  key={index}
-                  className="animate-pulse p-3 border rounded-lg bg-gray-50"
-                  style={{ animationDelay: `${index * 150}ms` }}
+                  key={proposal.id}
+                  className={cn(
+                    "border rounded-lg p-4 space-y-3 cursor-pointer hover:bg-muted/50 transition-colors",
+                    safeSelected.includes(proposal.id) && "bg-primary/5 border-primary/20"
+                  )}
+                  onClick={() => handleRowClick(proposal)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleRowClick(proposal);
+                    }
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`View details for ${proposal.eventName}`}
                 >
-                  <div className="flex flex-col @sm:flex-row @sm:gap-3 gap-2">
-                    <div className="h-3 bg-gray-200 rounded flex-1"></div>
-                    <div className="h-3 bg-gray-200 rounded w-20"></div>
-                    <div className="h-3 bg-gray-200 rounded w-12"></div>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={safeSelected.includes(proposal.id)}
+                        onCheckedChange={(checked) => handleSelectRow(proposal.id, checked)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <div className="space-y-1">
+                        <h3 className="font-medium text-sm">{proposal.eventName}</h3>
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {proposal.description || 'No description provided'}
+                        </p>
+                      </div>
+                    </div>
+                    <StatusPill status={proposal.status} />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="flex items-center gap-2">
+                      <Building className="w-3 h-3 text-muted-foreground" />
+                      <span className="truncate">{proposal.organization}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CalendarDays className="w-3 h-3 text-muted-foreground" />
+                      <span>{proposal.date ? format(new Date(proposal.date), 'MMM dd') : 'TBD'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <User className="w-3 h-3 text-muted-foreground" />
+                      <span className="truncate">{proposal.contact?.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Tag className="w-3 h-3 text-muted-foreground" />
+                      <span>{proposal.type || 'Other'}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Mail className="w-3 h-3" />
+                      <span className="truncate">{proposal.contact?.email}</span>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={(e) => e.stopPropagation()}>
+                          <MoreHorizontal className="h-3 w-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onRowClick && onRowClick(proposal)}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onProposalAction && onProposalAction(proposal.id, 'approve')}>
+                          <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
+                          Approve
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onProposalAction && onProposalAction(proposal.id, 'reject')}>
+                          <XCircle className="mr-2 h-4 w-4 text-red-600" />
+                          Reject
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+
+          {/* Pagination */}
+          {(actualTotalCount > actualPageSize || actualCurrentPage > 1) && (
+            <div className="flex items-center justify-between px-4 py-3 border-t">
+              <div className="text-sm text-muted-foreground">
+                Showing {Math.min((actualCurrentPage - 1) * actualPageSize + 1, actualTotalCount)} to {Math.min(actualCurrentPage * actualPageSize, actualTotalCount)} of {actualTotalCount} proposals
+              </div>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={actualPageSize.toString()}
+                  onValueChange={(value) => {
+                    const newPageSize = parseInt(value)
+                    if (isInternalMode) {
+                      setLimit(newPageSize)
+                    } else if (onPageSizeChange) {
+                      onPageSizeChange(newPageSize)
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (isInternalMode) {
+                        setPage(actualCurrentPage - 1)
+                      } else if (onPageChange) {
+                        onPageChange(actualCurrentPage - 1)
+                      }
+                    }}
+                    disabled={actualCurrentPage <= 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="px-3 py-1 text-sm">
+                    Page {actualCurrentPage} of {Math.ceil(actualTotalCount / actualPageSize)}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (isInternalMode) {
+                        setPage(actualCurrentPage + 1)
+                      } else if (onPageChange) {
+                        onPageChange(actualCurrentPage + 1)
+                      }
+                    }}
+                    disabled={actualCurrentPage >= Math.ceil(actualTotalCount / actualPageSize)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Details Drawer */}
+        {detailsOpen && selected && (
+          <div className="fixed inset-y-0 right-0 z-50 w-96">
+            <DetailsDrawer
+              proposal={selected}
+              onClose={closeDetailsModal}
+              onProposalAction={handleProposalAction}
+            />
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Original simple table for external mode
+  return (
+    <div className="bg-card rounded-lg border">
+      {/* Desktop Table */}
+      <div className="hidden md:block">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={allSelected}
+                  onCheckedChange={handleSelectAll}
+                  aria-label="Select all proposals"
+                />
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => handleSort('eventName')}
+              >
+                <div className="flex items-center">
+                  Event Name
+                  {getSortIcon('eventName')}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => handleSort('organization')}
+              >
+                <div className="flex items-center">
+                  Organization
+                  {getSortIcon('organization')}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => handleSort('contact.name')}
+              >
+                <div className="flex items-center">
+                  Contact
+                  {getSortIcon('contact.name')}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => handleSort('status')}
+              >
+                <div className="flex items-center">
+                  Status
+                  {getSortIcon('status')}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => handleSort('date')}
+              >
+                <div className="flex items-center">
+                  Event Date
+                  {getSortIcon('date')}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => handleSort('type')}
+              >
+                <div className="flex items-center">
+                  Type
+                  {getSortIcon('type')}
+                </div>
+              </TableHead>
+              <TableHead className="w-12"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {safeProposals.map((proposal) => (
+              <TableRow
+                key={proposal.id}
+                className={cn(
+                  "cursor-pointer hover:bg-muted/50 transition-colors",
+                  safeSelected.includes(proposal.id) && "bg-primary/5",
+                  expandedRows.includes(proposal.id) && "bg-muted/30"
+                )}
+                onClick={() => handleRowClick(proposal)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleRowClick(proposal);
+                  }
+                }}
+                tabIndex={0}
+                role="button"
+                aria-label={`View details for ${proposal.eventName}`}
+              >
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <Checkbox
+                    checked={safeSelected.includes(proposal.id)}
+                    onCheckedChange={(checked) => handleSelectRow(proposal.id, checked)}
+                    aria-label={`Select ${proposal.eventName}`}
+                  />
+                </TableCell>
+                <TableCell>
+                  <div className="space-y-1">
+                    <div className="font-medium text-sm">{proposal.eventName}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {proposal.description || 'No description provided'}
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <Building className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm">{proposal.organization}</span>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <User className="w-3 h-3 text-muted-foreground" />
+                      <span className="text-sm font-medium">{proposal.contact?.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-3 h-3 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">{proposal.contact?.email}</span>
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <StatusPill status={proposal.status} />
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm">
+                      {proposal.date ? format(new Date(proposal.date), 'MMM dd, yyyy') : 'TBD'}
+                    </span>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    {proposal.type || 'Other'}
+                  </span>
+                </TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleRowClick(proposal)}>
+                        <Eye className="mr-2 h-4 w-4" />
+                        View Details
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleProposalAction(proposal.id, 'approve')}>
+                        <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
+                        Approve
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleProposalAction(proposal.id, 'reject')}>
+                        <XCircle className="mr-2 h-4 w-4 text-red-600" />
+                        Reject
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => handleProposalAction(proposal.id, 'edit')}>
+                        <Edit className="mr-2 h-4 w-4" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleProposalAction(proposal.id, 'delete')}
+                        className="text-red-600"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Mobile Cards */}
+      <div className="md:hidden">
+        <div className="p-4 space-y-4">
+          {safeProposals.map((proposal) => (
+            <div
+              key={proposal.id}
+              className={cn(
+                "border rounded-lg p-4 space-y-3 cursor-pointer hover:bg-muted/50 transition-colors",
+                safeSelected.includes(proposal.id) && "bg-primary/5 border-primary/20"
+              )}
+              onClick={() => handleRowClick(proposal)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleRowClick(proposal);
+                }
+              }}
+              tabIndex={0}
+              role="button"
+              aria-label={`View details for ${proposal.eventName}`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <Checkbox
+                    checked={safeSelected.includes(proposal.id)}
+                    onCheckedChange={(checked) => handleSelectRow(proposal.id, checked)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <div className="space-y-1">
+                    <h3 className="font-medium text-sm">{proposal.eventName}</h3>
+                    <p className="text-xs text-muted-foreground line-clamp-2">
+                      {proposal.description || 'No description provided'}
+                    </p>
+                  </div>
+                </div>
+                <StatusPill status={proposal.status} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <Building className="w-3 h-3 text-muted-foreground" />
+                  <span className="truncate">{proposal.organization}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="w-3 h-3 text-muted-foreground" />
+                  <span>{proposal.date ? format(new Date(proposal.date), 'MMM dd') : 'TBD'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <User className="w-3 h-3 text-muted-foreground" />
+                  <span className="truncate">{proposal.contact?.name}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Tag className="w-3 h-3 text-muted-foreground" />
+                  <span>{proposal.type || 'Other'}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Mail className="w-3 h-3" />
+                  <span className="truncate">{proposal.contact?.email}</span>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={(e) => e.stopPropagation()}>
+                      <MoreHorizontal className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleRowClick(proposal)}>
+                      <Eye className="mr-2 h-4 w-4" />
+                      View Details
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleProposalAction(proposal.id, 'approve')}>
+                      <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
+                      Approve
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleProposalAction(proposal.id, 'reject')}>
+                      <XCircle className="mr-2 h-4 w-4 text-red-600" />
+                      Reject
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Pagination */}
+      {(actualTotalCount > actualPageSize || actualCurrentPage > 1) && (
+        <div className="flex items-center justify-between px-4 py-3 border-t">
+          <div className="text-sm text-muted-foreground">
+            Showing {Math.min((actualCurrentPage - 1) * actualPageSize + 1, actualTotalCount)} to {Math.min(actualCurrentPage * actualPageSize, actualTotalCount)} of {actualTotalCount} proposals
+          </div>
+          <div className="flex items-center gap-2">
+            <Select
+              value={actualPageSize.toString()}
+              onValueChange={(value) => {
+                const newPageSize = parseInt(value)
+                if (isInternalMode) {
+                  setInternalPageSize(newPageSize)
+                } else if (onPageSizeChange) {
+                  onPageSizeChange(newPageSize)
+                }
+              }}
+            >
+              <SelectTrigger className="w-20">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (isInternalMode) {
+                    setInternalCurrentPage(actualCurrentPage - 1)
+                  } else if (onPageChange) {
+                    onPageChange(actualCurrentPage - 1)
+                  }
+                }}
+                disabled={actualCurrentPage <= 1}
+              >
+                Previous
+              </Button>
+              <span className="px-3 py-1 text-sm">
+                Page {actualCurrentPage} of {Math.ceil(actualTotalCount / actualPageSize)}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (isInternalMode) {
+                    setInternalCurrentPage(actualCurrentPage + 1)
+                  } else if (onPageChange) {
+                    onPageChange(actualCurrentPage + 1)
+                  }
+                }}
+                disabled={actualCurrentPage >= Math.ceil(actualTotalCount / actualPageSize)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ------------------ Status Tabs ------------------ */
+
+const statusTabsConfig = {
+  all: { label: "All", color: "bg-muted text-muted-foreground" },
+  pending: { label: "Pending", color: "bg-warning/20 text-warning" },
+  approved: { label: "Approved", color: "bg-success/20 text-success" },
+  rejected: { label: "Rejected", color: "bg-destructive/20 text-destructive" },
+  draft: { label: "Drafts", color: "bg-info/20 text-info" },
+}
+
+export function StatusTabs({ activeStatus, statusCounts, onStatusChange }) {
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-2">
+      {Object.entries(statusTabsConfig).map(([status, config]) => {
+        const isActive = activeStatus === status
+        const count = statusCounts[status] || 0
+
+        return (
+          <button
+            key={status}
+            onClick={() => onStatusChange(status)}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg border transition-all whitespace-nowrap",
+              isActive
+                ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                : "bg-card text-card-foreground border-border hover:bg-accent",
+            )}
+          >
+            <span className="font-medium">{config.label}</span>
+            <Badge
+              variant="secondary"
+              className={cn("text-xs", isActive ? "bg-primary-foreground/20 text-primary-foreground" : config.color)}
+            >
+              {count}
+            </Badge>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/* ------------------ Status Pill ------------------ */
+
+const statusPillConfig = {
+  pending: {
+    label: "Pending",
+    icon: Clock,
+    className: "bg-yellow-100 text-yellow-800 border-yellow-200",
+    description: "Awaiting review",
+  },
+  approved: {
+    label: "Approved",
+    icon: Check,
+    className: "bg-green-100 text-green-800 border-green-200",
+    description: "Approved for event",
+  },
+  rejected: {
+    label: "Rejected",
+    icon: X,
+    className: "bg-red-100 text-red-800 border-red-200",
+    description: "Not approved",
+  },
+  denied: {
+    label: "Denied",
+    icon: X,
+    className: "bg-red-100 text-red-800 border-red-200",
+    description: "Not approved",
+  },
+  draft: {
+    label: "Draft",
+    icon: FileText,
+    className: "bg-blue-100 text-blue-800 border-blue-200",
+    description: "Work in progress",
+  },
+}
+
+export function StatusPill({ status, showTooltip = true }) {
+  const config = statusPillConfig[status] || {
+    label: "Unknown",
+    icon: FileText,
+    className: "bg-muted text-muted-foreground border-border",
+    description: "Unknown status",
+  }
+
+  const Icon = config.icon
+
+  return (
+    <Badge
+      className={cn("flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium border", config.className)}
+      title={showTooltip ? config.description : undefined}
+    >
+      <Icon className="w-3 h-3" />
+      {config.label}
+    </Badge>
+  )
+}
+
+/* ------------------ Filter Bar ------------------ */
+
+export function FilterBar({ filters, onFiltersChange, onClearFilters }) {
+  const [searchValue, setSearchValue] = useState(filters.search || "")
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
+
+  const debouncedSearch = useCallback(
+    debounce((value) => {
+      onFiltersChange({ ...filters, search: value })
+    }, 300),
+    [filters, onFiltersChange]
+  )
+
+  useEffect(() => {
+    debouncedSearch(searchValue)
+  }, [searchValue, debouncedSearch])
+
+  const handleSearchChange = (value) => setSearchValue(value)
+  const handleTypeFilter = (type) => onFiltersChange({ ...filters, type })
+  const handleOrgTypeFilter = (orgType) => onFiltersChange({ ...filters, organizationType: orgType })
+  const handleDateRangeChange = (range) => {
+    onFiltersChange({ ...filters, dateRange: range })
+    setIsDatePickerOpen(false)
+  }
+
+  const activeFiltersCount = [
+    filters.search,
+    filters.dateRange,
+    filters.type,
+    filters.organizationType,
+    filters.priority,
+    filters.assignedTo,
+    filters.tags?.length,
+  ].filter(Boolean).length
+
+  return (
+    <div className="flex flex-col lg:flex-row gap-4 p-4 bg-card rounded-lg border">
+      {/* Search Input */}
+      <div className="flex-1 relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          placeholder="Search by event, contact, email, organization..."
+          value={searchValue}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          className="pl-10 focus-ring"
+        />
+        {searchValue && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setSearchValue("")
+              onFiltersChange({ ...filters, search: "" })
+            }}
+            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+          >
+            <X className="w-3 h-3" />
+          </Button>
+        )}
+      </div>
+
+      {/* Filter Controls */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Date Range Filter */}
+        <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "justify-start text-left font-normal",
+                filters.dateRange && "bg-primary/10 border-primary/20"
+              )}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {filters.dateRange
+                ? `${format(filters.dateRange.from, "MMM dd")} - ${format(filters.dateRange.to, "MMM dd")}`
+                : "Date Range"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="range"
+              selected={filters.dateRange ? { from: filters.dateRange.from, to: filters.dateRange.to } : undefined}
+              onSelect={(range) => {
+                if (range?.from && range?.to) {
+                  handleDateRangeChange({ from: range.from, to: range.to })
+                } else {
+                  handleDateRangeChange(null)
+                }
+              }}
+              numberOfMonths={2}
+            />
+            <div className="p-3 border-t">
+              <Button variant="outline" size="sm" onClick={() => handleDateRangeChange(null)} className="w-full">
+                Clear Date Range
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        {/* Event Type Filter */}
+        <Select value={filters.type || "all"} onValueChange={(value) => handleTypeFilter(value || null)}>
+          <SelectTrigger className={cn("w-[140px]", filters.type && "bg-primary/10 border-primary/20")}>
+            <SelectValue placeholder="Event Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="conference">Conference</SelectItem>
+            <SelectItem value="workshop">Workshop</SelectItem>
+            <SelectItem value="seminar">Seminar</SelectItem>
+            <SelectItem value="exhibition">Exhibition</SelectItem>
+            <SelectItem value="other">Other</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* Organization Type Filter */}
+        <Select
+          value={filters.organizationType || "all"}
+          onValueChange={(value) => handleOrgTypeFilter(value || null)}
+        >
+          <SelectTrigger className={cn("w-[160px]", filters.organizationType && "bg-primary/10 border-primary/20")}>
+            <SelectValue placeholder="Organization" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Organizations</SelectItem>
+            <SelectItem value="nonprofit">Non-profit</SelectItem>
+            <SelectItem value="corporate">Corporate</SelectItem>
+            <SelectItem value="government">Government</SelectItem>
+            <SelectItem value="educational">Educational</SelectItem>
+            <SelectItem value="other">Other</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* More Filters Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm">
+              <Filter className="w-4 h-4 mr-2" />
+              More Filters
+              {activeFiltersCount > 0 && (
+                <Badge variant="secondary" className="ml-2 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                  {activeFiltersCount}
+                </Badge>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-64">
+            <div className="p-2">
+              <div className="text-xs font-medium text-muted-foreground mb-2">Priority Level</div>
+              <Select value={filters.priority || "all"} onValueChange={(value) => onFiltersChange({ ...filters, priority: value === "all" ? null : value })}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Priorities</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <DropdownMenuSeparator />
+            <div className="p-2">
+              <div className="text-xs font-medium text-muted-foreground mb-2">Assigned To</div>
+              <Select value={filters.assignedTo || "all"} onValueChange={(value) => onFiltersChange({ ...filters, assignedTo: value === "all" ? null : value })}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Assignee" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Assignees</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="reviewer">Reviewer</SelectItem>
+                  <SelectItem value="unassigned">Unassigned</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <DropdownMenuSeparator />
+            <div className="p-2">
+              <div className="text-xs font-medium text-muted-foreground mb-2">File Count</div>
+              <Select value={filters.fileCount || "all"} onValueChange={(value) => onFiltersChange({ ...filters, fileCount: value === "all" ? null : value })}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="File Count" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Any Files</SelectItem>
+                  <SelectItem value="none">No Files</SelectItem>
+                  <SelectItem value="1-3">1-3 Files</SelectItem>
+                  <SelectItem value="4-6">4-6 Files</SelectItem>
+                  <SelectItem value="7+">7+ Files</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Clear Filters */}
+        {activeFiltersCount > 0 && (
+          <Button variant="ghost" size="sm" onClick={onClearFilters}>
+            <X className="w-4 h-4 mr-2" />
+            Clear ({activeFiltersCount})
+          </Button>
+        )}
+
+        {/* Saved Views */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm">
+              Saved Views
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem>💾 Save Current View</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem>📋 Recent Proposals</DropdownMenuItem>
+            <DropdownMenuItem>⚡ High Priority</DropdownMenuItem>
+            <DropdownMenuItem>⏰ Due This Week</DropdownMenuItem>
+            <DropdownMenuItem>👤 My Assignments</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Export */}
+        <Button variant="outline" size="sm">
+          Export
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------ Details Drawer ------------------ */
+
+const mockProposal = {
+  id: "1",
+  eventName: "Tech Conference 2024",
+  organization: "TechCorp Inc.",
+  contact: {
+    name: "John Smith",
+    email: "john.smith@techcorp.com",
+  },
+  status: "pending",
+  date: "2024-03-15",
+  type: "Conference",
+  description: "Annual technology conference featuring the latest innovations in AI and machine learning.",
+  files: [
+    { id: "1", name: "proposalData.pdf", size: "2.4 MB", uploadedBy: "John Smith", uploadedAt: "2024-01-15" },
+    { id: "2", name: "budget.xlsx", size: "1.2 MB", uploadedBy: "John Smith", uploadedAt: "2024-01-15" },
+    { id: "3", name: "venue-layout.png", size: "3.1 MB", uploadedBy: "John Smith", uploadedAt: "2024-01-16" },
+  ],
+  comments: [
+    { id: "1", author: "Admin", content: "Initial review completed", timestamp: "2024-01-20", type: "system" },
+    {
+      id: "2",
+      author: "Sarah Johnson",
+      content: "Budget looks reasonable, need to verify venue availability",
+      timestamp: "2024-01-22",
+      type: "admin",
+    },
+  ],
+}
+
+export function DetailsDrawer({ proposal, onClose, onProposalAction }) {
+  const [comment, setComment] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+
+  // Use the proposal passed as prop instead of fetching
+  const proposalData = proposal || mockProposal
+
+  const handleAction = (action) => {
+    onProposalAction(proposalData.id, action, comment)
+    setComment("")
+  }
+
+  if (isLoading) {
+    return (
+      <div className="w-96 bg-card border-l border-border">
+        <div className="p-6">
+          <div className="space-y-4">
+            <div className="h-6 bg-muted animate-pulse rounded" />
+            <div className="h-4 bg-muted animate-pulse rounded w-3/4" />
+            <div className="h-4 bg-muted animate-pulse rounded w-1/2" />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!proposalData) {
+    return (
+      <div className="w-96 bg-card border-l border-border">
+        <div className="p-6 text-center text-muted-foreground">Proposal not found</div>
       </div>
     )
   }
 
   return (
-    <div className="@container w-full max-w-full">
-      {/* Optimized Search and Filters with Container Queries */}
-      <div className="space-y-3 sm:space-y-4">
-        <Card className="border-l-4 border-l-green-500 shadow-sm">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex flex-col @sm:flex-row @sm:items-center gap-3">
-              <div className="relative flex-1 min-w-0 z-20">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
-                <Input
-                  placeholder="Search by event, contact, email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-2 w-full text-sm border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 rounded-lg"
-                  aria-label="Search proposals"
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  onClick={fetchProposals}
-                  variant="outline"
-                  disabled={loading}
-                  className="@sm:min-w-[100px] px-3 py-2 border-gray-300 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 rounded-lg flex items-center justify-center"
-                  aria-label="Refresh proposals list"
-                >
-                  <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  <span className="whitespace-nowrap">Refresh</span>
-                </Button>
-                <Button
-                  onClick={testBackendConnection}
-                  variant="outline"
-                  disabled={loading}
-                  className="@sm:min-w-[100px] px-3 py-2 border-orange-300 hover:border-orange-500 hover:bg-orange-50 transition-all duration-200 rounded-lg flex items-center justify-center text-orange-600"
-                  aria-label="Test backend connection"
-                  title="Test API connection and endpoints"
-                >
-                  <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span className="whitespace-nowrap hidden @sm:inline">Test API</span>
-                  <span className="whitespace-nowrap @sm:hidden">Test</span>
-                </Button>
-              </div>
-            </div>
-            {searchTerm && (
-              <div className="mt-3 text-sm text-gray-600">
-                <span className="inline-flex items-center flex-wrap gap-1">
-                  <span>Searching:</span>
-                  <span className="font-medium text-blue-600 break-all">"{searchTerm}"</span>
-                  {filteredProposals.length !== proposals.length && (
-                    <span className="text-gray-500">({filteredProposals.length} of {proposals.length} results)</span>
-                  )}
-                </span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Container Query Optimized Proposals Table */}
-        <Card className="border-l-4 border-l-purple-500 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex flex-col @sm:flex-row @sm:items-center @sm:justify-between gap-2">
-              <span className="text-base @sm:text-lg font-bold text-gray-800">
-                Proposals ({pagination.total || 0})
-              </span>
-              <Badge variant="outline" className="w-fit px-2 py-1 text-xs">
-                Page {pagination.page || 1} of {pagination.pages || 1}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0 @sm:p-3">
-            {filteredProposals.length === 0 ? (
-              <div className="text-center py-6 @sm:py-8 px-4">
-                <div className="mx-auto w-12 h-12 @sm:w-16 @sm:h-16 bg-gray-100 rounded-full flex items-center justify-center mb-3">
-                  <FileText className="w-5 h-5 @sm:w-6 @sm:h-6 text-gray-400" />
-                </div>
-                <h3 className="text-base @sm:text-lg font-medium text-gray-700 mb-2">No proposals found</h3>
-                <p className="text-sm text-gray-500 max-w-sm mx-auto">
-                  {searchTerm ? `No proposals match "${searchTerm}"` : "There are no proposals to display"}
-                </p>
-              </div>
-            ) : (
-              <>
-                {/* Desktop Table View - Hidden on mobile */}
-                <div className="hidden @2xl:block overflow-x-auto">
-                  <Table className="min-w-full">
-                    <TableHeader>
-                      <TableRow className="bg-gray-50/80">
-                        <TableHead className="font-semibold text-gray-700 text-sm px-3 py-3">Event Name</TableHead>
-                        <TableHead className="font-semibold text-gray-700 text-sm px-3 py-3">Organization</TableHead>
-                        <TableHead className="font-semibold text-gray-700 text-sm px-3 py-3">Contact</TableHead>
-                        <TableHead className="font-semibold text-gray-700 text-sm px-3 py-3">Status</TableHead>
-                        <TableHead className="font-semibold text-gray-700 text-sm px-3 py-3">Date</TableHead>
-                        <TableHead className="font-semibold text-gray-700 text-sm px-3 py-3">Type</TableHead>
-                        <TableHead className="font-semibold text-gray-700 text-sm px-3 py-3">Files</TableHead>
-                        <TableHead className="text-right font-semibold text-gray-700 text-sm px-3 py-3">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredProposals.map((proposal) => {
-                        const StatusIcon = statusIcons[proposal.status] || Clock
-
-                        return (
-                          <TableRow key={proposal.id} className="hover:bg-gray-50/80 transition-colors duration-150 border-b border-gray-100">
-                            <TableCell className="font-medium px-3 py-3">
-                              <div className="min-w-0">
-                                <div className="font-semibold text-gray-900 truncate max-w-[180px]">{proposal.eventName}</div>
-                                <div className="text-xs text-gray-500 flex items-center mt-1">
-                                  <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
-                                  <span className="truncate">{proposal.venue}</span>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell className="px-3 py-3">
-                              <div className="min-w-0">
-                                <div className="font-medium text-gray-900 truncate max-w-[120px]">{proposal.contactPerson}</div>
-                                <div className="text-xs text-gray-500 truncate max-w-[120px]">{proposal.organizationType}</div>
-                              </div>
-                            </TableCell>
-                            <TableCell className="px-3 py-3">
-                              <div className="space-y-1 min-w-0">
-                                <div className="flex items-center text-xs">
-                                  <Mail className="h-3 w-3 mr-1 text-gray-400 flex-shrink-0" />
-                                  <span className="truncate max-w-[150px] text-blue-600">{proposal.contactEmail}</span>
-                                </div>
-                                {proposal.contactPhone && (
-                                  <div className="flex items-center text-xs text-gray-600">
-                                    <Phone className="h-3 w-3 mr-1 text-gray-400 flex-shrink-0" />
-                                    <span className="truncate">{proposal.contactPhone}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className="px-3 py-3">
-                              <Badge className={`${statusColors[proposal.status] || statusColors.pending} text-xs`}>
-                                <StatusIcon className="h-3 w-3 mr-1" />
-                                {proposal.status.charAt(0).toUpperCase() + proposal.status.slice(1)}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="px-3 py-3">
-                              <div className="space-y-1 min-w-0">
-                                <div className="flex items-center text-xs">
-                                  <Calendar className="h-3 w-3 mr-1 text-gray-400 flex-shrink-0" />
-                                  <span className="text-gray-900">{formatDate(proposal.startDate)}</span>
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  Submitted: {formatDate(proposal.submittedAt)}
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell className="px-3 py-3">
-                              <Badge variant="outline" className="text-xs whitespace-nowrap">
-                                {proposal.eventType}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="px-3 py-3">
-                              <div className="flex items-center space-x-1">
-                                {proposal.hasFiles ? (
-                                  <div className="flex items-center space-x-1">
-                                    <div className="p-1 bg-green-100 rounded-full">
-                                      <FileText className="h-3 w-3 text-green-600" />
-                                    </div>
-                                    <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                                      {formatFileCount(proposal.files) || 'Files'}
-                                    </Badge>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center space-x-1">
-                                    <div className="p-1 bg-gray-100 rounded-full">
-                                      <FileText className="h-3 w-3 text-gray-400" />
-                                    </div>
-                                    <Badge variant="outline" className="text-xs bg-gray-50 text-gray-500 border-gray-200">
-                                      No files
-                                    </Badge>
-                                  </div>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-right px-3 py-3">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-gray-100 rounded-full">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                    <span className="sr-only">Open menu</span>
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-48 shadow-lg">
-                                  <DropdownMenuItem onClick={() => {
-                                    setSelectedProposal(proposal)
-                                    setShowDetails(true)
-                                  }} className="cursor-pointer">
-                                    <Eye className="mr-2 h-4 w-4" />
-                                    View Details
-                                  </DropdownMenuItem>
-                                  {proposal.status === 'pending' && (
-                                    <>
-                                      <DropdownMenuItem
-                                        onClick={() => updateProposalStatus(proposal.id, 'approved')}
-                                        className="text-green-600 hover:text-green-700 hover:bg-green-50 cursor-pointer"
-                                      >
-                                        <CheckCircle className="mr-2 h-4 w-4" />
-                                        Approve
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem
-                                        onClick={() => {
-                                          setSelectedProposal(proposal)
-                                          setShowCommentDialog(true)
-                                        }}
-                                        className="text-red-600 hover:text-red-700 hover:bg-red-50 cursor-pointer"
-                                      >
-                                        <XCircle className="mr-2 h-4 w-4" />
-                                        Deny
-                                      </DropdownMenuItem>
-                                    </>
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                {/* Mobile/Tablet Card View - Container Query Optimized */}
-                <div className="@2xl:hidden space-y-3 p-3">
-                  {filteredProposals.map((proposal) => {
-                    const StatusIcon = statusIcons[proposal.status] || Clock
-
-                    return (
-                      <Card key={proposal.id} className="border border-gray-200 hover:shadow-md transition-all duration-200 bg-white @container">
-                        <CardContent className="p-3 @sm:p-4">
-                          <div className="space-y-3">
-                            {/* Header with event name and status */}
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <h3 className="font-semibold text-gray-900 text-sm @sm:text-base leading-tight mb-1 break-words">{proposal.eventName}</h3>
-                                <div className="flex items-center text-xs text-gray-500">
-                                  <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
-                                  <span className="truncate">{proposal.venue}</span>
-                                </div>
-                              </div>
-                              <Badge className={`${statusColors[proposal.status] || statusColors.pending} flex-shrink-0 text-xs`}>
-                                <StatusIcon className="h-3 w-3 mr-1" />
-                                {proposal.status.charAt(0).toUpperCase() + proposal.status.slice(1)}
-                              </Badge>
-                            </div>
-
-                            {/* Organization info - Container responsive grid */}
-                            <div className="border-t pt-3">
-                              <div className="grid grid-cols-1 @sm:grid-cols-2 gap-2">
-                                <div>
-                                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Contact Person</span>
-                                  <p className="text-sm font-medium text-gray-900 mt-0.5 break-words">{proposal.contactPerson}</p>
-                                  <p className="text-xs text-gray-500 break-words">{proposal.organizationType}</p>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Contact details - Flexbox layout */}
-                            <div className="space-y-2">
-                              <div className="flex items-start text-sm min-w-0">
-                                <Mail className="h-3 w-3 mr-2 text-gray-400 flex-shrink-0 mt-0.5" />
-                                <span className="truncate text-blue-600 break-all text-xs">{proposal.contactEmail}</span>
-                              </div>
-                              {proposal.contactPhone && (
-                                <div className="flex items-center text-sm text-gray-600">
-                                  <Phone className="h-3 w-3 mr-2 text-gray-400 flex-shrink-0" />
-                                  <span className="break-all text-xs">{proposal.contactPhone}</span>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Date, type, and file info - Container responsive */}
-                            <div className="flex flex-wrap items-center gap-2 text-xs">
-                              <div className="flex items-center text-gray-600">
-                                <Calendar className="h-3 w-3 mr-1" />
-                                <span>{formatDate(proposal.startDate)}</span>
-                              </div>
-                              <Badge variant="outline" className="text-xs">
-                                {proposal.eventType}
-                              </Badge>
-                              {proposal.hasFiles ? (
-                                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                                  <FileText className="h-3 w-3 mr-1" />
-                                  {formatFileCount(proposal.files) || 'Files'}
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-xs bg-gray-50 text-gray-500 border-gray-200">
-                                  <FileText className="h-3 w-3 mr-1" />
-                                  No files
-                                </Badge>
-                              )}
-                              <span className="text-gray-500 @sm:block hidden">
-                                Submitted: {formatDate(proposal.submittedAt)}
-                              </span>
-                            </div>
-
-                            {/* Actions - Responsive button layout */}
-                            <div className="border-t pt-3 flex flex-wrap gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedProposal(proposal)
-                                  setShowDetails(true)
-                                }}
-                                className="flex-1 @sm:flex-none min-w-fit text-xs px-3 py-2"
-                              >
-                                <Eye className="h-3 w-3 mr-1" />
-                                View Details
-                              </Button>
-                              {proposal.status === 'pending' && (
-                                <>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => updateProposalStatus(proposal.id, 'approved')}
-                                    className="text-green-600 border-green-200 hover:bg-green-50 text-xs px-3 py-2"
-                                  >
-                                    <CheckCircle className="h-3 w-3 mr-1" />
-                                    Approve
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                      setSelectedProposal(proposal)
-                                      setShowCommentDialog(true)
-                                    }}
-                                    className="text-red-600 border-red-200 hover:bg-red-50 text-xs px-3 py-2"
-                                  >
-                                    <XCircle className="h-3 w-3 mr-1" />
-                                    Deny
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )
-                  })}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Optimized Responsive Pagination */}
-        {pagination.pages > 1 && (
-          <Card className="border-l-4 border-l-orange-500 shadow-sm">
-            <CardContent className="p-3 @sm:p-4">
-              <div className="flex flex-col @sm:flex-row @sm:items-center @sm:justify-between gap-3">
-                <div className="text-sm text-gray-600 text-center @sm:text-left">
-                  <span className="font-medium">
-                    Showing {filteredProposals.length} of {pagination.total} proposals
-                  </span>
-                  {searchTerm && filteredProposals.length !== proposals.length && (
-                    <span className="block text-xs text-gray-500 mt-1">
-                      ({proposals.length - filteredProposals.length} filtered out)
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center justify-center gap-2 @sm:justify-end">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={!pagination.hasPrev || loading}
-                    className="px-3 py-2 text-xs border-gray-300 hover:border-blue-500 hover:bg-blue-50 disabled:opacity-50 transition-all duration-200"
-                    aria-label="Go to previous page"
-                  >
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                    <span className="hidden @sm:inline">Previous</span>
-                  </Button>
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs font-medium px-2 py-1 bg-blue-50 text-blue-700 rounded border">
-                      {pagination.page}
-                    </span>
-                    <span className="text-xs text-gray-500">of</span>
-                    <span className="text-xs font-medium">{pagination.pages}</span>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(prev => prev + 1)}
-                    disabled={!pagination.hasNext || loading}
-                    className="px-3 py-2 text-xs border-gray-300 hover:border-blue-500 hover:bg-blue-50 disabled:opacity-50 transition-all duration-200"
-                    aria-label="Go to next page"
-                  >
-                    <span className="hidden @sm:inline">Next</span>
-                    <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </Button>
-                </div>
-              </div>
-              {/* Simplified page jump for larger pagination */}
-              {pagination.pages > 5 && (
-                <div className="mt-3 pt-3 border-t border-gray-200">
-                  <div className="flex flex-col @sm:flex-row items-center gap-2">
-                    <label className="text-sm font-medium text-gray-700">Jump to page:</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min="1"
-                        max={pagination.pages}
-                        className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
-                        placeholder={pagination.page}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            const page = parseInt(e.target.value);
-                            if (page >= 1 && page <= pagination.pages) {
-                              setCurrentPage(page);
-                              e.target.value = '';
-                            }
-                          }
-                        }}
-                      />
-                      <span className="text-sm text-gray-500">Press Enter</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+    <div className="w-96 bg-card border-l border-border flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-border">
+        <h2 className="text-lg font-semibold text-pretty">Proposal Details</h2>
+        <Button variant="ghost" size="sm" onClick={onClose}>
+          <X className="w-4 h-4" />
+        </Button>
       </div>
 
-      {/* Optimized Responsive Proposal Details Modal - Following UX Best Practices */}
-      <Dialog open={showDetails} onOpenChange={setShowDetails}>
-        <DialogContent className="
-          fixed left-[50%] top-[50%] z-50 
-          grid w-[95vw] h-[90vh] 
-          sm:w-[85vw] sm:h-[80vh] sm:max-w-[700px] sm:max-h-[600px]
-          md:w-[75vw] md:h-[75vh] md:max-w-[800px] md:max-h-[650px]
-          lg:w-[65vw] lg:h-[70vh] lg:max-w-[900px] lg:max-h-[700px]
-          xl:w-[55vw] xl:h-[65vh] xl:max-w-[1000px] xl:max-h-[750px]
-          translate-x-[-50%] translate-y-[-50%]
-          border-0 sm:border
-          bg-white shadow-none sm:shadow-xl
-          rounded-none sm:rounded-lg
-          overflow-hidden
-          duration-300 ease-out
-          data-[state=open]:animate-in data-[state=closed]:animate-out
-          data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0
-          data-[state=closed]:zoom-out-[0.98] data-[state=open]:zoom-in-[0.98]
-          data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%]
-          data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]
-          focus:outline-none
-        ">
-          {/* Optimized Modal Header - Clean and Accessible */}
-          <DialogHeader className="
-            sticky top-0 z-10 
-            bg-white border-b border-gray-200
-            p-4 sm:p-5 lg:p-6
-            shadow-sm
-          ">
-            <div className="flex flex-col space-y-3 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
-              <div className="flex-1 min-w-0 pr-4">
-                <DialogTitle className="
-                  text-lg sm:text-xl lg:text-2xl 
-                  font-bold text-gray-900 
-                  leading-tight mb-2
-                  break-words
-                ">
-                  {selectedProposal?.eventName || 'Proposal Details'}
-                </DialogTitle>
-                <DialogDescription className="text-sm sm:text-base text-gray-600">
-                  Review and manage this proposal submission
-                </DialogDescription>
+      <ScrollArea className="flex-1">
+        <div className="p-6 space-y-6">
+          {/* Event Info */}
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold mb-2">{proposalData.eventName}</h3>
+              <div className="flex items-center gap-2 mb-3">
+                <StatusPill status={proposalData.status} />
+                <Badge variant="outline">{proposalData.type}</Badge>
               </div>
-              {selectedProposal && (
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3 flex-shrink-0">
-                  <Badge
-                    className={`px-3 py-1 text-xs sm:text-sm font-medium rounded-full ${statusColors[selectedProposal.status] || statusColors.pending}`}
-                  >
-                    {selectedProposal.status?.charAt(0).toUpperCase() + selectedProposal.status?.slice(1)}
-                  </Badge>
-                  <div className="text-xs sm:text-sm text-gray-500 font-mono bg-gray-100 px-2 py-1 rounded">
-                    ID: {selectedProposal.id}
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {proposalData.description || 'No description provided for this event proposalData.'}
+              </p>
+            </div>
+
+            {/* Contact Information */}
+            <div className="space-y-3">
+              <h4 className="font-medium text-sm">Contact Information</h4>
+              <div className="grid gap-3">
+                <div className="flex items-center gap-3">
+                  <User className="w-4 h-4 text-muted-foreground" />
+                  <div>
+                    <div className="font-medium text-sm">{proposalData.contact?.name}</div>
+                    <div className="text-xs text-muted-foreground">Primary Contact</div>
                   </div>
-                  {/* Enhanced Close Button - Always Visible on Mobile */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowDetails(false)}
-                    className="sm:hidden text-xs px-3 py-2 border-gray-300 hover:bg-gray-50"
-                  >
-                    ✕ Close
-                  </Button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Mail className="w-4 h-4 text-muted-foreground" />
+                  <div>
+                    <div className="text-sm">{proposalData.contact?.email}</div>
+                    <div className="text-xs text-muted-foreground">Email Address</div>
+                  </div>
+                </div>
+                {proposalData.contact?.phone && (
+                  <div className="flex items-center gap-3">
+                    <Phone className="w-4 h-4 text-muted-foreground" />
+                    <div>
+                      <div className="text-sm">{proposalData.contact.phone}</div>
+                      <div className="text-xs text-muted-foreground">Phone Number</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Organization Details */}
+            <div className="space-y-3">
+              <h4 className="font-medium text-sm">Organization</h4>
+              <div className="flex items-center gap-3">
+                <Building className="w-4 h-4 text-muted-foreground" />
+                <div>
+                  <div className="font-medium text-sm">{proposalData.organization}</div>
+                  <div className="text-xs text-muted-foreground">Organization Name</div>
+                </div>
+              </div>
+              {proposalData.organizationType && (
+                <div className="flex items-center gap-3">
+                  <Tag className="w-4 h-4 text-muted-foreground" />
+                  <div>
+                    <div className="text-sm capitalize">{proposalData.organizationType}</div>
+                    <div className="text-xs text-muted-foreground">Organization Type</div>
+                  </div>
                 </div>
               )}
             </div>
-          </DialogHeader>
 
-          {selectedProposal && (
-            <div className="
-              flex-1 overflow-y-auto 
-              p-4 sm:p-5 lg:p-6
-              bg-gray-50
-            ">
-              <div className="
-                space-y-4 sm:space-y-5 lg:space-y-6 
-                max-w-none
-                pb-4
-              ">
-                {/* Event Information Card - Optimized UX Design */}
-                <Card className="bg-white shadow-md border-l-4 border-l-blue-500 hover:shadow-lg transition-shadow duration-200">
-                  <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100/50 rounded-t-lg p-4 sm:p-5">
-                    <CardTitle className="text-lg sm:text-xl font-semibold text-blue-900 flex items-center">
-                      <Calendar className="h-5 w-5 mr-3 flex-shrink-0" />
-                      Event Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4 sm:p-5">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                      <div className="space-y-4">
-                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                          <Label className="text-xs sm:text-sm font-semibold text-gray-700 uppercase tracking-wide block mb-2">
-                            Event Name
-                          </Label>
-                          <p className="text-base sm:text-lg font-medium text-gray-900 break-words leading-relaxed">
-                            {selectedProposal.eventName}
-                          </p>
-                        </div>
-                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                          <Label className="text-xs sm:text-sm font-semibold text-gray-700 uppercase tracking-wide block mb-2">
-                            Venue
-                          </Label>
-                          <p className="text-sm sm:text-base text-gray-900 flex items-start break-words">
-                            <MapPin className="h-4 w-4 mr-2 text-gray-500 flex-shrink-0 mt-0.5" />
-                            <span>{selectedProposal.venue}</span>
-                          </p>
-                        </div>
-                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                          <Label className="text-xs sm:text-sm font-semibold text-gray-700 uppercase tracking-wide block mb-2">
-                            Start Date & Time
-                          </Label>
-                          <p className="text-sm sm:text-base text-gray-900 break-words font-medium">
-                            {formatDate(selectedProposal.startDate)} at {formatTime(selectedProposal.timeStart)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="space-y-4">
-                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                          <Label className="text-xs sm:text-sm font-semibold text-gray-700 uppercase tracking-wide block mb-2">
-                            Event Type
-                          </Label>
-                          <p className="text-sm sm:text-base text-gray-900 break-words">{selectedProposal.eventType}</p>
-                        </div>
-                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                          <Label className="text-xs sm:text-sm font-semibold text-gray-700 uppercase tracking-wide block mb-2">
-                            Event Mode
-                          </Label>
-                          <p className="text-sm sm:text-base text-gray-900 break-words">{selectedProposal.eventMode}</p>
-                        </div>
-                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                          <Label className="text-xs sm:text-sm font-semibold text-gray-700 uppercase tracking-wide block mb-2">
-                            End Date & Time
-                          </Label>
-                          <p className="text-sm sm:text-base text-gray-900 break-words font-medium">
-                            {formatDate(selectedProposal.endDate)} at {formatTime(selectedProposal.timeEnd)}
-                          </p>
-                        </div>
-                      </div>
+            {/* Event Details */}
+            <div className="space-y-3">
+              <h4 className="font-medium text-sm">Event Details</h4>
+              <div className="grid gap-3">
+                <div className="flex items-center gap-3">
+                  <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                  <div>
+                    <div className="text-sm">
+                      {proposalData.date ? format(new Date(proposalData.date), 'EEEE, MMMM dd, yyyy') : 'Date TBD'}
                     </div>
-                  </CardContent>
-                </Card>
-
-                {/* Organization Information Card - Optimized UX Design */}
-                <Card className="bg-white shadow-md border-l-4 border-l-green-500 hover:shadow-lg transition-shadow duration-200">
-                  <CardHeader className="bg-gradient-to-r from-green-50 to-green-100/50 rounded-t-lg p-4 sm:p-5">
-                    <CardTitle className="text-lg sm:text-xl font-semibold text-green-900 flex items-center">
-                      <Mail className="h-5 w-5 mr-3 flex-shrink-0" />
-                      Organization Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4 sm:p-5">
-                    <div className="grid grid-cols-1 @lg:grid-cols-2 gap-4 @sm:gap-6">
-                      <div className="space-y-3 @sm:space-y-4">
-                        <div className="bg-gray-50 p-3 @sm:p-4 rounded-lg">
-                          <Label className="text-xs @sm:text-sm font-semibold text-gray-700 uppercase tracking-wide">
-                            Contact Person
-                          </Label>
-                          <p className="mt-2 text-base @sm:text-lg font-medium text-gray-900 break-words">{selectedProposal.contactPerson}</p>
-                        </div>
-                        <div className="bg-gray-50 p-3 @sm:p-4 rounded-lg">
-                          <Label className="text-xs @sm:text-sm font-semibold text-gray-700 uppercase tracking-wide">
-                            Email Address
-                          </Label>
-                          <p className="mt-2 text-sm @sm:text-base text-gray-900 flex items-start break-all">
-                            <Mail className="h-4 w-4 mr-2 text-gray-500 flex-shrink-0 mt-0.5" />
-                            <span className="text-blue-600">{selectedProposal.contactEmail}</span>
-                          </p>
-                        </div>
-                      </div>
-                      <div className="space-y-3 @sm:space-y-4">
-                        <div className="bg-gray-50 p-3 @sm:p-4 rounded-lg">
-                          <Label className="text-xs @sm:text-sm font-semibold text-gray-700 uppercase tracking-wide">
-                            Organization Type
-                          </Label>
-                          <p className="mt-2 text-sm @sm:text-base text-gray-900 break-words">{selectedProposal.organizationType}</p>
-                        </div>
-                        <div className="bg-gray-50 p-3 @sm:p-4 rounded-lg">
-                          <Label className="text-xs @sm:text-sm font-semibold text-gray-700 uppercase tracking-wide">
-                            Phone Number
-                          </Label>
-                          <p className="mt-2 text-sm @sm:text-base text-gray-900 flex items-start break-all">
-                            <Phone className="h-4 w-4 mr-2 text-gray-500 flex-shrink-0 mt-0.5" />
-                            <span>{selectedProposal.contactPhone}</span>
-                          </p>
-                        </div>
-                      </div>
+                    <div className="text-xs text-muted-foreground">Event Date</div>
+                  </div>
+                </div>
+                {proposalData.location && (
+                  <div className="flex items-center gap-3">
+                    <MapPin className="w-4 h-4 text-muted-foreground" />
+                    <div>
+                      <div className="text-sm">{proposalData.location}</div>
+                      <div className="text-xs text-muted-foreground">Venue/Location</div>
                     </div>
-                  </CardContent>
-                </Card>
-
-                {/* Files & Documents Card - Always Visible with Enhanced UX */}
-                <Card className="shadow-sm border-l-4 border-l-purple-500">
-                  <CardHeader className="bg-gradient-to-r from-purple-50 to-purple-100/50 rounded-t-lg p-4 @sm:p-6">
-                    <CardTitle className="text-lg @sm:text-xl font-semibold text-purple-900 flex items-center justify-between">
-                      <div className="flex items-center">
-                        <FileText className="h-4 w-4 @sm:h-5 @sm:w-5 mr-2" />
-                        Files & Documents
-                      </div>
-                      <Badge
-                        variant={selectedProposal.hasFiles ? "default" : "secondary"}
-                        className="text-xs"
-                      >
-                        {formatFileCount(selectedProposal.files) || 'Files'}
-                      </Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4 @sm:p-6">
-                    {selectedProposal.hasFiles && selectedProposal.files && getSafeFileCount(selectedProposal.files) > 0 ? (
-                      // Show actual files when they exist
-                      <div className="grid grid-cols-1 @md:grid-cols-2 gap-3 @sm:gap-4">
-                        {Object.entries(selectedProposal.files).map(([fileType, fileInfo]) => (
-                          <div
-                            key={fileType}
-                            className="flex items-center justify-between p-3 @sm:p-4 border-2 border-dashed border-green-200 bg-green-50/30 rounded-lg hover:border-green-300 hover:bg-green-50/50 transition-all duration-200"
-                          >
-                            <div className="flex items-center space-x-3 min-w-0 flex-1">
-                              <div className="p-2 bg-green-100 rounded-lg flex-shrink-0">
-                                <FileText className="h-4 w-4 @sm:h-6 @sm:w-6 text-green-600" />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="font-semibold text-gray-900 text-sm @sm:text-base break-words">
-                                  {fileType === "gpoa" ? "General Plan of Action" :
-                                    fileType === "projectProposal" ? "Project Proposal" :
-                                      fileType === "accomplishmentReport" ? "Accomplishment Report" :
-                                        fileType.charAt(0).toUpperCase() + fileType.slice(1)}
-                                </p>
-                                <p className="text-xs @sm:text-sm text-gray-500">
-                                  {fileInfo.name || 'PDF Document'}
-                                  {fileInfo.source && (
-                                    <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
-                                      {fileInfo.source}
-                                    </span>
-                                  )}
-                                </p>
-                              </div>
-                            </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => downloadFile(selectedProposal.id, fileType)}
-                              className="hover:bg-green-50 hover:border-green-300 hover:text-green-700 transition-colors flex-shrink-0 ml-2"
-                            >
-                              <Download className="h-3 w-3 @sm:h-4 @sm:w-4 mr-1 @sm:mr-2" />
-                              <span className="hidden @sm:inline">Download</span>
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      // Show empty state when no files exist
-                      <div className="text-center py-6 @sm:py-8">
-                        <div className="mx-auto w-16 h-16 @sm:w-20 @sm:h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                          <FileText className="w-6 h-6 @sm:w-8 @sm:h-8 text-gray-400" />
-                        </div>
-                        <h3 className="text-base @sm:text-lg font-medium text-gray-700 mb-2">No Files Attached</h3>
-                        <p className="text-sm text-gray-500 max-w-sm mx-auto mb-4">
-                          This proposal doesn't have any documents attached yet. Required documents typically include:
-                        </p>
-                        <div className="grid grid-cols-1 @sm:grid-cols-2 gap-3 max-w-md mx-auto text-left">
-                          <div className="flex items-center p-3 bg-gray-50 rounded-lg border">
-                            <div className="p-1.5 bg-gray-200 rounded flex-shrink-0 mr-3">
-                              <FileText className="h-3 w-3 text-gray-600" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-gray-700">General Plan of Action</p>
-                              <p className="text-xs text-gray-500">GPOA Document</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center p-3 bg-gray-50 rounded-lg border">
-                            <div className="p-1.5 bg-gray-200 rounded flex-shrink-0 mr-3">
-                              <FileText className="h-3 w-3 text-gray-600" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-gray-700">Project Proposal</p>
-                              <p className="text-xs text-gray-500">Detailed proposal</p>
-                            </div>
-                          </div>
-                        </div>
-                        {selectedProposal.status === 'pending' && (
-                          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                            <p className="text-sm text-yellow-800">
-                              <strong>Note:</strong> This proposal is pending review. Documents may be uploaded later or might be stored in a different system.
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* File Upload Information */}
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                      <div className="flex items-start space-x-3">
-                        <div className="p-1.5 bg-blue-100 rounded-full flex-shrink-0">
-                          <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-xs @sm:text-sm font-medium text-gray-700 mb-1">File Upload Information</p>
-                          <p className="text-xs text-gray-500 leading-relaxed">
-                            Files can be uploaded during the proposal submission process.
-                            Supported formats: PDF, DOC, DOCX. Maximum size: 10MB per file.
-                            {selectedProposal.hasFiles ? ' Files are stored securely and can be downloaded by authorized users.' : ' No files have been uploaded for this proposal yet.'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Admin Actions Card - Enhanced Responsive Design */}
-                {selectedProposal.status === "pending" && (
-                  <Card className="shadow-sm border-l-4 border-l-orange-500">
-                    <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-100/50 rounded-t-lg p-4 @sm:p-6">
-                      <CardTitle className="text-lg @sm:text-xl font-semibold text-orange-900 flex items-center">
-                        <CheckCircle className="h-4 w-4 @sm:h-5 @sm:w-5 mr-2" />
-                        Administrative Actions
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 @sm:p-6">
-                      <div className="flex flex-col @sm:flex-row gap-3 @sm:gap-4">
-                        <Button
-                          onClick={() => updateProposalStatus(selectedProposal.id, "approved")}
-                          disabled={actionLoading}
-                          className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2.5 @sm:py-3 text-sm @sm:text-base font-medium"
-                          size="lg"
-                        >
-                          <CheckCircle className="h-4 w-4 @sm:h-5 @sm:w-5 mr-2" />
-                          {actionLoading ? "Processing..." : "Approve Proposal"}
-                        </Button>
-                        <Button
-                          onClick={() => setShowCommentDialog(true)}
-                          disabled={actionLoading}
-                          variant="destructive"
-                          className="flex-1 py-2.5 @sm:py-3 text-sm @sm:text-base font-medium"
-                          size="lg"
-                        >
-                          <XCircle className="h-4 w-4 @sm:h-5 @sm:w-5 mr-2" />
-                          {actionLoading ? "Processing..." : "Deny Proposal"}
-                        </Button>
-                      </div>
-                      <div className="mt-4 p-3 @sm:p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <p className="text-xs @sm:text-sm text-yellow-800">
-                          <strong>Note:</strong> Once you approve or deny this proposal, the decision cannot be easily
-                          reversed. Please review all information carefully before taking action.
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  </div>
                 )}
-
-                {/* Admin Comments Card - Enhanced Responsive Design */}
-                {selectedProposal.adminComments && (
-                  <Card className="shadow-sm border-l-4 border-l-gray-500">
-                    <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 rounded-t-lg p-4 @sm:p-6">
-                      <CardTitle className="text-lg @sm:text-xl font-semibold text-gray-900 flex items-center">
-                        <FileText className="h-4 w-4 @sm:h-5 @sm:w-5 mr-2" />
-                        Admin Comments
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 @sm:p-6">
-                      <div className="bg-gray-50 p-3 @sm:p-4 rounded-lg border-l-4 border-l-gray-400">
-                        <p className="text-gray-800 leading-relaxed text-sm @sm:text-base break-words">{selectedProposal.adminComments}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
+                {proposalData.expectedAttendees && (
+                  <div className="flex items-center gap-3">
+                    <Users className="w-4 h-4 text-muted-foreground" />
+                    <div>
+                      <div className="text-sm">{proposalData.expectedAttendees} attendees</div>
+                      <div className="text-xs text-muted-foreground">Expected Attendance</div>
+                    </div>
+                  </div>
+                )}
+                {proposalData.budget && (
+                  <div className="flex items-center gap-3">
+                    <DollarSign className="w-4 h-4 text-muted-foreground" />
+                    <div>
+                      <div className="text-sm">${proposalData.budget.toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">Estimated Budget</div>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
-      {/* ✅ Rejection Comment Dialog - Enhanced UX */}
-      <Dialog open={showCommentDialog} onOpenChange={setShowCommentDialog}>
-        <DialogContent className="
-           w-full max-w-md sm:max-w-lg md:max-w-xl 
-           mx-auto mt-20 sm:mt-24
-           bg-white rounded-lg shadow-xl
-           border border-gray-200
-           p-0 overflow-hidden
-           max-h-[80vh] sm:max-h-[70vh]
-         ">
-          <DialogHeader className="
-             bg-gradient-to-r from-red-50 to-red-100/50 
-             p-4 sm:p-6 border-b border-red-200
-           ">
-            <DialogTitle className="
-               text-lg sm:text-xl font-bold text-red-900 
-               flex items-center
-             ">
-              <XCircle className="h-5 w-5 mr-3 text-red-600" />
-              Reject Proposal
-            </DialogTitle>
-            <DialogDescription className="text-sm text-red-700 mt-2">
-              Provide a reason for rejecting: <strong>{selectedProposal?.eventName}</strong>
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="p-4 sm:p-6 space-y-4">
-            {/* Proposal Summary */}
-            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-              <div className="text-sm text-gray-600 space-y-1">
-                <p><strong>Event:</strong> {selectedProposal?.eventName}</p>
-                <p><strong>Contact:</strong> {selectedProposal?.contactPerson}</p>
-                <p><strong>Organization:</strong> {selectedProposal?.organizationType}</p>
-                <p><strong>Date:</strong> {formatDate(selectedProposal?.startDate)}</p>
-              </div>
-            </div>
-
-            {/* Comment Input */}
-            <div className="space-y-2">
-              <Label htmlFor="rejection-comment" className="text-sm font-semibold text-gray-700">
-                Rejection Reason <span className="text-red-500">*</span>
-              </Label>
-              <Textarea
-                id="rejection-comment"
-                value={rejectionComment}
-                onChange={(e) => setRejectionComment(e.target.value)}
-                placeholder="Please provide a detailed reason for rejecting this proposal. This comment will be stored in both MySQL and MongoDB databases and linked to the proposal ID."
-                className="min-h-[120px] resize-none border-gray-300 focus:border-red-500 focus:ring-red-200"
-                maxLength={500}
-              />
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>Required field</span>
-                <span>{rejectionComment.length}/500</span>
-              </div>
-            </div>
-
-            {/* Warning Notice */}
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-              <div className="flex items-start space-x-2">
-                <svg className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                <div className="text-xs text-yellow-800">
-                  <p className="font-semibold">Important:</p>
-                  <p>This rejection will be saved instantly to both MySQL and MongoDB databases. The decision cannot be easily reversed.</p>
+            {/* Files */}
+            {proposalData.files && proposalData.files.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm">Attached Files</h4>
+                <div className="space-y-2">
+                  {proposalData.files.map((file) => (
+                    <div key={file.id} className="flex items-center gap-3 p-3 border rounded-lg">
+                      <Paperclip className="w-4 h-4 text-muted-foreground" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{file.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {file.size} • Uploaded by {file.uploadedBy} on {format(new Date(file.uploadedAt), 'MMM dd, yyyy')}
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="sm">
+                        <Download className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 pt-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowCommentDialog(false)
-                  setRejectionComment('')
-                }}
-                disabled={commentLoading}
-                className="flex-1 border-gray-300 hover:bg-gray-50"
-              >
-                Cancel
+            {/* Comments */}
+            {proposalData.comments && proposalData.comments.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm">Comments & Notes</h4>
+                <div className="space-y-3">
+                  {proposalData.comments.map((comment) => (
+                    <div key={comment.id} className="p-3 border rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <MessageSquare className="w-4 h-4 text-muted-foreground" />
+                        <span className="font-medium text-sm">{comment.author}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {format(new Date(comment.timestamp), 'MMM dd, yyyy')}
+                        </span>
+                        <Badge variant="secondary" className="text-xs">
+                          {comment.type}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{comment.content}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </ScrollArea>
+
+      {/* Action Buttons */}
+      <div className="p-4 border-t border-border space-y-3">
+        <div className="flex gap-2">
+          <Button
+            onClick={() => handleAction('approve')}
+            className="flex-1"
+            disabled={proposalData.status === 'approved'}
+          >
+            <CheckCircle className="w-4 h-4 mr-2" />
+            {proposalData.status === 'approved' ? 'Approved' : 'Approve'}
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => handleAction('reject')}
+            className="flex-1"
+            disabled={proposalData.status === 'rejected'}
+          >
+            <XCircle className="w-4 h-4 mr-2" />
+            {proposalData.status === 'rejected' ? 'Rejected' : 'Reject'}
+          </Button>
+        </div>
+
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1">
+            <Edit className="w-4 h-4 mr-2" />
+            Edit
+          </Button>
+          <Button variant="outline" className="flex-1">
+            <Download className="w-4 h-4 mr-2" />
+            Export
+          </Button>
+        </div>
+
+        {/* Comment Input */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Add Comment</label>
+          <Textarea
+            placeholder="Add a comment or note..."
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            className="min-h-[80px]"
+          />
+          <Button
+            onClick={() => handleAction('comment')}
+            disabled={!comment.trim()}
+            size="sm"
+            className="w-full"
+          >
+            <MessageSquare className="w-4 h-4 mr-2" />
+            Add Comment
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------ Bulk Action Toolbar ------------------ */
+
+export function BulkActionToolbar({ selectedCount, onBulkAction, onClearSelection }) {
+  const [comment, setComment] = useState("")
+  const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false)
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false)
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
+  const [exportFormat, setExportFormat] = useState("csv")
+
+  const handleBulkAction = (action) => {
+    onBulkAction(action, comment)
+    setComment("")
+    setIsApproveDialogOpen(false)
+    setIsRejectDialogOpen(false)
+  }
+
+  const handleExport = () => {
+    // Export functionality would be implemented here
+    console.log(`Exporting ${selectedCount} proposals as ${exportFormat}`)
+    setIsExportDialogOpen(false)
+  }
+
+  if (selectedCount === 0) return null
+
+  return (
+    <>
+      <div className="flex items-center justify-between p-4 bg-primary/10 border border-primary/20 rounded-lg">
+        <div className="flex items-center gap-3">
+          <Badge variant="secondary" className="bg-primary/20 text-primary">
+            {selectedCount} selected
+          </Badge>
+          <span className="text-sm text-muted-foreground">
+            {selectedCount} proposal{selectedCount !== 1 ? "s" : ""} selected
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Approve Dialog */}
+          <Dialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="default" size="sm">
+                <CheckCircle className="w-4 h-4 mr-2" />
+                Approve
               </Button>
-              <Button
-                onClick={handleRejectionWithComment}
-                disabled={commentLoading || !rejectionComment.trim()}
-                variant="destructive"
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium"
-              >
-                {commentLoading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Submit Rejection
-                  </>
-                )}
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Approve {selectedCount} Proposal{selectedCount !== 1 ? "s" : ""}</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to approve {selectedCount} proposal{selectedCount !== 1 ? "s" : ""}? This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium">Approval Comment (Optional)</label>
+                  <Textarea
+                    placeholder="Add a comment for the approval..."
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsApproveDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={() => handleBulkAction('approve')}>
+                  Approve {selectedCount} Proposal{selectedCount !== 1 ? "s" : ""}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Reject Dialog */}
+          <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="destructive" size="sm">
+                <XCircle className="w-4 h-4 mr-2" />
+                Reject
               </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Reject {selectedCount} Proposal{selectedCount !== 1 ? "s" : ""}</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to reject {selectedCount} proposal{selectedCount !== 1 ? "s" : ""}? Please provide a reason for rejection.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium">Rejection Reason (Required)</label>
+                  <Textarea
+                    placeholder="Please provide a reason for rejection..."
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    className="mt-1"
+                    required
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsRejectDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => handleBulkAction('reject')}
+                  disabled={!comment.trim()}
+                >
+                  Reject {selectedCount} Proposal{selectedCount !== 1 ? "s" : ""}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Export Dialog */}
+          <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Download className="w-4 h-4 mr-2" />
+                Export
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Export {selectedCount} Proposal{selectedCount !== 1 ? "s" : ""}</DialogTitle>
+                <DialogDescription>
+                  Choose the format for exporting the selected proposals.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium">Export Format</label>
+                  <Select value={exportFormat} onValueChange={setExportFormat}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="csv">CSV</SelectItem>
+                      <SelectItem value="excel">Excel (.xlsx)</SelectItem>
+                      <SelectItem value="pdf">PDF Report</SelectItem>
+                      <SelectItem value="json">JSON</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  The export will include: Event name, organization, contact info, status, date, type, and description.
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsExportDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleExport}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export {selectedCount} Proposal{selectedCount !== 1 ? "s" : ""}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Additional Actions */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Settings className="w-4 h-4 mr-2" />
+                More Actions
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onBulkAction('assign')}>
+                <User className="w-4 h-4 mr-2" />
+                Assign to Reviewer
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onBulkAction('priority')}>
+                <Star className="w-4 h-4 mr-2" />
+                Set Priority
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onBulkAction('tag')}>
+                <Tag className="w-4 h-4 mr-2" />
+                Add Tags
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onBulkAction('archive')}>
+                <FileCheck className="w-4 h-4 mr-2" />
+                Archive
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => onBulkAction('delete')}
+                className="text-red-600"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Clear Selection */}
+          <Button variant="ghost" size="sm" onClick={onClearSelection}>
+            <X className="w-4 h-4 mr-2" />
+            Clear
+          </Button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+/* ------------------ Additional Utility Components ------------------ */
+
+// Quick Stats Component
+export function ProposalStats({ stats }) {
+  const statsConfig = {
+    total: { label: "Total", color: "bg-blue-500", icon: FileText },
+    pending: { label: "Pending", color: "bg-yellow-500", icon: Clock },
+    approved: { label: "Approved", color: "bg-green-500", icon: CheckCircle },
+    rejected: { label: "Rejected", color: "bg-red-500", icon: XCircle },
+  }
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      {Object.entries(statsConfig).map(([key, config]) => {
+        const Icon = config.icon
+        const value = stats[key] || 0
+        return (
+          <div key={key} className="bg-card border rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">{config.label}</p>
+                <p className="text-2xl font-bold">{value}</p>
+              </div>
+              <div className={cn("p-2 rounded-full", config.color)}>
+                <Icon className="w-4 h-4 text-white" />
+              </div>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        )
+      })}
+    </div>
+  )
+}
+
+// Search Suggestions Component
+export function SearchSuggestions({ suggestions = [], onSuggestionClick, isVisible = false }) {
+  if (!isVisible || suggestions.length === 0) return null
+
+  return (
+    <div className="absolute top-full left-0 right-0 bg-card border border-border rounded-md shadow-lg z-50 mt-1 max-h-60 overflow-y-auto">
+      {suggestions.map((suggestion, index) => (
+        <button
+          key={index}
+          onClick={() => onSuggestionClick(suggestion)}
+          className="w-full text-left px-4 py-2 hover:bg-muted/50 text-sm flex items-center gap-2"
+        >
+          <Search className="w-3 h-3 text-muted-foreground" />
+          <span>{suggestion}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// View Mode Toggle Component
+export function ViewModeToggle({ currentView, onViewChange }) {
+  const views = [
+    { key: 'table', label: 'Table View', icon: FileText },
+    { key: 'cards', label: 'Card View', icon: Calendar },
+    { key: 'timeline', label: 'Timeline View', icon: Clock },
+  ]
+
+  return (
+    <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
+      {views.map((view) => {
+        const Icon = view.icon
+        return (
+          <Button
+            key={view.key}
+            variant={currentView === view.key ? "default" : "ghost"}
+            size="sm"
+            onClick={() => onViewChange(view.key)}
+            className="h-8 px-3"
+          >
+            <Icon className="w-4 h-4 mr-2" />
+            <span className="hidden sm:inline">{view.label}</span>
+          </Button>
+        )
+      })}
+    </div>
+  )
+}
+
+// Quick Filters Component
+export function QuickFilters({ onFilterApply }) {
+  const quickFilters = [
+    { label: "Due This Week", filter: { dateRange: "week" } },
+    { label: "High Priority", filter: { priority: "high" } },
+    { label: "No Files", filter: { fileCount: "none" } },
+    { label: "My Assignments", filter: { assignedTo: "me" } },
+    { label: "Overdue", filter: { overdue: true } },
+  ]
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {quickFilters.map((quickFilter) => (
+        <Button
+          key={quickFilter.label}
+          variant="outline"
+          size="sm"
+          onClick={() => onFilterApply(quickFilter.filter)}
+          className="text-xs"
+        >
+          {quickFilter.label}
+        </Button>
+      ))}
     </div>
   )
 }

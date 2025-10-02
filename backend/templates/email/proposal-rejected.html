@@ -1,0 +1,52 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Proposal Not Approved - CEDO</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #dc2626; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background: #fef2f2; }
+        .footer { padding: 20px; text-align: center; color: #666; font-size: 14px; }
+        .button { display: inline-block; padding: 12px 24px; background: #2563eb; color: white; text-decoration: none; border-radius: 6px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>❌ Proposal Not Approved</h1>
+        </div>
+        <div class="content">
+            <h2>Hello {{userName}},</h2>
+            <p>Unfortunately, your proposal "<strong>{{eventName}}</strong>" was not approved by the CEDO team.</p>
+            
+            <h3>📋 Proposal Details:</h3>
+            <ul>
+                <li><strong>Event Name:</strong> {{eventName}}</li>
+                <li><strong>Event Date:</strong> {{eventDate}}</li>
+                <li><strong>Event Venue:</strong> {{eventVenue}}</li>
+                <li><strong>Proposal ID:</strong> {{proposalId}}</li>
+                <li><strong>Reviewed:</strong> {{reviewDate}}</li>
+            </ul>
+            
+            <h3>💬 Feedback:</h3>
+            <div style="background: #f3f4f6; padding: 15px; border-radius: 6px; margin: 15px 0;">
+                {{adminComments}}
+            </div>
+            
+            <h3>🔄 Next Steps:</h3>
+            <p>You can review the feedback above and make the necessary changes to your proposal before resubmitting.</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{{editUrl}}" class="button">Edit & Resubmit Proposal</a>
+            </div>
+        </div>
+        <div class="footer">
+            <p>Best regards,<br>The CEDO Team</p>
+            <p><small>This is an automated message. Please do not reply to this email.</small></p>
+        </div>
+    </div>
+</body>
+</html>

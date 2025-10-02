@@ -13,12 +13,16 @@ const BackButton = ({
     variant = 'ghost',
     size = 'default',
     className = '',
+    customAction,
+    showHomeButton,
     ...props
 }) => {
     const router = useRouter();
 
     const handleClick = () => {
-        if (onClick) {
+        if (customAction) {
+            customAction();
+        } else if (onClick) {
             onClick();
         } else {
             router.back();

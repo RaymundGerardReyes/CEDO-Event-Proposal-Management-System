@@ -7,6 +7,9 @@
 
 "use client";
 
+import { useAuth } from '@/contexts/auth-context';
+import { useEmail } from '@/hooks/useEmail';
+import { notificationService } from '@/services/notification-service.js';
 import { saveProposal, submitProposalForReview, uploadProposalFiles } from '@/services/proposal-service.js';
 import {
     AlertCircle,
@@ -25,12 +28,16 @@ import { useEventForm } from '../contexts/EventFormContext';
 export default function StepProgram({ methods, onNext, onPrevious, isLastStep, onApproved }) {
     const { watch } = useFormContext();
     const { eventUuid, getShortUuid, getFormAge } = useEventForm();
+    const { user } = useAuth(); // Get authenticated user from Google OAuth
     const watchedValues = watch();
 
     // State for form submission
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitStatus, setSubmitStatus] = useState(null); // 'success', 'error', null
     const [submitMessage, setSubmitMessage] = useState('');
+
+    // Email functionality
+    const { sendProposalSubmitted, isLoading: isEmailLoading } = useEmail();
 
     // Format date for display
     const formatDate = (dateString) => {
@@ -159,8 +166,84 @@ export default function StepProgram({ methods, onNext, onPrevious, isLastStep, o
 
             if (result.success) {
                 setSubmitStatus('success');
-                setSubmitMessage('Proposal submitted successfully! You will receive a confirmation email shortly.');
+                setSubmitMessage('Proposal submitted successfully! You will receive a confirmation email and notification shortly.');
                 console.log('✅ Proposal submitted successfully:', result.data);
+
+                // Create in-app notification for the user about proposal submission (separate from email)
+                try {
+                    console.log('🔔 Creating in-app notification for proposal submission...');
+
+                    // Get user ID from the authenticated user or use a default
+                    const userId = user?.id || 2; // Use authenticated user ID or default
+
+                    await notificationService.createProposalSubmittedNotification({
+                        recipientId: userId,
+                        proposalId: result.data?.id || eventUuid,
+                        proposalUuid: eventUuid,
+                        eventName: watchedValues.eventName,
+                        contactPerson: watchedValues.contactPerson,
+                        organizationName: watchedValues.organizationName
+                    });
+
+                    console.log('✅ In-app proposal submission notification created for user');
+                } catch (notificationError) {
+                    console.warn('⚠️ Failed to create in-app proposal submission notification:', notificationError.message);
+                    // Don't fail the entire process if notification creation fails
+                }
+
+                // Create in-app notification for admin about new proposal submission (separate from email)
+                try {
+                    console.log('🔔 Creating in-app admin notification for new proposal...');
+
+                    await notificationService.createAdminNotificationForNewProposal({
+                        proposalId: result.data?.id || eventUuid,
+                        proposalUuid: eventUuid,
+                        eventName: watchedValues.eventName,
+                        contactPerson: watchedValues.contactPerson,
+                        organizationName: watchedValues.organizationName
+                    });
+
+                    console.log('✅ In-app admin notification created for new proposal');
+                } catch (adminNotificationError) {
+                    console.warn('⚠️ Failed to create in-app admin notification:', adminNotificationError.message);
+                    // Don't fail the entire process if admin notification creation fails
+                }
+
+                // Send proposal submitted notification email to authenticated user (logs to email_smtp_logs)
+                try {
+                    console.log('📧 Sending proposal submitted notification email to authenticated user...');
+                    console.log('📧 User email from Google OAuth:', user?.email);
+                    console.log('📧 User name from Google OAuth:', user?.name);
+
+                    await sendProposalSubmitted({
+                        userEmail: user?.email || watchedValues.contactEmail, // Use Google OAuth email, fallback to form email
+                        userName: user?.name || watchedValues.contactPerson, // Use Google OAuth name, fallback to form name
+                        proposalData: {
+                            event_name: watchedValues.eventName,
+                            event_start_date: watchedValues.startDate,
+                            event_venue: watchedValues.venue,
+                            uuid: eventUuid,
+                            id: eventUuid,
+                            contact_email: watchedValues.contactEmail, // Include form contact email for reference
+                            contact_person: watchedValues.contactPerson // Include form contact person for reference
+                        }
+                    });
+                    console.log('✅ Proposal submitted notification email sent to:', user?.email || watchedValues.contactEmail);
+                    console.log('📧 Email logged in email_smtp_logs table');
+                } catch (emailError) {
+                    console.warn('⚠️ Failed to send proposal submitted notification email:', emailError.message);
+                    // Don't fail the entire process if email fails
+                }
+
+                // 🔄 Trigger notifications refresh in header immediately (no full page reload required)
+                try {
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new CustomEvent('notifications:refresh'));
+                        console.log('🔄 Dispatched notifications:refresh event');
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Failed to dispatch notifications refresh event:', e.message);
+                }
 
                 // Navigate to pending step after successful submission
                 setTimeout(() => {

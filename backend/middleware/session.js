@@ -64,11 +64,30 @@ const sessionManager = {
     if (!action) return logger.warn('Missing action in logAccess');
 
     try {
+      // ✅ FIX: Map action to allowed action_type values
+      const actionTypeMap = {
+        'email_login': 'LOGIN',
+        'google_login': 'LOGIN',
+        'google_oauth': 'LOGIN',
+        'logout': 'LOGOUT',
+        'create': 'CREATE',
+        'update': 'UPDATE',
+        'delete': 'DELETE',
+        'approve': 'APPROVE',
+        'reject': 'REJECT',
+        'view': 'VIEW',
+        'export': 'EXPORT'
+      };
+
+      const actionType = actionTypeMap[action] || 'LOGIN'; // Default to LOGIN for unknown actions
+
       // ✅ FIX: Use audit_logs table with correct structure from PostgreSQL schema
       await query(
         'INSERT INTO audit_logs (user_id, action_type, table_name, record_id, ip_address, user_agent, created_at) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)',
-        [userId, action, 'users', userId, null, null]
+        [userId, actionType, 'users', userId, null, null]
       );
+
+      console.log(`📋 Audit log: User ${userId} performed ${action} (mapped to ${actionType})`);
     } catch (e) {
       logger.error('Failed to log access:', e.message);
     }

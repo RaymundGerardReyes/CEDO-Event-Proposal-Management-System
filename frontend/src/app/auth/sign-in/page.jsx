@@ -27,6 +27,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { getInternalApi, ROLES, useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useRememberMe } from "@/hooks/use-remember-me";
+import { generateDebugReport, quickDiagnostic } from "@/lib/config-debugger";
 import { getAppConfig, loadConfig } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from 'framer-motion';
@@ -198,13 +199,10 @@ function SignInContent() {
 
     async function initializeConfig() {
       try {
-        // Add timeout to prevent hanging requests
-        const configPromise = loadConfig();
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Config load timeout')), 5000)
-        );
+        console.log('[reCAPTCHA] Initializing configuration...');
 
-        await Promise.race([configPromise, timeoutPromise]);
+        // Use enhanced loadConfig with retry logic
+        await loadConfig(3); // 3 retries
 
         if (!isMounted) return; // Component unmounted, don't update state
 
@@ -230,6 +228,28 @@ function SignInContent() {
         if (!isMounted) return;
 
         console.error('[reCAPTCHA] Config fetch failed:', error.message);
+
+        // Enhanced error handling with specific error types
+        if (error.message.includes('Failed to fetch')) {
+          console.error('[reCAPTCHA] Network error - backend may not be running');
+          // Run quick diagnostic
+          const diagnostic = quickDiagnostic();
+          console.log('[reCAPTCHA] Quick diagnostic:', diagnostic);
+        } else if (error.message.includes('timeout')) {
+          console.error('[reCAPTCHA] Request timeout - backend is slow to respond');
+        } else if (error.message.includes('CORS')) {
+          console.error('[reCAPTCHA] CORS error - check backend configuration');
+        }
+
+        // Generate comprehensive debug report in development
+        if (process.env.NODE_ENV === 'development') {
+          try {
+            const debugReport = await generateDebugReport();
+            console.log('[reCAPTCHA] Debug report:', debugReport);
+          } catch (debugError) {
+            console.error('[reCAPTCHA] Debug report failed:', debugError);
+          }
+        }
 
         // Fallback to environment variables
         const key = process.env.RECAPTCHA_SITE_KEY || process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
