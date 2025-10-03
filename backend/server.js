@@ -119,10 +119,16 @@ app.set('trust proxy', 1)
 // On Render, use the PORT environment variable, otherwise use 5000
 const PORT = process.env.NODE_ENV === 'test' ? 0 : (process.env.PORT || 5000); // Use random port for tests
 
-// Force PORT to 10000 for Render if not set or if it's 1000
-if (process.env.RENDER === 'true' && (!process.env.PORT || process.env.PORT === '1000')) {
-  process.env.PORT = '10000';
-  console.log('🔧 Render detected: Setting PORT to 10000');
+// On Render when running multiple processes in a single service, avoid binding
+// the same assigned PORT twice. If a PORT is provided (likely used by frontend),
+// shift this backend to a different internal port to prevent EADDRINUSE.
+if (process.env.RENDER === 'true') {
+  const assignedPort = Number(process.env.PORT || 0);
+  if (assignedPort > 0) {
+    const shiftedPort = assignedPort + 1;
+    process.env.PORT = String(shiftedPort);
+    console.log(`🔧 Render detected: Frontend likely using ${assignedPort}, backend shifting to ${shiftedPort}`);
+  }
 }
 
 // ==============================

@@ -22,6 +22,13 @@
  */
 
 const { pool, query } = require('../config/database-postgresql-only');
+// getDb is used in some branches; import defensively
+let getDb;
+try {
+  ({ getDb } = require('../config/database-mongodb'));
+} catch (_) {
+  getDb = async () => { throw new Error('MongoDB not configured'); };
+}
 // =============================================
 // SHARED UTILITY FUNCTIONS
 // =============================================
@@ -154,37 +161,37 @@ const ensureProposalConsistency = async (organizationId) => {
 
     const orgName = await getOrganizationName(organizationId);
 
-    // Check postgresql proposals
-    const [postgresqlProposals] = await pool.query(
+    // Check PostgreSQL proposals
+    const [pgProposals] = await pool.query(
       'SELECT id, uuid, proposal_status, organization_name FROM proposals WHERE user_id = ?',
       [organizationId]
     );
 
-    // Check postgresql proposals (if available)
-    let postgresqlProposals = [];
+    // Check MongoDB proposals (if available)
+    let mongoProposals = [];
     try {
       const db = await getDb();
-      postgresqlProposals = await db.collection('proposals').find({ submitter: organizationId.toString() }).toArray();
+      mongoProposals = await db.collection('proposals').find({ submitter: organizationId.toString() }).toArray();
     } catch (postgresqlError) {
       console.warn('⚠️ SYNC: postgresql not available for consistency check');
     }
 
     const consistency = {
       organizationName: orgName,
-      postgresqlProposalCount: postgresqlProposals.length,
-      postgresqlProposalCount: postgresqlProposals.length,
+      pgProposalCount: pgProposals.length,
+      mongoProposalCount: mongoProposals.length,
       consistent: true,
       recommendations: []
     };
 
     // Check for inconsistencies
-    if (postgresqlProposals.length !== postgresqlProposals.length) {
+    if (pgProposals.length !== mongoProposals.length) {
       consistency.consistent = false;
       consistency.recommendations.push('Proposal count mismatch between databases');
     }
 
     // Check organization name consistency
-    const inconsistentProposals = postgresqlProposals.filter(p => p.organization_name !== orgName);
+    const inconsistentProposals = pgProposals.filter(p => p.organization_name !== orgName);
     if (inconsistentProposals.length > 0) {
       consistency.consistent = false;
       consistency.recommendations.push(`${inconsistentProposals.length} proposals have inconsistent organization names`);
@@ -217,21 +224,21 @@ const ensureProposalConsistency = async (organizationId) => {
  * @param {string|number} proposalId - Proposal ID
  * @returns {Promise<Object>} Sync result
  */
-const syncpostgresqlTopostgresql = async (proposalId) => {
+const syncPostgresToMongo = async (proposalId) => {
   try {
     logSyncOperation('postgresql to postgresql sync started', { proposalId });
 
-    // Get postgresql proposal data
-    const [postgresqlProposals] = await pool.query(
+    // Get PostgreSQL proposal data
+    const [pgProposals] = await pool.query(
       'SELECT * FROM proposals WHERE id = ?',
       [proposalId]
     );
 
-    if (postgresqlProposals.length === 0) {
+    if (pgProposals.length === 0) {
       throw new Error('Proposal not found in postgresql');
     }
 
-    const postgresqlData = postgresqlProposals[0];
+    const postgresqlData = pgProposals[0];
 
     // Get postgresql database
     const db = await getDb();
@@ -303,7 +310,7 @@ const syncpostgresqlTopostgresql = async (proposalId) => {
  * @param {Array} proposalIds - Array of proposal IDs
  * @returns {Promise<Object>} Batch sync result
  */
-const batchSyncpostgresqlTopostgresql = async (proposalIds) => {
+const batchSyncPostgresToMongo = async (proposalIds) => {
   try {
     logSyncOperation('Batch postgresql to postgresql sync started', {
       proposalCount: proposalIds.length
@@ -314,7 +321,7 @@ const batchSyncpostgresqlTopostgresql = async (proposalIds) => {
 
     for (const proposalId of proposalIds) {
       try {
-        const result = await syncpostgresqlTopostgresql(proposalId);
+        const result = await syncPostgresToMongo(proposalId);
         results.push(result);
       } catch (error) {
         errors.push({
@@ -352,7 +359,7 @@ const batchSyncpostgresqlTopostgresql = async (proposalIds) => {
  * @param {string|number} proposalId - Proposal ID
  * @returns {Promise<Object>} Sync result
  */
-const syncpostgresqlTopostgresql = async (proposalId) => {
+const syncMongoToPostgres = async (proposalId) => {
   try {
     logSyncOperation('postgresql to postgresql sync started', { proposalId });
 
@@ -367,12 +374,12 @@ const syncpostgresqlTopostgresql = async (proposalId) => {
     }
 
     // Check if postgresql record exists
-    const [postgresqlProposals] = await pool.query(
+    const [pgCheck] = await pool.query(
       'SELECT id FROM proposals WHERE id = ?',
       [proposalId]
     );
 
-    if (postgresqlProposals.length > 0) {
+    if (pgCheck.length > 0) {
       // Update existing record
       const updateFields = [];
       const updateValues = [];
@@ -481,7 +488,7 @@ const bidirectionalSync = async (proposalId) => {
     logSyncOperation('Bidirectional sync started', { proposalId });
 
     // Get data from both databases
-    const [postgresqlProposals] = await pool.query(
+    const [pgProposals] = await pool.query(
       'SELECT * FROM proposals WHERE id = ?',
       [proposalId]
     );
@@ -489,16 +496,15 @@ const bidirectionalSync = async (proposalId) => {
     const db = await getDb();
     const collection = db.collection('proposals');
     const postgresqlData = await collection.findOne({ proposalId: proposalId.toString() });
-
-    const postgresqlData = postgresqlProposals[0] || null;
+    const pgData = pgProposals[0] || null;
 
     // Compare data structures
-    const comparison = compareDataStructures(postgresqlData || {}, postgresqlData || {});
+    const comparison = compareDataStructures(pgData || {}, postgresqlData || {});
 
     const syncResult = {
       proposalId: proposalId,
-      postgresqlExists: !!postgresqlData,
-      postgresqlExists: !!postgresqlData,
+      pgExists: !!pgData,
+      mongoExists: !!postgresqlData,
       hasDifferences: comparison.hasDifferences,
       differences: comparison.differences,
       syncOperations: []
@@ -506,17 +512,17 @@ const bidirectionalSync = async (proposalId) => {
 
     // Sync based on differences
     if (comparison.hasDifferences) {
-      if (postgresqlData && postgresqlData) {
+      if (pgData && postgresqlData) {
         // Both exist, resolve conflicts
-        const conflictResolution = await resolveDataConflicts(proposalId, postgresqlData, postgresqlData);
+        const conflictResolution = await resolveDataConflicts(proposalId, pgData, postgresqlData);
         syncResult.conflictResolution = conflictResolution;
-      } else if (postgresqlData && !postgresqlData) {
+      } else if (postgresqlData && !pgData) {
         // Only postgresql exists, sync to postgresql
-        const postgresqlResult = await syncpostgresqlTopostgresql(proposalId);
+        const postgresqlResult = await syncMongoToPostgres(proposalId);
         syncResult.syncOperations.push(postgresqlResult);
-      } else if (!postgresqlData && postgresqlData) {
+      } else if (!postgresqlData && pgData) {
         // Only postgresql exists, sync to postgresql
-        const postgresqlResult = await syncpostgresqlTopostgresql(proposalId);
+        const postgresqlResult = await syncMongoToPostgres(proposalId);
         syncResult.syncOperations.push(postgresqlResult);
       }
     }
@@ -545,11 +551,11 @@ const bidirectionalSync = async (proposalId) => {
  * @param {Object} postgresqlData - postgresql data
  * @returns {Promise<Object>} Conflict resolution result
  */
-const resolveDataConflicts = async (proposalId, postgresqlData, postgresqlData) => {
+const resolveDataConflicts = async (proposalId, pgData, mongoData) => {
   try {
     logSyncOperation('Resolving data conflicts', { proposalId });
 
-    const comparison = compareDataStructures(postgresqlData, postgresqlData);
+    const comparison = compareDataStructures(pgData, mongoData);
     const resolution = {
       proposalId: proposalId,
       conflicts: comparison.differences,
@@ -559,8 +565,8 @@ const resolveDataConflicts = async (proposalId, postgresqlData, postgresqlData) 
 
     // Apply resolution strategy (postgresql wins by default)
     for (const conflict of comparison.differences) {
-      const postgresqlValue = conflict.postgresqlValue;
-      const postgresqlValue = conflict.postgresqlValue;
+      const pgValue = conflict.postgresqlValue;
+      const mongoValue = conflict.postgresqlValue;
 
       // Update postgresql with postgresql value
       const db = await getDb();
@@ -570,7 +576,7 @@ const resolveDataConflicts = async (proposalId, postgresqlData, postgresqlData) 
         { proposalId: proposalId.toString() },
         {
           $set: {
-            [conflict.field]: postgresqlValue,
+            [conflict.field]: pgValue,
             lastConflictResolution: generateSyncTimestamp()
           }
         }
@@ -578,8 +584,8 @@ const resolveDataConflicts = async (proposalId, postgresqlData, postgresqlData) 
 
       resolution.resolvedFields.push({
         field: conflict.field,
-        oldValue: postgresqlValue,
-        newValue: postgresqlValue
+        oldValue: mongoValue,
+        newValue: pgValue
       });
     }
 
@@ -611,7 +617,7 @@ const validateSyncIntegrity = async (proposalId) => {
     logSyncOperation('Validating sync integrity', { proposalId });
 
     // Get data from both databases
-    const [postgresqlProposals] = await pool.query(
+    const [pgProposals] = await pool.query(
       'SELECT * FROM proposals WHERE id = ?',
       [proposalId]
     );
@@ -619,20 +625,19 @@ const validateSyncIntegrity = async (proposalId) => {
     const db = await getDb();
     const collection = db.collection('proposals');
     const postgresqlData = await collection.findOne({ proposalId: proposalId.toString() });
-
-    const postgresqlData = postgresqlProposals[0] || null;
+    const pgData = pgProposals[0] || null;
 
     const validation = {
       proposalId: proposalId,
-      postgresqlExists: !!postgresqlData,
-      postgresqlExists: !!postgresqlData,
+      pgExists: !!pgData,
+      mongoExists: !!postgresqlData,
       dataConsistent: false,
       differences: [],
       validationPassed: false
     };
 
-    if (postgresqlData && postgresqlData) {
-      const comparison = compareDataStructures(postgresqlData, postgresqlData);
+    if (pgData && postgresqlData) {
+      const comparison = compareDataStructures(pgData, postgresqlData);
       validation.dataConsistent = !comparison.hasDifferences;
       validation.differences = comparison.differences;
       validation.validationPassed = comparison.hasDifferences === false;
@@ -640,7 +645,7 @@ const validateSyncIntegrity = async (proposalId) => {
       validation.validationPassed = false;
       validation.differences = [{
         field: 'existence',
-        postgresqlValue: !!postgresqlData,
+        postgresqlValue: !!pgData,
         postgresqlValue: !!postgresqlData
       }];
     }
@@ -664,12 +669,12 @@ const validateSyncIntegrity = async (proposalId) => {
 // =============================================
 
 module.exports = {
-  // postgresql to postgresql Sync
-  syncpostgresqlTopostgresql,
-  batchSyncpostgresqlTopostgresql,
+  // Postgres -> Mongo Sync
+  syncPostgresToMongo,
+  batchSyncPostgresToMongo,
 
-  // postgresql to postgresql Sync
-  syncpostgresqlTopostgresql,
+  // Mongo -> Postgres Sync
+  syncMongoToPostgres,
 
   // Bidirectional Sync
   bidirectionalSync,
@@ -685,4 +690,4 @@ module.exports = {
   logSyncOperation,
   getOrganizationName,
   ensureProposalConsistency
-}; 
+};

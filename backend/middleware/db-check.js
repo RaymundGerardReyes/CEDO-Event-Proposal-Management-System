@@ -280,6 +280,25 @@ async function ensureTablesExist() {
             // Continue with other tables
         }
 
+        // Ensure Postgres enum values exist for roles
+        try {
+            await query(`DO $$
+            BEGIN
+              IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_enum e ON t.oid = e.enumtypid WHERE t.typname = 'role_type' AND e.enumlabel = 'head_admin') THEN
+                ALTER TYPE role_type ADD VALUE 'head_admin';
+              END IF;
+              IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_enum e ON t.oid = e.enumtypid WHERE t.typname = 'role_type' AND e.enumlabel = 'manager') THEN
+                ALTER TYPE role_type ADD VALUE 'manager';
+              END IF;
+              IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_enum e ON t.oid = e.enumtypid WHERE t.typname = 'role_type' AND e.enumlabel = 'reviewer') THEN
+                ALTER TYPE role_type ADD VALUE 'reviewer';
+              END IF;
+            END$$;`);
+            console.log('✅ Ensured role_type enum has required values');
+        } catch (err) {
+            console.warn('⚠️  Skipped enum extension (role_type may not exist or values already present):', err.message);
+        }
+
         try {
             await createReviewsTable();
         } catch (err) {
