@@ -15,6 +15,7 @@
     "debug:backend-wait": "cd backend && node --inspect=9229 --inspect-brk server.js",
     "debug:frontend-only": "cd frontend && npm run dev:debug",
     "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
+    "start:single": "cd frontend && npm run start",
     "start:frontend": "cd frontend && npm run start",
     "start:backend": "cd backend && npm run start",
     "build": "npm run install:all && npm run build:frontend && npm run build:backend",
@@ -36,10 +37,9 @@
     "health:backend": "cd backend && npm run health",
     "health:frontend": "curl -f http://localhost:3000 || echo 'Frontend not running'"
   },
-  "devDependencies": {
-    "concurrently": "^8.2.2"
-  },
+  "devDependencies": {},
   "dependencies": {
+    "concurrently": "^8.2.2",
     "@sentry/browser": "^9.40.0",
     "@sentry/tracing": "^7.120.3"
   },
